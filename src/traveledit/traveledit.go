@@ -416,7 +416,6 @@ func runShellCommand(id string, cmdString string, cwd string, w http.ResponseWri
 	// add the cwd so the client can remember it
 	cmdString = "cd " + cwd + ";\n" + cmdString + ";\necho ''; pwd"
 
-	log.Printf("the command we want is: %s", cmdString)
 	cmd := exec.Command("bash", "-c", cmdString)
 	var f *File
 	if ID == 0 {
@@ -457,7 +456,6 @@ func runShellCommand(id string, cmdString string, cwd string, w http.ResponseWri
 		workspaceMu.Unlock()
 	}
 
-	log.Printf("the combined output of the command is: %s", string(ret))
 	if ID == 0 {
 		w.Header().Set("X-ID", strconv.Itoa(f.ID))
 	}
@@ -813,7 +811,6 @@ func main() {
 			logAndErr(w, "could not marshal: %v", err)
 			return
 		}
-		log.Printf("size of view payload: %d", len(b))
 		w.Write(b)
 		// json.NewEncoder(w).Encode(renderCommands)
 	})
@@ -826,11 +823,9 @@ func main() {
 		}
 
 		fhs := r.MultipartForm.File["thefiles"]
-		log.Printf("There are %d files", len(fhs))
 		for _, fh := range fhs {
 			var bytesWritten int64
 			var newF *os.File
-			log.Printf("a file! %s", fh.Filename)
 			f, err := fh.Open()
 			if err != nil {
 				logAndErr(w, "file upload error: %v", err)
@@ -912,7 +907,6 @@ func main() {
 		for {
 			if indexStr != "" {
 				if indexStr == "new" {
-					log.Println("========= ok doing a new one")
 					workspace = &Workspace{Name: "workspace " + strconv.Itoa(len(workspaces)+1)}
 					workspaces = append(workspaces, workspace)
 					addFile("", "directory", "/")
@@ -1011,7 +1005,6 @@ func main() {
 				}
 			}
 			workspaceCond.Wait()
-			// log.Println("done waiting")
 		}
 
 		if !timedOut {
@@ -1128,7 +1121,6 @@ func main() {
 	})
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Println("Yay, index was hit")
 		// TODO #wschange: you could hydrate the original files list.
         var usedIndexFile = *indexFile
         if r.FormValue("indexFile") != "" {
@@ -1155,7 +1147,6 @@ func main() {
 		if *proxyPath != "" {
 			replaceProxyPath := "var proxyPath = \"" + *proxyPath + "\""
 			htmlString = strings.Replace(htmlString, "// PROXYPATH GOES HERE", replaceProxyPath, 1)
-			log.Printf("replaceProxyPath: %s", replaceProxyPath)
 
 			var replaceIsGitBash string
 			if os.Getenv("ISGITBASH") == "1" {
@@ -1170,7 +1161,6 @@ func main() {
 		// htmlString = strings.Replace(htmlString, "// LINES GO HERE", "var lines = "+contentLinesJSONString, 1)
 
 		// TODO: when shell mode is disabled, don't do this part.
-		log.Printf("yea I set rootLocation to be: %s", *location)
 		if r.FormValue("src") != "1" {
 			w.Header().Set("Content-Type", "text/html")
 		}
@@ -1220,7 +1210,6 @@ func main() {
 			return
 		}
 		if r.Method == "GET" {
-			log.Printf("===id is %s", r.FormValue("id"))
 			var c []byte
 
 			thePath := r.FormValue("fullpath")
@@ -1228,7 +1217,6 @@ func main() {
 			parts := strings.Split(thePath, ":")
 			thePath = parts[0]
 			fullPath := combinePath(*location, thePath)
-			log.Printf("the full path is: %s", fullPath)
 			fileInfo, err := os.Stat(fullPath)
 			if err != nil {
 				logAndErr(w, "error determining file type")

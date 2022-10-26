@@ -54,7 +54,6 @@ func openTerminal(cwd string, w http.ResponseWriter) {
 	// in a go func, continually read from the pty and write to buffer
 	go func() {
 		for {
-			log.Println("a loop!")
 			// TODO: reuse buffer?
 			b := make([]byte, 1024)
 			n, err := file.Pty.Read(b)
@@ -78,9 +77,6 @@ func openTerminal(cwd string, w http.ResponseWriter) {
 			if len(file.ReadBuffer) > 5000000 {
 				file.ReadBuffer = nil
 			}
-			log.Printf("<==========")
-			log.Printf("%s", string(file.ReadBuffer))
-			log.Printf("==========>")
 			workspaceCond.Broadcast()
 			workspaceMu.Unlock()
 			// should we put this before the unlock?

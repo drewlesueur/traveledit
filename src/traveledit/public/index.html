@@ -5012,7 +5012,14 @@ function render() {
         // theStatus.acWord = acWord
         statusEl.innerText = JSON.stringify(theStatus, null, "    ")
     }
-    statusBar.innerText = searchText.value
+    
+    // TODO: check perf on this.
+    if (fx.selectedRegions.length) {
+        statusBar.innerText = fx.selectedRegions[0].stopY - fx.selectedRegions[0].startY + 1
+    } else {
+        statusBar.innerText = searchText.value
+    }
+    
     // this is commented out because of iphone 12 mini slowness
     // see renderSaves()
     // if (fx.fileMode == "file")   {
