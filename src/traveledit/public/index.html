@@ -2105,11 +2105,20 @@ function setLastWord(maybeLastWord) {
         lastWord = maybeLastWord
         if (lastAction == "type" && !hasMovedSinceCut) {
             if (copyBuffer.length && !hasUpdatedSearchTextForReplaceFlow) {
-                searchText.value = "\\b" + copyBuffer[0] + "\\b"
-                // searchText.value = copyBuffer[0]
-                hasUpdatedSearchTextForReplaceFlow = true
+                
+                if (copyBuffer.length == 1 && copyBuffer[0] == lastWord) {
+                    // weird case where the acPlop stuff gets weird with this feature
+                } else {
+                    searchText.value = "\\b" + copyBuffer[0] + "\\b"
+                    // searchText.value = copyBuffer[0]
+                    hasUpdatedSearchTextForReplaceFlow = true
+                }
             }
+            // cut a word and then type, the new word automatically gets copied
+            // this is for a nifty find and replace flow
+            // and above we find other occurrences of the word we just cut
             copyBuffer = lastWord.split("\n")
+            // log("copybuf: " + copyBuffer.join(""))
         }
     } else {
         // TODO: do we need this
@@ -2118,9 +2127,7 @@ function setLastWord(maybeLastWord) {
 }
 function docChanged(preventUndo) {
     fx.version += 1
-    if (!inACPlop) { // TODO: check this out because in acPlop you also set lastWord
-        setLastWord(getWordAtCursor().word)
-    }
+    setLastWord(getWordAtCursor().word)
     if (!preventUndo) {
         // var start = Date.now()
         saveUndo(preventUndo)
@@ -2729,6 +2736,8 @@ function comment(prefix) {
             fx.fullPath.endsWith(".sh") ||
             fx.fullPath.endsWith(".pm") ||
             fx.fullPath.endsWith(".pl") ||
+            fx.fullPath.endsWith(".yaml") ||
+            fx.fullPath.endsWith(".yml") ||
             fx.fullPath.endsWith(".env")
         ) {
             // Special case hack for sql script
@@ -6815,6 +6824,8 @@ function onStart(e) {
                 } else {
                     // this condition used to not be there
                     // and we'd acWordToggle every time (alternate paste flow)
+                    // touchMiddleMiddle?
+                    // log("acWordToggle " + Date.now())
                     acWordToggle() // lime marker
                 }
             } else {
@@ -7712,7 +7723,6 @@ var inACPlop = false
 function acPlop(buff) {
     if (buff[0].length > 0){
        acWord.hasPlopped = true
-       setLastWord(buff.join("\n"))
     }
     inACPlop = true
     // TODO: compare with old implementation
@@ -7739,6 +7749,7 @@ function acPlop(buff) {
         stopY: acWord.stopY,
     }]
     selectMode = "char"
+    // the first true prevents copy
     del(true, true) // note that del does a lot more than maybe we need
     acWord.stopY = acWord.startY
     paste()
@@ -7760,8 +7771,17 @@ function acPlop(buff) {
     fx.cursorLineIndex = acWord.stopY
     updateCursorXY()
     ensureCursorInScreen()
-    copyBuffer = oldCopyBuffer
-    cutBuffer = oldCutBuffer
+    
+    // see setLastWord feature where we set the
+    // copyBuffer to the last word
+    // this happens in paste I think.
+    // if the paste sets the copy buffer
+    // then we want to keep that one
+    // kind of weird.
+    if (copyBuffer == buff) {
+        copyBuffer = oldCopyBuffer
+    }
+    cutBuffer = oldCutBuffer // not used
     selectMode = oldSelectMode
     fx.selectedRegions = []
     preventRender = oldPreventRender
