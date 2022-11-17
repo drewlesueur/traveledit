@@ -862,6 +862,7 @@ var reorderFiles = false
 
 var lockX = false
 var fontColor = "white"
+var theBackgroundColor = "black"
 var lightFontColor = "rgba(255, 255, 255, 0.5)"
 var veryLightFontColor = "rgba(255, 255, 255, 0.1)"
 var isDark = true
@@ -878,8 +879,9 @@ var canvasWidth
 var canvasHeightFull
 var canvasHeightKeyboard
 var navTouchSize
-// var verticalTouchSize = 120
 var verticalTouchSize = 120
+// var verticalTouchSize = 100
+// var verticalTouchSize = 80
 var device = "iphone12mini"
 var canvasHeightShell
 var canvasHeightTerminal
@@ -913,8 +915,9 @@ function doSizing() {
     // This condition for the 2022 iPhone 14 Pro
     if (screen.width == 393 && screen.height == 852) {
         device = "iphone14pro"
-        canvasHeightFull=1820
-        canvasHeightKeyboard=1154
+        var oneRow = 36*3
+        canvasHeightFull=1820 //+ (oneRow*2)
+        canvasHeightKeyboard=1154 
         navTouchSize = 50
         if (innerWidth > innerHeight) {
             canvasHeightFull = 575
@@ -996,8 +999,10 @@ window.onorientationchange = function(event) {
 
 
 
-var touchScaleY = 2 // was 3 for a while, then 2 for a while
-var touchScaleX = 2 // was 3 for a while, then 2 for a while
+var touchScaleY = 3 // was 3 for a while, then 2 for a while, now 3 again
+var touchScaleX = 3 // was 3 for a while, then 2 for a while, now 3 again
+var touchScaleY = 2
+var touchScaleX = 2
 // #snappingCursor 3
 // var touchScaleX = 1 // 1 now because of snapping
 
@@ -1561,6 +1566,7 @@ function renderDarkMode() {
         fontColor = lighModeFontColor
         lightFontColor = "rgba(0, 0, 0, 0.5)"
         veryLightFontColor = "rgba(0, 0, 0, 0.1)"
+        theBackgroundColor = darkModeFontColor
         render()
         renderURL()
         return
@@ -1579,6 +1585,7 @@ function renderDarkMode() {
 
     lightFontColor = "rgba(255, 255, 255, 0.5)"
     veryLightFontColor = "rgba(255, 255, 255, 0.1)"
+    theBackgroundColor = "black"
     render()
     renderURL()
 }
@@ -4336,10 +4343,10 @@ function handleFocusAfter() {
     if (searchText.value) {
         findDown()
     } else {
-        // if (fx.cursorLineIndex == fx.lines.Length - 1) return
-        // fx.cursorLineIndex += 1
+        if (fx.cursorLineIndex == fx.lines.Length - 1) return
+        fx.cursorLineIndex += 1
         // instead of going one line down, let's alt tab
-        setCurrentFile(lastFile);
+        // setCurrentFile(lastFile);
     }
     setCanvasHeightAccordingly()
     ensureCursorInScreen()
@@ -4355,10 +4362,10 @@ function handleFocusBefore() {
     if (searchText.value) {
         findUp()
     } else {
-        // if (fx.cursorLineIndex == 0) return
-        // fx.cursorLineIndex -= 1
+        if (fx.cursorLineIndex == 0) return
+        fx.cursorLineIndex -= 1
         // instead of going one line down, let's clear the search
-        clearSearch()
+        // clearSearch()
     }
     setCanvasHeightAccordingly()
     ensureCursorInScreen()
@@ -5335,6 +5342,18 @@ function skipLeadingSace(line, startX, offsetX, y, file) {
     return [newStartX-offsetX, newStartX-startX]
 }
 
+function drawCircle(color, x, y, r, lineColor, lineWidth) {
+    // t.save()
+    t.fillStyle = color
+    t.strokeStyle = lineColor
+    t.lineWidth = lineWidth
+    t.beginPath()
+    t.arc(x, y, r, 0, 2*Math.PI, false)
+    t.fill()
+    // t.stroke()
+    // t.restore()
+}
+
 var renderDuration = 0
 var renderCount = 0
 var rendersInLastSecond = 0
@@ -5403,15 +5422,18 @@ function renderInternal() {
     // t.fillRect(canvasWidth-notchWidth, Math.floor(canvasHeight/fontHeight)*fontHeight-(2*verticalTouchSize*3), notchWidth, notchThickness)
     // t.fillRect(canvasWidth-notchWidth, Math.floor(canvasHeight/fontHeight)*fontHeight-(3*verticalTouchSize*3), notchWidth, notchThickness)
     // t.fillRect(canvasWidth-notchWidth, Math.floor(canvasHeight/fontHeight)*fontHeight-(4*verticalTouchSize*3), notchWidth, notchThickness)
-    t.fillRect(0, canvasHeight-(1*verticalTouchSize*3), notchWidth, notchThickness)
-    t.fillRect(0, canvasHeight-(2*verticalTouchSize*3), notchWidth, notchThickness)
-    t.fillRect(0, canvasHeight-(3*verticalTouchSize*3), notchWidth, notchThickness)
-    t.fillRect(0, canvasHeight-(4*verticalTouchSize*3), notchWidth, notchThickness)
     
-    t.fillRect(canvasWidth-notchWidth, canvasHeight-(1*verticalTouchSize*3), notchWidth, notchThickness)
-    t.fillRect(canvasWidth-notchWidth, canvasHeight-(2*verticalTouchSize*3), notchWidth, notchThickness)
-    t.fillRect(canvasWidth-notchWidth, canvasHeight-(3*verticalTouchSize*3), notchWidth, notchThickness)
-    t.fillRect(canvasWidth-notchWidth, canvasHeight-(4*verticalTouchSize*3), notchWidth, notchThickness)
+    // latest
+    // t.fillRect(0, canvasHeight-(1*verticalTouchSize*3), notchWidth, notchThickness)
+    // t.fillRect(0, canvasHeight-(2*verticalTouchSize*3), notchWidth, notchThickness)
+    // t.fillRect(0, canvasHeight-(3*verticalTouchSize*3), notchWidth, notchThickness)
+    // t.fillRect(0, canvasHeight-(4*verticalTouchSize*3), notchWidth, notchThickness)
+    // 
+    // t.fillRect(canvasWidth-notchWidth, canvasHeight-(1*verticalTouchSize*3), notchWidth, notchThickness)
+    // t.fillRect(canvasWidth-notchWidth, canvasHeight-(2*verticalTouchSize*3), notchWidth, notchThickness)
+    // t.fillRect(canvasWidth-notchWidth, canvasHeight-(3*verticalTouchSize*3), notchWidth, notchThickness)
+    // t.fillRect(canvasWidth-notchWidth, canvasHeight-(4*verticalTouchSize*3), notchWidth, notchThickness)
+    
 
     // the selected areas
     for (var i=0; i<fx.selectedRegions.length;i++) {
@@ -5999,6 +6021,36 @@ function renderInternal() {
     var xPos = (fx.cursorColIndex - fx.offsetX) * fontWidth
     t.fillRect(xPos, yPos, 4, fontHeight)
     cursorLine = fx.lines[fx.cursorLineIndex] || ""
+    
+    
+    var vtsThrice = verticalTouchSize*3
+    var halfVTSThrice = vtsThrice/2
+    var dotIndent = 30
+    var dotSize = 10
+    // drawCircle("orange", dotIndent, canvasHeight-(5*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("orange", canvasWidth - dotIndent, canvasHeight-(5*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("red", dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("red", canvasWidth - dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("lime", dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("lime", canvasWidth - dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("blue", dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("blue", canvasWidth - dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("cyan", dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("cyan", canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("magenta", dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    // drawCircle("magenta", canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, dotIndent, canvasHeight-(5*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(5*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
 
     var duration = Date.now() - startRenderTime
     // TODO: audit render for performance
@@ -8434,12 +8486,11 @@ function getLinesForFileList() {
             
             var dirPart = files[i].fullPath.split("/").slice(0, -1).reverse().join(" < ")
             var theLen = expandTabIndex(flatName, flatName.length, null, null, "nocache")
-            var takenUp = Math.floor(theLen/4)
-            var gap = 7 - takenUp
+            var gap = 35 - theLen
             if (gap < 1) {
                 gap = 1
             }
-            flatName = flatName + "\t".repeat(gap) + "< " + dirPart
+            flatName = flatName + " ".repeat(gap) + "< " + dirPart
             treeFiles.push(flatName)
             
             // I wrote this so you could get rid of the last part if you want and only show the file name
