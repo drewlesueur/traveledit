@@ -4292,7 +4292,7 @@ function expandTabIndex(theLine, start, index, file, nocache) {
                 break
             }
             if (i === 100000) {
-                alert("loop err 2")
+                // alert("loop err 2")
                 break
             }
             // ab••y
@@ -7729,6 +7729,7 @@ function acWordToggle(recursive) {
             break loopBlock
         }
 
+        // TODO: I think these sections aren't used???
         // here we have no prefix, not autocompleting
         if (!acWord.clearedWord && acWord.word != "") {
             acWord.clearedWord = true
@@ -7803,8 +7804,17 @@ function acPlop(buff) {
     selectMode = "char"
     // the first true prevents copy
     del(true, true) // note that del does a lot more than maybe we need
+    // doing this because in the case where we autocomplete next to a word,
+    // we delete our word, then the last word is found and we do this thinf where we auto copy it
+    // see setLastWord, kind of weird, maybe we can do something better
+    // it's for the cut and type feature
+    // maybe you can look at hasMovedSinceCut (inside setLastWord) too?
+    copyBuffer = buff 
     acWord.stopY = acWord.startY
+    log("acplopping: " + copyBuffer.join("\n"))
     paste()
+    copyBufferAfterPaste = copyBuffer
+    copyBuffer = buff // same thing for why we do it
     acWord.stopY = acWord.startY + copyBuffer.length - 1
     if (copyBuffer.length == 1) {
         var theLine = fx.lines[fx.cursorLineIndex] || ""
@@ -7830,6 +7840,7 @@ function acPlop(buff) {
     // if the paste sets the copy buffer
     // then we want to keep that one
     // kind of weird.
+    copyBuffer = copyBufferAfterPaste
     if (copyBuffer == buff) {
         copyBuffer = oldCopyBuffer
     }
