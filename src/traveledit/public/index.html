@@ -277,7 +277,7 @@ They get changed later on.
 <div class="toolbar xhidden" id=fileRow onclick=selectFileRow(event)>
 </div>
 <div class="toolbar hidden" id=fileToolbar1 style="--display: none">
-    <div class=square onclick="" id=statusBar>status</div>
+    <div class=square onclick="editSearch()" id=statusBar>status</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -5591,7 +5591,7 @@ function renderInternal() {
         //   t.fillRect(0, y*fontHeight, canvasWidth, fontHeight)
         // }
 
-        // highlight search
+        // highlight search highlightsearch
         var theLine = fx.lines[y + fx.offsetY] || ""
         var highlightStartSearch = 0
         var matchLength = 0
@@ -5890,23 +5890,6 @@ function renderInternal() {
                 expandedLine = getCachedGraphemes(theLine, y + fx.offsetY)
                 expandedLine = expandedLine.slice() // copy it
                 // log(Date.now().toString().slice(-4) + " expanding")
-                var i = 0
-                while (true) {
-                    i++
-                    if (i === 500) {
-                        alert("loop err 3")
-                        break
-                    }
-                    var tabPos = expandedLine.indexOf("\t", afterLastTabPos)
-                    if (tabPos == -1) {
-                        break
-                    }
-                    var numberOfSpaces = tabStop - ((tabPos) % tabStop) -1
-                    // TODO: you can used cached repeated \t array
-
-                    expandedLine.splice(tabPos, 0, ...("\t".repeat(numberOfSpaces).split("")))
-                    afterLastTabPos = tabPos + numberOfSpaces + 1
-                }
                 
                 // expanding emojis for double width emojis
                 if (emojiWidth != 1 && containsEmoji(theLine)) {
@@ -5935,6 +5918,25 @@ function renderInternal() {
                         afterLastEmojiPos = emojiPos + (emojiWidth-1) + 1
                     }
                 }
+                
+                var i = 0
+                while (true) {
+                    i++
+                    if (i === 500) {
+                        alert("loop err 3")
+                        break
+                    }
+                    var tabPos = expandedLine.indexOf("\t", afterLastTabPos)
+                    if (tabPos == -1) {
+                        break
+                    }
+                    var numberOfSpaces = tabStop - ((tabPos) % tabStop) -1
+                    // TODO: you can used cached repeated \t array
+
+                    expandedLine.splice(tabPos, 0, ...("\t".repeat(numberOfSpaces).split("")))
+                    afterLastTabPos = tabPos + numberOfSpaces + 1
+                }
+                
                 if ((y + fx.offsetY) < fx.lines.length) {
                     fx.lines[y + fx.offsetY].tabCache = expandedLine
                 }
@@ -6666,7 +6668,6 @@ function onStart(e) {
         return false
     }
     var onEnd = function(e) {
-        log("onEnd")
         overflowX = 0
         overflowY = 0
         touchCount = e.touches.length
@@ -6769,8 +6770,30 @@ function onStart(e) {
                     return
                 }
                 var file = treeFilesShadow[fx.cursorLineIndex]
+                // file can be either a file object or a path
+                // if it has this special file token then we know it's a file
                 if (file.fileToken == fileToken) {
                     // #filestuff
+                    // see if the < signs are there
+                    var stopI = u(fx.cursorColIndex)
+                    var line = fx.lines[fx.cursorLineIndex] || ""
+                    var matchI = 0
+                    var countAngles = 0
+                    for (var i = 0; i < stopI; i++) {
+                        if (line[i] == "<") {
+                            countAngles++
+                        }
+                    }
+                    if (countAngles > 0) {
+                        var newFilePath = file.fullPath.split("/").slice(0, -countAngles).join("/")
+                        log([
+                            file.fullPath,
+                            countAngles,
+                            newFilePath
+                        ])
+                        addFile(newFilePath)
+                        return
+                    }
                     setCurrentFile(file)
                     return
                 }
@@ -6988,7 +7011,6 @@ function onStart(e) {
         moveListenerCount = max(moveListenerCount-1, 0)
     }
     var onEndWhileSelected = function(e) {
-        log("onEndWhileSelected")
         overflowX = 0
         overflowY = 0
         touchCount = e.touches.length
