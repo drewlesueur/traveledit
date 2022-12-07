@@ -286,8 +286,9 @@ They get changed later on.
     <!--<div class=middleButton onclick='sendTerminal("\t"); event.preventDefault() '>tab</div>
     -->
     <div class=middleButton onclick=runScriptAndPasteButtonPress()>paste</div>
-    <div class=middleButton id=slot1Button onclick='sendTerminal(slot1Input.value); event.preventDefault()'>slot 1</div>
+    <div class=middleButton onclick='saveWrapper()'>run</div>
     <div class=middleButton onclick='sendTerminal("\x1b[A"); event.preventDefault()'>up</div>
+    <div class=middleButton id=slot1Button onclick='sendTerminal(slot1Input.value); event.preventDefault()'>slot 1</div>
     <div class=middleButton id=slot2Button onclick='sendTerminal(slot2Input.value); event.preventDefault()'>slot 2</div>
     <div class=middleButton id=slot3Button onclick='sendTerminal(slot3Input.value); event.preventDefault()'>slot 3</div>
     <div class=middleButton onclick='sendTerminal("\x1b"); event.preventDefault()'>esc</div>
@@ -346,7 +347,10 @@ They get changed later on.
     <div class=square onclick="osPasteText()">os paste</div>
     <div id=runScriptAndPasteButton class=square onclick=runScriptAndPasteButtonPress()>run script</div>
     <div id=saveButton class=square onclick=saveWrapper()>save</div>
+    <div class=square onclick=comment()>//</div>
+    <!--
     <div class=square onclick=seeFiles()>files</div>
+    -->
 </div>
 <div class=toolbar>
     <!-- done on touchTopTopLeft and touchTopTopRight  -->
@@ -916,7 +920,8 @@ function doSizing() {
     if (screen.width == 393 && screen.height == 852) {
         device = "iphone14pro"
         var oneRow = 36*3
-        canvasHeightFull=1820 //+ (oneRow*2)
+        // canvasHeightFull=1820 //+ (oneRow*2)
+        canvasHeightFull=1820 + (oneRow*1)
         canvasHeightKeyboard=1154 
         navTouchSize = 50
         if (innerWidth > innerHeight) {
@@ -2745,7 +2750,8 @@ function comment(prefix) {
             fx.fullPath.endsWith(".pl") ||
             fx.fullPath.endsWith(".yaml") ||
             fx.fullPath.endsWith(".yml") ||
-            fx.fullPath.endsWith(".env")
+            fx.fullPath.endsWith(".env") ||
+            fx.fullPath.split("/").slice(-1)[0].indexOf(".") == -1
         ) {
             // Special case hack for sql script
             if (fx.lines[fx.lines.length-1] == "EOD") {
@@ -2851,6 +2857,18 @@ function copy() {
     for (var s=0; s<1; s++) {
         if (fx.selectedRegions.length>0) {
             var r = fx.selectedRegions[0]
+            
+            if (fx.fileMode == "directory") {
+                cutDirectoryFiles = []
+                copiedDirectoryFiles = fx.lines.slice(r.startY, r.stopY+1).map(function(f) {
+                    return fx.fullPath + "/" + f
+                })
+                copyBuffer = copiedDirectoryFiles
+                fx.selectedRegions = []
+                render()
+                return
+            }
+            
             if (r.startY == r.stopY) {
                 copyBuffer = [fx.lines[r.startY].slice(u(r.startX), u(r.stopX))]
                 fx.selectedRegions = []
@@ -2896,7 +2914,12 @@ function runScriptAndPasteButtonPress() {
         sendTerminal(copyBuffer.join("\r"))
         return
     }
-    runScript()
+    
+    if (fx.selectedRegions.length) {
+        runScript()
+        return
+    }
+    paste()
 }
 
 function runScript() {
@@ -3193,7 +3216,12 @@ function ll(line, script, replacement) {
     if (typeof replacement ==  "function") {
         return replacement.apply(null, varsArray)
     } else {
+        var index = -1
         return replacement.replace(/\$[a-z\$]/g, function(match) {
+            index++
+            // if (match[1] == "$#") {
+            //     return index
+            // }
             return vars[match[1]]
         })
     }
@@ -3229,13 +3257,21 @@ function setCanvasHeight(h) {
     c.style.height = (canvasHeight/3)+"px"
 
     maxLines = Math.floor(canvasHeight / fontHeight)
+    
+    verticalTouchSize = (h/3)/5 // 5 buttons
 }
 function setCanvasHeightAccordingly() {
     var heightReduction = 0
-    if (inDebugView) {
-        var statusElHeight = 200
+    if (inDebugView) {  
+    
+        // If this is too big then iOS wiLl auto scroll
+        // it up so that the text isn't so low I guess
+        // an attempt to window.scrollTo(0,0) failed
+        var statusElHeight = 190
         statusEl.style.height = statusElHeight + "px"
         logEl.style.height = statusElHeight + "px"
+        
+        // statusEl.style.border = "1px solid orange"
         heightReduction = statusElHeight * 3
     }
     if (document.activeElement == theText || document.activeElement == searchText) {
@@ -3318,6 +3354,28 @@ function bashEscapeSingleQuote(str) {
 }
 
 function paste(unselect, pasteBefore, fromTap, unselectIfCharOneWord) {
+    if (fx.fileMode == "directory" && copiedDirectoryFiles.length) {
+        if (confirm("copy " + copiedDirectoryFiles.length + " files?")) {
+            var theCmd = copiedDirectoryFiles.map(function(f) {
+                return "cp -r \"" + f  + "\" ." + ";"
+            }).join("")
+            runQuickShellCommand(theCmd, function(err, result) {
+                if (err) {
+                    alert("copy files error: " + err)
+                    return
+                }
+                if (result) {
+                    alert(result)
+                }
+                reloadFile()
+            })
+        }
+        return
+    }
+    if (fx.fileMode == "directory" && cutDirectoryFiles.length) {
+        cutDirectoryFiles = []
+        return
+    }
     pasteLines(copyBuffer, unselect, pasteBefore, fromTap, unselectIfCharOneWord)
 }
 var pasteDebug = false
@@ -3413,6 +3471,8 @@ function pasteLines(localCopyBuffer, unselect, pasteBefore, fromTap, unselectIfC
 }
 
 var splicedFiles = []
+var cutDirectoryFiles = []
+var copiedDirectoryFiles = []
 
 var globalOldCopyBuffer = []
 var hasMovedSinceCut = true
@@ -3444,6 +3504,20 @@ function delinternal(preventCopy, preventDeleteWholeLine) {
             splicedFiles = files.splice(cutFileIndexStart, (cutFileIndexStop - cutFileIndexStart)+1)
             setLines(getLinesForFileList())
             fx.selectedRegions = []
+            docChanged()
+            render()
+            return
+        }
+        if (fx.fileMode == "directory") {
+            copiedDirectoryFiles = []
+            cutDirectoryFiles = fx.lines.splice(r.startY, (r.stopY - r.startY)+1).map(function(f) {
+                return fx.fullPath + "/" + f
+            })
+            copyBuffer = cutDirectoryFiles
+            fx.selectedRegions = []
+            fx.cursorLineIndex = r.startY
+            updateCursorXY()
+            ensureCursorInScreen()
             docChanged()
             render()
             return
@@ -4338,6 +4412,92 @@ function expandTabIndex(theLine, start, index, file, nocache) {
     // var e = new Error()
     // log(e.stack)
     return adjustedStart
+}
+
+function expandLine(theLine, theIndex) {
+    var expandedLine
+    var tabStop = globalTabStop
+    var afterLastTabPos = 0
+    // expandedLine = [...expandedLine]
+    if (useUnicode) {
+        // you could render inline here
+
+        if (theLine.tabCache) {
+            expandedLine = theLine.tabCache
+        } else if (theLine == "") {
+            expandedLine = []
+        } else {
+            expandedLine = getCachedGraphemes(theLine, theIndex)
+            expandedLine = expandedLine.slice() // copy it
+            // log(Date.now().toString().slice(-4) + " expanding")
+            
+            // expanding emojis for double width emojis
+            if (emojiWidth != 1 && containsEmoji(theLine)) {
+            // if (emojiWidth != 1) {
+                var i = 0
+                var afterLastEmojiPos = 0
+                while (true) {
+                    i++
+                    if (i === 500) {
+                        alert("loop err 4")
+                        break
+                    }
+                    var emojiPos = -1
+                    for (var j=afterLastEmojiPos; j<expandedLine.length;j++) {
+                        if (isEmoji(expandedLine[j])) {
+                            emojiPos = j
+                            break
+                        }
+                    }
+                    
+                    if (emojiPos == -1) {
+                        break
+                    }
+                
+                    expandedLine.splice(emojiPos+1, 0, ...(" ".repeat(emojiWidth-1).split("")))
+                    afterLastEmojiPos = emojiPos + (emojiWidth-1) + 1
+                }
+            }
+            
+            var i = 0
+            while (true) {
+                i++
+                if (i === 500) {
+                    alert("loop err 3")
+                    break
+                }
+                var tabPos = expandedLine.indexOf("\t", afterLastTabPos)
+                if (tabPos == -1) {
+                    break
+                }
+                var numberOfSpaces = tabStop - ((tabPos) % tabStop) -1
+                // TODO: you can used cached repeated \t array
+
+                expandedLine.splice(tabPos, 0, ...("\t".repeat(numberOfSpaces).split("")))
+                afterLastTabPos = tabPos + numberOfSpaces + 1
+            }
+            
+            if (theIndex < fx.lines.length) {
+                fx.lines[theIndex].tabCache = expandedLine
+            }
+
+        }
+    } else {
+        // TODO: you can potentially also cache this part
+        while (true) {
+            tabPos = theLine.indexOf("\t", afterLastTabPos)
+            if (tabPos == -1) {
+                expandedLine += theLine.substr(afterLastTabPos, theLine.length)
+                break
+            }
+            expandedLine += theLine.substring(afterLastTabPos, tabPos)
+            // now add the correct number of spaces, taking into account the tabStop
+            var numberOfSpaces = tabStop - (expandedLine.length % tabStop)
+            expandedLine += "\t".repeat(numberOfSpaces)
+            afterLastTabPos = tabPos + 1
+        }
+    }
+    return expandedLine
 }
 function handleFocusAfter() {
     if (searchText.value) {
@@ -5861,102 +6021,20 @@ function renderInternal() {
         } else {
             textFillStyle = fontColor
         }
-
-
-        theLine = theLine || ""
-        var expandedLine = ""
-        var tabStop = globalTabStop
-        var afterLastTabPos = 0
+        
         if (compactRender && !commentLine) {
             var lineAndInfo = compactLine(theLine, y + fx.offsetY)
             theNewLine = lineAndInfo.compactedLine
-
+    
             if (theNewLine != theLine) {
                 textFillStyle = isDark ? "lime" : "green"
             }
-
+    
             theLine = theNewLine
         }
 
-        // expandedLine = [...expandedLine]
-        if (useUnicode) {
-            // you could render inline here
-
-            if (theLine.tabCache) {
-                expandedLine = theLine.tabCache
-            } else if (theLine == "") {
-                expandedLine = []
-            } else {
-                expandedLine = getCachedGraphemes(theLine, y + fx.offsetY)
-                expandedLine = expandedLine.slice() // copy it
-                // log(Date.now().toString().slice(-4) + " expanding")
-                
-                // expanding emojis for double width emojis
-                if (emojiWidth != 1 && containsEmoji(theLine)) {
-                // if (emojiWidth != 1) {
-                    var i = 0
-                    var afterLastEmojiPos = 0
-                    while (true) {
-                        i++
-                        if (i === 500) {
-                            alert("loop err 4")
-                            break
-                        }
-                        var emojiPos = -1
-                        for (var j=afterLastEmojiPos; j<expandedLine.length;j++) {
-                            if (isEmoji(expandedLine[j])) {
-                                emojiPos = j
-                                break
-                            }
-                        }
-                        
-                        if (emojiPos == -1) {
-                            break
-                        }
-                    
-                        expandedLine.splice(emojiPos+1, 0, ...(" ".repeat(emojiWidth-1).split("")))
-                        afterLastEmojiPos = emojiPos + (emojiWidth-1) + 1
-                    }
-                }
-                
-                var i = 0
-                while (true) {
-                    i++
-                    if (i === 500) {
-                        alert("loop err 3")
-                        break
-                    }
-                    var tabPos = expandedLine.indexOf("\t", afterLastTabPos)
-                    if (tabPos == -1) {
-                        break
-                    }
-                    var numberOfSpaces = tabStop - ((tabPos) % tabStop) -1
-                    // TODO: you can used cached repeated \t array
-
-                    expandedLine.splice(tabPos, 0, ...("\t".repeat(numberOfSpaces).split("")))
-                    afterLastTabPos = tabPos + numberOfSpaces + 1
-                }
-                
-                if ((y + fx.offsetY) < fx.lines.length) {
-                    fx.lines[y + fx.offsetY].tabCache = expandedLine
-                }
-
-            }
-        } else {
-            // TODO: you can potentially also cache this part
-            while (true) {
-                tabPos = theLine.indexOf("\t", afterLastTabPos)
-                if (tabPos == -1) {
-                    expandedLine += theLine.substr(afterLastTabPos, theLine.length)
-                    break
-                }
-                expandedLine += theLine.substring(afterLastTabPos, tabPos)
-                // now add the correct number of spaces, taking into account the tabStop
-                var numberOfSpaces = tabStop - (expandedLine.length % tabStop)
-                expandedLine += "\t".repeat(numberOfSpaces)
-                afterLastTabPos = tabPos + 1
-            }
-        }
+        theLine = theLine || ""
+        var expandedLine = expandLine(theLine, (y + fx.offsetY))
 
         // one option is to draw the whole line in one go
         // likely more optimal, wouln't have to do the unicode stuff
@@ -6252,32 +6330,50 @@ function onStart(e) {
             ")": "(",
             "}": "{",
             "]": "[",
+            "'": "'",
         }
         var leftCounts = {
             "(": 0,
-            // "{": 0,
-            "[": 0
+            "{": 0,
+            "[": 0,
+            "'": 0,
         }
         var rightCounts = {
             ")": 0,
-            // "}": 0,
-            "]": 0
+            "}": 0,
+            "]": 0,
+            "'": 0,
         }
         var leftDone = false
         var rightDone = false
         var lefties = "([{"
         var righties = ")]}"
+        var quoties = "\"'`"
         var line = fx.lines[fx.cursorLineIndex] || ""
-        var expandedLineLength = expandTabIndex(line, line.length)
+        var expandedLine = expandLine(line, fx.cursorLineIndex)
+        // find all the quote ranges.
+        // if our cursor is in a quote range selext that first.
+        
+        var quoteState = "out"
+        var quoteType = ""
+        // for (var i=0; i<expandedLine.length; i++) {
+        //     var chr = expandedLine[i]
+        //     if (quoties.indexOf(chr) != -1) {
+        //         // TODO: finish this
+        //     }
+        // }
+        // log(["exp", expandedLine])
         var i = 0
         for (i=0; i<50000; i++) {
             if (leftDone && rightDone) {
                 break
             }
-
+            // TODO: instead of calling u (unExpandTabIndex) every time
+            // expand it once and just use index instead of charat.
             if (!leftDone) {
-                var leftChar = line.charAt(u(selectedRegion.startX - 1))
-                // log("leftChar " + leftChar)
+                // var leftChar = line.charAt(u(selectedRegion.startX - 1))
+                var leftChar = expandedLine[selectedRegion.startX - 1]
+                log("leftChar " + leftChar)
                 if (righties.indexOf(leftChar) != -1) {
                     leftCounts[mappedClosers[leftChar]] -= 1
                     selectedRegion.startX -= 1
@@ -6299,8 +6395,8 @@ function onStart(e) {
             }
             if (!rightDone) {
                 // stopX is exclusive
-                var rightChar = line.charAt(u(selectedRegion.stopX - 1 + 1))
-                // log("rightChar" + rightChar)
+                var rightChar = expandedLine[selectedRegion.stopX - 1 + 1]
+                log("rightChar" + rightChar)
                 if (lefties.indexOf(rightChar) != -1) {
                     rightCounts[mappedClosers[rightChar]] -= 1
                     selectedRegion.stopX += 1
@@ -6315,14 +6411,14 @@ function onStart(e) {
                     // technically better if you unexpand and then expand
                     selectedRegion.stopX += 1
                 }
-                if (selectedRegion.stopX >= expandedLineLength) {
-                    selectedRegion.stopX = expandedLineLength
+                if (selectedRegion.stopX >= expandedLine.length) {
+                    selectedRegion.stopX = expandedLine.length
                     rightDone = true
                 }
             }
             // log([leftCounts, rightCounts])
         }
-        if (selectedRegion.startX == 0 && selectedRegion.stopX == expandedLineLength) {
+        if (selectedRegion.startX == 0 && selectedRegion.stopX == expandedLine.length) {
             selectMode = "line"
             selectedRegion.selectedWord = false
         }
@@ -7250,7 +7346,8 @@ function onStart(e) {
     }
     var touchTopTopRight = function() {
         // duplicateFile(fx, -1)
-        goUpDirectory()
+        // goUpDirectory()
+        saveWrapper()
     }
     var touchTopRight = function() {
         moveHomeEndDirection = "down"
@@ -8606,7 +8703,7 @@ function setCurrentFile(file) {
         terminalToolbar1.classList.add("hidden")
         // workspaceToolbar.classList.add("hidden")
         iframeToolbar1.classList.add("hidden")
-        runScriptAndPasteButton.innerText = "run script"
+        runScriptAndPasteButton.innerText = "run/paste"
     } else if (fx.fileMode == "terminal") {
         fileToolbar1.classList.add("hidden")
         shellToolbar1.classList.add("hidden")
@@ -8623,7 +8720,7 @@ function setCurrentFile(file) {
         // workspaceToolbar.classList.add("hidden")
         iframeToolbar1.classList.remove("hidden")
         // something else can be done here? like refresh?
-        runScriptAndPasteButton.innerText = "run script"
+        runScriptAndPasteButton.innerText = "run/paste"
     } else {
         fileToolbar1.classList.remove("hidden")
         shellToolbar1.classList.add("hidden")
@@ -8631,7 +8728,7 @@ function setCurrentFile(file) {
         terminalToolbar1.classList.add("hidden")
         // workspaceToolbar.classList.remove("hidden")
         iframeToolbar1.classList.add("hidden")
-        runScriptAndPasteButton.innerText = "run script"
+        runScriptAndPasteButton.innerText = "run/paste"
     }
 
     if (fx.fileMode == "iframe") {
