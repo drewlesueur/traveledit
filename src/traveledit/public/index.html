@@ -278,6 +278,8 @@ They get changed later on.
 </div>
 <div class="toolbar hidden" id=fileToolbar1 style="--display: none">
     <div class=square onclick="editSearch()" id=statusBar>status</div>
+    <div class=square onclick=addCmdTab()>cmd</div>
+    <div class=square onclick=addTerminalTab()>xterm</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -364,8 +366,6 @@ They get changed later on.
     <!--
     <div class=square onclick="duplicateFile(fx, -1)">dupl file</div>
     -->
-    <div class=square onclick=addCmdTab()>cmd</div>
-    <div class=square onclick=addTerminalTab()>xterm</div>
     <div class=square onclick=editEditorCommandText()>editor cmd</div>
     <!--
     <div class=square onclick="deleteBelow();">del below</div>
@@ -1179,7 +1179,6 @@ function addIframe(url, id, name, cwd) {
                 let aTag = aTags[i]
                 if (aTag.hasAttribute("target") && !aTag.hasAttribute("onclick") && !aTag.hasAttribute("data-te-href")) { // TODO: better handling
                     let href = aTag.getAttribute("href")
-                    // log("link: " + href)
                     aTag.onclick = handleClick
                     aTag.removeAttribute("href")
                     aTag.setAttribute("data-te-href", href)
@@ -1201,7 +1200,6 @@ function addIframe(url, id, name, cwd) {
 
         const config = { attributes: false, childList: true, subtree: true };
         const callback = function(mutationsList, observer) {
-            // log("changed")
             // TODO: only change the modified ones, also you may need to look at attribute changes
             replaceLinks()
         };
@@ -1255,7 +1253,6 @@ function addIframe(url, id, name, cwd) {
 function showDiff() {
     var start = Date.now()
     var contents = simpleDiffOld3(fx.undo.lastSavedLines, fx.lines, false).join("\n")
-    log("diff3: " + (Date.now()-start))
     var f3 = makeFile("__diffOld3", 0, contents)
     f3.fileMode = "file"
     f3.cursorLineIndex = 0
@@ -1267,7 +1264,6 @@ function showDiff() {
     // var newContents = fx.lines.join("\n")
     // var start = Date.now()
     // var contents = Diff.createPatch("foo", oldContents, newContents, "", "", {context:0})
-    // log("diffM: " + (Date.now()-start))
     // var f4 = makeFile("__diffMyers", 0, contents)
     // f4.fileMode = "file"
     // f4.cursorLineIndex = 0
@@ -1428,7 +1424,6 @@ function getAtCursor() {
     var strIndex = u(fx.cursorColIndex)
     for (var i=strIndex; i>=0; i--) {
         // if ((line.charAt(i).trim() == "")) {
-        // log(line.charAt(i) + " " + line.charCodeAt(i))
         if (line.charCodeAt(i) <= 32) {
             break
         }
@@ -1456,7 +1451,6 @@ function openAtCursor() {
         var basePath = parts.slice(0, -1).join("/")
         var fileName = basePath + "/" + path
     }
-    log("opening file from cursor")
     addFile(fileName)
 }
 
@@ -1518,7 +1512,6 @@ function whenFontReady(fontName) {
     editorCommandText.style.fontFamily = fontName
     searchText.style.fontFamily = fontName
     theText.style.fontFamily = fontName
-    log("calling updateFontScale")
     updateFontScale()
 }
 
@@ -1796,7 +1789,6 @@ function runEditorCommand(e) {
         highlightRanges = []
         for (var i=0; i<fx.highlightRanges.length; i++) {
             var r = fx.highlightRanges[i]
-            log([fx.cursorLineIndex, r])
             if (fx.cursorLineIndex >= r.StartY && fx.cursorLineIndex <= r.StopY) {
                 // skip
             } else {
@@ -2094,7 +2086,6 @@ function renderURL() {
 }
 
 function doEval() {
-    log("eval button clicked")
     var code = prompt("code")
     var resp =  eval(code)
     alert(resp)
@@ -2130,7 +2121,6 @@ function setLastWord(maybeLastWord) {
             // this is for a nifty find and replace flow
             // and above we find other occurrences of the word we just cut
             copyBuffer = lastWord.split("\n")
-            // log("copybuf: " + copyBuffer.join(""))
         }
     } else {
         // TODO: do we need this
@@ -2143,7 +2133,6 @@ function docChanged(preventUndo) {
     if (!preventUndo) {
         // var start = Date.now()
         saveUndo(preventUndo)
-        // log("u1: " + (Date.now() - start))
     }
     renderSaves()
     lastRenderFullScreenForSet = false
@@ -2263,7 +2252,6 @@ function getCachedGraphemes(theLine, index, file, nocache) {
         }
     // } catch {
     //     var err = new Error()
-    //     log(err.stack)
     // }
     return graphemes
 }
@@ -2496,7 +2484,6 @@ function nextHighlightText() {
     if (!highlightMatchesSingleRegExp) {
         return
     }
-    log(highlightMatchesSingleRegExp.toString())
     var prevSearchText = searchText.value
     // searchText.value = fx.highlightText
     searchText.value = highlightMatchesSingleRegExp.toString().slice(1, -2)
@@ -2507,7 +2494,6 @@ function prevHighlightText() {
     if (!highlightMatchesSingleRegExp) {
         return
     }
-    log(highlightMatchesSingleRegExp.toString())
     var prevSearchText = searchText.value
     // searchText.value = fx.highlightText
     searchText.value = highlightMatchesSingleRegExp.toString().slice(1, -2)
@@ -2958,7 +2944,6 @@ function diffFiles() {
 
     var start = Date.now()
     var contents = simpleDiffOld3(aLines, bLines, false).join("\n")
-    log("diff3: " + (Date.now()-start))
     var f3 = makeFile("__diffOld3", 0, contents)
     f3.fileMode = "file"
     f3.cursorLineIndex = 0
@@ -2969,7 +2954,6 @@ function diffFiles() {
     // var start = Date.now()
     // var contents = Diff.createPatch("foo", oldContents, newContents, "", "", {context:0})
     // // var contents = Diff.createPatch("foo", "aaaaa", "bbbbbb", "", "")
-    // log("diffM: " + (Date.now()-start))
     // var f4 = makeFile("__diffMyers", 0, contents)
     // f4.fileMode = "file"
     // f4.cursorLineIndex = 0
@@ -3040,7 +3024,6 @@ function scriptLinesWithOneLineScript(oneLineScript) {
         var parts = s.split(" - ")
         // s = `ll(x,"${parts[0].slice(2)}", ${parts.slice(1).join(" - ")}")`
         s = `ll(x,"${parts[0].slice(2)}", ` + "`" + parts.slice(1).join(" - ") + "`" + `)`
-        log("the script is: " + s)
     }
     var theScriptLines = [s]
     // This next part mostly copy-pasted from scriptLines function
@@ -3784,7 +3767,6 @@ function runQuickShellCommand(cmdString, cb) {
     }).then(r => {
         return r.text()
     }).then(r => {
-        log("quick shell output: " + r)
         cb(null, r)
     })
 }
@@ -3918,14 +3900,12 @@ function pollTerminals() {
         isPollingTerminal = false
         return
     }
-    // log("Polling!")
     fetch(proxyPath + "/myterminalpoll", {
         cache: "no-cache"
     }).then(r => {
         return r.json()
     }).then(r => {
         // map of terminals and their payload and maybe meta info
-        // log("result: " + JSON.stringify(r, "", "    "))
         for (var id in r) {
             var termInfo = r[id]
             var file = files.find(f => f.ID == id)
@@ -3943,7 +3923,6 @@ function pollTerminals() {
             // #todoterminal: add xterm parsing here!
             var strToProcess = atob(termInfo.Base64)
             // simple parsing for now
-            // log("term"+JSON.stringify(strToProcess))
 
             // TODO: what if the chunk we get ends on a control character.
             // Maybe we need to preserve the parseState to the file object.
@@ -4095,7 +4074,6 @@ function sendTerminal(payload) {
     // make sure we only have one of these going at a time
     // also, binary payload?
     sendingTemrinal = true
-    log("sending with id: " + fx.ID)
     fetch(proxyPath + "/myterminalsend?id=" + fx.ID + "&payload=" + encodeURIComponent(payload), {
         cache: "no-cache"
     // }).then(r => {
@@ -4240,7 +4218,6 @@ function unExpandTabIndexNoCache(theLine, start) {
 function unExpandTabIndex(theLine, start, index, file, nocache) {
     // small todo: why is this called every touchend when not in edit mode?
     // prob a good reason, I just don't know
-    // log("ueti " + Date.now())
     var tabStop = globalTabStop
 
     if (useUnicode) {
@@ -4320,12 +4297,9 @@ function expandTabIndexNoCache(theLine, start) {
 // go from string index to graphical index, at string index
 function expandTabIndex(theLine, start, index, file, nocache) {
     // todo: This is called every scroll, even if you don't go to another letter.
-    // log("eti " + Date.now())
     theLine = theLine || ""
     var origLine = theLine
     if (!theLine.substring) {
-        log("bad line")
-        log(theLine)
         var err = new Error()
         log(err.stack)
     }
@@ -4408,9 +4382,6 @@ function expandTabIndex(theLine, start, index, file, nocache) {
         lastTabPos = tabPos
     }
     var adjustedStart = start + netSpacesAdded
-    // log({start, adjustedStart, theLine})
-    // var e = new Error()
-    // log(e.stack)
     return adjustedStart
 }
 
@@ -4429,7 +4400,6 @@ function expandLine(theLine, theIndex) {
         } else {
             expandedLine = getCachedGraphemes(theLine, theIndex)
             expandedLine = expandedLine.slice() // copy it
-            // log(Date.now().toString().slice(-4) + " expanding")
             
             // expanding emojis for double width emojis
             if (emojiWidth != 1 && containsEmoji(theLine)) {
@@ -4594,7 +4564,6 @@ function handleSearchFocusAfter() {
 
 // pressing the save button disables autosave
 function saveWrapper() {
-    log("clicked save")
     if (fx.fileMode == "shell") {
         // the save button turns into run when it's a "shell" file
         if (fx.selectedRegions.length) {
@@ -5049,7 +5018,6 @@ function sendViewToServer() {
    //     ws.send(viewBodyToSend)
    // // you could wait to make sure you server got it before sending again.
    // } catch (e) {
-   //      log(e)
    // }
    // return
 
@@ -5494,7 +5462,6 @@ function skipLeadingSace(line, startX, offsetX, y, file) {
     var match = line.match(notSpace)
     if (match) {
         var letterStart = match.index
-        // log({letterStart: letterStart})
         if (adjustedStart < letterStart) {
             newStartX = expandTabIndex(line, letterStart, y)
         }
@@ -6140,7 +6107,6 @@ function renderInternal() {
     renderDuration += duration
     rendersInLastSecond += 1
     if (renderCount == 50) {
-        // log("render avg: " + Math.round(renderDuration/renderCount))
         renderCount = 0
         renderDuration = 0
     }
@@ -6264,7 +6230,6 @@ function onStart(e) {
     // this is global
     if (e.touches.length == 1) {
         selectAction = function(forceLines = false) {
-            log("selectAction")
             // return early in case we are already selecting
             if (cursorType == "select") {
                 return
@@ -6316,7 +6281,6 @@ function onStart(e) {
     }
     
     expandSelection = function() {
-        log("expandSelection")
         if (fx.selectedRegions.length == 0) {
             return
         }
@@ -6362,7 +6326,6 @@ function onStart(e) {
         //         // TODO: finish this
         //     }
         // }
-        // log(["exp", expandedLine])
         var i = 0
         for (i=0; i<50000; i++) {
             if (leftDone && rightDone) {
@@ -6373,7 +6336,6 @@ function onStart(e) {
             if (!leftDone) {
                 // var leftChar = line.charAt(u(selectedRegion.startX - 1))
                 var leftChar = expandedLine[selectedRegion.startX - 1]
-                log("leftChar " + leftChar)
                 if (righties.indexOf(leftChar) != -1) {
                     leftCounts[mappedClosers[leftChar]] -= 1
                     selectedRegion.startX -= 1
@@ -6396,7 +6358,6 @@ function onStart(e) {
             if (!rightDone) {
                 // stopX is exclusive
                 var rightChar = expandedLine[selectedRegion.stopX - 1 + 1]
-                log("rightChar" + rightChar)
                 if (lefties.indexOf(rightChar) != -1) {
                     rightCounts[mappedClosers[rightChar]] -= 1
                     selectedRegion.stopX += 1
@@ -6416,7 +6377,6 @@ function onStart(e) {
                     rightDone = true
                 }
             }
-            // log([leftCounts, rightCounts])
         }
         if (selectedRegion.startX == 0 && selectedRegion.stopX == expandedLine.length) {
             selectMode = "line"
@@ -6475,8 +6435,6 @@ function onStart(e) {
         // var oldTouchScaleX = touchScaleX
         // // if (((charBefore != charAfter) && (!isWordy(charBefore.charAt(0))) || !isWordy(charAfter.charAt(0))) || fx.cursorColIndex == 0 || fx.cursorColIndex == expandTabIndex(fx.lines[fx.cursorLineIndex], -1)) {
         // if ((charBefore != charAfter) && (!isWordy(charBefore.charCodeAt(0)) || !isWordy(charAfter.charCodeAt(0))) ) {
-        //     // log([charBefore, charAfter, isWordy(charBefore.charCodeAt(0))])
-        //     log("yay")
         //     touchScaleX = touchScaleX / 10
         // }
         if (!lockX) {
@@ -6512,10 +6470,6 @@ function onStart(e) {
                     // subtract one because at the edge it doesn't get an element?
                     var el = fx.iframe.contentWindow.document.elementFromPoint(fx.iframeCursorX + fx.iframeWrapper.scrollLeft, fx.iframeCursorY + fx.iframeWrapper.scrollTop - 1);
                     var nextScrollableElement = getNextScrollableElement(el, fx.iframe.contentWindow.document.body)
-                    // log({
-                    //     el: seeEl(el, fx.iframe.contentWindow.document.body),
-                    //     n: seeEl(nextScrollableElement, fx.iframe.contentWindow.document.body),
-                    // })
                     if (nextScrollableElement == fx.iframe.contentWindow.document.body) {
                         fx.iframe.contentWindow.scrollTo(fx.iframe.contentWindow.scrollX, fx.iframe.contentWindow.scrollY + wantScrollTop - (oldScrollTop - fx.iframeWrapper.scrollTop) - oldScrollTop)
                     } else {
@@ -6534,10 +6488,6 @@ function onStart(e) {
                     fx.iframeWrapper.scrollTop = 0
                     var el = fx.iframe.contentWindow.document.elementFromPoint(fx.iframeCursorX + fx.iframeWrapper.scrollLeft, fx.iframeCursorY + fx.iframeWrapper.scrollTop + 1);
                     var nextScrollableElement = getNextScrollableElementUp(el, fx.iframe.contentWindow.document.body)
-                    // log({
-                    //     el: seeEl(el, fx.iframe.contentWindow.document.body),
-                    //     n: seeEl(nextScrollableElement, fx.iframe.contentWindow.document.body),
-                    // })
                     if (nextScrollableElement == fx.iframe.contentWindow.document.body) {
                         fx.iframe.contentWindow.scrollTo(fx.iframe.contentWindow.scrollX, fx.iframe.contentWindow.scrollY + wantScrollTop - (oldScrollTop - 0) - oldScrollTop)
                     } else {
@@ -6624,7 +6574,6 @@ function onStart(e) {
                 fx.offsetY = 0
             }
             if (overflowY < -50 && !hasDoneOverflowYAction && startCursorLineIndex == 0) {
-                log("top action")
                 if (fx.fileMode == "shell") {
                     runShellCommand("cd ..")
                 } else {
@@ -6635,7 +6584,6 @@ function onStart(e) {
             }
         }
 
-        // log("startCursorColIndex: " + startCursorColIndex)
         var maxWidth = (maxCols -1) * fontWidth
         //var maxWidth = canvasWidth
         if (cursorX > maxWidth) {
@@ -6657,7 +6605,6 @@ function onStart(e) {
             }
 
             // attempt 1 at swiping left to do an action
-            // log("theoffsetx: " + fx.offsetX)
             // if (!hasSwitchedFile && !changedY && startCursorColIndex == -marginLeft && prevOffsetX < -20) {
             //     hasSwitchedFile = true
             //     seeFiles()
@@ -6733,7 +6680,6 @@ function onStart(e) {
         //     var wordStartX = expandTabIndex(theLine, w.start)
         //     var wordEndX = expandTabIndex(theLine, w.end)
         //     var percentInWord = (fx.cursorColIndex - wordStartX) / (wordEndX - wordStartX)
-        //     log([signX, percentInWord.toFixed(2)])
         //     if (signX == 1 && percentInWord >= .5 && fx.cursorColIndex != wordEndX) { // movedRight
         //         fx.cursorColIndex = wordEndX
         //         updateCursorXY()
@@ -6882,11 +6828,6 @@ function onStart(e) {
                     }
                     if (countAngles > 0) {
                         var newFilePath = file.fullPath.split("/").slice(0, -countAngles).join("/")
-                        log([
-                            file.fullPath,
-                            countAngles,
-                            newFilePath
-                        ])
                         addFile(newFilePath)
                         return
                     }
@@ -6972,7 +6913,6 @@ function onStart(e) {
                 var w = getWordBeforeCursor()
                 if (alternateTap && lastAction == "move" || w.word == "") { // red marker
                     var w = getWordAtCursor()
-                    log([w, fx.cursorColIndex])
                     //if (w.word == "" || w.start == fx.cursorColIndex) {
                     if (w.word == "") {
                         selectMode = "char"
@@ -6996,7 +6936,6 @@ function onStart(e) {
                     // this condition used to not be there
                     // and we'd acWordToggle every time (alternate paste flow)
                     // touchMiddleMiddle?
-                    // log("acWordToggle " + Date.now())
                     acWordToggle() // lime marker
                 }
             } else {
@@ -7347,12 +7286,12 @@ function onStart(e) {
     var touchTopTopRight = function() {
         // duplicateFile(fx, -1)
         // goUpDirectory()
-        saveWrapper()
+        // saveWrapper()
+        setCurrentFile(lastFile) // alt tab, alt+tab
     }
     var touchTopRight = function() {
         moveHomeEndDirection = "down"
         moveHomeEndTimeout = setTimeout(moveHomeEndAction, moveHomeEndTimeoutMillis)
-        // log({sm: selectMode})
         // if (fx.highlightText) {
         if (false && highlightMatchesSingleRegExp) {
             nextHighlightText()
@@ -7458,7 +7397,6 @@ function onStart(e) {
             touchTopTopLeft()
         // if (startTouchY - bbox.top < (bbox.height/3)) { // this divide by 3 is because of the 3 sections
         } else if (bbox.bottom - startTouchY > (2*verticalTouchSize)) {
-            log("touchTopLeft")
             touchTopLeft()
         // } else if (startTouchY - bbox.top < (bbox.height*2/3)) {
         } else if (bbox.bottom - startTouchY > (1*verticalTouchSize)) {
@@ -7622,7 +7560,6 @@ function clickItemInDirectory() {
         preventSelect = false
     }
     
-    // log("add before: " + closedLeftMostFile)
     if (newFullPath == "> cmd") {
         addCmdTab()
         return
@@ -7930,7 +7867,6 @@ function acPlop(buff) {
     // maybe you can look at hasMovedSinceCut (inside setLastWord) too?
     copyBuffer = buff 
     acWord.stopY = acWord.startY
-    log("acplopping: " + copyBuffer.join("\n"))
     paste()
     copyBufferAfterPaste = copyBuffer
     copyBuffer = buff // same thing for why we do it
@@ -8270,12 +8206,10 @@ function addFileToList(file, options) {
     } else {
         // add it after current file if it exists in list, otherwise unshift it to the start.
         var theIndex = files.indexOf(fx)
-        log("the start index is: " + theIndex)
         if (theIndex != -1) {
             var spliceIndex = theIndex + 1
             if (options.addBefore) {
                 spliceIndex = theIndex
-                log("did add before")
             }
             files.splice(spliceIndex, 0, file)
         } else {
@@ -8807,7 +8741,6 @@ function downloadFile() {
         newFullPath = prefix + "/" + addPath
     }
     window.open(proxyPath + "/saveload?fullpath=" + encodeURIComponent(newFullPath) + "&raw=1&download=1")
-    // log(proxyPath + "/saveload?fullpath=" + encodeURIComponent(fx.fullPath) + "&raw=1&download=1")
 }
 
 // also see makeFile
@@ -9160,7 +9093,6 @@ var jsonRPCID = 0
 function langServer(jsonRPC) {
     jsonRPC.id = jsonRPCID++
     var body = JSON.stringify(jsonRPC)
-    log(jsonRPC)
     fetch(proxyPath + "/mylangserver",  {
         cache: "no-cache",
         method: "POST",
