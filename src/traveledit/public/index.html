@@ -278,18 +278,18 @@ They get changed later on.
 </div>
 <div class="toolbar hidden" id=fileToolbar1 style="--display: none">
     <div class=square onclick="editSearch()" id=statusBar>status</div>
-    <div class=square onclick=addCmdTab()>cmd</div>
-    <div class=square onclick=addTerminalTab()>xterm</div>
+    <div id=saveButton class=square onclick=saveWrapper()>save</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
     <div class=middleButton onclick='sendTerminal("git add -p"); event.preventDefault()'>-p</div>
     <!-- don't really need tab because touching the screen gets you tab-->
-    <!--<div class=middleButton onclick='sendTerminal("\t"); event.preventDefault() '>tab</div>
+    <!--
+        <div class=middleButton onclick='sendTerminal("\t"); event.preventDefault() '>tab</div>
+        <div class=middleButton onclick=runScriptAndPasteButtonPress()>paste</div>
     -->
-    <div class=middleButton onclick=runScriptAndPasteButtonPress()>paste</div>
-    <div class=middleButton onclick='saveWrapper()'>run</div>
     <div class=middleButton onclick='sendTerminal("\x1b[A"); event.preventDefault()'>up</div>
+    <div class=middleButton onclick='saveWrapper()'>run</div>
     <div class=middleButton id=slot1Button onclick='sendTerminal(slot1Input.value); event.preventDefault()'>slot 1</div>
     <div class=middleButton id=slot2Button onclick='sendTerminal(slot2Input.value); event.preventDefault()'>slot 2</div>
     <div class=middleButton id=slot3Button onclick='sendTerminal(slot3Input.value); event.preventDefault()'>slot 3</div>
@@ -348,9 +348,10 @@ They get changed later on.
     <div class=square onclick="osCopyText()">os copy</div>
     <div class=square onclick="osPasteText()">os paste</div>
     <div id=runScriptAndPasteButton class=square onclick=runScriptAndPasteButtonPress()>run script</div>
-    <div id=saveButton class=square onclick=saveWrapper()>save</div>
-    <div class=square onclick=comment()>//</div>
+    <div class=square onclick=addCmdTab()>cmd</div>
+    <div class=square onclick=addTerminalTab()>xterm</div>
     <!--
+    <div class=square onclick=comment()>//</div>
     <div class=square onclick=seeFiles()>files</div>
     -->
 </div>
@@ -2901,6 +2902,11 @@ function runScriptAndPasteButtonPress() {
         return
     }
     
+    if (fx.fileMode == "shell") {
+        saveWrapper()
+        return
+    }
+    
     if (fx.selectedRegions.length) {
         runScript()
         return
@@ -4454,6 +4460,7 @@ function expandLine(theLine, theIndex) {
         }
     } else {
         // TODO: you can potentially also cache this part
+        expandedLine = ""
         while (true) {
             tabPos = theLine.indexOf("\t", afterLastTabPos)
             if (tabPos == -1) {
