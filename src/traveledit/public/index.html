@@ -278,6 +278,7 @@ They get changed later on.
 </div>
 <div class="toolbar hidden" id=fileToolbar1 style="--display: none">
     <div class=square onclick="editSearch()" id=statusBar>status</div>
+    <div class=square onclick=reloadFile(fx)>reload</div>
     <div id=saveButton class=square onclick=saveWrapper()>save</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
@@ -950,7 +951,7 @@ function doSizing() {
 
         // Simple detection for landscape
         if (innerWidth > innerHeight) {
-            canvasHeightFull = 1600 - (36*3*1)
+            canvasHeightFull = 1600 + (36*3*1)
             canvasHeightKeyboard = 800
             navTouchSize = 100
         }
@@ -3363,6 +3364,7 @@ function paste(unselect, pasteBefore, fromTap, unselectIfCharOneWord) {
     }
     if (fx.fileMode == "directory" && cutDirectoryFiles.length) {
         cutDirectoryFiles = []
+        // unimplemented
         return
     }
     pasteLines(copyBuffer, unselect, pasteBefore, fromTap, unselectIfCharOneWord)
@@ -5261,8 +5263,8 @@ function render() {
         var oldMaxLines = maxLines
         var oldT = t // canvas rendering context
         fx.offsetX = -marginLeft
-        if (maxCols < 250) {
-            maxCols = 250
+        if (maxCols < 175) {
+            maxCols = 175
         }
         if (maxLines < 32) {
             maxLines = 32
@@ -5276,8 +5278,10 @@ function render() {
         fx.offsetX = (section * maxCols) - marginLeft
 
         t = mockCanvasContext
-        mockCanvasContext.lastFillStyle = "black",
-        mockCanvasContext.fillStyle = "black",
+        // mockCanvasContext.lastFillStyle = "black",
+        // mockCanvasContext.fillStyle = "black",
+        mockCanvasContext.lastFillStyle = "/",
+        mockCanvasContext.fillStyle = "/",
         mockCanvasContext.lastFont = "",
         mockCanvasContext.font = "",
         mockCanvasContext.lastTextBaseline = "",
