@@ -277,9 +277,10 @@ They get changed later on.
 <div class="toolbar xhidden" id=fileRow onclick=selectFileRow(event)>
 </div>
 <div class="toolbar hidden" id=fileToolbar1 style="--display: none">
-    <div class=square onclick="editSearch()" id=statusBar>status</div>
-    <div class=square onclick=reloadFile(fx)>reload</div>
-    <div id=saveButton class=square onclick=saveWrapper()>save</div>
+    <div class=longButton onclick="editSearch()" id=statusBar>status</div>
+    <div class=longButton onclick=goUpDirectory()>⬆️</div>
+    <div class=longButton onclick=reloadFile(fx)>reload</div>
+    <div id=saveButton class=longButton onclick=saveWrapper()>save</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -308,22 +309,26 @@ They get changed later on.
 <!-- workspace toolbar was here -->
 
 <div class="toolbar hidden" id=shellToolbar1 style="--display: none">
-    <div class=square onclick=openAtCursor()>open</div>
-    <div class=square onclick='runShellCommand("git diff")'>diff</div>
-    <div class=square onclick='runShellCommand("git diff --cached")'>diff --cached</div>
-    <div class=square onclick='readySameCommitAsBefore()'>commit -m</div>
-    <div class=square onclick='runShellCommand("git push origin HEAD")'>push origin H</div>
+    <div class=middleButton onclick=openAtCursor()>open</div>
+    <div class=middleButton onclick='runShellCommand("git status")'>status</div>
+    <div class=middleButton onclick='runShellCommand("git diff")'>diff</div>
+    <div class=middleButton onclick='runShellCommand("git diff --cached")'>diff --cached</div>
+    <div class=middleButton onclick='readySameCommitAsBefore()'>commit -m</div>
+    <div class=middleButton onclick='saveWrapper()'>run</div>
+    <div class=middleButton onclick='runShellCommand("git push origin HEAD")'>push origin H</div>
+    <div class=middleButton onclick='runShellCommand("git log -p -3")'>log -p</div>
+    <div class=middleButton onclick='runShellCommand("git log -p 10")'>log</div>
 
 
     <!-- this one tries to make light backgroud, but doesn't work with mac sed.
-    <div class=square onclick='runShellCommand("git add -u :/")'>add -u :/</div>
-    <div class=square onclick='runShellCommand("git branch")'>branch</div>
-    <div class=square onclick='runShellCommand("git status")'>status</div>
-    <div class=square onclick='runShellCommand("rm coverage.out coverage.html; if go test -cover -coverprofile coverage.out ./...; then go tool cover -func=coverage.out; go tool cover -o=coverage.html -html=coverage.out; fi")'>gotest</div>
-    <div class=square onclick='runShellCommand("rm coverage.out coverage.html; if go test -cover -coverprofile coverage.out ./...; then go tool cover -func=coverage.out; go tool cover -o=coverage.html -html=coverage.out; sed -i &apos;s/black;/white;/g&apos; coverage.html; fi")'>gotest</div>
-    <div class=square onclick='insertText(["git commit -m &apos;&apos;"], 0, 15)'>commit -m</div>
-    <div class=square onclick='insertText(["git checkout "], 0, -1)'>checkout</div>
-    <div class=square onclick='insertText(["git checkout -b "], 0, -1)'>checkout -b</div>
+    <div class=middleButton onclick='runShellCommand("git add -u :/")'>add -u :/</div>
+    <div class=middleButton onclick='runShellCommand("git branch")'>branch</div>
+    <div class=middleButton onclick='runShellCommand("git status")'>status</div>
+    <div class=middleButton onclick='runShellCommand("rm coverage.out coverage.html; if go test -cover -coverprofile coverage.out ./...; then go tool cover -func=coverage.out; go tool cover -o=coverage.html -html=coverage.out; fi")'>gotest</div>
+    <div class=middleButton onclick='runShellCommand("rm coverage.out coverage.html; if go test -cover -coverprofile coverage.out ./...; then go tool cover -func=coverage.out; go tool cover -o=coverage.html -html=coverage.out; sed -i &apos;s/black;/white;/g&apos; coverage.html; fi")'>gotest</div>
+    <div class=middleButton onclick='insertText(["git commit -m &apos;&apos;"], 0, 15)'>commit -m</div>
+    <div class=middleButton onclick='insertText(["git checkout "], 0, -1)'>checkout</div>
+    <div class=middleButton onclick='insertText(["git checkout -b "], 0, -1)'>checkout -b</div>
     -->
 
 
@@ -2899,16 +2904,12 @@ function copy() {
 
 function runScriptAndPasteButtonPress() {
     if (fx.fileMode == "terminal") {
+        // Paste to terminal
         sendTerminal(copyBuffer.join("\r"))
         return
     }
     
-    if (fx.fileMode == "shell") {
-        saveWrapper()
-        return
-    }
-    
-    if (fx.selectedRegions.length) {
+    if (fx.fileMode == "file" && fx.selectedRegions.length) {
         runScript()
         return
     }
@@ -6806,6 +6807,10 @@ function onStart(e) {
             if (fx.fileMode == "directory") {
                 // #filestuff
                 // openFile
+                // select file in directoey
+                // choose file
+                // click file
+                // touch file
                 clickItemInDirectory()
                 return
             }
@@ -6839,7 +6844,10 @@ function onStart(e) {
                     }
                     if (countAngles > 0) {
                         var newFilePath = file.fullPath.split("/").slice(0, -countAngles).join("/")
-                        addFile(newFilePath)
+                        var newFile = addFile(newFilePath, {
+                            color: file.color,
+                            group: file.group,
+                        })
                         return
                     }
                     setCurrentFile(file)
@@ -7552,46 +7560,30 @@ function clickItemInDirectory() {
             parts = parts.slice(0, parts.length - 1)
         }
         var newFullPath = parts.join("/")
-    } else if (addPath == "> cmd") {
-        var newFullPath = "> cmd"
-    } else if (addPath == "> xterm") {
-        var newFullPath = "> xterm"
     } else {
         var newFullPath = prefix + "/" + addPath
     }
-    var color = fx.color
-    var group = fx.group
-    var preventSelect = true
-    var closedLeftMostFile = false
     if (fx.cursorColIndex != -marginLeft) {
-        if (files[0] == fx) {
-            closedLeftMostFile = true
-        }
-        closeFile()
-        preventSelect = false
+        replaceFile(newFullPath, {
+        })
+    } else {
+        var newFile = addFile(newFullPath, {
+            preventSelect: true,
+        })
     }
-    
-    if (newFullPath == "> cmd") {
-        addCmdTab()
-        return
-    } else if (newFullPath == "> xterm") {
-        addTerminalTab()
-        return
+}
+function replaceFile(newFullPath, options) {
+    var closedLeftMostFile = false
+    var oldFX = fx
+    if (files[0] == fx) {
+        closedLeftMostFile = true
     }
+    closeFile()
     
-    var newFile = addFile(newFullPath, {
-        preventSelect: preventSelect,
-        addBefore: closedLeftMostFile
-    })
-    
-    if (newFile) {
-        // we do this because of the close, which doesn't always happen
-        newFile.color = color
-        newFile.group = group
-        // note, this call already happens above but we need to re-render it
-        //  because we set the color after the fact.
-        renderFileDropdown()
-    }
+    options.addBefore = closedLeftMostFile
+    options.color = oldFX.color
+    options.group = oldFX.group
+    var newFile = addFile(newFullPath, options)
 }
 
 
@@ -8284,6 +8276,14 @@ function addFile(fullPath, options, id, name) {
     if (name) {
         file.name = name
     }
+    // makeFile will also carry over color and group,
+    // but we can also have it explicit here
+    if (options.color) {
+        file.color = options.color
+    }
+    if (options.group) {
+        file.group = options.group
+    }
     addFileToList(file, options)
     if (!options.preventSelect) {
         setCurrentFile(file)
@@ -8614,7 +8614,10 @@ function goUpDirectory() {
              selectName: fx.shellCWD.split("/").slice(-1)[0]
         })
     } else {
-        addFile(fx.fullPath.split("/").slice(0, -1).join("/"), {
+        // addFile(fx.fullPath.split("/").slice(0, -1).join("/"), {
+        //      selectName: fx.fullPath.split("/").slice(-1)[0]
+        // })
+        replaceFile(fx.fullPath.split("/").slice(0, -1).join("/"), {
              selectName: fx.fullPath.split("/").slice(-1)[0]
         })
     }
@@ -8648,7 +8651,7 @@ function setCurrentFile(file) {
         terminalToolbar1.classList.add("hidden")
         // workspaceToolbar.classList.add("hidden")
         iframeToolbar1.classList.add("hidden")
-        runScriptAndPasteButton.innerText = "run/paste"
+        runScriptAndPasteButton.innerText = "paste"
     } else if (fx.fileMode == "terminal") {
         fileToolbar1.classList.add("hidden")
         shellToolbar1.classList.add("hidden")
