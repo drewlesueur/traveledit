@@ -349,8 +349,8 @@ They get changed later on.
     <!--
         <div id=clearSearchButton class=square onclick=clearSearch()>clear search</div>
         <div class=square onclick=editSearch()>edit search</div>
-    <div class=square onclick=closeFile()>close</div>
     -->
+    <div class=square onclick=closeFile()>close</div>
     <div class=square onclick="osCopyText()">os copy</div>
     <div class=square onclick="osPasteText()">os paste</div>
     <div id=runScriptAndPasteButton class=square onclick=runScriptAndPasteButtonPress()>run script</div>
@@ -6847,6 +6847,7 @@ function onStart(e) {
                         var newFile = addFile(newFilePath, {
                             color: file.color,
                             group: file.group,
+                            fileToAddAfter: file,
                         })
                         return
                     }
@@ -8208,7 +8209,7 @@ function addFileToList(file, options) {
         files.push(file)
     } else {
         // add it after current file if it exists in list, otherwise unshift it to the start.
-        var theIndex = files.indexOf(fx)
+        var theIndex = files.indexOf(options.fileToAddAfter || fx)
         if (theIndex != -1) {
             var spliceIndex = theIndex + 1
             if (options.addBefore) {
@@ -8235,7 +8236,7 @@ function selectFileInDirectory(file, selectName) {
         }
     }
 }
-function addFile(fullPath, options, id, name) {
+function addFile(fullPath, options, id, name) { // hotpink marker
     options = options || {}
     fullPath = normalizeFullPath(fullPath)
     if (fullPath == "") {
