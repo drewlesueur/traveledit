@@ -18,8 +18,6 @@ go build -o traveledit || exit 1
 # Why the double slashes?
 # Answer: https://stackoverflow.com/questions/48427366/docker-build-command-add-c-program-files-git-to-the-path-passed-as-build-argu
 
-GO111MODULE=off \
-GOPATH=$(pwd)/../.. \
 BASICUSER=user1 \
 BASICPASS=somepw \
 SCREENSHARENOAUTH=1 \
