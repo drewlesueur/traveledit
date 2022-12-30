@@ -370,6 +370,7 @@ They get changed later on.
 </div>
 <div class=toolbar>
     <div class=square onmousedown="setCurrentFile(lastFile)" ontouchstart="setCurrentFile(lastFile); event.preventDefault(); event.stopPropagation()">alt tab</div>
+    <div class=square onclick="googleIt()">Google it</div>
     <!--
     <div class=square onclick="duplicateFile(fx, -1)">dupl file</div>
     -->
@@ -601,6 +602,7 @@ var lastCleared = ""
 var fontScale = 1.2
 var useUnicode = true
 var emojiWidth = 2
+// var emojiWidth = 1
 var compactRender = false
 var agressiveRender = false
 
@@ -4214,10 +4216,13 @@ function containsEmoji(line) {
     return emojiRegex.test(line)
 }
 function isEmoji(grapheme) {
-    // over simplified attempt to Make it faster, but not 100% accurate
-    if (grapheme.length > 1) {
-        return true
+    if (grapheme.length == 1 && grapheme.charCodeAt(0) < 256) {
+       return false
     }
+    // over simplified attempt to Make it faster, but not 100% accurate
+    // if (grapheme.length > 1) {
+    //     return true
+    // }
     
     return containsEmoji(grapheme)
 }
@@ -4874,6 +4879,7 @@ function fillStyleIndex(f) {
 
 
 var mockCanvasContext = {
+    mockCanvasContext: true,
     commands: [],
     lastFillStyle: "black",
     fillStyle: "black",
@@ -5173,6 +5179,7 @@ function render() {
         statusBar.innerText = fx.selectedRegions[0].stopY - fx.selectedRegions[0].startY + 1
     } else {
         statusBar.innerText = searchText.value
+        statusBar.innerText = fx.cursorColIndex + "(" + u(fx.cursorColIndex) + ")"
     }
     
     // this is commented out because of iphone 12 mini slowness
@@ -6099,18 +6106,20 @@ function renderInternal() {
     // drawCircle("cyan", canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
     // drawCircle("magenta", dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
     // drawCircle("magenta", canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, dotIndent, canvasHeight-(5*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(5*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-    drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    if (!t.mockCanvasContext) {
+        drawCircle(lightFontColor, dotIndent, canvasHeight-(5*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(5*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+    }
 
     var duration = Date.now() - startRenderTime
     // TODO: audit render for performance
@@ -9124,6 +9133,11 @@ function langServer(jsonRPC) {
     }).catch(e => {
         alert("error saving calling lang server: " + e)
     })
+}
+
+function googleIt() {
+    var selectedLine = getSelectedLines(fx, false).lines[0]
+    window.open("https://www.google.com/search?q=" + encodeURIComponent(selectedLine))
 }
 
 

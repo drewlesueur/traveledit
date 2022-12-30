@@ -4,6 +4,14 @@
 # closure
 # async io
 
+set foo 1000
+set bar 200
+
+set baz $ add $foo $bar
+greet name:
+func greet name {
+    
+}
 
 
 incrementer = {
