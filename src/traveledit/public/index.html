@@ -4643,7 +4643,8 @@ function save() {
                 myFx.undo.lastSavedHash = toSaveHash
             } else {
                 alert("issue saving: " + v.error)
-                saveDiffs = false
+                myFx.savingVersion = -1
+                // saveDiffs = false
             }
             render()
             renderFileDropdown()
