@@ -6806,12 +6806,20 @@ function onStart(e) {
             } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
                 // We won't get into this case because it's handled on touch start to select 
             } else if (bbox.bottom - e.changedTouches[0].pageY > (2*verticalTouchSize)) {
-                // touchTopTopMiddle
-                if (searchText.value == "") {
+                // touchTopMiddle
+                
+                // left to edit search, right to clear search
+                if (e.changedTouches[0].pageX < (bbox.width / 2)) {
                     editSearch()
                 } else {
                     clearSearch()
                 }
+                // edit search on left, clear on right
+                // if (searchText.value == "") {
+                //     editSearch()
+                // } else {
+                //     clearSearch()
+                // }
                 return
             }
             
