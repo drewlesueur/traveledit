@@ -7366,39 +7366,22 @@ function onStart(e) {
         }
     }
     var touchMiddleLeft = function() {
-        if (document.activeElement == theText) {
-            navFileLeft()
-        } else {
-            if (fx.selectedRegions.length) {
-                moveSelectionLeft()
-            } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
-                goUpFileList()
-            } else {
-                moveCursorLeft()
-            }
-        }
+        navFileLeft()
+        
     }
     var touchMiddleMiddle = function() {
         
     }
     var touchMiddleRight = function() {
-        if (document.activeElement == theText) {
-            navFileRight()
-        } else {
-            if (fx.selectedRegions.length) {
-                moveSelectionRight()
-            } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
-                goDownFileList()
-            } else {
-                moveCursorRight()
-            }
-        }
+        navFileRight()
     }
     var touchBottomLeft = function() {
-        if (document.activeElement == theText) {
-            moveCursorLeft()
+        if (fx.selectedRegions.length) {
+            moveSelectionLeft()
+        } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
+            goUpFileList()
         } else {
-            navFileLeft()
+            moveCursorLeft()
         }
     }
     var touchBottomMiddle = function() {
@@ -7406,10 +7389,12 @@ function onStart(e) {
         
     }
     var touchBottomRight = function() {
-        if (document.activeElement == theText) {
-            moveCursorRight()
+        if (fx.selectedRegions.length) {
+            moveSelectionRight()
+        } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
+            goUpFileList()
         } else {
-            navFileRight()
+            moveCursorRight()
         }
     }
     
