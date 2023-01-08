@@ -414,7 +414,8 @@ func runShellCommand(id string, cmdString string, cwd string, w http.ResponseWri
 	}
 
 	// add the cwd so the client can remember it
-	cmdString = "cd " + cwd + ";\n" + cmdString + ";\necho ''; pwd"
+	// TODO? escape the cwd?
+	cmdString = "cd '" + cwd + "';\n" + cmdString + ";\necho ''; pwd"
 
 	cmd := exec.Command("bash", "-c", cmdString)
 	var f *File
