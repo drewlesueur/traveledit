@@ -7291,16 +7291,24 @@ function onStart(e) {
     }
     var touchTopTopMiddle = function() {
         if (fx.selectedRegions.length == 0) {
-            isSelectedFromTopThird = true
-            // see onEndWhileSelected for one way to duplicate line (#duplicateline)
-            selectAction(true)
-    
-            // TODO: maybe figure out how to not copy paste this?
-            document.body.addEventListener("touchmove", onMove)
-            moveListenerCount += 1
-            document.body.addEventListener("touchend", onEnd)
-            endListenerCount += 1
-            return
+            
+            if (e.changedTouches[0].pageX < (bbox.width / 2)) {
+                // # duplicateline #duplicatelinefromtop
+                copyBuffer = [fx.lines[fx.cursorLineIndex]]
+                paste(true) // true here means unselect
+                return
+            } else {
+                isSelectedFromTopThird = true
+                // see onEndWhileSelected for one way to duplicate line (#duplicateline)
+                selectAction(true)
+        
+                // TODO: maybe figure out how to not copy paste this?
+                document.body.addEventListener("touchmove", onMove)
+                moveListenerCount += 1
+                document.body.addEventListener("touchend", onEnd)
+                endListenerCount += 1
+                return
+            }
         } else {
             // # duplicateline #duplicatelinefromtop
             var oldSelectedRegions = fx.selectedRegions
