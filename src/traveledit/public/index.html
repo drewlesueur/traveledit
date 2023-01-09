@@ -317,7 +317,7 @@ They get changed later on.
     <div class=middleButton onclick='readySameCommitAsBefore()'>commit -m</div>
     <div class=middleButton onclick='runShellCommand("git push origin HEAD")'>push origin H</div>
     <div class=middleButton onclick='runShellCommand("git log -p -3")'>log -p</div>
-    <div class=middleButton onclick='runShellCommand("git log -p 10")'>log</div>
+    <div class=middleButton onclick='runShellCommand("git log -10")'>log</div>
 
 
     <!-- this one tries to make light backgroud, but doesn't work with mac sed.
@@ -6347,7 +6347,6 @@ function onStart(e) {
         var expandedLine = expandLine(line, fx.cursorLineIndex)
         // find all the quote ranges.
         // if our cursor is in a quote range selext that first.
-        
         var quoteState = "out"
         var quoteType = ""
         // for (var i=0; i<expandedLine.length; i++) {
@@ -7402,7 +7401,7 @@ function onStart(e) {
         if (fx.selectedRegions.length) {
             moveSelectionRight()
         } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
-            goUpFileList()
+            goDownFileList()
         } else {
             moveCursorRight()
         }
