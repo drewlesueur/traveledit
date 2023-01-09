@@ -7105,7 +7105,9 @@ function onStart(e) {
                 copy()
                 paste(true) // true here means unselect
             // } else if (selectMode == "line" && (e.changedTouches[0].pageY-c.getBoundingClientRect().top) < c.clientHeight/3*2) {
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
+            } else if (selectMode == "line" && bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
+                // only if you select the whole line can you comment.
+                // hopefully to  prevent against accidental commenting.
                 comment()
             } else {
                 fx.selectedRegions = []
