@@ -6808,7 +6808,8 @@ function onStart(e) {
             
             if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
                 // touchTopTopTopMiddle
-                closeFile()
+                // closeFile()
+                editEditorCommandText()
                 return
             } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
                 // We won't get into this case because it's handled on touch start to select 
