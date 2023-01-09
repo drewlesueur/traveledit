@@ -1923,6 +1923,13 @@ function closeFile() {
         }
         fx.lines = getLinesForFileList()
     } else {
+        if (fx.fileMode == "file") {
+            if (fx.version != fx.savedVersion) {
+                if (!confirm("Unsaved changes, click OK if you still want to close. ")) {
+                    return
+                }
+            }
+        }
         var myFx = fx // in case it changes
         if (fx.iframeWrapper) {
             fx.iframeWrapper.remove()
