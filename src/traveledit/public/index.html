@@ -284,14 +284,17 @@ They get changed later on.
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
-    <div class=middleButton onclick='sendTerminal("git add -p"); event.preventDefault()'>-p</div>
     <!-- don't really need tab because touching the screen gets you tab-->
     <!--
         <div class=middleButton onclick='sendTerminal("\t"); event.preventDefault() '>tab</div>
         <div class=middleButton onclick=runScriptAndPasteButtonPress()>paste</div>
     -->
+    <div class=middleButton onclick='clearLog(); event.preventDefault()'>clear</div>
     <div class=middleButton onclick='sendTerminal("\x1b[A"); event.preventDefault()'>up</div>
     <div class=middleButton onclick='saveWrapper()'>run</div>
+    <!-- ctrl c, clear, up, enter -->
+    <div class=middleButton onclick='sendTerminal("\x03"); clearLog(); sendTerminal("\x1b[A"); saveWrapper()'>rerun</div>
+    <div class=middleButton onclick='sendTerminal("git add -p"); event.preventDefault()'>-p</div>
     <div class=middleButton id=slot1Button onclick='sendTerminal(slot1Input.value); event.preventDefault()'>slot 1</div>
     <div class=middleButton id=slot2Button onclick='sendTerminal(slot2Input.value); event.preventDefault()'>slot 2</div>
     <div class=middleButton id=slot3Button onclick='sendTerminal(slot3Input.value); event.preventDefault()'>slot 3</div>
@@ -310,11 +313,12 @@ They get changed later on.
 
 <div class="toolbar hidden" id=shellToolbar1 style="--display: none">
     <div class=middleButton onclick=openAtCursor()>open</div>
-    <div class=middleButton onclick='runShellCommand("git status")'>status</div>
+    <div class=middleButton onclick='clearLog(); event.preventDefault()'>clear</div>
     <div class=middleButton onclick='runShellCommand("git diff")'>diff</div>
     <div class=middleButton onclick='saveWrapper()'>run</div>
     <div class=middleButton onclick='runShellCommand("git diff --cached")'>diff --cached</div>
     <div class=middleButton onclick='readySameCommitAsBefore()'>commit -m</div>
+    <div class=middleButton onclick='runShellCommand("git status")'>status</div>
     <div class=middleButton onclick='runShellCommand("git push origin HEAD")'>push origin H</div>
     <div class=middleButton onclick='runShellCommand("git log -p -3")'>log -p</div>
     <div class=middleButton onclick='runShellCommand("git log -10")'>log</div>
@@ -448,6 +452,9 @@ They get changed later on.
         <div class=longButton onclick="selectFont('Droid Sans Mono')">DSM</div>
     -->
     <div class=longButton onclick="selectFont('Menlo')">Menlo</div>
+    <div class=longButton onclick="selectFont('Courier')">Courier</div>
+    <div class=longButton onclick="selectFont('IosevkaExtended')">Iosevka Ext.</div>
+    <div class=longButton onclick="selectFont('InputMono')">Input Mono</div>
     <div class=longButton onclick="selectFont('VictorMono')">Victor Mono</div>
     <div class=longButton onclick="selectFont('VictorMonoMedium')">Victor Mono M</div>
     <div class=longButton onclick="selectFont('VictorMonoSemiBold')">Victor Semi Bold</div>
@@ -455,8 +462,6 @@ They get changed later on.
     <div class=longButton onclick="selectFont('AnonymousProBold')">Anonymous Pro Bold</div>
     <div class=longButton onclick="selectFont('SourceCodePro')">Source Code Pro</div>
     <div class=longButton onclick="selectFont('InputMonoLucida')">Input Mono L</div>
-    <div class=longButton onclick="selectFont('InputMono')">Input Mono</div>
-    <div class=longButton onclick="selectFont('Courier')">Courier</div>
     <div class=longButton onclick="selectFont('IosevkaLucida')">Iosevka L</div>
     <div class=longButton onclick="selectFont('IosevkaLucidaMedium')">Iosevka L Medium</div>
     <div class=longButton onclick="selectFont('IosevkaLucidaSemiBold')">Iosevka L SemiBold</div>
@@ -632,6 +637,28 @@ var fonts = {
     //     fontSize: 30,
     //     fontName: "Droid Sans Mono",
     // },
+    // "InputMono": {
+    //     // fontHeightPre: 36,
+    //     fontHeightPre: 40,
+    //     fontWidthPre: 18.5,
+    //     fontSize: 30,
+    //     fontName: "InputMono",
+    //     url: proxyPath + "/tepublic/input_mono/input_mono.ttf"
+    // },
+    "InputMono": {
+        fontHeightPre: 38,
+        fontWidthPre: 18.5,
+        fontSize: 30,
+        fontName: "InputMono",
+        url: proxyPath + "/tepublic/input_mono/input_mono.ttf"
+    },
+    "IosevkaExtended": {
+        fontHeightPre: 36,
+        fontWidthPre: 18,
+        fontSize: 30,
+        fontName: "IosevkaExtended",
+        url: proxyPath + "/tepublic/iosevka-fixed-extended.ttf"
+    },
     "Courier": {
         fontHeightPre: 36,
         // fontWidthPre: 18,
@@ -700,14 +727,6 @@ var fonts = {
         fontSize: 30,
         fontName: "InputMonoLucida",
         url: proxyPath + "/tepublic/input_mono/input_mono_lucida.ttf"
-    },
-    "InputMono": {
-        // fontHeightPre: 36,
-        fontHeightPre: 40,
-        fontWidthPre: 18.5,
-        fontSize: 30,
-        fontName: "InputMono",
-        url: proxyPath + "/tepublic/input_mono/input_mono.ttf"
     },
     "AnonymousPro": {
         fontHeightPre: 36,
@@ -943,7 +962,7 @@ function doSizing() {
     // This condition for the 2021 iPad mini
     if (screen.width == 744 && screen.height == 1133) {
         device = "ipad6"
-        canvasHeightFull = 2750 - (36*3*1)
+        canvasHeightFull = 2750 + (36*3*1)
         canvasHeightKeyboard = 2200 
         navTouchSize = 60
         // alert(innerWidth + ", " + innerHeight)
