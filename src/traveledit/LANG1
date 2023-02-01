@@ -1,0 +1,428 @@
+# func, hash
+# closure
+# async io
+
+prefixed with function run
+deleted after function ends
+short circuit
+function level
+* all memory deallocated
+* all threads awaited
+
+#
+$ get value at
+@ means local scope
+£ means $@
+¥ means $()
+
+onExit
+
+onError
+
+set 
+
+# length ?
+lol no closures?
+
+set players hi
+set players:0:name Joe
+
+del range players:^8-22:*
+
+# doesn't exist
+# print hi:0:name
+print $players:0:name
+
+# prints Joe
+print $(players:0:name)
+print @players:0:name
+
+print $players:0:name
+
+set numPlayers 0
+
+func onNewPlayer name x y
+    incr numPlayers by 1
+    set player to players.$numPlayers
+    set $player:x to $x
+    set $player:y to $y
+    set $player:name to $name
+    print New Player Joined %player.$numPlayers.name
+
+func pushKV $list
+    incr $list:length by 1
+    loop i from 1 to #args by 2
+        let key be @args.$i
+        let val be @args.(add 1 to $i)
+        set $list.$i.$key to $val
+
+func setm name
+   loop args by 2 getting key and value
+   set $name.$key to $value
+
+func push item to list
+    incr $list:length by 1
+    loopVars $item:* as key with value
+       set $list:$list#:$key $value
+
+func onNewPlayer name x y
+    set @player:name $name
+    set @player:x $x
+    set @player:y $y
+    push @player to players
+
+    print New Player Joined €players.$numPlayers.name
+
+func onNewPlayer name x y
+    set %player:name $name
+    set %player:x $x
+    set %player:y $y
+    push %player to players
+
+    print New Player Joined @players.$numPlayers.name
+
+func onNewPlayer name
+    pushKV players x $x y $y name $name
+
+func onLeave $name
+    # find player by name
+    set playerIndex to indexOf players by func i
+        # is $(players.$i.name) equalTo $name
+        # is @players.$i.name equalTo $name
+        is @players:$i:name equalTo $name
+    is $playerIndex equalTo -1
+        print Player not found
+        return
+
+    splice players at $playerIndex removing 1
+
+func splice list at index removing count
+   # simple implementation of shifting
+   loop i from (add $count to index) excl $list#
+      loopVars $list:$i:* as var
+          set $list:(sub 1 from $i):$var to @$list:$i:$var
+
+   loop i from (sub $count from @list#) excl @$list#
+      delVars $list:$i:*
+
+func splice list at index removing count
+   # simple implementation of shifting
+   loop i from (add £count to £index) excl £list#
+      loopVars $list:$i:* as var
+          set $list:(sub 1 from $i):$var to $list:$i:$var
+
+   loop i from (sub $count from @list#) excl @$list#
+      delVars $list:$i:*
+
+
+
+set foo 1000
+set bar 200
+
+set baz $ add $foo $bar
+
+list names yo this is a list
+menu
+func
+
+
+
+list names Drew Mickey Clouds
+table person name Drew hair brown
+string info
+    hi this is a string
+    with parts indentation removed
+
+
+func incrementer $x
+    func doincr
+        incr 1 x
+    return doincr
+
+
+func greet name
+    print Hello $name
+
+
+greet name Drew
+
+str name hello world
+
+func greet name
+    say hello $name
+
+
+
+
+
+greet name: Drew\ LeSueur
+
+func greet name {
+   print Hello $name
+}
+
+the_name = Drew
+greet name = {
+
+}
+greet name $the_name
+
+[] {} ()
+
+func bar (
+
+)
+
+person = {
+    age 38
+    hair brown
+    likes [
+
+    ]
+}
+(person is "*1")
+
+
+incrementer = {
+    return
+}
+
+
+func ensureCursorInScreen file
+    not file
+        file = fx
+
+    isLess fx.cursorColIndex file.offsetY
+        set file.offsetY file.cursorColIndex
+
+
+
+
+function ensureCursorInScreen(file) {
+    if (!file) {
+        file = fx
+    }
+    if (file.cursorLineIndex < file.offsetY) {
+        file.offsetY = file.cursorLineIndex
+    } else if (file.cursorLineIndex >= file.offsetY+maxLines) {
+        file.offsetY = file.cursorLineIndex-maxLines +1
+    }
+
+    // TODO: there is something more elegant
+    // that you can do here
+    if (file.cursorColIndex < file.offsetX) {
+        //file.offsetX = file.cursorColIndex
+        file.offsetX = file.cursorColIndex - Math.floor(maxCols/2)
+    } else if (file.cursorColIndex > file.offsetX+maxCols) {
+        file.offsetX = file.cursorColIndex - Math.floor(maxCols/2)
+    }
+    if (file.offsetX < -marginLeft) {
+        file.offsetX = -marginLeft
+    }
+    updateCursorXY(file)
+    render()
+}
+
+
+
+
+notEq pos -1
+    both (eq i fx.cursorColIndex) (not useRegexSearch)
+        incr pos
+            sub (len ${fx.lines.$i) (u fx.cursorColIndex)
+
+        if (pos != -1) {
+            if (i == fx.cursorLineIndex && !useRegexSearch) {
+                pos += (fx.lines[i].length - u(fx.cursorColIndex))
+            }
+            fx.cursorLineIndex = i
+            if (!useRegexSearch) {
+                var colIndex = fx.lines[i].length - (pos + searchText.value.length)
+                fx.cursorColIndex = expandTabIndex(fx.lines[i], colIndex, i)
+            } else {
+                // this pos is from the left
+                // in the future we could probably make the non regexp more consistent where it loops to the last one. (maybe better than reversing string?)
+                fx.cursorColIndex = expandTabIndex(lineToSearch, pos, null, null, "nocache")
+            }
+            updateCursorXY()
+            ensureCursorInScreen()
+            render()
+            return true
+        }
+or true (someExpensiveCall)
+string expandedLine
+loop
+    set tabPos indexOf $theLine \t $afterLastTabPos
+    eq $tabPos -1
+        concat expandedLine substr $theLine $afterLastTabPos $tabPos
+        break
+
+        expandedLine = ""
+        while (true) {
+            tabPos = theLine.indexOf("\t", afterLastTabPos)
+            if (tabPos == -1) {
+                expandedLine += theLine.substr(afterLastTabPos, theLine.length)
+                break
+            }
+            expandedLine += theLine.substring(afterLastTabPos, tabPos)
+            // now add the correct number of spaces, taking into account the tabStop
+            var numberOfSpaces = tabStop - (expandedLine.length % tabStop)
+            expandedLine += "\t".repeat(numberOfSpaces)
+            afterLastTabPos = tabPos + 1
+        }
+
+func saveWrapper
+    is $(fx:fileMode) equalTo shell
+        is $(fx:selectedRegions#) moreThan 0
+            copy
+            runShellCommand
+                join copyBuffer by \n
+        else
+            runShellCommand
+                or
+                    ""
+                    fx:lines:$(fx:cursorLineIndex)
+        return
+    else is $(fx:fileMode) equalTo terminal
+        sendTerminal \r
+        return
+
+    set autoSave false
+    save
+
+
+
+every func has a return var when if not used gets thrown away.
+
+func add a to b
+    
+
+func saveWrapper
+    is €fx:fileMode equalTo shell
+        is €fx:selectedRegions# moreThan 0
+            copy
+            runShellCommand < join copyBuffer by \n
+        else
+            runShellCommand < or "" < fx:lines:€fx:cursorLineIndex
+        return
+    else is $(fx:fileMode) equalTo terminal
+        sendTerminal \r
+        return
+    set autoSave false
+    save
+
+func saveWrapper
+    is €fx:fileMode equalTo shell
+        is €fx:selectedRegions# moreThan 0
+            copy
+            runShellCommand < join copyBuffer by \n
+        else
+            runShellCommand < or "" < fx:lines:€fx:cursorLineIndex
+        return
+    else is $(fx:fileMode) equalTo terminal
+        sendTerminal \r
+        return
+    set autoSave false
+    save
+
+function saveWrapper() {
+    if (fx.fileMode == "shell") {
+        // the save button turns into run when it's a "shell" file
+        if (fx.selectedRegions.length) {
+            copy()
+            runShellCommand(copyBuffer.join("\n"))
+        } else {
+            runShellCommand(fx.lines[fx.cursorLineIndex] || "")
+        }
+        return
+    } else if (fx.fileMode == "terminal") {
+        sendTerminal("\r")
+        return
+    }
+    autoSave = false
+    save()
+}
+
+func scriptLinesWithOneLineScript oneLineScript
+    set oldPreventRender $preventRender
+    set preventRender true
+    set @t getSelectedLines fx true
+    set @linesToProcess @t:lines
+    set @isWholeFile @t:isWholeFile
+    set @s @oneLineScript
+
+
+func scriptLinesWithOneLineScript oneLineScript
+    set @oldPreventRender $preventRender
+    set preventRender true
+    set @t getSelectedLines fx true
+    set @linesToProcess @t:lines
+    set @isWholeFile @t:isWholeFile
+    set @s @oneLineScript
+    
+    is "r " equalTo < slice @s from 1 to 2
+        set @parts < split @s " "
+        set @s ""
+    
+
+
+
+function scriptLinesWithOneLineScript(oneLineScript) {
+    var oldPreventRender = preventRender
+    preventRender = true
+
+    var _t = getSelectedLines(fx, true)
+    var linesToProcess = _t.lines
+    var isWholeFile = _t.isWholeFile
+    var s = oneLineScript
+    if (s.slice(0, 2) == "r ") {
+        var parts = s.split(" ")
+        s = `x.replaceAll("${parts[1]}", "${parts[2]}")`
+    } else if (s.slice(0, 2) == "l ") {
+        // l w w x n r - $a $b $c $d
+        var parts = s.split(" - ")
+        // s = `ll(x,"${parts[0].slice(2)}", ${parts.slice(1).join(" - ")}")`
+        s = `ll(x,"${parts[0].slice(2)}", ` + "`" + parts.slice(1).join(" - ") + "`" + `)`
+    }
+    var theScriptLines = [s]
+    // This next part mostly copy-pasted from scriptLines function
+    if (theScriptLines.length) {
+        // add return to the last non-empty line
+        for (var i=theScriptLines.length-1; i>=0; i--) {
+            if (theScriptLines[i].trim() != "") {
+                theScriptLines[i] = "return " + theScriptLines[i]
+                break
+            }
+        }
+        var funcBody = theScriptLines.join("\n")
+        var f = function(x) {
+            return x
+        }
+        try {
+            line = f(line)
+            f = new Function("x", "i", funcBody)
+        } catch (e) {
+            alert(e)
+        }
+        var retLines = []
+        for (var i=0; i<linesToProcess.length; i++) {
+            var line = linesToProcess[i]
+            try {
+                line = f(line, i)
+            } catch (e) {
+                alert(e)
+            }
+            retLines.push(line)
+        }
+    }
+    if (isWholeFile) {
+        setLines(retLines)
+        docChanged()
+    } else {
+        pasteLines(retLines, false, false)
+    }
+
+    preventRender = oldPreventRender
+    render()
+}
+

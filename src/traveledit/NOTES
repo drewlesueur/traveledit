@@ -1,0 +1,242 @@
+Render the cool quotes even though they are not
+“”
+’‘
+“”
+
+maybe the bottom middle button can be paste
+(instead of insert if the last thing you did was copy!)
+
+the new paste doesn't work with reordering files
+
+https://realdougwilson.com/writing/coding-with-character
+    Dossier
+    https://tosche.net/assets/fonts/Dossier-Regular.woff2
+    
+invisible buttons are good if you mind is changing context anyway?
+like searching, or alt tab. Bad if your mind isn't changing context.
+the bottom area should be able to dup/cut/copy/paste/comment (select might be ok top right because of the flow)
+maybe you can incorporate double taps?
+or maybe the next most action after you copy is paste now?
+or maybe get used to invisible buttons more
+or maybe you have middle, then up down left right?
+
+
+bug, we dont't autocomplete string methods
+remember in your new paste mode, if the next action is left and right cursor then you move left and right what was just pasted
+I kind of like that next action stuff.
+very contexty
+
+better handle undo on auto complete line. I think you just need to call docChanged
+
+fix it so when you are in  search mode, you can still go to edit mode by tapping on the bottom  
+make the  save button be handled on touch start. so  input doesn't lose Focus
+
+
+maybe only do autoCompleteLine if last action is Type
+
+
+wrangle bottom two middleButtons
+pasting slash commenting.
+insertMode vsNot insert mode
+maybe bottom 2 buttons shouldAlways bePaste
+because we alreadyHave content above?
+nah, butYou don't always want to go high to comment
+
+
+Consider not selecting at all when doing traditional inline paste!
+this thing is traditional inline 
+swipe typing and entering parens.
+wrangle the verticalTouchSize not being right in debug mode.
+wrangle the  parentheses after swipe typing
+don't allow 0 length selection
+
+* Re- reconcile the differences between
+  invisible buttons when selected and when not selected
+
+* Adjust the verticalTouchSize when the keyboard is open
+* initial load don't select the right file
+* on screen share when you go to a file for the first time
+  it didn't  display any text until sharer moves cursor
+
+*  Prevent a 0-width selection
+      
+* Audit the feature where you delete a word and then
+it automatically copies the new word you typed
+and searches for the word you deleted
+that feature also spent sen to work well with
+swipe type?
+
+* select in quote
+
+clear after? hold down from right side?
+autocomplete line
+audit when you paste inline and it's still selected
+select in quotes
+the move by word should work for selection too
+
+dup|comment|select
+delete|copy|paste
+
+newline
+
+list of words on right
+tap or swipe to next most likely word
+
+uvwxy
+pqrst
+klmno
+fghij
+abcde
+
+tocur Legend
+
+
+
+section a
+    regular
+        touch: cursor left
+        hold: move to beginning of line
+    selected
+        touch: move selection left once
+section b
+    regular
+        move: move cursor
+        press: move cursor left by word
+    selected
+        move left: move selection left once
+section c
+    regular
+        move: move cursor
+        press: edit mode
+    selected
+        press: move selection left once
+    
+
+autocomplete whole line
+highlight a line and press xterm to run in terminal
+fuzzy search
+    auto search as you type
+b and d positions move cursor by word
+g and i positions move cursor up down
+    if cursor is at start of trimmed line it
+    moves by block
+    what happens if you hold?
+
+when you search
+dup|comment|delete|copy|paste
+
+
+
+
+
+
+
+
+
+["a", "b", "c"].slice(0, 0)
+["a", "b", "c"].slice(0, 0)
+["a", "b", "c"].slice(0, 0)
+
+what a world we live in 'but is it true?' I think
+
+a,b
+    
+    
+"\t"
+	
+	
+	
+	
+	
+
+🌐	hi
+ye	hi
+
+👩‍👩‍👦‍👦
+
+  howdy howzy howareyou howinfo
+
+howdy
+hasDoneOverflowXAction
+
+
+undo
+redo
+left, left word, end line
+right, ri
+up
+down
+
+
+tree foo bar
+howinfo
+walrus
+wall
+wallet
+walnut
+
+I see a walrus and a walrus sees me
+I see a walrus and a bear sees me
+I see a bear and a bear sees me
+I see a bear and a bear sees me
+I see a bear and a bear sees me
+I see a bear and a bear sees me
+beaver
+ bear
+ i see a because
+
+
+move files around with copy paste
+maybe search buttons should move line up and down?
+left and
+
+select and comment because of timing with second touch
+
+
+move to next block,
+move to next word/symbol
+maybe toggle modes by going left then right?
+figure out edit search
+
+first move slow?
+if you are selected and you long press bottommiddle, goes in to edit mode.
+
+
+ability to lock files to a certain view
+(what about if file changes.)
+diff, and/or in undo stack save metadata too?
+
+invetween dot nav
+remove duplicates
+autocomplete tap when next to another word is broken now
+might have to do with setLastWord flow.
+
+walnut
+bulldog
+lock a file to a location
+in lieu of go to definition, have links??
+what about updates to file wrangler that
+
+
+
+wrangle document update and undo without copying everything?
+feature to close all duplicate files
+ui for any network call!
+navigate to directory from top file list <
+
+5 last searched things.
+last edited line(s)
+
+    this is a thing ( yo world ) and other [yosy worzy] and { ehybworld have} mis
+    
+try a keyboard always on mode
+vimnlike
+
+orchestrate computers
+from client js?
+dumb backend
+central hub.
+storage
+computers
+
+

@@ -1,0 +1,18 @@
+#!/bin/bash
+
+GO111MODULE=off \
+GOPATH=$(pwd)/../.. \
+go build -o traveledit || exit 1
+
+BASICUSER=user1 \
+BASICPASS=somepw \
+SCREENSHARENOAUTH= \
+PUBLICPATH="../../../public" \
+./traveledit \
+-location=/ \
+-proxypath=/yourproxypath \
+-proxypathtrimmed=false \
+-addr=:8080
+
+
+
