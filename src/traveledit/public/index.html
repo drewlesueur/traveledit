@@ -7201,13 +7201,9 @@ function onStart(e) {
                 // closeFile()
                 // editEditorCommandText()
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    // # duplicateline #duplicatelinefromtop
-                    copyBuffer = [fx.lines[fx.cursorLineIndex]]
-                    selectMode = "line"
-                    paste(true) // true here means unselect
-                    return
+                    // visit?
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
-                    comment()
+                    // open()
                     return
                 } else {
                     // This is handled in touchTopTopTopMiddle_Right
@@ -7246,13 +7242,11 @@ function onStart(e) {
                 // Second row from bottom // lime marker
                 // not returning on all cases because we want to faltering to some older handling
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    del()
-                    // if (fx.cursorLineIndex > 0) {
-                    //     // cursor goes up so you can delete then paste as part of smartPaste flow
-                    //     fx.cursorLineIndex--
-                    //     updateCursorXY()
-                    //     ensureCursorInScreen()
-                    // }
+                    // # duplicateline #duplicatelinefromtop
+                    copyBuffer = [fx.lines[fx.cursorLineIndex]]
+                    selectMode = "line"
+                    paste(true) // true here means unselect
+                    return
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     // experiment autocompleteLineV2
@@ -7265,6 +7259,28 @@ function onStart(e) {
                         // fallthrough
                     }
                 } else {
+                    comment()
+                    return
+                }
+            } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
+                // Bottom row // deepskyblue marker
+                // not returning on all cases because we want to faltering to some older handling
+                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                    // moveCursorLeftSnap()
+                    del()
+                    // if (fx.cursorLineIndex > 0) {
+                    //     // cursor goes up so you can delete then paste as part of smartPaste flow
+                    //     fx.cursorLineIndex--
+                    //     updateCursorXY()
+                    //     ensureCursorInScreen()
+                    // }
+                    
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                    // fallthrough
+                    
+                } else {
+                    // moveCursorRightSnap()
                     if (fx.fileMode == "terminal") {
                         // Paste to terminal
                         sendTerminal(copyBuffer.join("\r"))
@@ -7287,19 +7303,6 @@ function onStart(e) {
                     // fx.cursorLineIndex+=linesPasted
                     // updateCursorXY()
                     // ensureCursorInScreen()
-                    return
-                }
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
-                // Bottom row // deepskyblue marker
-                // not returning on all cases because we want to faltering to some older handling
-                if (e.changedTouches[0].pageX < (bbox.width / 5)) {
-                    moveCursorLeftSnap()
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 4 / 5)) {
-                    // fallthrough
-                    
-                } else {
-                    moveCursorRightSnap()
                     return
                 }
             
