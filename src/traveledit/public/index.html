@@ -729,8 +729,9 @@ document.write(`
 <script>
 // it's important that this go in it's own script tag
 window.onerror = function(message, url, lineNumber, columnNumber, error) {
-    alert(lineNumber + ": " + message)
-    location.href = proxyPath + "?indexFile=./public/index2.html"
+    if (confirm(lineNumber + ": " + message)) {
+        location.href = proxyPath + "?indexFile=./public/index2.html"
+    }
 }
 </script>
 <script>
@@ -3289,6 +3290,7 @@ function scriptLinesWithOneLineScript(oneLineScript) {
                 line = f(line, i)
             } catch (e) {
                 alert(e)
+                break; // if one fails, stop
             }
             var splitLine = line.split("\n")
             for (var j=0; j<splitLine.length; j++) {
@@ -3721,6 +3723,7 @@ var copiedDirectoryFiles = []
 
 var globalOldCopyBuffer = []
 var hasMovedSinceCut = true
+var lastDeleteWasFromSelection = false
 var hasMovedSincePaste = true
 var ghostSelection = {}
 
@@ -3738,6 +3741,7 @@ function delinternal(preventCopy, preventDeleteWholeLine) {
     hasUpdatedSearchTextForReplaceFlow = false
 
     if (fx.selectedRegions.length>0) {
+        lastDeleteWasFromSelection = true
         var r = fx.selectedRegions[0]
         
         if (!r) {
@@ -3870,6 +3874,7 @@ function delinternal(preventCopy, preventDeleteWholeLine) {
         // cutBuffer = [fx.lines[fx.cursorLineIndex]]
         copyBuffer = [fx.lines[fx.cursorLineIndex]]
     }
+    lastDeleteWasFromSelection = false
     fx.lines.splice(fx.cursorLineIndex, 1)
     adjustHighlightRanges(fx.cursorLineIndex, -1)
     docChanged()
@@ -5178,7 +5183,7 @@ function saveLine() {
     aclV2 = null
     
     // do pre
-    handleQuickType()
+    // handleQuickType()
     
     // useUnicode you could fix this part up?
     var lastTyped = theText.value[theText.selectionStart - 1]
@@ -7242,11 +7247,7 @@ function onStart(e) {
                 // Second row from bottom // lime marker
                 // not returning on all cases because we want to faltering to some older handling
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    // # duplicateline #duplicatelinefromtop
-                    copyBuffer = [fx.lines[fx.cursorLineIndex]]
-                    selectMode = "line"
-                    paste(true) // true here means unselect
-                    return
+                    comment()
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     // experiment autocompleteLineV2
@@ -7259,7 +7260,10 @@ function onStart(e) {
                         // fallthrough
                     }
                 } else {
-                    comment()
+                    // # duplicateline #duplicatelinefromtop
+                    copyBuffer = [fx.lines[fx.cursorLineIndex]]
+                    selectMode = "line"
+                    paste(true) // true here means unselect
                     return
                 }
             } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
@@ -7293,7 +7297,7 @@ function onStart(e) {
                     } else {
                         selectMode = "line"
                     }
-                    if (hasMovedSinceCut) {
+                    if (hasMovedSinceCut || lastDeleteWasFromSelection) {
                         var linesPasted = paste(true, false, true) // unselect, pastebefore, smartPaste
                     } else {
                         var linesPasted = paste(true, true, true) // unselect, pastebefore, smartPaste

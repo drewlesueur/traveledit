@@ -1,3 +1,12 @@
+
+trickery for cut then paste works for single line
+but breaks selecting multiple
+lines, cutting, then pasting
+
+make inline paste work at start or end of word
+bottom left and right buttons should be
+left or orght up or down depending on last movement
+
 Render the cool quotes even though they are not
 “”
 ’‘
