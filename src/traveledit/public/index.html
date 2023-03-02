@@ -3184,7 +3184,8 @@ async function runChatGPT() {
     }
     debugOutput = []
     var oldCopyBuffer = copyBuffer
-    var theScriptLines = getSelectedLines(fx).lines
+    var selectedLinesWrapper = getSelectedLines(fx)
+    var theScriptLines = selectedLinesWrapper.lines
 
     // add return to the last non-empty line
     var code = theScriptLines.join("\n")
@@ -3215,6 +3216,11 @@ async function runChatGPT() {
     fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
     docChanged()
     fx.cursorLineIndex++
+    if (selectedLinesWrapper.isWholeFile) {
+        fx.chatGPTCursorLineIndex = fx.cursorLineIndex
+    } else {
+        fx.chatGPTCursorLineIndex = fx.lines.length + 1
+    }
     render()
 
 }
@@ -4210,7 +4216,8 @@ function saveName(name) {
     renderFileDropdown()
 }
 
-function handleChatGPTResponse(file, cursorLineIndex, responses) {
+function handleChatGPTResponse(file, responses) {
+    log(file.chatGPTCursorLineIndex)
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"role":"assistant"},"index":0,"finish_reason":null}]}
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"Ah"},"index":0,"finish_reason":null}]}
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"oy"},"index":0,"finish_reason":null}]}
@@ -4230,7 +4237,7 @@ function handleChatGPTResponse(file, cursorLineIndex, responses) {
         try {
            var response = JSON.parse(responses[i])
            content = response.choices[0].delta.content
-           log("content:" + JSON.stringify(content))
+           // log("content:" + JSON.stringify(content))
         } catch (e) {
             continue
         }
@@ -4240,10 +4247,10 @@ function handleChatGPTResponse(file, cursorLineIndex, responses) {
                 var subContent = contentLines[j]
                 lineBuffer.push(subContent)
                 if (j >= 1 && (j != 2 || j < contentLines.length - 1)) {
-                    updateLineFile(file, cursorLineIndex, file.lines[cursorLineIndex] + lineBuffer.join(""))
+                    updateLineFile(file, file.chatGPTCursorLineIndex, file.lines[file.chatGPTCursorLineIndex] + lineBuffer.join(""))
                     lineBuffer = []
-                    file.lines.splice(cursorLineIndex+1, 0, "")
-                    cursorLineIndex++
+                    file.lines.splice(file.chatGPTCursorLineIndex+1, 0, "")
+                    file.chatGPTCursorLineIndex++
                 }
             }
             // copyBuffer = [content]
@@ -4251,7 +4258,7 @@ function handleChatGPTResponse(file, cursorLineIndex, responses) {
         }
     }
     if (lineBuffer.length) {
-        updateLineFile(file, cursorLineIndex, file.lines[cursorLineIndex] + lineBuffer.join(""))
+        updateLineFile(file, file.chatGPTCursorLineIndex, file.lines[file.chatGPTCursorLineIndex] + lineBuffer.join(""))
     }
     docChanged()
     render()
@@ -4287,7 +4294,7 @@ function pollTerminals() {
                 continue
             }
             if (termInfo.ChatGPTResponses && termInfo.ChatGPTResponses.length) {
-                handleChatGPTResponse(fx, fx.cursorLineIndex, termInfo.ChatGPTResponses)
+                handleChatGPTResponse(fx, termInfo.ChatGPTResponses)
                 setTimeout(pollTerminals, 1)
                 return
             }

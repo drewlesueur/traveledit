@@ -1070,8 +1070,7 @@ func main() {
 	        	}
 	            // set the request header to indicate that we're sending JSON
 	            chatReq.Header.Set("Content-Type", "application/json")
-	            chatReq.Header.Set("Authorization", "Bearer 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")
-	            chatReq.Header.Set("Authorization", "Bearer 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")
+	            chatReq.Header.Set("Authorization", "Bearer " + os.Getenv("CHATGPTKEY"))
 	        	// for now new client every time
 	        	// but we should reuse the client
 	        	httpClient := http.Client{
@@ -1083,6 +1082,7 @@ func main() {
 	        		log.Println("req to chatgpt: %d: %v", ID, err)
 	        		return
 	            }
+	            log.Println("chatgpt response code; %d", resp.StatusCode)
 	            defer resp.Body.Close()
 
 
