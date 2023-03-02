@@ -22,6 +22,7 @@ import "strconv"
 import "crypto/md5"
 import "html"
 import "bytes"
+import "bufio"
 import "github.com/NYTimes/gziphandler"
 
 // import "github.com/gorilla/websocket"
@@ -284,6 +285,7 @@ type File struct {
 	Cmd        *exec.Cmd
 	Pty        *os.File
 	ReadBuffer []byte
+	ChatGPTBuffer []string
 	Closed     bool
 	Name       string
 }
@@ -471,6 +473,7 @@ type TerminalResponse struct {
 	// CWD ?? so we can keep track of directory changes
 	Error  string `json:",omitempty"`
 	Closed bool   `json:",omitempty"`
+	ChatGPTResponses []string `json:",omitempty"`
 }
 
 var lastFileID = 0
@@ -1001,7 +1004,7 @@ func main() {
 			// and also would need the client to keep track of where it was
 			for _, t := range workspace.Files {
 				// only "terminal" files will have a ReadBuffer
-				if len(t.ReadBuffer) > 0 {
+				if len(t.ReadBuffer) > 0 || len(t.ChatGPTBuffer) > 0 {
 					break WaitLoop
 				}
 			}
@@ -1018,13 +1021,18 @@ func main() {
 					// and then keepntrack of closed ids to send?
 					workspace.RemoveFile(t.ID)
 				} else {
-					if len(t.ReadBuffer) == 0 {
+					if len(t.ReadBuffer) == 0 && len(t.ChatGPTBuffer) == 0 {
 						continue
 					}
 				}
-				tResp.Base64 = base64.StdEncoding.EncodeToString(t.ReadBuffer)
+				if len(t.ChatGPTBuffer) > 0 {
+					tResp.ChatGPTResponses = t.ChatGPTBuffer
+					t.ChatGPTBuffer = []string{}
+				} else {
+					tResp.Base64 = base64.StdEncoding.EncodeToString(t.ReadBuffer)
+					t.ReadBuffer = []byte{}
+				}
 				tResp.Closed = t.Closed
-				t.ReadBuffer = []byte{}
 				ret[t.ID] = tResp
 			}
 		}
@@ -1033,6 +1041,70 @@ func main() {
 	mux.HandleFunc("/myterminalopen", func(w http.ResponseWriter, r *http.Request) {
 		cwd := r.FormValue("cwd")
 		openTerminal(cwd, w)
+	})
+	mux.HandleFunc("/chatgpt", func(w http.ResponseWriter, r *http.Request) {
+		// workspaceMu.Lock()
+		// defer workspaceMu.Unlock()
+
+		ID, err := strconv.Atoi(r.FormValue("id"))
+		if err != nil {
+			logAndErr(w, "invalid id: %s: %v", r.FormValue("id"), err)
+			return
+		}
+        log.Printf("chatgpt  call: %d", ID)
+
+        go func() {
+	        if f, ok := workspace.GetFile(ID); ok {
+	        	messagesJSON := r.FormValue("messages")
+	        	payload := `{
+          			"model": "gpt-3.5-turbo",
+          			"stream": true,
+          			"messages": `+messagesJSON+`
+          	    }
+	        	`
+	        	log.Printf("chatgpt json: %s", payload)
+	        	chatReq, err  := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", strings.NewReader(payload))
+	        	if err != nil {
+	        		log.Println("new request to chatgpt: %d: %v", ID, err)
+	        		return
+	        	}
+	            // set the request header to indicate that we're sending JSON
+	            chatReq.Header.Set("Content-Type", "application/json")
+	            chatReq.Header.Set("Authorization", "Bearer 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")
+	            chatReq.Header.Set("Authorization", "Bearer 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")
+	        	// for now new client every time
+	        	// but we should reuse the client
+	        	httpClient := http.Client{
+	        		Timeout: 5 * time.Minute,
+	        	}
+
+	            resp, err := httpClient.Do(chatReq)
+	            if err != nil {
+	        		log.Println("req to chatgpt: %d: %v", ID, err)
+	        		return
+	            }
+	            defer resp.Body.Close()
+
+
+                // read the response using a scanner
+                scanner := bufio.NewScanner(resp.Body)
+                for scanner.Scan() {
+                    line := scanner.Text()
+                    // ignore comments and empty lines
+                    if len(line) == 0 || line[0] == ':' {
+                        continue
+                    }
+                    if strings.HasPrefix(line, "data: ") {
+						workspaceMu.Lock()
+						f.ChatGPTBuffer = append(f.ChatGPTBuffer, line[6:])
+						workspaceCond.Broadcast()
+						workspaceMu.Unlock()
+                    }
+                }
+            } else {
+                log.Printf("could not find id: %d", ID)
+            }
+		}()
 	})
 	mux.HandleFunc("/myterminalsend", func(w http.ResponseWriter, r *http.Request) {
 		// TODO: do consider an rwlock

@@ -298,9 +298,12 @@ They get changed later on.
 <div class="toolbar xhidden" id=fileRow onclick=selectFileRow(event)>
 </div>
 <div class="toolbar hidden" id=fileToolbar1 style="--display: none">
-    <div class=longButton onclick="editEditorCommandText()" id=statusBar>status</div>
-    <div class=longButton onclick="runScript()">run script</div>
+    <!--
+    <div class=longButton onclick="editEditorCommandText()" >status</div>
+    -->
+    <div class=longButton onclick="runScript()" id=statusBar>run script</div>
     <div class=longButton onclick=goUpDirectory()>⬆️</div>
+    <div class=longButton onclick=runChatGPT()>chatGPT</div>
     <div class=longButton onclick=reloadFile(fx)>reload</div>
     <div id=saveButton class=longButton onclick=saveWrapper()>save</div>
 </div>
@@ -3175,6 +3178,47 @@ function runScript() {
     setCurrentFile(f3)
 }
 
+async function runChatGPT() {
+    if (!isPollingTerminal) {
+        pollTerminals()
+    }
+    debugOutput = []
+    var oldCopyBuffer = copyBuffer
+    var theScriptLines = getSelectedLines(fx).lines
+
+    // add return to the last non-empty line
+    var code = theScriptLines.join("\n")
+    var messages = [
+          {
+            "role": "system",
+            "content": "You are a helpful assistant."
+          },
+          {
+            "role": "user",
+            "content": code
+          },
+    ]
+    // Todo: see if saveWorkspace is heavy
+    // only do it if this fx doesn't have an ID?
+    //
+    if (!fx.ID) {
+        await saveWorkspace()
+    }
+    // fetch(proxyPath + "/chatgpt?id=" + fx.ID + "&index="+fx.cursorLineIndex+"&messages=" + encodeURIComponent(JSON.stringify(messages)), {
+    fetch(proxyPath + "/chatgpt?id=" + fx.ID + "&messages=" + encodeURIComponent(JSON.stringify(messages)), {
+        cache: "no-cache"
+    }).then(r => {
+    }).catch(e => {
+        alert("There was an error sending to chatgpt: " + e)
+    })
+    // add new line
+    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+    docChanged()
+    fx.cursorLineIndex++
+    render()
+
+}
+
 function diffFiles() {
     // second-most-recent file
     var aLines = getSelectedLines(lastFile).lines
@@ -4166,6 +4210,53 @@ function saveName(name) {
     renderFileDropdown()
 }
 
+function handleChatGPTResponse(file, cursorLineIndex, responses) {
+    // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"role":"assistant"},"index":0,"finish_reason":null}]}
+    // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"Ah"},"index":0,"finish_reason":null}]}
+    // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"oy"},"index":0,"finish_reason":null}]}
+    // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":" there"},"index":0,"finish_reason":null}]}
+
+    // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":" at"},"index":0,"finish_reason":null}]}
+    // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":" sea"},"index":0,"finish_reason":null}]}
+    // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"."},"index":0,"finish_reason":null}]}
+    // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{},"index":0,"finish_reason":"stop"}]}
+    // data: [DONE]
+    
+    // I really only care about choices[0].delta.content
+    var oldCopyBuffer = copyBuffer
+    var lineBuffer = []
+    for (var i=0; i<responses.length; i++) {
+        var content = ""
+        try {
+           var response = JSON.parse(responses[i])
+           content = response.choices[0].delta.content
+           log("content:" + JSON.stringify(content))
+        } catch (e) {
+            continue
+        }
+        if (content) {
+            var contentLines = content.split("\n")
+            for (var j=0; j<contentLines.length; j++) {
+                var subContent = contentLines[j]
+                lineBuffer.push(subContent)
+                if (j >= 1 && (j != 2 || j < contentLines.length - 1)) {
+                    updateLineFile(file, cursorLineIndex, file.lines[cursorLineIndex] + lineBuffer.join(""))
+                    lineBuffer = []
+                    file.lines.splice(cursorLineIndex+1, 0, "")
+                    cursorLineIndex++
+                }
+            }
+            // copyBuffer = [content]
+            // paste()
+        }
+    }
+    if (lineBuffer.length) {
+        updateLineFile(file, cursorLineIndex, file.lines[cursorLineIndex] + lineBuffer.join(""))
+    }
+    docChanged()
+    render()
+    copyBuffer = oldCopyBuffer
+}
 var allowPolling = true
 var isPollingTerminal = false
 function pollTerminals() {
@@ -4194,6 +4285,11 @@ function pollTerminals() {
                 // we could store these values temporarily?
                 // but for now we'll ignore them.
                 continue
+            }
+            if (termInfo.ChatGPTResponses && termInfo.ChatGPTResponses.length) {
+                handleChatGPTResponse(fx, fx.cursorLineIndex, termInfo.ChatGPTResponses)
+                setTimeout(pollTerminals, 1)
+                return
             }
             var oldCopyBuffer = copyBuffer
             // btoa("hello")
@@ -5374,8 +5470,8 @@ var mockCanvasContext = {
       this.lastX = rW(x)
     },
 }
-// var serverViewFeature = true
-var serverViewFeature = false
+var serverViewFeature = true
+// var serverViewFeature = false
 var sendingViewToServer = false
 var shouldSendViewToServer = false
 var lastViewBodyToSend = ""
