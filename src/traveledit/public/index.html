@@ -18,6 +18,7 @@ var isGitBash = false
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 
 <meta charset='utf-8'>
+
 <script>
 document.write(`
 <!-- For now not loading in third party diff library. -->
@@ -3196,6 +3197,7 @@ async function runChatGPT() {
           },
           {
             "role": "user",
+            // "content": code + ". Add a newline after every 10-ish tokens, except when writing code."
             "content": code
           },
     ]
@@ -3217,9 +3219,9 @@ async function runChatGPT() {
     docChanged()
     fx.cursorLineIndex++
     if (selectedLinesWrapper.isWholeFile) {
-        fx.chatGPTCursorLineIndex = fx.cursorLineIndex
+        fx.chatGPTCursorLineIndex = fx.lines.length - 1
     } else {
-        fx.chatGPTCursorLineIndex = fx.lines.length + 1
+        fx.chatGPTCursorLineIndex = fx.cursorLineIndex
     }
     render()
 
@@ -7310,8 +7312,11 @@ function onStart(e) {
                 // editEditorCommandText()
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     // visit?
+                    backspace()
+                    return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     // open()
+                    newLine()
                     return
                 } else {
                     // This is handled in touchTopTopTopMiddle_Right
