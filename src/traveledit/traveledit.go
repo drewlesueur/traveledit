@@ -1082,7 +1082,7 @@ func main() {
 	        		log.Println("req to chatgpt: %d: %v", ID, err)
 	        		return
 	            }
-	            log.Println("chatgpt response code; %d", resp.StatusCode)
+	            log.Printf("chatgpt response code; %d", resp.StatusCode)
 	            defer resp.Body.Close()
 
 
@@ -1090,6 +1090,7 @@ func main() {
                 scanner := bufio.NewScanner(resp.Body)
                 for scanner.Scan() {
                     line := scanner.Text()
+	                log.Printf("chatgpt line: %s", line)
                     // ignore comments and empty lines
                     if len(line) == 0 || line[0] == ':' {
                         continue

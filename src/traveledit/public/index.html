@@ -3193,12 +3193,13 @@ async function runChatGPT() {
     var messages = [
           {
             "role": "system",
-            "content": "You are a helpful assistant."
+            "content": "You are a helpful assistant. In your English responses, add new lines after about every 8 words"
+            // "content": "When you answer prompts, be sure to add a new line after every 7 or so words, except when writing code. Be sure to add those new lines that's a '\\n' character!"
           },
           {
             "role": "user",
             // "content": code + ". Add a newline after every 10-ish tokens, except when writing code."
-            "content": code
+            "content": "I am about to make your request. In your response, please add a new line after ever 7 or so words (except in source code). Ok now here is the request.\n" + code
           },
     ]
     // Todo: see if saveWorkspace is heavy
@@ -4237,6 +4238,9 @@ function handleChatGPTResponse(file, responses) {
     for (var i=0; i<responses.length; i++) {
         var content = ""
         try {
+           if (response == "[DONE]") {
+               alert("done")
+           }
            var response = JSON.parse(responses[i])
            content = response.choices[0].delta.content
            // log("content:" + JSON.stringify(content))
@@ -4262,7 +4266,6 @@ function handleChatGPTResponse(file, responses) {
     if (lineBuffer.length) {
         updateLineFile(file, file.chatGPTCursorLineIndex, file.lines[file.chatGPTCursorLineIndex] + lineBuffer.join(""))
     }
-    docChanged()
     render()
     copyBuffer = oldCopyBuffer
 }
@@ -5479,8 +5482,8 @@ var mockCanvasContext = {
       this.lastX = rW(x)
     },
 }
-var serverViewFeature = true
-// var serverViewFeature = false
+// var serverViewFeature = true
+var serverViewFeature = false
 var sendingViewToServer = false
 var shouldSendViewToServer = false
 var lastViewBodyToSend = ""

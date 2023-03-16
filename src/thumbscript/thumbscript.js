@@ -1,36 +1,39 @@
+// lazy calls?
 /*
-examole
 
-foo bar baz
+a = or
+   some call
+   other call
 
-foo (bar baz) biz
+a = or ; some call ; other call
+if eq x 3
+   do somethjng
+else
+  
+greeted = greet name drew
 
-foo bar > baz
-    biz bz
-    buz bizz
-        bozzy
-        boo6
-    bory
+ret = or x | something else
+  do
+
+b = fn
+   greet @name
+
+
+people:0:HEIGHT
+people:currPerson:@height
+
+@How
+
+
+number = rand from 0 to 100
+
+loop
+    guess = ask Guess the number
+    if $guess > $number
+        say Too high, guess again
+        break
     
-foo bar < baz
-    biz
-    buzzo
-        bizoga bo
-    
-foo bar > baz
-    biz bz
-    buz bizz
-        bozzy
-        boo6
-            bozzy7
-    bory
-foo (bar) $baz:$(biz biz):buz
-foo (bar) $baz:$(biz (such thing) biz:$(other thing):yo (what thing)):buz
-
-
-
 */
-
 var segmenter = new Intl.Segmenter('en', {granularity: "grapheme"})
 function splitGraphemes(theLine) {
     // return theLine.split("")
@@ -48,109 +51,99 @@ function splitGraphemes(theLine) {
     // https://github.com/tc39/proposal-intl-segmenter
 }
 
-var thunbscript = {
+var thumbscript = {
+    state: {
+        
+    },
+    keysByPrefix: {},
 }
 
-// thumbscript.parseLine = function(line, parentLine, parentIndentLevel, world) {
-//     loop letter by letter and make an array of tokens
-//     
-// }
-
-thumbscript.eval = function(source, world) {
-    var graphemes := splitGraphemes(source)
-    var indent = 0
-    var nodeStack = []
-    var indentStack = []
-    var state = "startLine"
-    var nodes = []
-    // var node = {tree: tree, children: null}
-    var node = null
-    var treeStack = [] // per line
-    var tree = []
-    var currIndent
-    var word = ""
-    for (var i=0; i < graphemes.length; i++) {
-        var grapheme = graphemes[i]
-        if (state == "startLine") {
-            if (grapheme == " ") {
-                currIndent += 1
-            } else {
-                if (currIndent > indent) {
-                    indentStack.push(indent)
-                    nodesStack.push(nodes)
-                    indent = currIndent
-                } else if (currIndent < indent) {
-                    while (true) {
-                        var indentedNodes = nodes
-                        var indent = indentStack.pop()
-                        nodes = nodeStack.pop()
-                        nodes[nodes.length - 1].children = indentedNodes
-                        word = ""
-                        if (currIndent >= indent) {
-                            break
-                        }
-                    }
-                }
-                state = "inWord"
-                // with gotos it would be easier to not do the j-- ?
-                j--
-            }
-        } else if (state == "inWord") {
-            // every word automaticall gets wrapped
-            // so you have to unwrap when you close.
-            if (grapheme == "(") {
-                if (word.length) {
-                }
-                treeStack.push(tree)
-                tree = []
-            } else {
-            }
+thumbscript.eval = function(str) {
+    var evalWord = function(word) {
+        if (!word) {
+            return ""
         }
+        
+        if (word.charAt(0) == "@") {
+            return word.slice(1)
+        }
+        
+        if (word in thumbscript.state) {
+            thumbscript.state[word]
+        }
+        
+        // for (var i=0; i < words.length; i++) {
+        //     var word = words[i]
+        // }
     }
-    
-    // var lines = source.split("\n")
-    // var theStack = []
-    // var currState = {
-    //     indentLevel: 0
-    //     trees: []
-    // }
-    // for (var i=0; i < lines.length; i++) {
-    //     var line = lines[i]
-    //     var graphemes := splitGraphemes(line)
-    //     // thumbscript.parseLine(line, parentLine, world)
-    //     var treeStack = []
-    //     var indentLevel = 0
-    //     var tree = []
-    //     var state = "startLine"
-    //     var currWord = ""
-    //     for (var j = 0; j < graphemes.length; j++) {
-    //         if state == "start" {
-    //             if (graphemes[i] == " ") {
-    //                 indentLevel += 1
-    //             } else {
-    //                 if (indentLevel > currState.indentLevel) {
-    //                     theStack.push(currState)
-    //                     currState = {
-    //                         indentLevel: indentLevel,
-    //                         trees: []
-    //                     }
-    //                 } else if (indentLevel < currState.indentLevel) {
-    //                     // how many do we pop?
-    //                     while (true) {
-    //                         var oldCurrState = currState
-    //                         currState = theStack.pop()
-    //                         // currState.trees[currState]
-    //                         if (indentLevel >= currState.indentLevel) {
-    //                             currState.indentLevel = indentLevel
-    //                         }
-    //                     }
-    //                 }
-    //                 state = "startWord"
-    //                 
-    //             }
-    //         } else if (state == "startWord") {
-    //             if 
-    //         }
-    //     }
-    // }
+    var evalCall = function(words) {
+        if (words.length == 0) {
+            return ""
+        }
+        
+        var f = evalWord(words[0])
+        var oldValues = {}
+        
+        for (var i=1; i < words.length; i+=2) {
+            var key = words[i]
+            var value = words[i+1]
+            oldValues[key] = thumbscript.
+        }
+        
+    }
+    var lines = str.split("\n")
+    var calls = []
+    for (var i=0; i < lines.length; i++) {
+        var line = lines[i]
+        if (line.trim().length == 0) {
+            continue
+        }
+        var words = line.split(" ")
+        calls.push(words)
+        var nextLine = lines[i+1]
+        var subLines = []
+        var snaggedI = i
+        var origI = i
+        for (i+=1; i < lines.length; i++) {
+            var nextLine = lines[i]
+            // log2(`nextLine:${origI}: ${nextLine}`)
+            if (nextLine.trim().length == 0) {
+                if (nextLine.length > 4) {
+                    subLines.push(nextLine.slice(4))
+                } else {
+                    subLines.push("")
+                }
+                subLines.push("")
+                snaggedI = i
+                continue
+            }
+            if (nextLine.charAt(0) == " ") {
+                subLines.push(nextLine.slice(4))
+                snaggedI = i
+                continue
+            }
+            i = snaggedI
+            break
+        }
+        words.push(subLines.join("\n"))
+        evalCall(words)
+    }
+    return calls
 }
+
+
+
+
+var r = thumbscript.eval(`
+hello world
+how are you
+    pretty good here
+    yea pretty good
+good and you
+    great
+        so great
+        yea
+        
+`)
+
+log2(r)
