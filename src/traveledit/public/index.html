@@ -304,9 +304,10 @@ They get changed later on.
     -->
     <div class=longButton onclick="runScript()" id=statusBar>run script</div>
     <div class=longButton onclick=goUpDirectory()>⬆️</div>
-    <div class=longButton onclick=runChatGPT()>chatGPT</div>
+    <div class=longButton onclick=runChatGPT('gpt-4')>chatGPT4</div>
     <div class=longButton onclick=reloadFile(fx)>reload</div>
     <div id=saveButton class=longButton onclick=saveWrapper()>save</div>
+    <div class=longButton onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -3179,7 +3180,7 @@ function runScript() {
     setCurrentFile(f3)
 }
 
-async function runChatGPT() {
+async function runChatGPT(model) {
     if (!isPollingTerminal) {
         pollTerminals()
     }
@@ -3193,13 +3194,18 @@ async function runChatGPT() {
     var messages = [
           {
             "role": "system",
-            "content": "You are a helpful assistant. In your English responses, add new lines after about every 8 words"
+            "content": "You are a helpful assistant. In your responses, add new lines after about every 8 words, except when writing code."
             // "content": "When you answer prompts, be sure to add a new line after every 7 or so words, except when writing code. Be sure to add those new lines that's a '\\n' character!"
           },
+          // {
+          //   "role": "user",
+          //   // "content": code + ". Add a newline after every 10-ish tokens, except when writing code."
+          //   "content": "I am about to make your request. In your response, please add a new line after ever 7 or so words (except in source code). Ok now here is the request.\n" + code
+          // },
           {
             "role": "user",
             // "content": code + ". Add a newline after every 10-ish tokens, except when writing code."
-            "content": "I am about to make your request. In your response, please add a new line after ever 7 or so words (except in source code). Ok now here is the request.\n" + code
+            "content": code
           },
     ]
     // Todo: see if saveWorkspace is heavy
@@ -3209,7 +3215,7 @@ async function runChatGPT() {
         await saveWorkspace()
     }
     // fetch(proxyPath + "/chatgpt?id=" + fx.ID + "&index="+fx.cursorLineIndex+"&messages=" + encodeURIComponent(JSON.stringify(messages)), {
-    fetch(proxyPath + "/chatgpt?id=" + fx.ID + "&messages=" + encodeURIComponent(JSON.stringify(messages)), {
+    fetch(proxyPath + "/chatgpt?model="+encodeURIComponent(model)+"&id=" + fx.ID + "&messages=" + encodeURIComponent(JSON.stringify(messages)), {
         cache: "no-cache"
     }).then(r => {
     }).catch(e => {
@@ -4277,10 +4283,11 @@ function pollTerminals() {
         return false
     }
     isPollingTerminal = true
-    if (!files.some(f => f.fileMode == "terminal")) {
-        isPollingTerminal = false
-        return
-    }
+    // because of ChatGPT
+    // if (!files.some(f => f.fileMode == "terminal")) {
+    //     isPollingTerminal = false
+    //     return
+    // }
     fetch(proxyPath + "/myterminalpoll", {
         cache: "no-cache"
     }).then(r => {

@@ -1052,12 +1052,16 @@ func main() {
 			return
 		}
         log.Printf("chatgpt  call: %d", ID)
+        model := r.FormValue("model")
+        if model == "" {
+            model = "gpt-3.5-turbo"
+        }
 
         go func() {
 	        if f, ok := workspace.GetFile(ID); ok {
 	        	messagesJSON := r.FormValue("messages")
 	        	payload := `{
-          			"model": "gpt-3.5-turbo",
+          			"model": "`+model+`",
           			"stream": true,
           			"messages": `+messagesJSON+`
           	    }
