@@ -1086,8 +1086,19 @@ func main() {
 	        		log.Println("req to chatgpt: %d: %v", ID, err)
 	        		return
 	            }
-	            log.Printf("chatgpt response code; %d", resp.StatusCode)
 	            defer resp.Body.Close()
+	            
+	            log.Printf("chatgpt response code; %d", resp.StatusCode)
+	            
+	            // resp.StatusCode = 429
+                if resp.StatusCode != 200 {
+                	workspaceMu.Lock()
+                	f.ChatGPTBuffer = append(f.ChatGPTBuffer, "ERROR: Status Code: " + strconv.Itoa(resp.StatusCode) + "\n")
+                	workspaceCond.Broadcast()
+                	workspaceMu.Unlock()
+                }
+	            
+	            
 
 
                 // read the response using a scanner
@@ -1099,9 +1110,14 @@ func main() {
                     if len(line) == 0 || line[0] == ':' {
                         continue
                     }
-                    if strings.HasPrefix(line, "data: ") {
+                    if resp.StatusCode == 200 && strings.HasPrefix(line, "data: ") {
 						workspaceMu.Lock()
 						f.ChatGPTBuffer = append(f.ChatGPTBuffer, line[6:])
+						workspaceCond.Broadcast()
+						workspaceMu.Unlock()
+                    } else if resp.StatusCode != 200 {
+						workspaceMu.Lock()
+						f.ChatGPTBuffer = append(f.ChatGPTBuffer, line + "\n")
 						workspaceCond.Broadcast()
 						workspaceMu.Unlock()
                     }

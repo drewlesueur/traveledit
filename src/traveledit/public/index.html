@@ -304,7 +304,7 @@ They get changed later on.
     -->
     <div class=longButton onclick="runScript()" id=statusBar>run script</div>
     <div class=longButton onclick=goUpDirectory()>⬆️</div>
-    <div class=longButton onclick=runChatGPT('gpt-4')>chatGPT4</div>
+    <div class=longButton id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
     <div class=longButton onclick=reloadFile(fx)>reload</div>
     <div id=saveButton class=longButton onclick=saveWrapper()>save</div>
     <div class=longButton onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
@@ -3184,6 +3184,10 @@ async function runChatGPT(model) {
     if (!isPollingTerminal) {
         pollTerminals()
     }
+    if (!gptButton.oldInnerText) {
+        gptButton.oldInnerText = gptButton.innerText
+        gptButton.innerText = "..."
+    }
     debugOutput = []
     var oldCopyBuffer = copyBuffer
     var selectedLinesWrapper = getSelectedLines(fx)
@@ -4244,14 +4248,16 @@ function handleChatGPTResponse(file, responses) {
     for (var i=0; i<responses.length; i++) {
         var content = ""
         try {
-           if (response == "[DONE]") {
-               alert("done")
-           }
            var response = JSON.parse(responses[i])
            content = response.choices[0].delta.content
            // log("content:" + JSON.stringify(content))
         } catch (e) {
-            continue
+           content = responses[i]
+           if (content == "[DONE]") {
+               gptButton.innerText = gptButton.oldInnerText
+               gptButton.oldInnerText = ""
+               continue
+           }
         }
         if (content) {
             var contentLines = content.split("\n")
@@ -4306,7 +4312,7 @@ function pollTerminals() {
                 continue
             }
             if (termInfo.ChatGPTResponses && termInfo.ChatGPTResponses.length) {
-                handleChatGPTResponse(fx, termInfo.ChatGPTResponses)
+                handleChatGPTResponse(file, termInfo.ChatGPTResponses)
                 setTimeout(pollTerminals, 1)
                 return
             }
