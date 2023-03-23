@@ -3225,10 +3225,12 @@ async function runChatGPT(model) {
     }).catch(e => {
         alert("There was an error sending to chatgpt: " + e)
     })
-    // add new line
+    // add 2 new lines
     fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
-    docChanged()
     fx.cursorLineIndex++
+    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+    fx.cursorLineIndex++
+    docChanged()
     if (selectedLinesWrapper.isWholeFile) {
         fx.chatGPTCursorLineIndex = fx.lines.length - 1
     } else {
@@ -4231,6 +4233,7 @@ function saveName(name) {
 
 function handleChatGPTResponse(file, responses) {
     log(file.chatGPTCursorLineIndex)
+    log(responses)
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"role":"assistant"},"index":0,"finish_reason":null}]}
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"Ah"},"index":0,"finish_reason":null}]}
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"oy"},"index":0,"finish_reason":null}]}
