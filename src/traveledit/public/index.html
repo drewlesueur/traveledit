@@ -488,6 +488,7 @@ They get changed later on.
         <div id=clearSearchButton class=square onclick=clearSearch()>clear search</div>
         <div class=square onclick=editSearch()>edit search</div>
     -->
+    <div class=square onclick=record()>🎤</div>
     <div class=square onclick="osCopyText()" id=statusBar2>os copy</div>
     <div class=square onclick="osPasteText()">os paste</div>
     <div class=square onclick=addCmdTab()>cmd</div>
@@ -10006,7 +10007,83 @@ function googleIt() {
 // add a threshold for move, like 5px or something.
 // todo: in select mode, swipe down is paste. even paste over
 // I turned off "Predictive" to get more vertical space
+
+
+// idea send context of screen
+// https://webkit.org/blog/11353/mediarecorder-api/
+var audioBlobs = []
+let mediaRecorder;
+var isRecording = false
+
+function record() {
+    if (isRecording) {
+        endRecording()
+    } else {
+        startRecording()
+    }
+}
+async function startRecording()
+{
+    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+    fx.cursorLineIndex++
+    docChanged()
+    render()
+    isRecording = true
+    blobs = []
+    // stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    log(1)
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    log(2)
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (event) => {
+       // Let's append blobs for now, we could also upload them to the network.
+       if (event.data) {
+            blobs.push(event.data);
+       }
+    }
+    mediaRecorder.onstop = doPreview;
+    // Let's receive 1 second blobs
+    mediaRecorder.start(1000);
+}
+function endRecording()
+{
+    isRecording = false
+    // Let's stop capture and recording
+    mediaRecorder.stop();
+    stream.getTracks().forEach(track => track.stop());
+    
+}
+function doPreview()
+{
+    if (!blobs.length)
+        return;
+    // Let's concatenate blobs to preview the recorded content
+    var audioBlob = new Blob(blobs, { type: mediaRecorder.mimeType })
+    // alert(mediaRecorder.mimeType )
+    audio.src = URL.createObjectURL(audioBlob);
+    // const data = new Blob(["Hello, world!"], { type: "text/plain" });
+    const formData = new FormData();
+    formData.append("file", audioBlob, "myfile.mp4");
+    formData.append("prompt", fx.lines.slice(fx.offsetY, fx.offsetY + maxLines).join("\n"));
+    formData.append("model", "whisper-1");
+
+    var file = fx
+    file.whisperCursorLineIndex = file.cursorLineIndex
+    fetch(proxyPath + "/doWhisper", {
+      method: "POST",
+      body: formData
+    })
+      .then(response => response.json())
+      .then(function (r) {
+        updateLineFile(file, file.whisperCursorLineIndex, file.lines[file.whisperCursorLineIndex] + r.text)
+        render()
+        docChanged()
+      })
+      .catch(error => console.error(error));
+}
+
 </script>
+<audio id="audio" controls></audio>
 </body>
 </html>
 

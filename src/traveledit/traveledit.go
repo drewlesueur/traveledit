@@ -23,6 +23,9 @@ import "crypto/md5"
 import "html"
 import "bytes"
 import "bufio"
+
+import "mime/multipart"
+import "net/textproto"
 import "github.com/NYTimes/gziphandler"
 
 // import "github.com/gorilla/websocket"
@@ -81,7 +84,7 @@ func BasicAuth(handler http.Handler) http.HandlerFunc {
 		// 	return
 		// }
 
-		log.Printf("url hit: %s by %s (%s)", r.URL.Path, r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
+		// log.Printf("url hit: %s by %s (%s)", r.URL.Path, r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
 		//rUser, rPass, ok := r.BasicAuth()
 		rUser, rPass, ok := PretendBasicAuth(r)
 		if !ok || subtle.ConstantTimeCompare([]byte(rUser), []byte(user)) != 1 || subtle.ConstantTimeCompare([]byte(rPass), []byte(pass)) != 1 {
@@ -282,12 +285,12 @@ type File struct {
 	LastCommand string
 
 	// fields for terminal
-	Cmd        *exec.Cmd
-	Pty        *os.File
-	ReadBuffer []byte
+	Cmd           *exec.Cmd
+	Pty           *os.File
+	ReadBuffer    []byte
 	ChatGPTBuffer []string
-	Closed     bool
-	Name       string
+	Closed        bool
+	Name          string
 }
 
 type Workspace struct {
@@ -471,8 +474,8 @@ var workspace *Workspace
 type TerminalResponse struct {
 	Base64 string
 	// CWD ?? so we can keep track of directory changes
-	Error  string `json:",omitempty"`
-	Closed bool   `json:",omitempty"`
+	Error            string   `json:",omitempty"`
+	Closed           bool     `json:",omitempty"`
 	ChatGPTResponses []string `json:",omitempty"`
 }
 
@@ -605,13 +608,13 @@ func main() {
 	// trying to use a single mutex for multiple shells?
 	// TODO: serialize and de-serialize the state
 
-    // 📖📖📖📖📖📖📖📖📖📖📖📖
-    // single global mutex for everything.
-    var pollerMu sync.Mutex
-    var pollerRequestID = 0
-    pollerCond := sync.NewCond(&pollerMu)
-    var requestsForPolling = map[string][]*PolledRequest{}
-    var responsesForPolling = map[string]*PolledResponse{}
+	// 📖📖📖📖📖📖📖📖📖📖📖📖
+	// single global mutex for everything.
+	var pollerMu sync.Mutex
+	var pollerRequestID = 0
+	pollerCond := sync.NewCond(&pollerMu)
+	var requestsForPolling = map[string][]*PolledRequest{}
+	var responsesForPolling = map[string]*PolledResponse{}
 	go func() {
 		for range time.NewTicker(1 * time.Second).C {
 			viewCond.Broadcast()
@@ -1045,90 +1048,307 @@ func main() {
 	mux.HandleFunc("/chatgpt", func(w http.ResponseWriter, r *http.Request) {
 		// workspaceMu.Lock()
 		// defer workspaceMu.Unlock()
-        log.Printf("yay got here")
-        // return
+		log.Printf("yay got here")
+		// return
 
 		ID, err := strconv.Atoi(r.FormValue("id"))
 		if err != nil {
 			logAndErr(w, "invalid id: %s: %v", r.FormValue("id"), err)
 			return
 		}
-        log.Printf("chatgpt  call: %d", ID)
-        model := r.FormValue("model")
-        if model == "" {
-            model = "gpt-3.5-turbo"
-        }
+		log.Printf("chatgpt  call: %d", ID)
+		model := r.FormValue("model")
+		if model == "" {
+			model = "gpt-3.5-turbo"
+		}
 
-        go func() {
-	        if f, ok := workspace.GetFile(ID); ok {
-	        	messagesJSON := r.FormValue("messages")
-	        	payload := `{
-          			"model": "`+model+`",
+		go func() {
+			if f, ok := workspace.GetFile(ID); ok {
+				messagesJSON := r.FormValue("messages")
+				payload := `{
+          			"model": "` + model + `",
           			"stream": true,
-          			"messages": `+messagesJSON+`
+          			"messages": ` + messagesJSON + `
           	    }
 	        	`
-	        	log.Printf("chatgpt json: %s", payload)
-	        	chatReq, err  := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", strings.NewReader(payload))
-	        	if err != nil {
-	        		log.Println("new request to chatgpt: %d: %v", ID, err)
-	        		return
-	        	}
-	            // set the request header to indicate that we're sending JSON
-	            chatReq.Header.Set("Content-Type", "application/json")
-	            chatReq.Header.Set("Authorization", "Bearer " + os.Getenv("CHATGPTKEY"))
-	        	// for now new client every time
-	        	// but we should reuse the client
-	        	httpClient := http.Client{
-	        		Timeout: 5 * time.Minute,
-	        	}
+				log.Printf("chatgpt json: %s", payload)
+				chatReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", strings.NewReader(payload))
+				if err != nil {
+					log.Println("new request to chatgpt: %d: %v", ID, err)
+					return
+				}
+				// set the request header to indicate that we're sending JSON
+				chatReq.Header.Set("Content-Type", "application/json")
+				chatReq.Header.Set("Authorization", "Bearer "+os.Getenv("CHATGPTKEY"))
+				// TODO: for now new client every time
+				// but we should reuse the client
+				httpClient := http.Client{
+					Timeout: 5 * time.Minute,
+				}
 
-	            resp, err := httpClient.Do(chatReq)
-	            if err != nil {
-	        		log.Println("req to chatgpt: %d: %v", ID, err)
-	        		return
-	            }
-	            defer resp.Body.Close()
-	            
-	            log.Printf("chatgpt response code; %d", resp.StatusCode)
-	            
-	            // resp.StatusCode = 429
-                if resp.StatusCode != 200 {
-                	workspaceMu.Lock()
-                	f.ChatGPTBuffer = append(f.ChatGPTBuffer, "ERROR: Status Code: " + strconv.Itoa(resp.StatusCode) + "\n")
-                	workspaceCond.Broadcast()
-                	workspaceMu.Unlock()
-                }
-	            
-	            
+				resp, err := httpClient.Do(chatReq)
+				if err != nil {
+					log.Println("req to chatgpt: %d: %v", ID, err)
+					return
+				}
+				defer resp.Body.Close()
 
+				log.Printf("chatgpt response code; %d", resp.StatusCode)
 
-                // read the response using a scanner
-                scanner := bufio.NewScanner(resp.Body)
-                for scanner.Scan() {
-                    line := scanner.Text()
-	                // log.Printf("chatgpt line: %s", line)
-                    // ignore comments and empty lines
-                    if len(line) == 0 || line[0] == ':' {
-                        continue
-                    }
-                    if resp.StatusCode == 200 && strings.HasPrefix(line, "data: ") {
+				// resp.StatusCode = 429
+				if resp.StatusCode != 200 {
+					workspaceMu.Lock()
+					f.ChatGPTBuffer = append(f.ChatGPTBuffer, "ERROR: Status Code: "+strconv.Itoa(resp.StatusCode)+"\n")
+					workspaceCond.Broadcast()
+					workspaceMu.Unlock()
+				}
+
+				// read the response using a scanner
+				scanner := bufio.NewScanner(resp.Body)
+				for scanner.Scan() {
+					line := scanner.Text()
+					// log.Printf("chatgpt line: %s", line)
+					// ignore comments and empty lines
+					if len(line) == 0 || line[0] == ':' {
+						continue
+					}
+					if resp.StatusCode == 200 && strings.HasPrefix(line, "data: ") {
 						workspaceMu.Lock()
 						f.ChatGPTBuffer = append(f.ChatGPTBuffer, line[6:])
 						workspaceCond.Broadcast()
 						workspaceMu.Unlock()
-                    } else if resp.StatusCode != 200 {
+					} else if resp.StatusCode != 200 {
 						workspaceMu.Lock()
-						f.ChatGPTBuffer = append(f.ChatGPTBuffer, line + "\n")
+						f.ChatGPTBuffer = append(f.ChatGPTBuffer, line+"\n")
 						workspaceCond.Broadcast()
 						workspaceMu.Unlock()
-                    }
-                }
-            } else {
-                log.Printf("could not find id: %d", ID)
-            }
+					}
+				}
+			} else {
+				log.Printf("could not find id: %d", ID)
+			}
 		}()
 	})
+
+
+	// mux.HandleFunc("/doWhisper", func(w http.ResponseWriter, r *http.Request) {
+	// 	log.Printf(" doing whisper")
+	// 	r.ParseMultipartForm(32 << 20) // 32MB memory limit
+	// 	file, handler, err := r.FormFile("file")
+	// 	if err != nil {
+	// 		logAndErr(w, "Error retrieving file:", err)
+	// 		return
+	// 	}
+	// 	// maybe you can just pass through the raw request payload instead of reconstructing it (rename theAudio to file)
+	// 	// Create buffer to store data for the file
+	// 	var buffer bytes.Buffer
+	// 	writer := multipart.NewWriter(&buffer)
+// 
+	// 	// Add form field(s)
+	// 	writer.WriteField("model", "whisper-1")
+	// 	prompt := r.FormValue("prompt")
+	// 	writer.WriteField("prompt", prompt)
+	// 	// log.Printf("prompt: %s", prompt)
+	// 	// Add file to form field
+// 
+	// 	// fileWriter, err := writer.CreateFormFile("file", "myfile.mp4")
+	// 	// if err != nil {
+	// 	// 	fmt.Println("Error writing to buffer:", err)
+	// 	// 	return
+	// 	// }
+	// 	h := make(textproto.MIMEHeader)
+	// 	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "file", "myfile.mp4"))
+	// 	h.Set("Content-Type", handler.Header.Get("Content-Type"))
+	// 	fileWriter, _ := writer.CreatePart(h)
+// 
+	// 	// https://community.openai.com/t/whisper-api-cannot-read-files-correctly/93420/13
+	// 	// https://stackoverflow.com/questions/21130566/how-to-set-content-type-for-a-form-filed-using-multipart-in-go
+// 
+	// 	// Copy file to buffer
+	// 	_, err = io.Copy(fileWriter, file)
+	// 	if err != nil {
+	// 		fmt.Println("Error copying file to buffer:", err)
+	// 		return
+	// 	}
+	// 	file.Close()
+	// 	// fileWriter.Close() // ??
+	// 	writer.Close()
+	// 	// Send request
+	// 	//write buffer out to a debug file
+	// 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/transcriptions", &buffer)
+	// 	if err != nil {
+	// 		fmt.Println("Error creating request:", err)
+	// 		return
+	// 	}
+// 
+	// 	err = ioutil.WriteFile("debug_file.txt", buffer.Bytes(), 0644)
+	// 	if err != nil {
+	// 		log.Printf("Failed to write to debug file: %v", err)
+	// 	}
+// 
+	// 	// Set headers
+	// 	req.Header.Set("Content-Type", writer.FormDataContentType())
+	// 	// set the request header to indicate that we're sending JSON
+	// 	req.Header.Set("Authorization", "Bearer "+os.Getenv("CHATGPTKEY"))
+	// 	// Send request
+	// 	client := &http.Client{}
+	// 	res, err := client.Do(req)
+	// 	if err != nil {
+	// 		fmt.Println("Error sending whisper request:", err)
+	// 		return
+	// 	}
+	// 	defer res.Body.Close()
+	// 	log.Printf("whisper response code; %d", res.StatusCode)
+	// 	w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+	// 	io.Copy(w, res.Body)
+	// })
+	
+	// update this function to write the audio file to a local file
+	// then run ffmpeg on it (using exec.Cmd) to convert it to webm
+	// then make the webm file the one we send to openai api
+
+    mux.HandleFunc("/doWhisper", func(w http.ResponseWriter, r *http.Request) {
+    	log.Printf(" doing whisper")
+    	r.ParseMultipartForm(32 << 20) // 32MB memory limit
+    	file, handler, err := r.FormFile("file")
+    	_ = handler 
+    	if err != nil {
+    		logAndErr(w, "Error retrieving file:", err)
+    		return
+    	}
+    	defer file.Close()
+    	// Write the audio file to a local temporary file
+    	tmpFile, err := ioutil.TempFile("", "audio-*")
+    	if err != nil {
+    		fmt.Println("Error creating temp file:", err)
+    		return
+    	}
+    	defer os.Remove(tmpFile.Name())
+    	_, err = io.Copy(tmpFile, file)
+    	if err != nil {
+    		fmt.Println("Error writing to temp file:", err)
+    		return
+    	}
+    	tmpFile.Close()
+    	// Convert the audio to webm format using ffmpeg
+    	webmFile := tmpFile.Name() + ".webm"
+    	defer os.Remove(webmFile)
+    	log.Println("converting to webm")
+    	cmd := exec.Command("ffmpeg", "-i", tmpFile.Name(), webmFile)
+    	err = cmd.Run()
+    	if err != nil {
+    		fmt.Println("Error converting audio to webm with ffmpeg:", err)
+    		return
+    	}
+    	log.Println("converted to webm")
+    	// Read the converted file and pass it to the API
+    	convertedFile, err := os.Open(webmFile)
+    	if err != nil {
+    		fmt.Println("Error opening converted file:", err)
+    		return
+    	}
+    	defer convertedFile.Close()
+    	var buffer bytes.Buffer
+    	writer := multipart.NewWriter(&buffer)
+    	writer.WriteField("model", "whisper-1")
+    	prompt := r.FormValue("prompt")
+    	writer.WriteField("prompt", prompt)
+    	h := make(textproto.MIMEHeader)
+    	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "file", "myfile.webm"))
+    	// h.Set("Content-Type", handler.Header.Get("Content-Type"))
+    	h.Set("Content-Type", "audio/webm")
+    	fileWriter, _ := writer.CreatePart(h)
+    	_, err = io.Copy(fileWriter, convertedFile)
+    	if err != nil {
+    		fmt.Println("Error copying file to buffer:", err)
+    		return
+    	}
+    	writer.Close()
+    	req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/transcriptions", &buffer)
+    	if err != nil {
+    		fmt.Println("Error creating request:", err)
+    		return
+    	}
+    	req.Header.Set("Content-Type", writer.FormDataContentType())
+    	req.Header.Set("Authorization", "Bearer "+os.Getenv("CHATGPTKEY"))
+    	client := &http.Client{}
+    	res, err := client.Do(req)
+    	if err != nil {
+    		fmt.Println("Error sending whisper request:", err)
+    		return
+    	}
+    	defer res.Body.Close()
+    	log.Printf("whisper response code; %d", res.StatusCode)
+    	w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+    	io.Copy(w, res.Body)
+    })
+
+	//how do I set the correct content type in the fileWriter?
+
+	// i get an invalid file format error
+
+	// mux.HandleFunc("/doWhisper", func(w http.ResponseWriter, r *http.Request) {
+	// 	log.Printf(" doing whisper")
+	// 	req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/transcriptions", r.Body)
+	// 	if err != nil {
+	// 		fmt.Println("Error creating request:", err)
+	// 		return
+	// 	}
+	// 	// Set headers
+	// 	req.Header.Set("Content-Type", "multipart/form-data")
+	// 	// set the request header to indicate that we're sending JSON
+	// 	req.Header.Set("Authorization", "Bearer "+os.Getenv("CHATGPTKEY"))
+	// 	// Send request
+	// 	client := &http.Client{}
+	// 	res, err := client.Do(req)
+	// 	if err != nil {
+	// 		fmt.Println("Error sending whisper request:", err)
+	// 		return
+	// 	}
+	// 	defer res.Body.Close()
+	// 	log.Printf("whisper response code; %d", res.StatusCode)
+	// 	w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+	// 	io.Copy(w, res.Body)
+	// })
+
+	// add some debugging to write the r.body to a file
+	// may need to use a teeReader
+
+	// mux.HandleFunc("/doWhisper", func(w http.ResponseWriter, r *http.Request) {
+	//     log.Printf("doing whisper")
+	//     // Create a file to store r.Body data
+	//     file, err := os.Create("rbody_debug.txt")
+	//     if err != nil {
+	//         fmt.Println("Error creating file:", err)
+	//         return
+	//     }
+	//     defer file.Close()
+	//     // Create a TeeReader to simultaneously read and copy data from r.Body
+	//     bodyReader := io.TeeReader(r.Body, file)
+	//     // Replace r.Body with bodyReader in http.NewRequest
+	//     req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/transcriptions", bodyReader)
+	//     if err != nil {
+	//         fmt.Println("Error creating request:", err)
+	//         return
+	//     }
+	//     // Set headers
+	//     req.Header.Set("Content-Type", "multipart/form-data")
+	//     req.Header.Set("Authorization", "Bearer "+os.Getenv("CHATGPTKEY"))
+	//     // Send request
+	//     client := &http.Client{}
+	//     res, err := client.Do(req)
+	//     if err != nil {
+	//         fmt.Println("Error sending whisper request:", err)
+	//         return
+	//     }
+	//     defer res.Body.Close()
+	//     log.Printf("whisper response code: %d", res.StatusCode)
+	//     w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+	//     io.Copy(w, res.Body)
+	// })
+
+	// I get an error thay says "Could not parse multipart form"
+
 	mux.HandleFunc("/myterminalsend", func(w http.ResponseWriter, r *http.Request) {
 		// TODO: do consider an rwlock
 		// creak/pty example shows reading and writing in separate goroutines
@@ -1218,10 +1438,10 @@ func main() {
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// TODO #wschange: you could hydrate the original files list.
-        var usedIndexFile = *indexFile
-        if r.FormValue("indexFile") != "" {
-            usedIndexFile = r.FormValue("indexFile")
-        }
+		var usedIndexFile = *indexFile
+		if r.FormValue("indexFile") != "" {
+			usedIndexFile = r.FormValue("indexFile")
+		}
 		b, err := ioutil.ReadFile(usedIndexFile)
 		if err != nil {
 			logAndErr(w, "error reading index file: %v", err)
@@ -1486,10 +1706,10 @@ func main() {
 	mux.HandleFunc("/pollerResponse", func(w http.ResponseWriter, r *http.Request) {
 	})
 	mux.HandleFunc("/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
-	    // 👂👂👂👂👂👂
-	    pollerName := r.FormValue("poller_name")
-	    pollerMu.Lock()
-	    defer pollerMu.Unlock()
+		// 👂👂👂👂👂👂
+		pollerName := r.FormValue("poller_name")
+		pollerMu.Lock()
+		defer pollerMu.Unlock()
 		startWait := time.Now()
 		var prs = []*PolledRequest{}
 		for {
@@ -1497,27 +1717,27 @@ func main() {
 				fmt.Fprintf(w, "%s", "{}")
 				return
 			}
-	    	prs = requestsForPolling[pollerName]
+			prs = requestsForPolling[pollerName]
 			if len(prs) > 0 {
 				break
 			}
 			pollerCond.Wait()
 		}
-	    pr := prs[0]
-	    // prs = prs[1:]
-	    // shift
-	    copy(prs, prs[1:])
-	    prs = prs[0:len(prs)-1]
+		pr := prs[0]
+		// prs = prs[1:]
+		// shift
+		copy(prs, prs[1:])
+		prs = prs[0 : len(prs)-1]
 		requestsForPolling[pollerName] = prs
-	    // TODO: underlying array stays large, you could trim it at some point?
-	    json.NewEncoder(w).Encode(pr)
+		// TODO: underlying array stays large, you could trim it at some point?
+		json.NewEncoder(w).Encode(pr)
 	})
 
 	var mainMux http.Handler = mux
 	if os.Getenv("NOGZIP") != "1" {
 		mainMux = gziphandler.GzipHandler(mux)
 	}
-	
+
 	if os.Getenv("NOBASICAUTH") == "" {
 		mainMux = BasicAuth(mainMux)
 		log.Printf("doing basic auth")
@@ -1570,7 +1790,6 @@ func main() {
 		http.Redirect(w, r, "https://"+r.URL.Host, http.StatusFound)
 	})
 
-
 	// Allow it to be behind a proxy.
 	if proxyPath != nil && *proxyPath != "" {
 		oldMainMux := mainMux
@@ -1599,7 +1818,7 @@ func main() {
 		pollForRequests(mainMux)
 		return
 	}
-	
+
 	// Doing the polling handling after we send thr mainMux to pollForRequests
 	// so that we don't get into infinite loop.
 	oldMainMux := mainMux
@@ -1617,15 +1836,15 @@ func main() {
 			logAndErr(w, "couldn't open file: %v", err)
 			return
 		}
-        polledRequest := &PolledRequest{
-            RequestID: requestIDString,
-            Method: r.Method,
-            URL: r.RequestURI,
-            Header: r.Header,
-            Body: rBody,
-        }
+		polledRequest := &PolledRequest{
+			RequestID: requestIDString,
+			Method:    r.Method,
+			URL:       r.RequestURI,
+			Header:    r.Header,
+			Body:      rBody,
+		}
 		pollerMu.Lock()
-        requestsForPolling[pollerName] = append(requestsForPolling[pollerName], polledRequest)
+		requestsForPolling[pollerName] = append(requestsForPolling[pollerName], polledRequest)
 		pollerCond.Broadcast()
 		pollerMu.Unlock()
 		// dead zone. need to unlock so that pollForRequests endpoint can get it and return it
@@ -1635,27 +1854,26 @@ func main() {
 		var polledResponse *PolledResponse
 		for {
 			if time.Since(startWait) > (10 * time.Second) {
- 	 			w.WriteHeader(504)
+				w.WriteHeader(504)
 				fmt.Fprintf(w, "%s", "{}")
 				return
 			}
-	 	 	polledResponse = responsesForPolling[requestIDString]
-	 	 	if polledResponse != nil {
-	 	 	    break
-	 	 	}
+			polledResponse = responsesForPolling[requestIDString]
+			if polledResponse != nil {
+				break
+			}
 			pollerCond.Wait()
 		}
- 	 	delete(responsesForPolling, requestIDString)
- 	 	
- 	 	w.WriteHeader(polledResponse.StatusCode)
- 	 	// add headers
- 	 	for k, v := range polledResponse.Header {
- 	 	    w.Header().Set(k, v[0])
- 	 	}
- 	 	w.Write(polledResponse.Body)
- 	 	
+		delete(responsesForPolling, requestIDString)
+
+		w.WriteHeader(polledResponse.StatusCode)
+		// add headers
+		for k, v := range polledResponse.Header {
+			w.Header().Set(k, v[0])
+		}
+		w.Write(polledResponse.Body)
+
 	})
-	
 
 	httpServer := http.Server{
 		Addr:         *serverAddress,
@@ -1680,23 +1898,24 @@ func main() {
 
 }
 
-
 // ♠️♠️♠️♠️♠️♠️♠️
 type PolledRequest struct {
 	RequestID string
-	Method string
-	URL    string
-	Header map[string][]string
-	Body   []byte
-}
-// ♦️♦️♦️♦️♦️♦️♦️
-type PolledResponse struct {
-	PollerName string
-	RequestID string
-	StatusCode int
+	Method    string
+	URL       string
 	Header    map[string][]string
 	Body      []byte
 }
+
+// ♦️♦️♦️♦️♦️♦️♦️
+type PolledResponse struct {
+	PollerName string
+	RequestID  string
+	StatusCode int
+	Header     map[string][]string
+	Body       []byte
+}
+
 // 📞📞📞📞📞📞☎️☎️☎️
 func pollForRequests(mainMux http.Handler) {
 	minWait := 1000 * time.Millisecond
@@ -1709,10 +1928,10 @@ func pollForRequests(mainMux http.Handler) {
 	for {
 		timeSinceLastPoll := time.Since(lastPoll)
 		if timeSinceLastPoll < minWait {
-			time.Sleep(time.Duration(minWait.Milliseconds() - timeSinceLastPoll.Milliseconds()) * time.Millisecond)
+			time.Sleep(time.Duration(minWait.Milliseconds()-timeSinceLastPoll.Milliseconds()) * time.Millisecond)
 		}
 		log.Println("polling for requests")
-		req, err  := http.NewRequest("GET", pollerProxyServer+"/pollForRequests?poller_name="+url.QueryEscape(pollerName), nil)
+		req, err := http.NewRequest("GET", pollerProxyServer+"/pollForRequests?poller_name="+url.QueryEscape(pollerName), nil)
 		if err != nil {
 			log.Println("error creating request to poll: %v", err)
 			continue
@@ -1733,8 +1952,8 @@ func pollForRequests(mainMux http.Handler) {
 		}
 		// quick check for empty
 		if pr.Method == "" {
-		    // likely because of timeout, meaning we didn't get request
-		    continue
+			// likely because of timeout, meaning we didn't get request
+			continue
 		}
 		go func(pr PolledRequest) {
 			w := httptest.NewRecorder()
@@ -1754,7 +1973,7 @@ func pollForRequests(mainMux http.Handler) {
 			}
 			resp.Body.Close()
 			pResp := PolledResponse{
-				RequestID: pr.RequestID,
+				RequestID:  pr.RequestID,
 				PollerName: pollerName,
 				StatusCode: resp.StatusCode,
 				Header:     resp.Header,
