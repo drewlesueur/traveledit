@@ -1045,6 +1045,8 @@ func main() {
 	mux.HandleFunc("/chatgpt", func(w http.ResponseWriter, r *http.Request) {
 		// workspaceMu.Lock()
 		// defer workspaceMu.Unlock()
+        log.Printf("yay got here")
+        // return
 
 		ID, err := strconv.Atoi(r.FormValue("id"))
 		if err != nil {
@@ -1105,7 +1107,7 @@ func main() {
                 scanner := bufio.NewScanner(resp.Body)
                 for scanner.Scan() {
                     line := scanner.Text()
-	                log.Printf("chatgpt line: %s", line)
+	                // log.Printf("chatgpt line: %s", line)
                     // ignore comments and empty lines
                     if len(line) == 0 || line[0] == ':' {
                         continue
@@ -1573,7 +1575,7 @@ func main() {
 	if proxyPath != nil && *proxyPath != "" {
 		oldMainMux := mainMux
 		mainMux = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("original URL: %s =====", r.URL.Path)
+			// log.Printf("original URL: %s =====", r.URL.Path)
 			parts := strings.Split(r.URL.Path, ",")
 			for i, part := range parts {
 				if (i == 0 && !*proxyPathTrimmed) || i > 0 {
@@ -1588,7 +1590,7 @@ func main() {
 			if r.URL.Path[0:1] != "/" {
 				r.URL.Path = "/" + r.URL.Path
 			}
-			log.Printf("processsed URL: %s =====", r.URL.Path)
+			// log.Printf("processsed URL: %s =====", r.URL.Path)
 			oldMainMux.ServeHTTP(w, r)
 		})
 	}

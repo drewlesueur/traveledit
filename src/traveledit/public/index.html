@@ -3218,10 +3218,17 @@ async function runChatGPT(model) {
     if (!fx.ID) {
         await saveWorkspace()
     }
+    log("calling chatgpt")
     // fetch(proxyPath + "/chatgpt?id=" + fx.ID + "&index="+fx.cursorLineIndex+"&messages=" + encodeURIComponent(JSON.stringify(messages)), {
-    fetch(proxyPath + "/chatgpt?model="+encodeURIComponent(model)+"&id=" + fx.ID + "&messages=" + encodeURIComponent(JSON.stringify(messages)), {
-        cache: "no-cache"
+    var formData = new FormData()
+    formData.append("model", model)
+    formData.append("id", fx.ID)
+    formData.append("messages", JSON.stringify(messages))
+    fetch(proxyPath + "/chatgpt", {
+        cache: "no-cache",
+        method: "POST", body: formData
     }).then(r => {
+        log("got response from chatgpt call")
     }).catch(e => {
         alert("There was an error sending to chatgpt: " + e)
     })
