@@ -2061,6 +2061,13 @@ function runEditorCommand(e) {
         findDown()
         render()
         break
+    case "g":
+        log("g called")
+        runChatGPT('gpt-4', {inline: true, extra: "\n\n" + rest})
+        break
+    case "g3":
+        runChatGPT('gpt-3.5-turbo', {inline: true, extra: "\n\n" + rest})
+        break
     }
     editorCommandText.blur()
     return false
@@ -3181,7 +3188,8 @@ function runScript() {
     setCurrentFile(f3)
 }
 
-async function runChatGPT(model) {
+async function runChatGPT(model, options) {
+    options = options || {}
     if (!isPollingTerminal) {
         pollTerminals()
     }
@@ -3191,11 +3199,18 @@ async function runChatGPT(model) {
     }
     debugOutput = []
     var oldCopyBuffer = copyBuffer
-    var selectedLinesWrapper = getSelectedLines(fx)
+    var selectedLinesWrapper = getSelectedLines(fx, true) // the true deleted selected lines
     var theScriptLines = selectedLinesWrapper.lines
 
     // add return to the last non-empty line
-    var code = theScriptLines.join("\n")
+    var content = theScriptLines.join("\n")
+    if (options.extra) {
+        content = content + options.extra
+    }
+    if (options.inline) {
+        content = content + "\n" 
+            + "Do not output anything else other than the code. No explanation, just code. Do not surround the code with backticks."
+    }
     var messages = [
           {
             "role": "system",
@@ -3204,15 +3219,16 @@ async function runChatGPT(model) {
           },
           // {
           //   "role": "user",
-          //   // "content": code + ". Add a newline after every 10-ish tokens, except when writing code."
+          //   // "content": content + ". Add a newline after every 10-ish tokens, except when writing code."
           //   "content": "I am about to make your request. In your response, please add a new line after ever 7 or so words (except in source code). Ok now here is the request.\n" + code
           // },
           {
             "role": "user",
-            // "content": code + ". Add a newline after every 10-ish tokens, except when writing code."
-            "content": code
+            // "content": content + ". Add a newline after every 10-ish tokens, except when writing code."
+            "content": content
           },
     ]
+    log(messages)
     // Todo: see if saveWorkspace is heavy
     // only do it if this fx doesn't have an ID?
     //
@@ -3233,17 +3249,19 @@ async function runChatGPT(model) {
     }).catch(e => {
         alert("There was an error sending to chatgpt: " + e)
     })
-    // add 2 new lines
     fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
     fx.cursorLineIndex++
-    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
-    fx.cursorLineIndex++
-    docChanged()
+    if (!options.inline) {
+        fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+        fx.cursorLineIndex++
+    }
+    // docChanged()
     if (selectedLinesWrapper.isWholeFile) {
         fx.chatGPTCursorLineIndex = fx.lines.length - 1
     } else {
         fx.chatGPTCursorLineIndex = fx.cursorLineIndex
     }
+    fx.chatGPTInline = options.inline
     render()
 
 }
@@ -3297,7 +3315,7 @@ function getSelectedLines(f, shouldDeleteSelected) {
         if (shouldDeleteSelected) {
             // TODO: make it so this delete doesn't update the undo stack
             // or change use so there is no option to delete here
-            del()
+            del(false, false, true) // true to prevent Undo
         } else {
             copy()
         }
@@ -3800,16 +3818,16 @@ var lastDeleteWasFromSelection = false
 var hasMovedSincePaste = true
 var ghostSelection = {}
 
-function del(preventCopy, preventDeleteWholeLine) {
+function del(preventCopy, preventDeleteWholeLine, preventUndo) {
     var oldCopyBuffer = copyBuffer
-    delinternal(preventCopy, preventDeleteWholeLine)
+    delinternal(preventCopy, preventDeleteWholeLine, preventUndo)
     
     // to allow cut paste, cut paste, cut paste of same word
     if (copyBuffer.join("\n") != oldCopyBuffer.join("\n")) {
         globalOldCopyBuffer = oldCopyBuffer
     }
 }
-function delinternal(preventCopy, preventDeleteWholeLine) {
+function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
     hasMovedSinceCut = false
     hasUpdatedSearchTextForReplaceFlow = false
 
@@ -3934,7 +3952,9 @@ function delinternal(preventCopy, preventDeleteWholeLine) {
         }
         updateCursorXY()
         fx.selectedRegions = []
-        docChanged()
+        if (!preventUndo) {
+            docChanged()
+        }
         render()
         if (document.activeElement == theText) {
             //theText.setSelectionRange(r.startX, r.startX)
@@ -4092,6 +4112,9 @@ function uploadFile(e) {
     })
     return false
 }
+
+// See other places where we simply splice an empty string 
+// like when calling chatGPT
 function newLine(e, shouldFocus) {
     var theLine = fx.lines[fx.cursorLineIndex]
     e && e.preventDefault()
@@ -4102,8 +4125,7 @@ function newLine(e, shouldFocus) {
         // this is handled somewhere else
         // see handleKeydown
     }
-    // insertLine(true)
-    insertLine(true, true) // this one just makes a new line
+    insertLine(false, true) // this one just makes a new line
     if (shouldFocus) {
         theText.focus()
         //theText.setSelectionRange(fx.cursorColIndex, fx.cursorColIndex)
@@ -4267,6 +4289,7 @@ function handleChatGPTResponse(file, responses) {
            if (content == "[DONE]") {
                gptButton.innerText = gptButton.oldInnerText
                gptButton.oldInnerText = ""
+               docChanged()
                continue
            }
         }
@@ -7343,7 +7366,11 @@ function onStart(e) {
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     // open()
-                    newLine()
+                    // newLine()
+                    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+                    fx.cursorLineIndex++
+                    docChanged()
+                    render()
                     return
                 } else {
                     // This is handled in touchTopTopTopMiddle_Right
