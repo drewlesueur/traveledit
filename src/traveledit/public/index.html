@@ -3199,7 +3199,12 @@ async function runChatGPT(model, options) {
     }
     debugOutput = []
     var oldCopyBuffer = copyBuffer
-    var selectedLinesWrapper = getSelectedLines(fx, true) // the true deleted selected lines
+    
+    var deleteSelection = false
+    if (options.inline) {
+        deleteSelection = true
+    }
+    var selectedLinesWrapper = getSelectedLines(fx, deleteSelection);
     var theScriptLines = selectedLinesWrapper.lines
 
     // add return to the last non-empty line
