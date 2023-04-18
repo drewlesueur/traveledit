@@ -2195,6 +2195,7 @@ var shellHelpers = [
     "grep -Rin '' --include=*.pm .",
     "grep -Rin '' --include=*.go .",
     "grep -Rin '' --include=*.php .",
+    "grep -Rin '' .",
     "find . -iname '**'",
     // "diff -y --width=240",
     // "go test ./...",
@@ -5833,20 +5834,27 @@ function render() {
         var oldMaxCols = maxCols
         var oldMaxLines = maxLines
         var oldT = t // canvas rendering context
-        fx.offsetX = -marginLeft
-        if (maxCols < 175) {
-            maxCols = 175
-        }
-        if (maxLines < 32) {
-            maxLines = 32
+        
+        var expandScreen = false
+        
+        if (expandScreen) {
+            fx.offsetX = -marginLeft
+            if (maxCols < 175) {
+                maxCols = 175
+            }
+            if (maxLines < 32) {
+                maxLines = 32
+            }
         }
 
         var oldCanvasHeight = canvasHeight
         // setCanvasHeight(canvasHeightFull)
         maxLines = Math.floor(canvasHeightFull / fontHeight)
 
-        var section = Math.floor((fx.cursorColIndex + marginLeft) / maxCols)
-        fx.offsetX = (section * maxCols) - marginLeft
+        if (expandScreen) {
+            var section = Math.floor((fx.cursorColIndex + marginLeft) / maxCols)
+            fx.offsetX = (section * maxCols) - marginLeft
+        }
 
         t = mockCanvasContext
         // mockCanvasContext.lastFillStyle = "black",
@@ -9151,8 +9159,10 @@ function addFile(fullPath, options, id, name) { // hotpink marker
     var cursorLineIndex = 0
     var explicitCursorLineIndex = false
     var parts = fullPath.split(":")
-    fullPath = parts[0]
-    if (parts.length > 1) {
+    
+    // check that the last part is a number
+    if (parts.length == 2 && (parts[1] - 0) == parts[1]) {
+        fullPath = parts[0]
         cursorLineIndex = (parts[1] - 1) || 0
         explicitCursorLineIndex = true
     }
@@ -10043,6 +10053,7 @@ function googleIt() {
 
 // idea send context of screen
 // https://webkit.org/blog/11353/mediarecorder-api/
+// https://community.openai.com/t/whisper-api-cannot-read-files-correctly/93420/16
 var audioBlobs = []
 let mediaRecorder;
 var isRecording = false

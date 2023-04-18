@@ -1531,7 +1531,9 @@ func main() {
 			thePath := r.FormValue("fullpath")
 			// trimming off the :line suffix
 			parts := strings.Split(thePath, ":")
-			thePath = parts[0]
+			if len(parts) == 2 {
+				thePath = parts[0]
+			}
 			fullPath := combinePath(*location, thePath)
 			fileInfo, err := os.Stat(fullPath)
 			if err != nil {
