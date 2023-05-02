@@ -146,6 +146,10 @@ body.light .toolbar div.selected {
     text-align: center;
 }
 
+.toolbar .slotButton {
+    overflow: hidden;
+}
+
 #fileRow div {
     font-size: 10px !important;
 }
@@ -508,16 +512,19 @@ They get changed later on.
     -->
 </div>
 <div class=toolbar>
-    <div class=square onmousedown="setCurrentFile(lastFile)" ontouchstart="setCurrentFile(lastFile); event.preventDefault(); event.stopPropagation()">alt tab</div>
+    <div class=square onclick="cleanUpFiles()">Clean Up</div>
+    <!--
+        <div class=square onmousedown="setCurrentFile(lastFile)" ontouchstart="setCurrentFile(lastFile); event.preventDefault(); event.stopPropagation()">alt tab</div>
+    -->
     <div class=square onclick="googleIt()">Google it</div>
     <div class=square onclick="linkToRemote()">Share code</div>
     <!--
-    <div class=square onclick="duplicateFile(fx, -1)">dupl file</div>
+        <div class=square onclick="duplicateFile(fx, -1)">dupl file</div>
     -->
     <div class=square onclick="compareSets()">compare sets</div>
     <div class=square onclick=editEditorCommandText()>editor cmd</div>
     <!--
-    <div class=square onclick="deleteBelow();">del below</div>
+        <div class=square onclick="deleteBelow();">del below</div>
     -->
 </div>
 <!-- Stuff after here is after the fold -->
@@ -712,9 +719,9 @@ onfocus="this.setSelectionRange(0, this.value.length)"
 style="width:100%; height:100px;"
     placeholder="when you copy something, it will show up here"
 ></textarea>
-<input placeholder="slot 1" id=slot1Input onchange='localStorage.setItem("slot1", this.value); slot1Button.innerText = this.value;'/>
-<input placeholder="slot 2" id=slot2Input onchange='localStorage.setItem("slot2", this.value); slot2Button.innerText = this.value;' />
-<input placeholder="slot 3" id=slot3Input onchange='localStorage.setItem("slot3", this.value); slot3Button.innerText = this.value;' />
+<input class=slotButton placeholder="slot 1" id=slot1Input onchange='localStorage.setItem("slot1", this.value); slot1Button.innerText = this.value;'/>
+<input class=slotButton placeholder="slot 2" id=slot2Input onchange='localStorage.setItem("slot2", this.value); slot2Button.innerText = this.value;' />
+<input class=slotButton placeholder="slot 3" id=slot3Input onchange='localStorage.setItem("slot3", this.value); slot3Button.innerText = this.value;' />
 <form onsubmit=uploadFile(event)>
     Upload files:<br>
     <input id=filesToUpload type=file multiple>
@@ -2131,24 +2138,72 @@ function blurSearchText() {
     editorCommandText.style.display = "none"
     setCanvasHeightAccordingly()
 }
-function closeFile() {
-    if (fx.fileMode == "fileList") {
-        var fileIndex = files.indexOf(treeFilesShadow[fx.cursorLineIndex])
+
+function cleanUpFiles() {
+    var seenFiles = {}
+    var filesToClose = []
+    var filesToKeep = []
+    for (var i=0; i<files.length; i++) {
+        var file = files[i]
+        if (file.fileMode == "file" || file.fileMode == "directory") {
+            if (file.fullPath in seenFiles) {
+                filesToClose.push(file)
+            } else {
+                seenFiles[file.fullPath] = true
+                filesToKeep.push(file)
+            }
+        } else if (file.fileMode == "shell") {
+                filesToClose.push(file)
+        } else if (file.fileMode == "terminal") {
+            if (file.name)  {
+                filesToKeep.push(file)
+            } else {
+                filesToClose.push(file)
+            }
+        } else {
+            filesToKeep.push(file)
+        }
+    }
+    
+    for (var i=0; i<filesToClose.length; i++) {
+        var file = filesToClose[i]
+        closeFileServer(file).then(() => {
+        }).catch(e => alert(e))
+        if (file.iframeWrapper) {
+            file.iframeWrapper.remove()
+        }
+    }
+    files = filesToKeep
+    render()
+    renderFileDropdown()
+    renderURL()
+    seeFiles()
+    seeFiles()
+    
+    log(seenFiles)
+}
+function closeFile(theFX) {
+    if (!theFX) {
+        theFX = fx
+    }
+    log("closing " + theFX.fullPath)
+    if (theFX.fileMode == "fileList") {
+        var fileIndex = files.indexOf(treeFilesShadow[theFX.cursorLineIndex])
         if (fileIndex != -1) {
             var fileToClose = files[fileIndex]
             // try to get index again because it could have changed
             var indexToClose = files.indexOf(fileToClose)
             if (indexToClose != -1) {
-                var afterTreeSeparator = treeFilesShadow.indexOf("treeSeparator") < fx.cursorLineIndex
+                var afterTreeSeparator = treeFilesShadow.indexOf("treeSeparator") < theFX.cursorLineIndex
                 if (afterTreeSeparator) {
                     // after the tree separator we need to move up one because 2 lines are deleted
                     // see showFilesFlatFirst
-                    fx.cursorLineIndex -= 1
+                    theFX.cursorLineIndex -= 1
                     ensureCursorInScreen()
                 }
                 files.splice(indexToClose, 1)
             }
-            fx.lines = getLinesForFileList()
+            theFX.lines = getLinesForFileList()
             // TODO?: to the useUnicode stuff here and related places
             // or maybe don't show unicode in file list?
             render()
@@ -2157,20 +2212,19 @@ function closeFile() {
             closeFileServer(fileToClose).then(() => {
             }).catch(e => alert(e))
         }
-        fx.lines = getLinesForFileList()
+        theFX.lines = getLinesForFileList()
     } else {
-        if (fx.fileMode == "file") {
-            if (fx.version != fx.savedVersion) {
+        if (theFX.fileMode == "file") {
+            if (theFX.version != theFX.savedVersion) {
                 if (!confirm("Unsaved changes, click OK if you still want to close. ")) {
                     return
                 }
             }
         }
-        var myFx = fx // in case it changes
-        if (fx.iframeWrapper) {
-            fx.iframeWrapper.remove()
+        if (theFX.iframeWrapper) {
+            theFX.iframeWrapper.remove()
         }
-        var indexToClose = files.indexOf(myFx)
+        var indexToClose = files.indexOf(theFX)
         if (indexToClose != -1) {
             files.splice(indexToClose, 1)
             // this changes fx
@@ -2179,7 +2233,7 @@ function closeFile() {
         render()
         renderFileDropdown()
         renderURL()
-        closeFileServer(myFx).then(() => {
+        closeFileServer(theFX).then(() => {
         }).catch(e => alert(e))
     }
 }
