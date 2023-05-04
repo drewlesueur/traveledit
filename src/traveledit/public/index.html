@@ -783,6 +783,7 @@ for (var i=0; i<toolbars.length; i++) {
 var highlightText = "" // deprecated
 var highlightMatchesSingleRegExp
 var highlightMatches = []
+var pathDecorators = []
 
 var wordAtCursor = ""
 var wordAtCursorRegexp = null
@@ -2174,6 +2175,18 @@ function cleanUpFiles() {
         }
     }
     files = filesToKeep
+
+    files.sort((a, b) => {
+        var key = "fullPath"
+        if (a[key] < b[key]) {
+            return -1;
+        }
+        if (a[key] > b[key]) {
+            return 1;
+        }
+        return 0;
+    });
+    
     render()
     renderFileDropdown()
     renderURL()
@@ -9610,10 +9623,10 @@ function getLinesForFileList() {
         //     parts[parts.length - 1] = f.group + ": " + parts[parts.length - 1]
         // }
         if (f.fileMode == "shell") {
-            parts = ["(cmd)", (f.tmpIndex+"").padStart(2, "0") + ": " + (f.name || "")]
+            parts = ["(cmd)", (f.tmpIndex+"").padStart(2, "0") + ": " + (f.name || "") + groupText]
         } else if (f.fileMode == "terminal") {
             // #todoterminal: how get the cwd of the process (/proc/fd) ?
-            parts = ["(terminal)", (f.tmpIndex+"").padStart(2, "0") + ": " + (f.name || "")]
+            parts = ["(terminal)", (f.tmpIndex+"").padStart(2, "0") + ": " + (f.name || "") + groupText]
         }
         // var parts = (f.fullPath).split("/")
         var curTree = fileTree
@@ -10022,6 +10035,10 @@ function fetchWorkspaceWithList(index) {
             highlightMatches = workspace.HighlightMatches
             processHighlightMatches()
         }
+        if (workspace.PathDecorators) {
+            pathDecorators = workspace.PathDecorators
+            processPathDecorators()
+        }
     
         preventRender = false
         render()
@@ -10040,6 +10057,7 @@ function saveWorkspace(oldWorkspaceName) {
         FontName: currentFont.fontName,
         FontScale: fontScale,
         HighlightMatches: highlightMatches,
+        PathDecorators: pathDecorators,
         Files: [],
         Name: workspaceName
     }
@@ -10075,9 +10093,10 @@ function saveWorkspace(oldWorkspaceName) {
 function setHighlightMatches() {
     var lines = getSelectedLines(fx, false).lines
     highlightMatches = []
+    pathDecorators = []
     for (var i = 0; i < lines.length; i++) {
         // reasonable limit
-        if (i > 50) {
+        if (i > 200) {
             break
         }
         var line = lines[i]
@@ -10085,16 +10104,42 @@ function setHighlightMatches() {
             continue
         }
         var parts = line.split(" ")
-        highlightMatches.push({
-            Regex: parts.slice(0, -1).join(" "),
-            // TODO: Change this on the back and frontend to Color.
-            BackgroundColor: parts[parts.length-1] || "hotpink",
-            // TextColor: parts[2] || "",
-            // UnderlineColor: parts[3] || ""
-        })
+        if (parts.length < 2) {
+            continue
+        }
+        if (isEmoji(parts[1])) {
+            pathDecorators.push({
+                Path: parts[0],
+                Decorator: parts[1],
+            })
+        } else {
+            highlightMatches.push({
+                Regex: parts.slice(0, -1).join(" "),
+                // TODO: Change this on the back and frontend to Color.
+                BackgroundColor: parts[parts.length-1] || "hotpink",
+                // TextColor: parts[2] || "",
+                // UnderlineColor: parts[3] || ""
+            })
+        }
     }
     processHighlightMatches()
+    processPathDecorators()
     saveWorkspace()
+}
+
+function processPathDecorators() {
+    for (var i=0; i<files.length; i++) {
+        var file = files[i]
+        for (var j=0; j<pathDecorators.length; j++) {
+            var pd = pathDecorators[j]
+            if (file.fullPath.indexOf(pd.Path) != -1) {
+                file.group = pd.Decorator
+                break
+            }
+        }
+    }
+    render()
+    renderFileDropdown()
 }
 
 function processHighlightMatches() {

@@ -246,6 +246,11 @@ type HighlightMatch struct {
 	UnderlineColor  string
 }
 
+type PathDecorators struct {
+	Path           string
+	Decorator string
+}
+
 type HighlightRange struct {
 	StartY int
 	StartX int
@@ -301,6 +306,7 @@ type Workspace struct {
 	FontScale float64
 
 	HighlightMatches []*HighlightMatch
+	PathDecorators []*PathDecorator
 }
 
 func (w *Workspace) GetFile(id int) (*File, bool) {
@@ -392,6 +398,7 @@ func workspaceView(w *Workspace) map[string]interface{} {
 		"FontName":         w.FontName,
 		"FontScale":        w.FontScale,
 		"HighlightMatches": w.HighlightMatches,
+		"PathDecorators": w.PathDecorators,
 		"Files":            files,
 	}
 	return workspaceRet
@@ -508,6 +515,7 @@ func main() {
 					DarkMode:         tmpW.DarkMode,
 					Name:             tmpW.Name,
 					HighlightMatches: tmpW.HighlightMatches,
+					PathDecorators: tmpW.PathDecorators,
 				}
 				for _, f := range tmpW.Files {
 					if f.Type == "file" {
@@ -986,6 +994,7 @@ func main() {
 		workspace.FontName = tmpWorkspace.FontName
 		workspace.FontScale = tmpWorkspace.FontScale
 		workspace.HighlightMatches = tmpWorkspace.HighlightMatches
+		workspace.PathDecorators = tmpWorkspace.PathDecorators
 		workspace.Name = tmpWorkspace.Name
 		writeWorkspaceFile(w, r)
 	})
