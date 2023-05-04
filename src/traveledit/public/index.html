@@ -7440,18 +7440,21 @@ function onStart(e) {
         if (cursorType == "select") {
             overflowX = 0
             overflowY = 0
-            var line = fx.lines[fx.cursorLineIndex] || fx.lines[fx.lines.length - 1]
+            var cli = fx.cursorLineIndex
+            if (cli >= fx.lines.length) {
+                cli = fx.lines.length - 1
+            }
+            var line = fx.lines[cli] || ""
             if (selectedRegion.selectedWord) {
                 selectedRegion.selectedWord = false
                 selectedRegion.startX = selectedRegion.origStartX
                 // selectedRegion.stopX = selectedRegion.origStopX
             }
             selectedRegion.stopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
-            selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
+            selectedRegion.stopY = bind(cli, 0, fx.lines.length-1)
             selectedRegion.stopped = true
             if (fx.cursorColIndex < 0 || selectMode == "line") {
-                // var _line = fx.lines[fx.cursorLineIndex] || ""
-                selectedRegion.stopX = expandTabIndex(line, line.length)
+                selectedRegion.stopX = expandTabIndex(line, line.length, cli)
             }
         }
         // attempt at #snappingCursor
