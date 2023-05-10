@@ -246,7 +246,7 @@ type HighlightMatch struct {
 	UnderlineColor  string
 }
 
-type PathDecorators struct {
+type PathDecorator struct {
 	Path           string
 	Decorator string
 }
@@ -489,6 +489,11 @@ type TerminalResponse struct {
 var lastFileID = 0
 var workspaceMu sync.Mutex
 var workspaceCond *sync.Cond
+
+var chatGPTMu sync.Mutex
+var chatGPTIsRunning = false
+var chatGPTShouldBeRunning = false
+
 
 var proxyPath *string
 
@@ -1054,7 +1059,25 @@ func main() {
 		cwd := r.FormValue("cwd")
 		openTerminal(cwd, w)
 	})
+	
+	mux.HandleFunc("/cancelchatgpt", func(w http.ResponseWriter, r *http.Request) {
+		chatGPTMu.Lock()
+		defer chatGPTMu.Unlock()
+		
+		chatGPTShouldBeRunning = false
+	})
+	
 	mux.HandleFunc("/chatgpt", func(w http.ResponseWriter, r *http.Request) {
+		chatGPTMu.Lock()
+		defer chatGPTMu.Unlock()
+		
+		// small race cond. between here and when we actually set to running.
+		if chatGPTIsRunning || chatGPTShouldBeRunning {
+		    return
+		}
+		
+		chatGPTShouldBeRunning = true
+		
 		// workspaceMu.Lock()
 		// defer workspaceMu.Unlock()
 		log.Printf("yay got here")
@@ -1115,6 +1138,17 @@ func main() {
 				// read the response using a scanner
 				scanner := bufio.NewScanner(resp.Body)
 				for scanner.Scan() {
+					chatGPTMu.Lock()
+					chatGPTIsRunning = true
+					if !chatGPTShouldBeRunning {
+					    chatGPTIsRunning = false
+					    resp.Body.Close()
+						chatGPTMu.Unlock()
+						log.Println("breaking the loop for chatGPT")
+					    break
+					}
+					chatGPTMu.Unlock()
+					
 					line := scanner.Text()
 					// log.Printf("chatgpt line: %s", line)
 					// ignore comments and empty lines
@@ -1133,6 +1167,10 @@ func main() {
 						workspaceMu.Unlock()
 					}
 				}
+				chatGPTMu.Lock()
+				chatGPTIsRunning = false
+				chatGPTShouldBeRunning = false
+				chatGPTMu.Unlock()
 			} else {
 				log.Printf("could not find id: %d", ID)
 			}

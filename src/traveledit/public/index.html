@@ -3265,7 +3265,17 @@ async function runChatGPT(model, options) {
     }
     if (!gptButton.oldInnerText) {
         gptButton.oldInnerText = gptButton.innerText
-        gptButton.innerText = "..."
+
+        gptButton.innerText = "cancel GPT"
+    } else {
+        fetch(proxyPath + "/cancelchatgpt", {
+            cache: "no-cache",
+            method: "POST"
+        })
+       gptButton.innerText = gptButton.oldInnerText
+       gptButton.oldInnerText = ""
+        
+        return
     }
     debugOutput = []
     var oldCopyBuffer = copyBuffer
@@ -6458,7 +6468,7 @@ function renderInternal() {
         if (theLine && searchText.value.length) {
             // max 20 highlights per line
             for (var _i=0; _i<20; _i++) {
-                if (fx.fileMode == "directory") {
+                if (false && fx.fileMode == "directory") {
                     var pos = theLine.toLowerCase().indexOf(searchText.value.toLowerCase(), highlightStartSearch)
                     if (pos == -1) {
                         break
@@ -9393,6 +9403,10 @@ function addFile(fullPath, options, id, name) { // hotpink marker
     if (options.group) {
         file.group = options.group
     }
+    // This will override the group if there is a "path decorator"
+    processPathDecorator(file)
+    
+    
     addFileToList(file, options)
     if (!options.preventSelect) {
         setCurrentFile(file)
@@ -10133,16 +10147,19 @@ function setHighlightMatches() {
 function processPathDecorators() {
     for (var i=0; i<files.length; i++) {
         var file = files[i]
-        for (var j=0; j<pathDecorators.length; j++) {
-            var pd = pathDecorators[j]
-            if (file.fullPath.indexOf(pd.Path) != -1) {
-                file.group = pd.Decorator
-                break
-            }
-        }
+        processPathDecorator(file)
     }
     render()
     renderFileDropdown()
+}
+function processPathDecorator(file) {
+    for (var j=0; j<pathDecorators.length; j++) {
+        var pd = pathDecorators[j]
+        if (file.fullPath.indexOf(pd.Path) != -1) {
+            file.group = pd.Decorator
+            break
+        }
+    }
 }
 
 function processHighlightMatches() {
