@@ -1,5 +1,6 @@
 thumbscript2 = {
-    lookup: function(a, state) {
+    lookup: function(a, state) { 
+        // maybe add more complex variables
         if (a - 0 == a) {
             return a
         }
@@ -122,14 +123,14 @@ thumbscript2.tokenize = function(code) {
         } else if (token == "indent") {
             currentIndent++
         } else {
-            log2(`token: ${token}, currentIndent: ${currentIndent}, lastIndent: ${lastIndent}`)
+            // log2(`token: ${token}, currentIndent: ${currentIndent}, lastIndent: ${lastIndent}`)
             if (currentIndent <= lastIndent) {
                 while (true) {
                     if (needsClose.length == 0) {
                         break
                     }
                     var n = needsClose.pop()
-                    log2("n is " + n)
+                    // log2("n is " + n)
                     if (n >= currentIndent) {
                         newTokens.push(")")
                     } else {
@@ -138,7 +139,6 @@ thumbscript2.tokenize = function(code) {
                     }
                 }
             }
-            
 
             // go to newline
             for (i; i < tokens.length; i++) {
@@ -154,8 +154,6 @@ thumbscript2.tokenize = function(code) {
                 }
             }
         }
-        
-        
     }
     return newTokens
 }
@@ -197,31 +195,12 @@ thumbscript2.run = function(tokens) {
             }
         },
         label: function(name, state) {
-        },
-        "indent": function(state) {
-            // currentIndent++
-        },
-        "newline": function(state) {
-            // if (tokens[i-1] != "newline") {
-            //     lastIndent = currentIndent
-            // }
-            // currentIndent = 0
-            // 
-            // for (i; i < tokens.length; i++) {
-            //     token = tokens[i]
-            //     if (token == "indent") {
-            //         currentIndent++
-            //     } else if (token == "newline") {
-            //     } else {
-            //         i--
-            //         if (currentIndent < lastIndent) {
-            //             for (var j = 0; j < lastIndent - currentIndent; j++ ) {
-            //                 stack = stacks.pop().concat(stack)
-            //             }
-            //         }
-            //         return
+            //     // todo: don't need to set if we've seen before
+            //     locations["_".repeat(currentIndent) + token.slice(0, -1)] = i
+            //     if (mode == "findJump") {
+            //         mode = "run"
+            //         continue
             //     }
-            // }
         },
         jumpback: function(name, state) {
         },
@@ -243,38 +222,25 @@ thumbscript2.run = function(tokens) {
     // tokens different from stack
     while (i < tokens.length) {
         var token = tokens[i]
-        // if (token == "indent") {
-        // } else if (token == "newline") {
-        // } else if (token.endsWith(":")) {
-        //     // todo: don't need to set if we've seen before
-        //     locations["_".repeat(currentIndent) + token.slice(0, -1)] = i
-        //     if (mode == "findJump") {
-        //         mode = "run"
-        //         continue
-        //     }
         if (mode == "run" && token in quicks) {
             funcStack.push(currentFunc)
             currentFunc = quicks[token]
             currentFunc._name = token
-        } else {
-            // check dedents
-            
-            if (mode == "run" && token in thumbscript2.builtinFuncs) {
-                funcStack.push(currentFunc)
-                currentFunc = thumbscript2.builtinFuncs[token]
-                currentFunc._name = token
-            } else if (mode == "run" && token == "") {
-                i++
-                continue
-            } else if (mode == "run") {
-                if (false && token == ",") {
-                    stacks.push(stack)
-                    stack = []
-                } else if (currentFunc && currentFunc.passRaw) {
-                    stack.push()
-                } else {
-                    stack.push(thumbscript2.lookup(token, state))
-                }
+        } else if (mode == "run" && token in thumbscript2.builtinFuncs) {
+            funcStack.push(currentFunc)
+            currentFunc = thumbscript2.builtinFuncs[token]
+            currentFunc._name = token
+        } else if (mode == "run" && token == "") {
+            i++
+            continue
+        } else if (mode == "run") {
+            if (false && token == ",") {
+                stacks.push(stack)
+                stack = []
+            } else if (currentFunc && currentFunc.passRaw) {
+                stack.push()
+            } else {
+                stack.push(thumbscript2.lookup(token, state))
             }
         }
         
