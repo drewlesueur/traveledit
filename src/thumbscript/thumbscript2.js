@@ -9,8 +9,29 @@ thumbscript2 = {
         return state[a]
     },
     builtinFuncs: {
-        add: function(a, b, state) {
+        plus: function(a, b, state) {
             return ((a - 0) + (b - 0)).toString()
+        },
+        minus: function(a, b, state) {
+            return ((a - 0) - (b - 0)).toString()
+        },
+        times: function(a, b, state) {
+            return ((a - 0) * (b - 0)).toString()
+        },
+        divided_by: function(a, b, state) {
+            return ((a - 0) / (b - 0)).toString()
+        },
+        log: function(a, state) {
+            log2(a)
+        },
+        say: function(a, state) {
+            log2(a)
+        },
+        space: function(state) {
+            return " "
+        },
+        concat: function(a, b, state) {
+            return a + b
         },
         str: function(a, state) {
             return a
@@ -94,6 +115,7 @@ thumbscript2.run = function(tokens) {
     var tokens = thumbscript2.tokenize(code)
     var i = 0
     var state = {}
+    var stacks = []
     var stack = []
     var funcStack = []
     var currentFunc = null
@@ -118,6 +140,14 @@ thumbscript2.run = function(tokens) {
         label: function(name) {
         },
         jumpback: function(name) {
+        },
+        "(": function(name) {
+            stacks.push(stack)
+            stack = []
+        },
+        ")": function(name) {
+            stack = stacks.pop().concat(stack)
+            // stacks pop concat stack as stack
         }
     }
     
@@ -148,34 +178,45 @@ thumbscript2.run = function(tokens) {
             i++
             continue
         } else if (mode == "run") {
-            if (currentFunc && currentFunc.passRaw) {
-                stack.push(token)
+            if (false && token == ",") {
+                stacks.push(stack)
+                stack = []
+            } else if (currentFunc && currentFunc.passRaw) {
+                stack.push()
             } else {
                 stack.push(thumbscript2.lookup(token, state))
             }
         }
         // check call.
         while (currentFunc != null && stack.length >= currentFunc.length-1) {
-            // log2("calling " + currentFunc._name)
-            // log2("stack was: " + JSON.stringify(stack))
+            if (thumbscript2.verbose) {
+                log2("calling " + currentFunc._name)
+                log2("stack was: " + JSON.stringify(stack))
+            }
 
             var args = stack.splice(stack.length - (currentFunc.length-1), currentFunc.length - 1)
 
-            // log2("args are: " + JSON.stringify(args))
-            // log2("stack is: " + JSON.stringify(stack))
-            // log2("state is: " + JSON.stringify(state))
+            if (thumbscript2.verbose) {
+                log2("args are: " + JSON.stringify(args))
+                log2("stack is: " + JSON.stringify(stack))
+                log2("state is: " + JSON.stringify(state))
+            }
 
             args.push(state) // something like this.
             var ret = currentFunc.apply(null, args)
 
-            // log2("ret is: " + JSON.stringify(ret))
+            if (thumbscript2.verbose) {
+                log2("ret is: " + JSON.stringify(ret))
+            }
 
             if (typeof ret != "undefined") {
                 stack.push(ret)
             }
 
-            // log2("stack after return is: " + JSON.stringify(stack))
-            // log2("state after return is: " + JSON.stringify(state))
+            if (thumbscript2.verbose) {
+                log2("stack after return is: " + JSON.stringify(stack))
+                log2("state after return is: " + JSON.stringify(state))
+            }
 
             currentFunc = funcStack.pop()
         }
@@ -188,18 +229,22 @@ thumbscript2.run = function(tokens) {
 
 }
 
+thumbscript2.verbose = false
+// thumbscript2.verbose = true
+
 var code = `    
-str Dude greet
-str Drew as name1
-name1 greet
-
-# some suff
-    and other studd
-
-
-str Alex as name2
-greet name2
+:hello space concat :world concat say
+5  plus ( 10 divided_by 2 )
+say
 `
+// str Hello str world concat log
+// str Dude greet
+// str Drew as name1
+// name1 greet
+// 
+// str Alex as name2
+// greet name2
+
 // :mike greet
 // :foo :bar :baz :biz :boz
 // :drew as :yo1
