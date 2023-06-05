@@ -131,8 +131,8 @@ thumbscript2.tokenize = function(code) {
                     }
                     var n = needsClose.pop()
                     // log2("n is " + n)
-                    if (n >= currentIndent) {
-                        newTokens.push(")")
+                    if (n.n >= currentIndent) {
+                        newTokens.push(n.close)
                     } else {
                         needsClose.push(n)
                         break
@@ -146,9 +146,12 @@ thumbscript2.tokenize = function(code) {
                 if (tok == "newline") {
                     i--
                     break
-                } else if (tok == ":") {
+                } else if (tok == "|") {
                     newTokens.push("(")
-                    needsClose.push(currentIndent)
+                    needsClose.push({n: currentIndent, close: ")"})
+                } else if (tok == ":") {
+                    newTokens.push("{")
+                    needsClose.push({n: currentIndent, close: "}"})
                 } else {
                     newTokens.push(tok)
                 }
@@ -203,10 +206,6 @@ thumbscript2.run = function(tokens) {
             //     }
         },
         jumpback: function(name, state) {
-        },
-        ":": function() {
-            stacks.push(stack)
-            stack = []
         },
         "(": function(state) {
             stacks.push(stack)
@@ -296,7 +295,7 @@ hi :
     young
     : and
         : you
-            : have
+            | have
                 : this
         ok
             not this
@@ -391,6 +390,20 @@ yay
 // :alex as :yo2
 // greet yo1
 // yo2 greet
+
+/*
+
+if (x is 3)
+if (x is 3)
+
+x is 3
+| say yo
+| say no
+
+
+
+
+*/
 
 var a = thumbscript2.tokenize(code)
 log2(a)
