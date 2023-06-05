@@ -97,12 +97,67 @@ thumbscript2.builtinFuncs.str.passRaw = true
 // ```
 // This will make the `^` anchor match the start of each line, instead of only the start of the whole input string.
 thumbscript2.tokenize = function(code) {
-    // code = code.replace(/\(/g, "leftParen")
-    // code = code.replace(/\)/g, "rightParen")
+    var currentIndent = 0
+    var lastIndent = 0
+    needsClose = []
+    // removing empty lines
+    code = code
+        .split('\n')
+        .filter(line => line.trim() !== '')
+        .join('\n');
+    
+    code = code.replace(/\(/g, " ( ")
+    code = code.replace(/\)/g, " ) ")
     code = code.replace(/^ +/mg, function (x) { return "indent ".repeat(Math.floor(x.length / 4))})
     code = code.replace(/\n/g, " newline ")
     var tokens = code.split(/ +/)
-    return tokens
+    tokens.push("newline")
+    tokens.push("final")
+    var newTokens = []
+    for (var i = 0; i < tokens.length; i++) {
+        var token = tokens[i]
+        if (token == "newline") {
+            lastIndent = currentIndent
+            currentIndent = 0
+        } else if (token == "indent") {
+            currentIndent++
+        } else {
+            log2(`token: ${token}, currentIndent: ${currentIndent}, lastIndent: ${lastIndent}`)
+            if (currentIndent <= lastIndent) {
+                while (true) {
+                    if (needsClose.length == 0) {
+                        break
+                    }
+                    var n = needsClose.pop()
+                    log2("n is " + n)
+                    if (n >= currentIndent) {
+                        newTokens.push(")")
+                    } else {
+                        needsClose.push(n)
+                        break
+                    }
+                }
+            }
+            
+
+            // go to newline
+            for (i; i < tokens.length; i++) {
+                var tok = tokens[i]
+                if (tok == "newline") {
+                    i--
+                    break
+                } else if (tok == ":") {
+                    newTokens.push("(")
+                    needsClose.push(currentIndent)
+                } else {
+                    newTokens.push(tok)
+                }
+            }
+        }
+        
+        
+    }
+    return newTokens
 }
 
 thumbscript2.eval = function(code) {
@@ -120,6 +175,10 @@ thumbscript2.run = function(tokens) {
     var funcStack = []
     var currentFunc = null
     var currentIndent = 0
+    var lastIndent = 0
+    
+    var inColon = false
+    var inColonStack = []
     var locations = {
     }
     
@@ -137,15 +196,44 @@ thumbscript2.run = function(tokens) {
                 return
             }
         },
-        label: function(name) {
+        label: function(name, state) {
         },
-        jumpback: function(name) {
+        "indent": function(state) {
+            // currentIndent++
         },
-        "(": function(name) {
+        "newline": function(state) {
+            // if (tokens[i-1] != "newline") {
+            //     lastIndent = currentIndent
+            // }
+            // currentIndent = 0
+            // 
+            // for (i; i < tokens.length; i++) {
+            //     token = tokens[i]
+            //     if (token == "indent") {
+            //         currentIndent++
+            //     } else if (token == "newline") {
+            //     } else {
+            //         i--
+            //         if (currentIndent < lastIndent) {
+            //             for (var j = 0; j < lastIndent - currentIndent; j++ ) {
+            //                 stack = stacks.pop().concat(stack)
+            //             }
+            //         }
+            //         return
+            //     }
+            // }
+        },
+        jumpback: function(name, state) {
+        },
+        ":": function() {
             stacks.push(stack)
             stack = []
         },
-        ")": function(name) {
+        "(": function(state) {
+            stacks.push(stack)
+            stack = []
+        },
+        ")": function(state) {
             stack = stacks.pop().concat(stack)
             // stacks pop concat stack as stack
         }
@@ -155,10 +243,8 @@ thumbscript2.run = function(tokens) {
     // tokens different from stack
     while (i < tokens.length) {
         var token = tokens[i]
-        if (token == "indent") {
-            currentIndent++
-        } else if (token == "newline") {
-            currentIndent = 0
+        // if (token == "indent") {
+        // } else if (token == "newline") {
         // } else if (token.endsWith(":")) {
         //     // todo: don't need to set if we've seen before
         //     locations["_".repeat(currentIndent) + token.slice(0, -1)] = i
@@ -166,27 +252,32 @@ thumbscript2.run = function(tokens) {
         //         mode = "run"
         //         continue
         //     }
-        } else if (mode == "run" && token in quicks) {
+        if (mode == "run" && token in quicks) {
             funcStack.push(currentFunc)
             currentFunc = quicks[token]
             currentFunc._name = token
-        } else if (mode == "run" && token in thumbscript2.builtinFuncs) {
-            funcStack.push(currentFunc)
-            currentFunc = thumbscript2.builtinFuncs[token]
-            currentFunc._name = token
-        } else if (mode == "run" && token == "") {
-            i++
-            continue
-        } else if (mode == "run") {
-            if (false && token == ",") {
-                stacks.push(stack)
-                stack = []
-            } else if (currentFunc && currentFunc.passRaw) {
-                stack.push()
-            } else {
-                stack.push(thumbscript2.lookup(token, state))
+        } else {
+            // check dedents
+            
+            if (mode == "run" && token in thumbscript2.builtinFuncs) {
+                funcStack.push(currentFunc)
+                currentFunc = thumbscript2.builtinFuncs[token]
+                currentFunc._name = token
+            } else if (mode == "run" && token == "") {
+                i++
+                continue
+            } else if (mode == "run") {
+                if (false && token == ",") {
+                    stacks.push(stack)
+                    stack = []
+                } else if (currentFunc && currentFunc.passRaw) {
+                    stack.push()
+                } else {
+                    stack.push(thumbscript2.lookup(token, state))
+                }
             }
         }
+        
         // check call.
         while (currentFunc != null && stack.length >= currentFunc.length-1) {
             if (thumbscript2.verbose) {
@@ -232,11 +323,94 @@ thumbscript2.run = function(tokens) {
 thumbscript2.verbose = false
 // thumbscript2.verbose = true
 
-var code = `    
-:hello space concat :world concat say
-5  plus ( 10 divided_by 2 )
-say
+var code = ` 
+hi :
+    yo
+    : forever
+    young
+    : and
+        : you
+            : have
+                : this
+        ok
+            not this
+        or this
+yay
 `
+// hi (
+//     yo
+//     ( forever )
+//     young
+//     ( and
+//         ( you
+//             ( have
+//                 ( this )
+//             )
+//         )
+//         ok
+//             not this
+//         or this
+//     )
+// )
+// yay
+// hi :
+//    yo :
+//       foo :
+//          bar
+//    biz : baz
+// hello world : foo
+//     bar baz
+//         bore bear : and
+//             something
+//             : something else
+//             : and else
+//             other
+//     else
+// biz
+// 5  plus (10 divided_by 2) 
+// say
+// 
+// 5 plus (10 divided_by (1 plus 1) plus (2 plus 3))
+// say
+// 
+// 
+// 5 plus : 10 divided_by
+//     : 1 plus 1
+//     plus 3
+//         plus 5
+//     plus 4
+//     plus : 2
+//         plus 3
+//         
+//     plus 4
+//         plus  5
+//             : plus 6
+//     plus 2
+//         
+// say
+// 5 plus ( 10 divided_by
+//     ( 1 plus 1 )
+//     plus (
+//         2
+//         plus 3
+//         minus 3
+//         plus 3
+//     )
+// )
+// say
+
+// 5 plus : 10 divided_by 2
+// say
+// :hello space concat :world concat say
+// 5  plus (10 divided_by 2) 
+// say
+// 
+// 5 plus : 10 divided_by 2
+//     minus 2
+//     times 3
+//     times : 3 plus 4
+// say
+// 
 // str Hello str world concat log
 // str Dude greet
 // str Drew as name1
@@ -255,9 +429,9 @@ say
 var a = thumbscript2.tokenize(code)
 log2(a)
 
-var b = thumbscript2.eval(code)
-log2("----")
-log2(b)
+// var b = thumbscript2.eval(code)
+// log2("----")
+// log2(b)
 
 
 
