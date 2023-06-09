@@ -1265,7 +1265,8 @@ var moveHomeEndTimeout
 var moveHomeEndTimeoutMillis = 300
 var moveHomeEndDirection
 var selectTimeout
-var selectTimeoutMillis = 300
+var selectTimeoutMillis = 150
+var selectTimeoutMillisMove = 350
 var expandSelectTimeout
 var expandSelectTimeoutMillis = 300
 var moveListenerCount = 0
@@ -1321,7 +1322,7 @@ function getAbsoluteURL(baseURL, newURL) {
         return finalURL
     }
 }
-var iframeScale = .75
+var iframeScale = .5
 function addIframe(url, id, name, cwd) {
     // var f = makeFile(url, 0, "")
     var f = makeFile(url, 0, "")
@@ -6036,6 +6037,7 @@ function render() {
         var oldT = t // canvas rendering context
         
         var expandScreen = false
+        var expandScreen = true
         
         if (expandScreen) {
             fx.offsetX = -marginLeft
@@ -7203,7 +7205,7 @@ function onStart(e) {
             return
         }
         if (cursorType != "select") {
-            selectTimeout = setTimeout(selectAction, selectTimeoutMillis)
+            selectTimeout = setTimeout(selectAction, selectTimeoutMillisMove)
         }
         var diffTouchX = e.touches[0].pageX - startTouchX
         var diffTouchY = e.touches[0].pageY - startTouchY
@@ -7579,19 +7581,31 @@ function onStart(e) {
                 // editEditorCommandText()
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     // visit?
-                    backspace()
+                    if (fx.cursorColIndex < marginLeft || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
+                        // join lines
+                        var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
+                        fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
+                        docChanged()
+                        render()
+                    } else {
+                        backspace()
+                    }
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
-                    // open()
-                    // newLine()
-                    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
-                    fx.cursorLineIndex++
+                    var theLine = fx.lines[fx.cursorLineIndex]
+                    theLine = theLine.slice(0, u(fx.cursorColIndex)) + " " + theLine.slice(u(fx.cursorColIndex))
+                    fx.lines[fx.cursorLineIndex] = theLine
                     docChanged()
                     render()
                     return
                 } else {
-                    // This is handled in touchTopTopTopMiddle_Right
+                    // This is was handled in touchTopTopTopMiddle_Right
                     // it starts a selection
+                    
+                    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+                    fx.cursorLineIndex++
+                    docChanged()
+                    render()
                     return
                 }
                 return
@@ -8279,7 +8293,7 @@ function onStart(e) {
             }
         }
     }
-    var touchTopTopTopMiddle_Right = function() {
+    var touchTopTopTopTopMiddle_Right = function() {
         if (fx.selectedRegions.length == 0) {
             isSelectedFromTopThird = true
             // see onEndWhileSelected for one way to duplicate line (#duplicateline)
@@ -8443,14 +8457,17 @@ function onStart(e) {
         return
     } else {
         var bbox = c.getBoundingClientRect()
-        // TODO: is there any difference between cursorType select and selectedRegions.length > 0
+            // TODO: is there any difference between cursorType select and selectedRegions.length > 0
         // if (fx.selectedRegions.length == 0 && cursorType != "select" && document.activeElement != theText && (startTouchY - bbox.top < (bbox.height/3)) ) {
         // TODO: consider allowing this on edit mode.
         // if ((startTouchY - bbox.top < (bbox.height/3)) && document.activeElement != theText) {
-        if ((bbox.bottom - startTouchY > (4*verticalTouchSize)) && (bbox.bottom - startTouchY < (5*verticalTouchSize))) {  // hotpink marker
+
+
+        // if ((bbox.bottom - startTouchY > (4*verticalTouchSize)) && (bbox.bottom - startTouchY < (5*verticalTouchSize))) {
+        if ((bbox.bottom - startTouchY > (5*verticalTouchSize))) {  // hotpink marker
             // touch top third to select #topthird  #selectline #touchtop
             if (e.changedTouches[0].pageX > (bbox.width * 2 / 3)) {
-                if (touchTopTopTopMiddle_Right()) {
+                if (touchTopTopTopTopMiddle_Right()) {
                     return
                 }
             }
