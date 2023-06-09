@@ -1,15 +1,15 @@
 
 thumbscript2 = {
-    lookup: function(a, state) { 
+    lookup: function(a, state) {
         // maybe add more complex variables
         if (a - 0 == a) {
             return a
         }
-        
+
         if (typeof a == "object") {
             return a
         }
-        
+
         if (a.startsWith(".")) {
             return a.slice(1)
         }
@@ -46,9 +46,6 @@ thumbscript2 = {
         is: function(a, b, state) {
             a == b ? "true" : "false"
         },
-        greet: function(a, state) {
-            log2("hello, " + a)
-        },
         uppercase: function(a, state) {
             return a.toUpperCase()
         },
@@ -59,6 +56,9 @@ thumbscript2 = {
             // todo: allow $ for variable sets?
             state[b] = a
         },
+        // take: function(list, state) {
+        //     state[b] = a
+        // },
         var: function(a, b, state) {
             // todo: allow $ for variable sets?
             state[a] = thumbscript2.lookup(b, state)
@@ -76,9 +76,19 @@ thumbscript2 = {
             }
             return sum
         },
+        record: function(list, state) {
+            var r = {}
+            for (let i = 0; i < list.length; i+=2) {
+                r[list[i]] = list[i+1]
+            }
+            return r
+        },
         print: function(a, state) {
             console.log(a)
-        }
+        },
+        json_encode: function(a, state) {
+            return JSON.stringify(a, "", "    ")
+        },
     },
     customFuncs: {
     }
@@ -114,8 +124,8 @@ thumbscript2.builtinFuncs.var.passRaw = true
 // newlines with only one indent don't count
 
 // in javascript can i have the ^ match each start after newlines too?
-// 
-// Yes, in JavaScript, you can use the `^` anchor to match the start of a string after newlines. To achieve this, you need to use the `m` flag (multiline) in your regular expression. 
+//
+// Yes, in JavaScript, you can use the `^` anchor to match the start of a string after newlines. To achieve this, you need to use the `m` flag (multiline) in your regular expression.
 // For example:
 // ```javascript
 // const regex = /^your_pattern/m;
@@ -130,13 +140,15 @@ thumbscript2.tokenize = function(code) {
         .split('\n')
         .filter(line => line.trim() !== '')
         .join('\n');
-    
+
     code = code.replace(/\(/g, " ( ")
     code = code.replace(/\)/g, " ) ")
     code = code.replace(/\{/g, " { ")
     code = code.replace(/\}/g, " } ")
     code = code.replace(/\[/g, " [ ")
     code = code.replace(/\[/g, " ] ")
+    code = code.replace(/:/g, " : ")
+    code = code.replace(/\|/g, " | ")
     code = code.replace(/^ +/mg, function (x) { return "indent ".repeat(Math.floor(x.length / 4))})
     code = code.replace(/\n/g, " newline ")
     var tokens = code.split(/ +/)
@@ -174,10 +186,10 @@ thumbscript2.tokenize = function(code) {
                 if (tok == "newline") {
                     i--
                     break
-                } else if (tok == "|") {
+                } else if (tok == ":") {
                     newTokens.push("(")
                     needsClose.push({n: currentIndent, close: ")"})
-                } else if (tok == ":") {
+                } else if (tok == "|") {
                     newTokens.push("{")
                     needsClose.push({n: currentIndent, close: "}"})
                 } else if (tok == "*") {
@@ -232,14 +244,14 @@ thumbscript2.run = function(tokens, state, stack) {
     var currentFunc = null
     var currentIndent = 0
     var lastIndent = 0
-    
+
     var inColon = false
     var inColonStack = []
     var locations = {
     }
     var mode = "run"
-    
-    // move these to builtinFuncs, instead of just taking state, 
+
+    // move these to builtinFuncs, instead of just taking state,
     // take an object that represents all
     var quicks = {
         elsejump: function(name) {
@@ -268,7 +280,7 @@ thumbscript2.run = function(tokens, state, stack) {
         "(": function(state) {
             stacks.push(stack)
             stack = []
-            
+
             funcStack.push(currentFunc)
             funcStackStack.push(funcStack)
             funcStack = []
@@ -325,17 +337,20 @@ thumbscript2.run = function(tokens, state, stack) {
                     return;
                 }
             }
-            
+
             if (list.length % 2 == 1) {
                 thumbscript2.run(list[list.length-1], state, stack)
             }
-            
+
+        },
+        clear: function(state) {
+            stack = []
         },
         "final": function(state) {
         },
-        
+
     }
-    
+
     // tokens different from stack
     while (i < tokens.length) {
         var token = tokens[i]
@@ -360,9 +375,9 @@ thumbscript2.run = function(tokens, state, stack) {
                 stack.push(thumbscript2.lookup(token, state))
             }
         }
-        
-        
-        
+
+
+
         // check call.
         while (currentFunc != null && stack.length >= currentFunc.length-1) {
             if (thumbscript2.verbose) {
@@ -408,12 +423,71 @@ thumbscript2.run = function(tokens, state, stack) {
 // thumbscript2.verbose = false
 // thumbscript2.verbose = true
 
-var code = ` 
-(20 plus 30) say
-say (20 plus 35)
+var code = `
+var greet {
+    as name
+    .hello
+    concat space
+    concat name
+    say
+}
+
 `
 
 /*
+var greet | as name
+    .hello
+    concat space
+    concat name
+    say 
+
+if 1 is 1 | say .hi
+var a 10
+say a
+
+
+record *
+    .age: 12 plus 1
+    .color: .brown
+    .height: 2 times (3 plus 4)
+    .height2: 2 times : 3 plus 4
+    .yo: record *
+        .howdy 200
+json_encode say
+
+
+
+switch *
+    | 1 is 2
+    | .green
+    | 1 is 3
+    | .yellow
+    | 1 is 4
+    | .blue
+    | .solid
+say  
+
+
+record *
+    .age: 12 plus 1
+    .color: .brown
+    .height: 2 times (3 plus 4)
+
+clear
+(20 plus 30) say
+say (20 plus 35)
+
+switch *
+    | 1 is 2
+    | .green
+    | 1 is 3
+    | .yellow
+    | 1 is 1
+    | .blue
+    | 1 is 1
+    | .solid
+say
+
 say (20 plus 30)
 
 
@@ -425,15 +499,6 @@ say
 sumList
 say
 
-switch *
-    : 1 is 2
-    : .green
-    : 1 is 3
-    : .yellow
-    : 1 is 4
-    : .blue
-    : 1 is 1
-    : .solid
 say
 
 var b * 10 20 30
@@ -506,13 +571,13 @@ yay
 //             other
 //     else
 // biz
-// 5  plus (10 divided_by 2) 
+// 5  plus (10 divided_by 2)
 // say
-// 
+//
 // 5 plus (10 divided_by (1 plus 1) plus (2 plus 3))
 // say
-// 
-// 
+//
+//
 // 5 plus : 10 divided_by
 //     : 1 plus 1
 //     plus 3
@@ -520,12 +585,12 @@ yay
 //     plus 4
 //     plus : 2
 //         plus 3
-//         
+//
 //     plus 4
 //         plus  5
 //             : plus 6
 //     plus 2
-//         
+//
 // say
 // 5 plus ( 10 divided_by
 //     ( 1 plus 1 )
@@ -541,20 +606,20 @@ yay
 // 5 plus : 10 divided_by 2
 // say
 // :hello space concat :world concat say
-// 5  plus (10 divided_by 2) 
+// 5  plus (10 divided_by 2)
 // say
-// 
+//
 // 5 plus : 10 divided_by 2
 //     minus 2
 //     times 3
 //     times : 3 plus 4
 // say
-// 
+//
 // str Hello str world concat log
 // str Dude greet
 // str Drew as name1
 // name1 greet
-// 
+//
 // str Alex as name2
 // greet name2
 
