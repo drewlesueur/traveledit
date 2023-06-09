@@ -1,10 +1,16 @@
+
 thumbscript2 = {
     lookup: function(a, state) { 
         // maybe add more complex variables
         if (a - 0 == a) {
             return a
         }
-        if (a.startsWith(":")) {
+        
+        if (typeof a == "object") {
+            return a
+        }
+        
+        if (a.startsWith(".")) {
             return a.slice(1)
         }
         return state[a]
@@ -109,6 +115,10 @@ thumbscript2.tokenize = function(code) {
     
     code = code.replace(/\(/g, " ( ")
     code = code.replace(/\)/g, " ) ")
+    code = code.replace(/\{/g, " { ")
+    code = code.replace(/\}/g, " } ")
+    code = code.replace(/\[/g, " [ ")
+    code = code.replace(/\[/g, " ] ")
     code = code.replace(/^ +/mg, function (x) { return "indent ".repeat(Math.floor(x.length / 4))})
     code = code.replace(/\n/g, " newline ")
     var tokens = code.split(/ +/)
@@ -152,11 +162,37 @@ thumbscript2.tokenize = function(code) {
                 } else if (tok == ":") {
                     newTokens.push("{")
                     needsClose.push({n: currentIndent, close: "}"})
+                } else if (tok == "*") {
+                    newTokens.push("[")
+                    needsClose.push({n: currentIndent, close: "]"})
                 } else {
                     newTokens.push(tok)
                 }
             }
         }
+    }
+    newTokens = thumbscript2.squishFuncs(newTokens)
+    return newTokens
+}
+
+thumbscript2.squishFuncs = function(tokens) {
+    // function definitions can be turned into an array
+    var newTokens = []
+    var tokenStack = []
+    var i = 0
+    while (i < tokens.length) {
+        var token = tokens[i]
+        if (token == "{") {
+            tokenStack.push(newTokens)
+            newTokens = []
+        } else if (token == "}") {
+            var r = newTokens
+            newTokens = tokenStack.pop()
+            newTokens.push(r)
+        } else {
+            newTokens.push(token)
+        }
+        i++
     }
     return newTokens
 }
@@ -182,6 +218,7 @@ thumbscript2.run = function(tokens) {
     var inColonStack = []
     var locations = {
     }
+    var mode = "run"
     
     var quicks = {
         elsejump: function(name) {
@@ -214,10 +251,12 @@ thumbscript2.run = function(tokens) {
         ")": function(state) {
             stack = stacks.pop().concat(stack)
             // stacks pop concat stack as stack
-        }
+        },
+        "final": function(state) {
+        },
+        
     }
     
-    var mode = "run"
     // tokens different from stack
     while (i < tokens.length) {
         var token = tokens[i]
@@ -237,11 +276,13 @@ thumbscript2.run = function(tokens) {
                 stacks.push(stack)
                 stack = []
             } else if (currentFunc && currentFunc.passRaw) {
-                stack.push()
+                stack.push(token)
             } else {
                 stack.push(thumbscript2.lookup(token, state))
             }
         }
+        
+        
         
         // check call.
         while (currentFunc != null && stack.length >= currentFunc.length-1) {
@@ -285,10 +326,17 @@ thumbscript2.run = function(tokens) {
 
 }
 
-thumbscript2.verbose = false
-// thumbscript2.verbose = true
+// thumbscript2.verbose = false
+thumbscript2.verbose = true
 
 var code = ` 
+.foo as bar
+
+`
+
+/*
+
+{ add 1 } as add1
 hi :
     yo
     : forever
@@ -301,11 +349,6 @@ hi :
             not this
         or this
 yay
-`
-
-/*
-{ add 1 } as add1
-
 
 
 */
@@ -416,9 +459,9 @@ x is 3
 var a = thumbscript2.tokenize(code)
 log2(a)
 
-// var b = thumbscript2.eval(code)
-// log2("----")
-// log2(b)
+var b = thumbscript2.eval(code)
+log2("----")
+log2(b)
 
 
 
