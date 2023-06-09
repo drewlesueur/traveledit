@@ -59,6 +59,12 @@ thumbscript2 = {
             // todo: allow $ for variable sets?
             state[b] = a
         },
+        is: function(a, b, state) {
+            if (a == b) {
+                return "true"
+            }
+            return "false"
+        },
         print: function(a, state) {
             console.log(a)
         }
@@ -203,12 +209,12 @@ thumbscript2.eval = function(code) {
 }
 
 // add ability to pass parent state?
-thumbscript2.run = function(tokens) {
-    var tokens = thumbscript2.tokenize(code)
+thumbscript2.run = function(tokens, state, stack) {
+    // var tokens = thumbscript2.tokenize(code)
     var i = 0
-    var state = {}
+    var state = state || {}
+    var stack = stack || []
     var stacks = []
-    var stack = []
     var funcStack = []
     var currentFunc = null
     var currentIndent = 0
@@ -251,6 +257,13 @@ thumbscript2.run = function(tokens) {
         ")": function(state) {
             stack = stacks.pop().concat(stack)
             // stacks pop concat stack as stack
+        },
+        "if": function(a, b, state) {
+            if (a == "true") {
+                // todo: early return
+                // you could also potentially splice b onto tokens ?
+                thumbscript2.run(b, state, stack)
+            }
         },
         "final": function(state) {
         },
@@ -331,6 +344,13 @@ thumbscript2.verbose = true
 
 var code = ` 
 .foo as bar
+
+if bar is .foo {
+    say .yay_bar
+    .couch
+}
+
+as drew
 
 `
 
@@ -458,6 +478,10 @@ x is 3
 
 var a = thumbscript2.tokenize(code)
 log2(a)
+log2("----")
+log2("")
+log2("")
+log2("")
 
 var b = thumbscript2.eval(code)
 log2("----")
