@@ -59,11 +59,22 @@ thumbscript2 = {
             // todo: allow $ for variable sets?
             state[b] = a
         },
+        var: function(a, b, state) {
+            // todo: allow $ for variable sets?
+            state[a] = thumbscript2.lookup(b, state)
+        },
         is: function(a, b, state) {
             if (a == b) {
                 return "true"
             }
             return "false"
+        },
+        sumList: function(list, state) {
+            let sum = 0;
+            for (let i = 0; i < list.length; i++) {
+              sum += list[i] - 0;
+            }
+            return sum
         },
         print: function(a, state) {
             console.log(a)
@@ -75,6 +86,7 @@ thumbscript2 = {
 
 thumbscript2.builtinFuncs.as.passRaw = true
 thumbscript2.builtinFuncs.str.passRaw = true
+thumbscript2.builtinFuncs.var.passRaw = true
 
 // sub program
 // goto
@@ -216,6 +228,7 @@ thumbscript2.run = function(tokens, state, stack) {
     var stack = stack || []
     var stacks = []
     var funcStack = []
+    var funcStackStack = []
     var currentFunc = null
     var currentIndent = 0
     var lastIndent = 0
@@ -226,6 +239,8 @@ thumbscript2.run = function(tokens, state, stack) {
     }
     var mode = "run"
     
+    // move these to builtinFuncs, instead of just taking state, 
+    // take an object that represents all
     var quicks = {
         elsejump: function(name) {
             // jump to it on line with same indent lol
@@ -253,17 +268,68 @@ thumbscript2.run = function(tokens, state, stack) {
         "(": function(state) {
             stacks.push(stack)
             stack = []
+            
+            funcStack.push(currentFunc)
+            funcStackStack.push(funcStack)
+            funcStack = []
+            currentFunc = null
         },
         ")": function(state) {
             stack = stacks.pop().concat(stack)
             // stacks pop concat stack as stack
+
+            funcStack = funcStackStack.pop()
+            currentFunc = funcStack.pop()
+        },
+        "[": function(state) {
+            stacks.push(stack)
+            stack = []
+            funcStack.push(currentFunc)
+            funcStackStack.push(funcStack)
+            funcStack = []
+            currentFunc = null
+        },
+        "]": function(state) {
+            var list = stack
+            stack = stacks.pop()
+            stack.push(list)
+            funcStack = funcStackStack.pop()
+            currentFunc = funcStack.pop()
         },
         "if": function(a, b, state) {
             if (a == "true") {
                 // todo: early return
                 // you could also potentially splice b onto tokens ?
+                state.lastIf = "true"
                 thumbscript2.run(b, state, stack)
+            } else {
+                state.lastIf = "false"
             }
+        },
+        "else": function(a, state) {
+            if (state.lastIf != "true") {
+                state.lastIf = "true"
+                thumbscript2.run(a, state, stack)
+            } else {
+                state.lastIf = "false"
+            }
+        },
+        "switch": function(list, state) {
+            for (var i=0; i < list.length - 1; i += 2) {
+                var cond = list[i]
+                var action = list[i+1]
+                thumbscript2.run(cond, state, stack)
+                var ret = stack.pop()
+                if (ret == "true") {
+                    thumbscript2.run(action, state, stack)
+                    return;
+                }
+            }
+            
+            if (list.length % 2 == 1) {
+                thumbscript2.run(list[list.length-1], state, stack)
+            }
+            
         },
         "final": function(state) {
         },
@@ -340,21 +406,58 @@ thumbscript2.run = function(tokens, state, stack) {
 }
 
 // thumbscript2.verbose = false
-thumbscript2.verbose = true
+// thumbscript2.verbose = true
 
 var code = ` 
-.foo as bar
+(20 plus 30) say
+say (20 plus 35)
+`
+
+/*
+say (20 plus 30)
+
+
+sumList
+* 10 20 30
+say
+
+* 10 20 30
+sumList
+say
+
+switch *
+    : 1 is 2
+    : .green
+    : 1 is 3
+    : .yellow
+    : 1 is 4
+    : .blue
+    : 1 is 1
+    : .solid
+say
+
+var b * 10 20 30
+
+
+
+.foox as bar
+
+if bar is .foo {
+    say .yay_bar
+} else if bar is .foo2 {
+    say .yay_bar2
+} else {
+    say .nay_bar
+}
 
 if bar is .foo {
     say .yay_bar
     .couch
+} else {
+    say .nay_bar
+    .banana
 }
-
 as drew
-
-`
-
-/*
 
 { add 1 } as add1
 hi :
