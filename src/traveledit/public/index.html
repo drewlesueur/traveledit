@@ -1133,7 +1133,7 @@ function doSizing() {
 
     // landscape mode
     if (innerWidth > innerHeight) {
-        canvasHeightFull = 575 - (36*3*1) 
+        canvasHeightFull = 575  
         canvasHeightKeyboard = 400 
         navTouchSize = 60
     }
@@ -1148,8 +1148,8 @@ function doSizing() {
         canvasHeightKeyboard=1154 
         navTouchSize = 50
         if (innerWidth > innerHeight) {
-            canvasHeightFull = 575
-            canvasHeightKeyboard = 400
+            canvasHeightFull = 900
+            canvasHeightKeyboard = 300
             navTouchSize = 100
         }
     }
@@ -3717,6 +3717,10 @@ function setCanvasHeight(h) {
     if (verticalTouchSize * 5 > (canvasHeight/3)) {
         verticalTouchSize = (canvasHeight/3) / 5
     }
+    if (verticalTouchSize < 50) {
+         verticalTouchSize = 50
+    }
+    
     // verticalTouchSize = (h/3)/5 // 5 buttons
     // verticalTouchSize = (h/3)/7 // 
     if (verticalTouchSize > 130) {

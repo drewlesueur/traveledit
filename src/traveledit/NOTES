@@ -1,5 +1,7 @@
 
 
+cut then type changing the copybuffer should only work if it's one line.
+
 
 need inline paste always (in insert mode you have that)
 need inline select
