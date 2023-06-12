@@ -23,6 +23,8 @@ import "crypto/md5"
 import "html"
 import "bytes"
 import "bufio"
+import "crypto/rand"
+import "encoding/hex"
 
 import "mime/multipart"
 import "net/textproto"
@@ -68,6 +70,11 @@ func BasicAuth(handler http.Handler) http.HandlerFunc {
 		}
 
 		if strings.HasPrefix(r.URL.Path, "/tepublic") {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
+		if strings.HasPrefix(r.URL.Path, "/oneTimeLink") {
 			handler.ServeHTTP(w, r)
 			return
 		}
@@ -494,6 +501,9 @@ var chatGPTMu sync.Mutex
 var chatGPTIsRunning = false
 var chatGPTShouldBeRunning = false
 
+var oneTimeLinksMu sync.Mutex
+var oneTimeLinks map[string]string
+
 
 var proxyPath *string
 
@@ -504,6 +514,10 @@ func main() {
 
 	// read in the existing workspaces
 	workspacesJSON, err := ioutil.ReadFile("./workspaces.json")
+	
+	
+	oneTimeLinks := map[string]string{}
+	
 	if err != nil {
 		log.Printf("could not read workspaces.json: %v", err)
 	} else {
@@ -1566,6 +1580,58 @@ func main() {
 	//     // /links/device_type_audit
 	//
 	// })
+	mux.HandleFunc("/makeOneTimeLink", func(w http.ResponseWriter, r *http.Request) {
+	    oneTimeLinksMu.Lock()
+	    defer oneTimeLinksMu.Unlock()
+	    // golang generate a random 64 character hex string
+		randBytes := make([]byte, 32)
+		_, err := rand.Read(randBytes)
+		if err != nil {
+			panic(err)
+		}
+		hexString := hex.EncodeToString(randBytes)
+		oneTimeLinks[hexString] = r.FormValue("fullpath")
+		fmt.Fprintf(w, "%s", "//" + r.Host + "/oneTimeLink?code=" + hexString)
+	})
+	mux.HandleFunc("/oneTimeLink", func(w http.ResponseWriter, r *http.Request) {
+	    oneTimeLinksMu.Lock()
+	    defer oneTimeLinksMu.Unlock()
+	    code := r.FormValue("code")
+	    fullPath := oneTimeLinks[code]
+
+
+	    if fullPath == "" {
+	        fmt.Fprintf(w, "%s", "Error, could not find it")
+	        return
+	    }
+	    // one time
+	    delete(oneTimeLinks, code)
+
+		fullPath = combinePath(*location, fullPath)
+		fileInfo, err := os.Stat(fullPath)
+		if err != nil {
+			logAndErr(w, "error determining file type")
+			return
+		}
+		if fileInfo.IsDir() {
+			// maybe check for this when creating
+			logAndErr(w, "cannot get one time link to directory")
+			return
+		}
+
+	    // see also saveload
+		parts := strings.Split(fullPath, "/")
+		theName := parts[len(parts)-1]
+		w.Header().Set("Content-Type", GetContentType(fullPath))
+		w.Header().Set("Content-Disposition", `inline; filename="`+theName+`"`)
+
+		c2, err := ioutil.ReadFile(fullPath)
+		if err != nil {
+			logAndErr(w, "error reading requested file: %v", err)
+			return
+		}
+		w.Write(c2)
+	})
 
 	mux.HandleFunc("/saveload", func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains("..", r.URL.Path) {
@@ -1640,7 +1706,6 @@ func main() {
 			} else {
 
 				c2, err := ioutil.ReadFile(fullPath)
-
 				if err != nil {
 					logAndErr(w, "error reading requested file: %v", err)
 					return
@@ -2095,6 +2160,7 @@ var extensionsToMime = map[string]string{
 	"gif":  "image/gif",
 	"svg":  "image/svg+xml",
 	"pdf":  "application/pdf",
+	"gz":  "application/gzip",
 }
 
 func GetContentType(thePath string) string {
