@@ -1121,6 +1121,8 @@ var maxLines
 var maxCols
 var canvasHeight
 
+var clientId = Math.floor((Math.random() * 100000))
+
 // alert(innerWidth + ", " + innerHeight)
 // alert(screen.width + ", " + screen.height)
 function doSizing() {
@@ -4564,7 +4566,7 @@ function pollTerminals() {
     //     isPollingTerminal = false
     //     return
     // }
-    fetch(proxyPath + "/myterminalpoll", {
+    fetch(proxyPath + "/myterminalpoll?clientid=" + clientId, {
         cache: "no-cache"
     }).then(r => {
         return r.json()

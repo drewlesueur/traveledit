@@ -1923,7 +1923,7 @@ func main() {
 			if r.URL.Path[0:1] != "/" {
 				r.URL.Path = "/" + r.URL.Path
 			}
-			// log.Printf("processsed URL: %s =====", r.URL.Path)
+			log.Printf("processsed URL: %s from %s (clientid %s)", r.URL.Path, r.RemoteAddr, r.FormValue("clientid"))
 			oldMainMux.ServeHTTP(w, r)
 		})
 	}
