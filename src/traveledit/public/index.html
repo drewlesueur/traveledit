@@ -7645,7 +7645,7 @@ function onStart(e) {
                 }
                 return
             } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
-                // Third row from bottom // orange marker
+                // Fourth row from bottom // orange marker
                 // touchtoptopmiddle 2
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     moveCursorUp()
@@ -8126,9 +8126,12 @@ function onStart(e) {
         var theLine = fx.lines[fx.cursorLineIndex] || ""
         // if it's at the start of the line (not including leading space)
         var theIndent = getIndent(theLine)
-        if (theIndent && theIndent == theLine.substr(0, u(fx.cursorColIndex))) {
+        if (theIndent == theLine.substr(0, u(fx.cursorColIndex))) {
             // find another line with that same indent.
             for (var moveI=fx.cursorLineIndex-1; moveI>0; moveI--) {
+                if (fx.lines[moveI].trim() == "") {
+                    continue
+                }
                 var otherIndent = getIndent(fx.lines[moveI])
                 if (otherIndent == theIndent) {
                     fx.cursorLineIndex = moveI
@@ -8152,9 +8155,12 @@ function onStart(e) {
         var theLine = fx.lines[fx.cursorLineIndex] || ""
         // if it's at the start of the line (not including leading space)
         var theIndent = getIndent(theLine)
-        if (theIndent && theIndent == theLine.substr(0, u(fx.cursorColIndex))) {
+        if (theIndent == theLine.substr(0, u(fx.cursorColIndex))) {
             // find another line with that same indent.
             for (var moveI=fx.cursorLineIndex+1; moveI<fx.lines.length-1; moveI++) {
+                if (fx.lines[moveI].trim() == "") {
+                    continue
+                }
                 var otherIndent = getIndent(fx.lines[moveI])
                 if (otherIndent == theIndent) {
                     fx.cursorLineIndex = moveI
