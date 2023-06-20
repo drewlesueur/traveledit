@@ -492,7 +492,6 @@ They get changed later on.
         <div id=clearSearchButton class=square onclick=clearSearch()>clear search</div>
         <div class=square onclick=editSearch()>edit search</div>
     -->
-    <div class=square onclick=record()>🎤</div>
     <div class=square onclick="osCopyText()" id=statusBar2>os copy</div>
     <div class=square onclick="osPasteText()">os paste</div>
     <div class=square onclick=addCmdTab()>cmd</div>
@@ -574,6 +573,7 @@ They get changed later on.
 </div>
 <div class=toolbar>
     <div class=square onclick="copyOneTimeLink()">one-time link</div>
+    <div class=square onclick=record()>🎤</div>
 </div>
 <div class=toolbar>
     <!--<div class=square onclick=addSpace()>space</div>
@@ -3317,6 +3317,12 @@ async function runChatGPT(model, options) {
         deleteSelection = true
     }
     var selectedLinesWrapper = getSelectedLines(fx, deleteSelection);
+    if (selectedLinesWrapper.isWholeFile) {
+        // don't want accidental whole file processing.
+        gptButton.innerText = gptButton.oldInnerText
+        gptButton.oldInnerText = ""
+        return
+    }
     var theScriptLines = selectedLinesWrapper.lines
 
     // add return to the last non-empty line
@@ -5974,12 +5980,13 @@ function render() {
     if (fx.selectedRegions.length) {
         statusBar.innerText = fx.selectedRegions[0].stopY - fx.selectedRegions[0].startY + 1
     } else {
-        statusBar.innerText = Math.round(verticalTouchSize)
+        statusBar.innerText = "run script"
+        // statusBar.innerText = Math.round(verticalTouchSize)
         // statusBar.innerText = searchText.value
         // statusBar.innerText = fx.cursorColIndex + "(" + u(fx.cursorColIndex) + ")"
         // statusBar.innerText = Math.round(verticalTouchSize)
     }
-    statusBar2.innerText = fx.cursorColIndex
+    statusBar2.innerText = fx.cursorColIndex + " os copy"
     
     // this is commented out because of iphone 12 mini slowness
     // see renderSaves()
@@ -7616,7 +7623,7 @@ function onStart(e) {
                 // editEditorCommandText()
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     // visit?
-                    if (fx.cursorColIndex < marginLeft || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
+                    if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
                         // join lines
                         var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
                         fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
