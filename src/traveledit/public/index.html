@@ -67,22 +67,31 @@ body.dark .toolbar div {
     /* see renderDarkMode */
     color: rgba(255, 255, 200);
     --border: 1px solid rgba(255, 255, 200);
-    border: 1px solid rgba(255, 255, 200);
+    border-left: 1px solid rgba(255, 255, 200);
+    border-top: 1px solid rgba(255, 255, 200);
+    border-right: none;
+    border-bottom: none;
+    --border: none;
+    --text-decoration: underline;
     --opacity: 0.7;
 }
 body.dark .toolbar div.selected {
     background-color: gray;
     color: black;
-    border: 1px solid black;
+    --border: 1px solid black;
 }
 body.light .toolbar div {
     color: black;
-    border: 1px solid black;
+    --border: 1px solid black;
+    border-left: 1px solid black;
+    border-top: 1px solid black;
+    border-right: none;
+    border-bottom: none;
 }
 body.light .toolbar div.selected {
     background-color: black;
     color: rgba(255, 255, 200);
-    border: 1px solid rgba(255, 255, 200);
+    --border: 1px solid rgba(255, 255, 200);
 }
 
 .toolbar .icon {
@@ -100,12 +109,13 @@ body.light .toolbar div.selected {
 .toolbar .fileButton {
     padding: 0 5px 0 5px;
     height: 26px;
-    margin: 1px;
+    margin: 0px;
     flex: 1 0 auto;
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
+    --border: none !important;
 }
 .toolbar div {
     --border-radius: 17px;
@@ -115,7 +125,7 @@ body.light .toolbar div.selected {
     padding: 0px;
     width: 40px;
     height: 34px;
-    margin: 1px;
+    margin: 0px;
     flex: 1 0 auto;
     display: flex;
     align-items: center;
@@ -127,7 +137,7 @@ body.light .toolbar div.selected {
     width: 80px;
     -- width: 60px;
     height: 34px;
-    margin: 1px;
+    margin: 0px;
     flex: 1 0 auto;
     display: flex;
     align-items: center;
@@ -138,7 +148,7 @@ body.light .toolbar div.selected {
     padding: 0px;
     width: 60px;
     height: 34px;
-    margin: 1px;
+    margin: 0px;
     flex: 1 0 auto;
     display: flex;
     align-items: center;
@@ -306,12 +316,11 @@ They get changed later on.
     <!--
     <div class=longButton onclick="editEditorCommandText()" >status</div>
     -->
-    <div class=longButton onclick="runScript()" id=statusBar>run script</div>
-    <div class=longButton onclick=goUpDirectory()>⬆️</div>
-    <div class=longButton id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
-    <div class=longButton onclick=reloadFile(fx)>reload</div>
-    <div id=saveButton class=longButton onclick=saveWrapper()>save</div>
-    <div class=longButton onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
+    <div class=square onclick="runScript()" id=statusBar>run script</div>
+    <div class=square onclick=goUpDirectory()>⬆️</div>
+    <div class=square id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
+    <div class=square onclick=reloadFile(fx)>reload</div>
+    <div id=saveButton class=square onclick=saveWrapper()>save</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -496,7 +505,6 @@ They get changed later on.
     <div class=square onclick="osPasteText()">os paste</div>
     <div class=square onclick=addCmdTab()>cmd</div>
     <div class=square onclick=addTerminalTab()>xterm</div>
-    <div class=square onclick=editEditorCommandText()>editor cmd</div>
     <div class=square onclick=closeFile()>close</div>
     <!--
     <div class=square onclick=comment()>//</div>
@@ -574,6 +582,8 @@ They get changed later on.
 <div class=toolbar>
     <div class=square onclick="copyOneTimeLink()">one-time link</div>
     <div class=square onclick=record()>🎤</div>
+    <div class=square onclick=editEditorCommandText()>editor cmd</div>
+    <div class=longButton onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
 </div>
 <div class=toolbar>
     <!--<div class=square onclick=addSpace()>space</div>
