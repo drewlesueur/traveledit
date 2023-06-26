@@ -3693,6 +3693,9 @@ function ll(line, script, replacement) {
         case "w":
             findCurrentOrNext(true, regexer(/[\w]/), notRegexer(/[\w]/))
             break
+        case "z":
+            findCurrentOrNext(true, regexer(/[\w\-]/), notRegexer(/[\w\-]/))
+            break
         case "x":
             findCurrentOrNext(false, regexer(/[\w]/), notRegexer(/[\w]/))
             break
@@ -7668,7 +7671,17 @@ function onStart(e) {
                     moveCursorUp()
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
-                    copyBuffer = [fx.lines[fx.cursorLineIndex]]
+                    if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
+                        copyBuffer = [fx.lines[fx.cursorLineIndex]]
+                    } else {
+                        var w = getWordAtCursor()
+                        if (w.word) {
+                            copyBuffer = [w.word]
+                        } else {
+                            // same as first case
+                            copyBuffer = [fx.lines[fx.cursorLineIndex]]
+                        }
+                    }
                     return
                 } else {
                     moveCursorDown()
