@@ -3215,6 +3215,7 @@ function copy(preventUnselect = false) {
                 copyBuffer = copiedDirectoryFiles
                 if (!preventUnselect) {
                     fx.selectedRegions = []
+                    cursorType = "move"
                 }
                 render()
                 return
@@ -3224,6 +3225,7 @@ function copy(preventUnselect = false) {
                 copyBuffer = [fx.lines[r.startY].slice(u(r.startX), u(r.stopX))]
                 if (!preventUnselect) {
                     fx.selectedRegions = []
+                    cursorType = "move"
                 }
                 render()
                 break
@@ -3235,6 +3237,7 @@ function copy(preventUnselect = false) {
             ]
             if (!preventUnselect) {
                 fx.selectedRegions = []
+                cursorType = "move"
             }
             render()
             break
@@ -3910,6 +3913,7 @@ function insertText(theLines, yOffset, xOffset) {
     copyBuffer = theLines
     paste()
     fx.selectedRegions = []
+    cursorType = "move"
     fx.cursorLineIndex = fx.cursorLineIndex + yOffset + 1
     var theLine = fx.lines[fx.cursorLineIndex]
     fx.cursorColIndex = expandTabIndex(theLine, xOffset)
@@ -4132,6 +4136,7 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
             splicedFiles = files.splice(cutFileIndexStart, (cutFileIndexStop - cutFileIndexStart)+1)
             setLines(getLinesForFileList())
             fx.selectedRegions = []
+            cursorType = "move"
             docChanged()
             render()
             return
@@ -4143,6 +4148,7 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
             })
             copyBuffer = cutDirectoryFiles
             fx.selectedRegions = []
+            cursorType = "move"
             fx.cursorLineIndex = r.startY
             updateCursorXY()
             ensureCursorInScreen()
@@ -4161,6 +4167,7 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
                 fx.lines.splice(r.startY, 1)
                 adjustHighlightRanges(r.startY, -1)
                 fx.selectedRegions = []
+                cursorType = "move"
                 if (r.startY > 0) {
                     // subtract 1 so we can paste right afer
                     fx.cursorLineIndex = r.startY - 1
@@ -4186,6 +4193,7 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
                 fx.cursorColIndex = r.startX
                 updateCursorXY()
                 fx.selectedRegions = []
+                cursorType = "move"
                 docChanged()
                 render()
                 if (document.activeElement == theText) {
@@ -4229,6 +4237,7 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
         }
         updateCursorXY()
         fx.selectedRegions = []
+        cursorType = "move"
         if (!preventUndo) {
             docChanged()
         }
@@ -7092,7 +7101,6 @@ function onStart(e) {
     if (e.touches.length == 1) {
         longPressAction = function() {
             isLongPress = true
-            // document.body.removeEventListener("touchend", onEnd)
             var bbox = c.getBoundingClientRect() // deeppink marker
             // alert("yay long press not edges")
             // TODO: add more features here
@@ -7670,6 +7678,7 @@ function onStart(e) {
             // testing selectMode is char, meaning they didnt select in the margin
             if (sr.startX == sr.stopX && sr.startY == sr.stopY && selectMode == "char") {
                 fx.selectedRegions = []
+                cursorType = "move"
                 // New mode
                 // isDragKeyboard = true
                 // fx.selectedRegions = []
@@ -7720,6 +7729,7 @@ function onStart(e) {
                 copy()
                 paste()
                 fx.selectedRegions = []
+                cursorType = "move"
                 render()
                 return
             }
@@ -7973,6 +7983,7 @@ function onStart(e) {
             //     copy()
             //     paste()
             //     fx.selectedRegions = []
+            //      cursorType = "move"
             //     return
             // }
             // if (fx.cursorColIndex == -2) {
@@ -8101,6 +8112,7 @@ function onStart(e) {
                 selectedRegion.stopX = expandTabIndex(theLine, w.end)
             } else {
                 fx.selectedRegions = []
+                cursorType = "move"
             }
         }
         render()
@@ -8163,6 +8175,7 @@ function onStart(e) {
                     comment()
                 } else {
                     fx.selectedRegions = []
+                    cursorType = "move"
                 }
             } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
                 // Fourth row from bottom // orange marker
@@ -8189,6 +8202,7 @@ function onStart(e) {
             } else {
                 // Bottom row // deepskyblue marker
                 fx.selectedRegions = []
+                cursorType = "move"
             }
         }
         document.body.removeEventListener("touchmove", onMoveWhileSelected)
@@ -9221,6 +9235,7 @@ function acPlop(buff) {
     cutBuffer = oldCutBuffer // not used
     selectMode = oldSelectMode
     fx.selectedRegions = []
+    cursorType = "move"
     preventRender = oldPreventRender
     render()
     inACPlop = false
