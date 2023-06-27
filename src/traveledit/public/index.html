@@ -1259,6 +1259,7 @@ var copyBuffer2 = []
 var cutBuffer = []
 var selectMode = "line"
 var selectAction
+var longPressAction
 var cursorType = "move"
 // cursorType can be
 // * move
@@ -3200,7 +3201,7 @@ function copyString(s) {
     copyBuffer = s.split("\n")
     copyEl.value = s
 }
-function copy() {
+function copy(preventUnselect = false) {
     // wrapping in for loop to simulate goto
     for (var s=0; s<1; s++) {
         if (fx.selectedRegions.length>0) {
@@ -3212,14 +3213,18 @@ function copy() {
                     return fx.fullPath + "/" + f
                 })
                 copyBuffer = copiedDirectoryFiles
-                fx.selectedRegions = []
+                if (!preventUnselect) {
+                    fx.selectedRegions = []
+                }
                 render()
                 return
             }
             
             if (r.startY == r.stopY) {
                 copyBuffer = [fx.lines[r.startY].slice(u(r.startX), u(r.stopX))]
-                fx.selectedRegions = []
+                if (!preventUnselect) {
+                    fx.selectedRegions = []
+                }
                 render()
                 break
             }
@@ -3228,7 +3233,9 @@ function copy() {
                 ...fx.lines.slice(r.startY + 1, r.stopY),
                 unExpandSlice(fx.lines[r.stopY], 0, r.stopX, r.stopY)
             ]
-            fx.selectedRegions = []
+            if (!preventUnselect) {
+                fx.selectedRegions = []
+            }
             render()
             break
         }
@@ -3503,7 +3510,7 @@ function getSelectedLines(f, shouldDeleteSelected) {
             // or change use so there is no option to delete here
             del(false, false, true) // true to prevent Undo
         } else {
-            copy()
+            copy(true)
         }
     } else {
         // if nothing is selected, let's deal with all the lines
@@ -4093,6 +4100,15 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
     hasUpdatedSearchTextForReplaceFlow = false
 
     if (fx.selectedRegions.length>0) {
+        var selectedLines = getSelectedLines(fx).lines
+        if (selectedLines.length > 1) {
+            // now the variable name doesn't make sense
+            // variable should be called shouldUpdateCopyBufferAfterTyping
+            hasMovedSinceCut = true
+        } else if (selectedLines.length == 1 && selectedLines[0].indexOf(" ") != -1) {
+            hasMovedSinceCut = true
+        }
+        
         lastDeleteWasFromSelection = true
         var r = fx.selectedRegions[0]
         
@@ -7061,6 +7077,8 @@ var iframeOverflowX = 0
 var isDragKeyboard = false
 var touchCount = 0
 var isSelectedFromTopThird = false
+var isLongPress = false
+var shouldOpenEditorCommand = false
 
 function onStart(e) {
     touchCount = e.touches.length
@@ -7069,7 +7087,79 @@ function onStart(e) {
     // first define the closuure functions
     isSelectedFromTopThird = false
     // this is global
+    isLongPress = false
+    shouldOpenEditorCommand = false
     if (e.touches.length == 1) {
+        longPressAction = function() {
+            isLongPress = true
+            // document.body.removeEventListener("touchend", onEnd)
+            var bbox = c.getBoundingClientRect() // deeppink marker
+            // alert("yay long press not edges")
+            // TODO: add more features here
+            // also what does fallthrough fo in this case
+            if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
+                // Fifth row from bottom // aquamarine marker
+                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                    if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
+                    } else {
+                    }
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                    return
+                } else {
+                    return
+                }
+                return
+            } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
+                // Fourth row from bottom // orange marker
+                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                    return
+                } else {
+                    return
+                }
+                return
+            } else if (bbox.bottom - e.changedTouches[0].pageY > (2*verticalTouchSize)) {
+                // Third row from bottom // red marker
+                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                    editEditorCommandText()
+                    shouldOpenEditorCommand = true
+                    // need to do it like thst because text box doesn't focus on touch start, only touch end
+                } else {
+                }
+                return
+            } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
+                // Second row from bottom // lime marker
+                selectAction()
+                return
+                
+                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                    // experiment autocompleteLineV2
+                    if (document.activeElement == theText) {
+                        return
+                    } else {
+                        // fallthrough
+                    }
+                } else {
+                    return
+                }
+            } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
+                // Bottom row // deepskyblue marker
+                selectAction()
+                return 
+ 
+                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                    // fallthrough
+                } else {
+                    return
+                }
+            }
+        }
         selectAction = function(forceLines = false) {
             // return early in case we are already selecting
             if (cursorType == "select") {
@@ -7571,6 +7661,7 @@ function onStart(e) {
         if (e.touches.length != 0) {
             return
         }
+        
 
          //         fx.cursorColIndex = wordEndX
         // Testing isDragKeyboard feature red marker
@@ -7602,6 +7693,13 @@ function onStart(e) {
         moveListenerCount = max(moveListenerCount-1, 0)
         document.body.removeEventListener("touchend", onEnd)
         endListenerCount = max(endListenerCount-1, 0)
+        
+        if (isLongPress) {
+            if (shouldOpenEditorCommand) {
+                editEditorCommandText()
+            }
+            return
+        }
 
         // it's not straightforward to do a setTimeout
         // here because iOS Safari doesn't like to focus
@@ -7740,7 +7838,6 @@ function onStart(e) {
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     // fallthrough
-                    
                 } else {
                     // moveCursorRightSnap()
                     if (fx.fileMode == "terminal") {
@@ -7767,7 +7864,6 @@ function onStart(e) {
                     // ensureCursorInScreen()
                     return
                 }
-            
             }
             
             if (fx.fileMode == "directory") {
@@ -8043,11 +8139,18 @@ function onStart(e) {
         touchCount = e.touches.length
         var sr = fx.selectedRegions[0]
         if (!moved && sr) {
+            // Note: add more actions, and try to be consistent-ish
+            // note there is no long press here. should I add?
+            // ideas:
+            //    run script
+            //    chat gpt
+            
             // Note, don't return early here!
             var bbox = c.getBoundingClientRect()
             
             // don't return early // red marker
             if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
+                // Fifth row from bottom // aquamarine marker
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     // ??
                     // #duplicateselection
@@ -8062,6 +8165,7 @@ function onStart(e) {
                     fx.selectedRegions = []
                 }
             } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
+                // Fourth row from bottom // orange marker
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     del()
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
@@ -8072,14 +8176,18 @@ function onStart(e) {
                     }
                 }
             } else if (bbox.bottom - e.changedTouches[0].pageY > (2*verticalTouchSize)) {
+                // Third row from bottom // red marker
                 // ? bonkers
+                editEditorCommandText()
             } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
+                // Second row from bottom // lime marker
                 // only if you select the whole line can you comment.
                 // hopefully to  prevent against accidental commenting.
                 if (selectMode == "line") {
                     comment()
                 }
             } else {
+                // Bottom row // deepskyblue marker
                 fx.selectedRegions = []
             }
         }
@@ -8476,6 +8584,7 @@ function onStart(e) {
         }
     }
     
+    // alert("yay edges")
     // #clickedges #touchedges #tapedges // lime marker
     // scroll right and left and move cursor right and left or up and down
     // TODO: remove some duplication here. especially the bounds checks. Make a setter functions.
@@ -8594,7 +8703,8 @@ function onStart(e) {
             }
         }
 
-        selectTimeout = setTimeout(selectAction, selectTimeoutMillis)
+        // selectTimeout = setTimeout(selectAction, selectTimeoutMillis)
+        selectTimeout = setTimeout(longPressAction, selectTimeoutMillis)
         document.body.addEventListener("touchmove", onMove)
         moveListenerCount += 1
         document.body.addEventListener("touchend", onEnd)
