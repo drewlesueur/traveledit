@@ -1280,6 +1280,7 @@ var wasDelete = false
 var moveHomeEndTimeout
 var moveHomeEndTimeoutMillis = 300
 var moveHomeEndDirection
+var cleanUpFilesTimeout
 var selectTimeout
 var selectTimeoutMillis = 150
 var selectTimeoutMillisMove = 350
@@ -2484,7 +2485,9 @@ function setLastWord(maybeLastWord) {
             // cut a word and then type, the new word automatically gets copied
             // this is for a nifty find and replace flow
             // and above we find other occurrences of the word we just cut
-            copyBuffer = lastWord.split("\n")
+            if (copyBuffer.length == 1 && copyBuffer[0].indexOf(" ") == -1) {
+                copyBuffer = lastWord.split("\n")
+            }
         }
     } else {
         // TODO: do we need this
@@ -2881,7 +2884,8 @@ function findDown(searchDir, wrap, startTop) {
     }
     if (document.activeElement != searchText) {
         if (fx.selectedRegions.length) {
-            searchText.value = getSelectedLines(fx, false).lines[0]
+            searchText.value = getSelectedLines(fx, false, true).lines[0]
+            return
         } else if (searchText.value == "") {
             searchText.value = getWordAtCursor().word
             if (searchText.value) {
@@ -2987,7 +2991,8 @@ function findUp() {
         ensureCursorInScreen()
     }
     if (fx.selectedRegions.length) {
-        searchText.value = getSelectedLines(fx, false).lines[0]
+        searchText.value = getSelectedLines(fx, false, true).lines[0]
+        return
     }
     if (searchText.value == "") {
         searchText.value = getWordAtCursor().word
@@ -3491,7 +3496,7 @@ function diffFiles() {
 }
 
 // this is a little hacky by changing and restoring state.
-function getSelectedLines(f, shouldDeleteSelected) {
+function getSelectedLines(f, shouldDeleteSelected, shouldUnselect) {
     // save old
     // in scriptLines we also have "oldPreventRender" business going on. doesn't 'harm' anything but a bit ugly.
     var oldPreventRender = preventRender
@@ -3513,7 +3518,7 @@ function getSelectedLines(f, shouldDeleteSelected) {
             // or change use so there is no option to delete here
             del(false, false, true) // true to prevent Undo
         } else {
-            copy(true)
+            copy(!shouldUnselect)
         }
     } else {
         // if nothing is selected, let's deal with all the lines
@@ -4104,14 +4109,6 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
     hasUpdatedSearchTextForReplaceFlow = false
 
     if (fx.selectedRegions.length>0) {
-        var selectedLines = getSelectedLines(fx).lines
-        if (selectedLines.length > 1) {
-            // now the variable name doesn't make sense
-            // variable should be called shouldUpdateCopyBufferAfterTyping
-            hasMovedSinceCut = true
-        } else if (selectedLines.length == 1 && selectedLines[0].indexOf(" ") != -1) {
-            hasMovedSinceCut = true
-        }
         
         lastDeleteWasFromSelection = true
         var r = fx.selectedRegions[0]
@@ -7669,14 +7666,21 @@ function onStart(e) {
         if (e.touches.length != 0) {
             return
         }
-        
 
          //         fx.cursorColIndex = wordEndX
         // Testing isDragKeyboard feature red marker
         var sr = fx.selectedRegions[0]
         if (sr) { 
-            // testing selectMode is char, meaning they didnt select in the margin
-            if (sr.startX == sr.stopX && sr.startY == sr.stopY && selectMode == "char") {
+        
+            // for now you can only select down right
+            if (sr.startY > sr.stopY) {
+                fx.selectedRegions = []
+                cursorType = "move"
+            } else if (sr.startY == sr.stopY && sr.startX > sr.stopX && selectMode == "char") {
+                fx.selectedRegions = []
+                cursorType = "move"
+            } else if (sr.startX == sr.stopX && sr.startY == sr.stopY && selectMode == "char") {
+                // testing selectMode is char, meaning they didnt select in the margin
                 fx.selectedRegions = []
                 cursorType = "move"
                 // New mode
@@ -8190,8 +8194,13 @@ function onStart(e) {
                 }
             } else if (bbox.bottom - e.changedTouches[0].pageY > (2*verticalTouchSize)) {
                 // Third row from bottom // red marker
-                // ? bonkers
-                editEditorCommandText()
+                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                    clearSearch()
+                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                    editEditorCommandText()
+                } else {
+                    clearSearch()
+                }
             } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
                 // Second row from bottom // lime marker
                 // only if you select the whole line can you comment.
@@ -8218,6 +8227,7 @@ function onStart(e) {
         touchCount = e.touches.length
         document.body.removeEventListener("touchend", onEndForEdges)
         clearTimeout(moveHomeEndTimeout)
+        clearTimeout(cleanUpFilesTimeout)
         render()
     }
 
@@ -8525,6 +8535,7 @@ function onStart(e) {
     
     var touchTopTopLeft = function() {
         seeFiles()
+        cleanUpFilesTimeout = setTimeout(cleanUpFiles, 300)
     }
     var touchTopTopRight = function() {
         // duplicateFile(fx, -1)
@@ -8930,7 +8941,7 @@ function fuzzyMatch(fuzzyWord, word) {
     if (fuzzyWord.charAt(0).toLowerCase() != word.charAt(0).toLowerCase()) {
         return false
     }
-    if (word.length > 50) {
+    if (word.length > 100) {
         // prevent against long base64 values from matching
         return false
     }
@@ -10591,6 +10602,14 @@ function doPreview()
       })
       .catch(error => console.error(error));
 }
+
+
+function toSnakeCase(str) {
+    return str.replace(/\.?([A-Z]+)/g, function (x,y){
+        return "_" + y.toLowerCase();
+    }).replace(/^_/, "");
+}
+
 
 </script>
 <audio id="audio" controls></audio>
