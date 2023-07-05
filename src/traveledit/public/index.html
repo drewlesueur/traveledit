@@ -3307,7 +3307,10 @@ function runScript() {
         copyBuffer = oldCopyBuffer
     }
     
-    
+    showLog()
+}
+
+function showLog() {
     var f3 = makeFile("__output", 0, debugOutput.join("\n"))
     f3.fileMode = "file"
     f3.cursorLineIndex = 0
@@ -3566,6 +3569,12 @@ function scriptLinesWithOneLineScript(oneLineScript) {
             }
         }
         var funcBody = theScriptLines.join("\n")
+        // log2(funcBody)
+        // showLog()
+        // preventRender = oldPreventRender
+        // render()
+        // return
+        
         var f = function(x) {
             return x
         }
@@ -3584,7 +3593,7 @@ function scriptLinesWithOneLineScript(oneLineScript) {
                 alert(e)
                 break; // if one fails, stop
             }
-            var splitLine = line.split("\n")
+            var splitLine = (line + "").split("\n")
             for (var j=0; j<splitLine.length; j++) {
                 retLines.push(splitLine[j])
             }
