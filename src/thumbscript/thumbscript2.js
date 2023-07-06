@@ -16,6 +16,9 @@ thumbscript2 = {
         return state[a]
     },
     builtinFuncs: {
+        give: function(who, what, howMany, state) {
+            return `You just gave ${who} ${howMany} ${what}s`
+        },
         plus: function(a, b, state) {
             return ((a - 0) + (b - 0)).toString()
         },
@@ -146,9 +149,10 @@ thumbscript2.tokenize = function(code) {
     code = code.replace(/\{/g, " { ")
     code = code.replace(/\}/g, " } ")
     code = code.replace(/\[/g, " [ ")
-    code = code.replace(/\[/g, " ] ")
-    code = code.replace(/:/g, " : ")
-    code = code.replace(/\|/g, " | ")
+    code = code.replace(/\]/g, " ] ")
+    // code = code.replace(/:/g, " : ")
+    // code = code.replace(/\|/g, " | ")
+    // code = code.replace(/\*/g, " * ")
     code = code.replace(/^ +/mg, function (x) { return "indent ".repeat(Math.floor(x.length / 4))})
     code = code.replace(/\n/g, " newline ")
     var tokens = code.split(/ +/)
@@ -423,18 +427,16 @@ thumbscript2.run = function(tokens, state, stack) {
 // thumbscript2.verbose = false
 // thumbscript2.verbose = true
 
-var code = `
-var greet {
+
+/*
+var greet { #1
+    takes 2
     as name
     .hello
     concat space
     concat name
     say
 }
-
-`
-
-/*
 var greet | as name
     .hello
     concat space
@@ -472,6 +474,7 @@ record *
     .age: 12 plus 1
     .color: .brown
     .height: 2 times (3 plus 4)
+    
 
 clear
 (20 plus 30) say
@@ -640,17 +643,38 @@ x is 3
 | say no
 
 
+1 plus {2 minus 3}
 
 
+say, 1 plus (2 minus, 5 divided_by, 2 plus 3)
+
+
+1 plus, 2 minus, 5 divided_by, 2 plus 3
+say
+
+1 plus (2 minus  (5 divided_by 5))
+say
+
+set foo | bar baz | biz boz
 */
 
+
+var code = `
+
+
+
+
+
+
+
+
+`
 var a = thumbscript2.tokenize(code)
 log2(a)
 log2("----")
 log2("")
 log2("")
 log2("")
-
 var b = thumbscript2.eval(code)
 log2("----")
 log2(b)

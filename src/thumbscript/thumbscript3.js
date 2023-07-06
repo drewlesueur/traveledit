@@ -17,7 +17,7 @@ thumbscript3.tokenize = function(code) {
     code = code.replace(/\{/g, " { ")
     code = code.replace(/\}/g, " } ")
     code = code.replace(/\[/g, " [ ")
-    code = code.replace(/\[/g, " ] ")
+    code = code.replace(/\]/g, " ] ")
     // code = code.replace(/:/g, " : ")
     // code = code.replace(/\|/g, " | ")
     // code = code.replace(/\*/g, " * ")
@@ -136,7 +136,41 @@ thumbscript3.taker = function(type) {
 
 // built in funcs have to have func call last?
 thumbscript3.builtIns = {
-    _set: function(world) {
+    // "(": function(world) {
+    //     var oldWorld = world
+    //     world = {
+    //         parent: oldWorld,
+    //         state: {},
+    //         stack: [],
+    //         tokens: oldWorld.tokens,
+    //         i: oldWorld.i,
+    //         dynParent: oldWorld
+    //     }
+    //     return world
+    // },
+    // ")": function(world) {
+    //     newWorld = world.dynParent
+    //     newWorld.stack = newWorld.stack.concat(world.stack)
+    //     return newWorld
+    // },
+    // "[": function(world) {
+    //     var oldWorld = world
+    //     world = {
+    //         parent: oldWorld,
+    //         state: {},
+    //         stack: [],
+    //         tokens: oldWorld.tokens,
+    //         i: oldWorld.i,
+    //         dynParent: oldWorld
+    //     }
+    //     return world
+    // },
+    // "]": function(world) {
+    //     newWorld = world.dynParent
+    //     newWorld.stack.push(world.stack)
+    //     return newWorld
+    // },
+    set: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         var w = null
@@ -151,7 +185,7 @@ thumbscript3.builtIns = {
         w.state[a] = b
         return world
     },
-    _set2: function(world) {
+    set2: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
         var w = null
@@ -166,57 +200,69 @@ thumbscript3.builtIns = {
         w.state[a] = b
         return world
     },
-    _say: function(world) {
+    say: function(world) {
         var a = world.stack.pop()
         // alert("hi")
         log2(a)
         return world
     },
-    _print_world: function(world) {
-        var world2 = {...world}
-        delete world2.parent
-        delete world2.dynParent
-        delete world2.waitingFunc
-        delete world2.waitingFuncs
-        
-        // javascript object shallow cooy
-
-// Sure, you can create a shallow copy of an object in JavaScript using several different methods. 
-// 1. One method is using the `Object.assign()` method:
-// ```javascript
-// let originalObject = { a: 1, b: 2 };
-// let copyObject = Object.assign({}, originalObject);
-// ```
-// 2. Another way is using the spread operator (`...`):
-// ```javascript
-// let originalObject = { a: 1, b: 2 };
-// let copyObject = { ...originalObject };
-// ```
-// Remember that these methods provide a shallow copy of an object. 
-// If the object contains other objects or arrays,
-// the values will be copied by reference, 
-// not duplicated. If you need a deep copy,
-// consider using methods like `JSON.parse(JSON.stringify(object))`.
-        log2(world.state)
-        return world
-    },
+    // _print_world: function(world) {
+    //     // var world2 = {...world}
+    //     // delete world2.parent
+    //     // delete world2.dynParent
+    //     // delete world2.waitingFunc
+    //     // delete world2.waitingFuncs
+    //     log2(world.state)
+    //     return world
+    // },
+    // the take stuff not implemented yet
     takeString: thumbscript3.taker("string"),
     takeNumber: thumbscript3.taker("number"),
     takeBoolean: thumbscript3.taker("boolean"),
     takeObject: thumbscript3.taker("object"),
-    _concat: function(world) {
+    concat: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push(a + b)
         return world
     },
-    _add: function(world) {
+    add: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push((a-0) + (b-0))
         return world
     },
-    _call: function(world) {
+    "+": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push((a-0) + (b-0))
+        return world
+    },
+    "-": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push((a-0) - (b-0))
+        return world
+    },
+    "*": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push((a-0) * (b-0))
+        return world
+    },
+    "/": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push((a-0) / (b-0))
+        return world
+    },
+    "is": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push(a == b)
+        return world
+    },
+    call: function(world) {
         var f = world.stack.pop()
         var oldWorld = world
         world = {
@@ -244,8 +290,13 @@ thumbscript3.next = function(world) {
         if (typeof token == "string") {
             var doCall = true
             
-            if (token.startsWith("/")) {
+            if (token.startsWith(".")) {
                 world.stack.push(token.slice(1))
+                break
+            }
+            if (token.startsWith(":")) {
+                world.stack.push(token.slice(1))
+                newWorld = thumbscript3.builtIns.set2(world)
                 break
             }
             if (token in thumbscript3.builtIns) {
@@ -270,7 +321,7 @@ thumbscript3.next = function(world) {
             var x = w.state[token]
             world.stack.push(x)
             if (x && x.thumbscript_type == "closure" && doCall) {
-                newWorld = thumbscript3.builtIns._call(world)
+                newWorld = thumbscript3.builtIns.call(world)
             }
             break
         } else if (typeof token == "object") {
@@ -301,47 +352,51 @@ thumbscript3.next = function(world) {
 
 // todo closure leakage issue?
 var code = `
-name Drew _set
-name _say
-Why hello _concat name _concat
-_say
+.Drew :name
+name say
 
-3 1 _add _say
-7 {1 _add} _call
-_say
+.hi :name2
+name2 say
 
-
-x 9 _set
-
-add10 {10 _add} _set
-27 add10 _say
-
-increr {
-    /x _set2
-    {
-        /x 
-            1 x _add
-        _set
-        x 
-    }
-} _set
-
-/incr 100 increr _set
-
-incr _say
-incr _say
-incr _say
-incr _say
+[name name2 120 121] :mylist
+mylist say
 
 
-/sayo {_say} _set
+.Why .hello concat name concat
+say
+
+3 1 add say
+7 {1 add} call
+say
+
+9 :x 10 :y
+
+x y add say
+
+{10 add} :add10
+27 add10 say
+
+
+{ :x { 1 x add :x x } } :increr2
+20 increr2 :incr2
+
+incr2 say
+incr2 say
+incr2 say
+incr2 say
+
+{ .! concat } :exclaim
+
+
+.sayo {say} set
 foobar sayo
 
+.hi exclaim
+.bye exclaim
+concat say
 
-
-
-
+{ concat } :b
+.foo .bow b say
 
 `
-// /say { takeString _say}
 thumbscript3.eval(code)
