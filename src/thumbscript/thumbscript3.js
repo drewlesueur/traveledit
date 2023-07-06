@@ -113,8 +113,8 @@ thumbscript3.eval = function(code) {
 
 thumbscript3.run = function(world) {
     while (true) {
-        thumbscript3.next(world)
-        if (world.i >= world.tokens.length) {
+        world = thumbscript3.next(world)
+        if (!world) {
             break
         }
     }
@@ -149,6 +149,7 @@ thumbscript3.builtIns = {
             w = world
         }
         w.state[a] = b
+        return world
     },
     _set2: function(world) {
         var a = world.stack.pop()
@@ -163,11 +164,41 @@ thumbscript3.builtIns = {
             w = world
         }
         w.state[a] = b
+        return world
     },
     _say: function(world) {
         var a = world.stack.pop()
         // alert("hi")
         log2(a)
+        return world
+    },
+    _print_world: function(world) {
+        var world2 = {...world}
+        delete world2.parent
+        delete world2.dynParent
+        delete world2.waitingFunc
+        delete world2.waitingFuncs
+        
+        // javascript object shallow cooy
+
+// Sure, you can create a shallow copy of an object in JavaScript using several different methods. 
+// 1. One method is using the `Object.assign()` method:
+// ```javascript
+// let originalObject = { a: 1, b: 2 };
+// let copyObject = Object.assign({}, originalObject);
+// ```
+// 2. Another way is using the spread operator (`...`):
+// ```javascript
+// let originalObject = { a: 1, b: 2 };
+// let copyObject = { ...originalObject };
+// ```
+// Remember that these methods provide a shallow copy of an object. 
+// If the object contains other objects or arrays,
+// the values will be copied by reference, 
+// not duplicated. If you need a deep copy,
+// consider using methods like `JSON.parse(JSON.stringify(object))`.
+        log2(world.state)
+        return world
     },
     takeString: thumbscript3.taker("string"),
     takeNumber: thumbscript3.taker("number"),
@@ -177,11 +208,13 @@ thumbscript3.builtIns = {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push(a + b)
+        return world
     },
     _add: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push((a-0) + (b-0))
+        return world
     },
     _call: function(world) {
         var f = world.stack.pop()
@@ -194,12 +227,19 @@ thumbscript3.builtIns = {
             i: 0,
             dynParent: oldWorld
         }
-        thumbscript3.run(world)
-        world = oldWorld
+        return world
     },
 }
 thumbscript3.next = function(world) {
     do {
+        if (world.i >= world.tokens.length) {
+            if (world.dynParent) {
+                world = world.dynParent
+                return world
+            }
+            return false
+        }
+        var newWorld
         var token = world.tokens[world.i]
         if (typeof token == "string") {
             var doCall = true
@@ -209,7 +249,7 @@ thumbscript3.next = function(world) {
                 break
             }
             if (token in thumbscript3.builtIns) {
-                thumbscript3.builtIns[token](world)
+                newWorld = thumbscript3.builtIns[token](world)
                 break
             }
             
@@ -230,7 +270,7 @@ thumbscript3.next = function(world) {
             var x = w.state[token]
             world.stack.push(x)
             if (x && x.thumbscript_type == "closure" && doCall) {
-                thumbscript3.builtIns._call(world)
+                newWorld = thumbscript3.builtIns._call(world)
             }
             break
         } else if (typeof token == "object") {
@@ -245,13 +285,18 @@ thumbscript3.next = function(world) {
     } while (false)
     
     
-    // check call.
+    // check call. (breaks if more than one thing pushed to stack at same time)
     // while (world.waitingFunc != null && world.stack.length >= 1) {
     //     var oldWorld = world
     //     world = world.waitingFunc
     //     world.waitingFunc = world.waitingFuncs.pop()
     // }
     world.i++
+    
+    if (newWorld) {
+        world = newWorld
+    }
+    return world
 }
 
 // todo closure leakage issue?
@@ -269,7 +314,6 @@ _say
 x 9 _set
 
 add10 {10 _add} _set
-
 27 add10 _say
 
 increr {
@@ -282,7 +326,7 @@ increr {
     }
 } _set
 
-incr 100 increr _set
+/incr 100 increr _set
 
 incr _say
 incr _say
@@ -293,11 +337,11 @@ incr _say
 /sayo {_say} _set
 foobar sayo
 
-/say { takeString _say}
 
 
 
 
 
 `
+// /say { takeString _say}
 thumbscript3.eval(code)
