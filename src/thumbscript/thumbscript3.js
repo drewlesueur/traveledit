@@ -18,6 +18,7 @@ thumbscript3.tokenize = function(code) {
     code = code.replace(/\}/g, " } ")
     code = code.replace(/\[/g, " [ ")
     code = code.replace(/\]/g, " ] ")
+    code = code.replace(/\./g, " .")
     // code = code.replace(/:/g, " : ")
     // code = code.replace(/\|/g, " | ")
     // code = code.replace(/\*/g, " * ")
@@ -108,7 +109,10 @@ thumbscript3.eval = function(code) {
         i: 0,
         parent: null
     }
+    // log2(world)
+    // showLog()
     thumbscript3.run(world)
+    // thumbscript3.runAsync(world)
 }
 
 thumbscript3.run = function(world) {
@@ -118,6 +122,17 @@ thumbscript3.run = function(world) {
             break
         }
     }
+}
+
+thumbscript3.runAsync = function(world) {
+    world = thumbscript3.next(world)
+    if (!world) {
+        return
+    }
+    // log2(Object.keys(world))
+    log2(world.tokens.slice(world.i - 1).join(" "))
+    showLog()
+    setTimeout(function() { thumbscript3.runAsync(world) }, 250)
 }
 
 thumbscript3.taker = function(type) {
@@ -153,23 +168,29 @@ thumbscript3.builtIns = {
     //     newWorld.stack = newWorld.stack.concat(world.stack)
     //     return newWorld
     // },
-    // "[": function(world) {
-    //     var oldWorld = world
-    //     world = {
-    //         parent: oldWorld,
-    //         state: {},
-    //         stack: [],
-    //         tokens: oldWorld.tokens,
-    //         i: oldWorld.i,
-    //         dynParent: oldWorld
-    //     }
-    //     return world
-    // },
-    // "]": function(world) {
-    //     newWorld = world.dynParent
-    //     newWorld.stack.push(world.stack)
-    //     return newWorld
-    // },
+    "[": function(world) {
+        var oldWorld = world
+        world = {
+            parent: oldWorld,
+            state: {},
+            stack: [],
+            tokens: oldWorld.tokens,
+            i: oldWorld.i+1,
+            dynParent: oldWorld
+        }
+        return world
+    },
+    "]": function(world) {
+        newWorld = world.dynParent
+        // also push the state if needed
+        if (Object.keys(world.state).length) {
+            newWorld.stack.push(world.state)
+        } else {
+            newWorld.stack.push(world.stack)
+        }
+        newWorld.i = world.i + 1
+        return newWorld
+    },
     set: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
@@ -262,6 +283,17 @@ thumbscript3.builtIns = {
         world.stack.push(a == b)
         return world
     },
+    "at": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push(a[b])
+        return world
+    },
+    "length": function(world) {
+        var a = world.stack.pop()
+        world.stack.push(a.length)
+        return world
+    },
     call: function(world) {
         var f = world.stack.pop()
         var oldWorld = world
@@ -278,6 +310,9 @@ thumbscript3.builtIns = {
 }
 thumbscript3.next = function(world) {
     do {
+        // if (!world) {
+        //     return false
+        // }
         if (world.i >= world.tokens.length) {
             if (world.dynParent) {
                 world = world.dynParent
@@ -290,13 +325,18 @@ thumbscript3.next = function(world) {
         if (typeof token == "string") {
             var doCall = true
             
-            if (token.startsWith(".")) {
+            if (token.startsWith("$")) {
                 world.stack.push(token.slice(1))
                 break
             }
             if (token.startsWith(":")) {
                 world.stack.push(token.slice(1))
                 newWorld = thumbscript3.builtIns.set2(world)
+                break
+            }
+            if (token.startsWith(".")) {
+                world.stack.push(token.slice(1))
+                newWorld = thumbscript3.builtIns.at(world)
                 break
             }
             if (token in thumbscript3.builtIns) {
@@ -352,17 +392,31 @@ thumbscript3.next = function(world) {
 
 // todo closure leakage issue?
 var code = `
-.Drew :name
+$Drew :name
 name say
 
-.hi :name2
+[999 2 3 4] :mylist
+
+mylist.0 say
+[$blue :eyes $brown :hair] :info
+info.eyes say
+
+info $hair at say
+
+
+
+
+
+$The_list_has
+mylist length 
+concat $elements concat say
+
+$hi :name2
 name2 say
 
-[name name2 120 121] :mylist
-mylist say
 
 
-.Why .hello concat name concat
+$Why $hello concat name concat
 say
 
 3 1 add say
@@ -385,18 +439,20 @@ incr2 say
 incr2 say
 incr2 say
 
-{ .! concat } :exclaim
+{ $! concat } :exclaim
 
 
-.sayo {say} set
+{say} :sayo
 foobar sayo
 
-.hi exclaim
-.bye exclaim
+$hi exclaim
+$bye exclaim
 concat say
 
 { concat } :b
-.foo .bow b say
+$foo $bow b say
 
 `
+/*
+*/
 thumbscript3.eval(code)
