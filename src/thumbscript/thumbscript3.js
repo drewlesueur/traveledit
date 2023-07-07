@@ -99,10 +99,23 @@ thumbscript3.squishFuncs = function(tokens) {
         if (token == "{") {
             tokenStack.push(newTokens)
             newTokens = []
+        } else if (token == "[") {
+            tokenStack.push(newTokens)
+            newTokens = []
         } else if (token == "}") {
             var r = newTokens
             newTokens = tokenStack.pop()
-            newTokens.push(r)
+            newTokens.push({
+                thumbscript_type: "func",
+                value: r,
+            })
+        } else if (token == "]") {
+            var r = newTokens
+            newTokens = tokenStack.pop()
+            newTokens.push({
+                thumbscript_type: "list",
+                value: r,
+            })
         } else {
             newTokens.push(token)
         }
@@ -181,29 +194,31 @@ thumbscript3.builtIns = {
     //     newWorld.stack = newWorld.stack.concat(world.stack)
     //     return newWorld
     // },
-    "[": function(world) {
-        var oldWorld = world
-        world = {
-            parent: oldWorld,
-            state: {},
-            stack: [],
-            tokens: oldWorld.tokens,
-            i: oldWorld.i+1,
-            dynParent: oldWorld
-        }
-        return world
-    },
-    "]": function(world) {
-        newWorld = world.dynParent
-        // also push the state if needed
-        if (Object.keys(world.state).length) {
-            newWorld.stack.push(world.state)
-        } else {
-            newWorld.stack.push(world.stack)
-        }
-        newWorld.i = world.i + 1
-        return newWorld
-    },
+    
+    // we now squish these so we don't need them
+    // "[": function(world) {
+    //     var oldWorld = world
+    //     world = {
+    //         parent: oldWorld,
+    //         state: {},
+    //         stack: [],
+    //         tokens: oldWorld.tokens,
+    //         i: oldWorld.i+1,
+    //         dynParent: oldWorld
+    //     }
+    //     return world
+    // },
+    // "]": function(world) {
+    //     newWorld = world.dynParent
+    //     // also push the state if needed
+    //     if (Object.keys(world.state).length) {
+    //         newWorld.stack.push(world.state)
+    //     } else {
+    //         newWorld.stack.push(world.stack)
+    //     }
+    //     newWorld.i = world.i + 1
+    //     return newWorld
+    // },
     set: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
@@ -395,6 +410,9 @@ thumbscript3.next = function(world) {
         // }
         if (world.i >= world.tokens.length) {
             if (world.dynParent) {
+                if (world.onEnd) {
+                    world.onEnd(world)
+                }
                 world = world.dynParent
                 // the stacks shoild point to same thing
                 return world
@@ -448,11 +466,29 @@ thumbscript3.next = function(world) {
         } else if (typeof token == "object") {
             // not calling right away
             // The only object we have not is an array which means a function definition
-            world.stack.push({
-                thumbscript_type: "closure",
-                tokens: token,
-                world: world,
-            })
+            if (token.thumbscript_type == "func") {
+                world.stack.push({
+                    thumbscript_type: "closure",
+                    tokens: token.value,
+                    world: world,
+                })
+            } else if (token.thumbscript_type == "list") {
+                newWorld = {
+                    parent: world,
+                    state: {},
+                    stack: [],
+                    tokens: token.value,
+                    i: 0,
+                    dynParent: world,
+                    onEnd: function(world) {
+                        if (Object.keys(world.state).length) {
+                            world.dynParent.stack.push(world.state)
+                        } else {
+                            world.dynParent.stack.push(world.stack)
+                        }
+                    }
+                }
+            }
         }
         break
     } while (false)
@@ -466,25 +502,25 @@ thumbscript3.next = function(world) {
 
 // todo closure leakage issue?
 var code = `
-// {
-//     :body :next :check
-//     {
-//         check {
-//             body
-//             next
-//         } {
-//             2 break
-//         } if call
-//         tailcallself
-//     } call
-// } :loop
-// 
-// 0 :count
-// 0 :i {i 4 <}{i 1 add :i} {
-//     count i add :count
-// } loop
-// 
-// "the count is " count cc say
+{
+    :body :next :check
+    {
+        check {
+            body
+            next
+        } {
+            2 break
+        } if call
+        tailcallself
+    } call
+} :loop
+
+0 :count
+0 :i {i 4 <}{i 1 add :i} {
+    count i add :count
+} loop
+
+"the count is " count cc say
 
 {
     copylist :theChain
@@ -503,6 +539,7 @@ var code = `
     } call
     // "all done with chain" say
 } :ifc
+
 
 [
     {x 1 is}
@@ -551,7 +588,7 @@ name say
 $ someone
 [999 2 3 4] :mylist
 
-mylist.0 say
+"the first item is " mylist 0 at cc say
 [$blue :eyes $brown :hair] :info
 
 info say
@@ -753,5 +790,19 @@ info key at
 
 x (x plus 1)
 say
+
+
+@name: $Drew
+@say name
+
+x @is 1
+
+
+$Drew :name
+name say
+$ someone
+[999 2 3 4] :mylist
+
+
 */
 thumbscript3.eval(code)

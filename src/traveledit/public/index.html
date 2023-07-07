@@ -3277,7 +3277,11 @@ function log2() {
     var logRow = []
     for (var i=0; i<arguments.length; i++) {
         if (typeof arguments[i] == "object") {
-            logRow.push(JSON.stringify(arguments[i], "", "   "))
+            try {
+                logRow.push(JSON.stringify(arguments[i], "", "   "))
+            } catch (e) {
+                logRow.push("**curcular**")
+            }
             continue
         }
         logRow.push(arguments[i])
