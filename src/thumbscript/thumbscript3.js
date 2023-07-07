@@ -2,80 +2,90 @@
 var thumbscript3 = {}
 
 // thumbscript2 parser was cool with optional significant indenting
-// todo strings
 thumbscript3.tokenize = function(code) {
-    var currentIndent = 0
-    var lastIndent = 0
-    needsClose = []
-    // removing empty lines
-    code = code
-        .split('\n')
-        .filter(line => line.trim() !== '')
-        .join('\n');
-
-    code = code.replace(/\(/g, " ( ")
-    code = code.replace(/\)/g, " ) ")
-    code = code.replace(/\{/g, " { ")
-    code = code.replace(/\}/g, " } ")
-    code = code.replace(/\[/g, " [ ")
-    code = code.replace(/\]/g, " ] ")
-    // code = code.replace(/\./g, " .")
-    // code = code.replace(/:/g, " : ")
-    // code = code.replace(/\|/g, " | ")
-    // code = code.replace(/\*/g, " * ")
-    code = code.replace(/^ +/mg, function (x) { return "indent ".repeat(Math.floor(x.length / 4))})
-    code = code.replace(/\n/g, " newline ")
-    var tokens = code.split(/ +/)
-    tokens.push("newline")
-    tokens.push("final")
-    var newTokens = []
-    for (var i = 0; i < tokens.length; i++) {
-        var token = tokens[i]
-        if (token == "newline") {
-            lastIndent = currentIndent
-            currentIndent = 0
-        } else if (token == "indent") {
-            currentIndent++
-        } else {
-            // log2(`token: ${token}, currentIndent: ${currentIndent}, lastIndent: ${lastIndent}`)
-            if (currentIndent <= lastIndent) {
-                while (true) {
-                    if (needsClose.length == 0) {
-                        break
-                    }
-                    var n = needsClose.pop()
-                    // log2("n is " + n)
-                    if (n.n >= currentIndent) {
-                        newTokens.push(n.close)
-                    } else {
-                        needsClose.push(n)
-                        break
-                    }
-                }
+    var state = "out"
+    var currentToken = ""
+    var tokens = []
+    string2OpenCount = 0
+    code += "\n" // to simplify last token
+    for (var i=0; i < code.length; i++) {
+        var chr = code.charAt(i)
+        if (state == "out") {
+            if ("()[]{}".indexOf(chr) != -1) {
+                tokens.push(chr)
+            } else if (" \n\t".indexOf(chr) != -1) {
+            } else if ("/".indexOf(chr) != -1) {
+                state = "slash"
+            } else if ('"'.indexOf(chr) != -1) {
+                state = "string"
+            } else if ("«".indexOf(chr) != -1) {
+                state = "string2"
+                string2OpenCount = 1
+            } else {
+                state = "in"
+                currentToken = chr
             }
-
-            // go to newline
-            for (i; i < tokens.length; i++) {
-                var tok = tokens[i]
-                if (tok == "newline") {
-                    i--
-                    break
-                } else if (tok == ":") {
-                    newTokens.push("(")
-                    needsClose.push({n: currentIndent, close: ")"})
-                } else if (tok == "|") {
-                    newTokens.push("{")
-                    needsClose.push({n: currentIndent, close: "}"})
-                } else if (tok == "*") {
-                    newTokens.push("[")
-                    needsClose.push({n: currentIndent, close: "]"})
-                } else {
-                    newTokens.push(tok)
+        } else if (state == "in") {
+            if ("()[]{}".indexOf(chr) != -1) {
+                tokens.push(currentToken)
+                currentToken = ""
+                tokens.push(chr)
+                state = "out"
+            } else if (" \n\t".indexOf(chr) != -1) {
+                tokens.push(currentToken)
+                currentToken = ""
+                state = "out"
+            } else {
+                currentToken += chr
+            }
+        } else if (state == "string") {
+            // haven't finished escaping in string
+            if (false && "\\".indexOf(chr) != -1) {
+                state = "stringEscape"
+            } else if ('"'.indexOf(chr) != -1) {
+                // we could make every token an object
+                // but this is our strong trick for now
+                tokens.push("$" + currentToken)
+                currentToken = ""
+                state = "out"
+            } else {
+                currentToken += chr
+            }
+        } else if (state == "string2") {
+            if ("«".indexOf(chr) != -1) {
+                string2OpenCount++
+            } else if ("»".indexOf(chr) != -1) {
+                // we could make every token an object
+                // but this is our strong trick for now
+                string2OpenCount--
+                if (string2OpenCount == 0) {
+                    tokens.push("$" + currentToken)
+                    currentToken = ""
+                    state = "out"
                 }
+            } else {
+                currentToken += chr
+            }
+        } else if (state == "stringEscape") {
+            if (" \n\t".indexOf(chr) != -1) {
+                state = "string"
+            } else {
+                // not done here yet
+            }
+        } else if (state == "slash") {
+            if ("/".indexOf(chr) != -1) {
+                state = "comment"
+            } else {
+                tokens.push("/")
+                state = "out"
+            }
+        } else if (state == "comment") {
+            if ("\n".indexOf(chr) != -1) {
+                state = "out"
             }
         }
     }
-    newTokens = thumbscript3.squishFuncs(newTokens)
+    newTokens = thumbscript3.squishFuncs(tokens)
     return newTokens
 }
 
@@ -110,9 +120,15 @@ thumbscript3.eval = function(code) {
         i: 0,
         parent: null
     }
-    // log2(world)
-    // showLog()
     thumbscript3.run(world)
+   
+    
+    // window.f99 = makeFile("__output", 0, "")
+    // f99.fileMode = "file"
+    // f99.cursorLineIndex = 0
+    // f99.lines = debugOutput
+    // addFileToList(f99)
+    // 
     // thumbscript3.runAsync(world)
 }
 
@@ -122,6 +138,7 @@ thumbscript3.run = function(world) {
         if (!world) {
             break
         }
+        // log2("// " +world.tokens.slice(world.i - 1).join(" "))
     }
 }
 
@@ -131,25 +148,20 @@ thumbscript3.runAsync = function(world) {
         return
     }
     // log2(Object.keys(world))
-    log2(world.tokens.slice(world.i - 1).join(" "))
-    showLog()
-    setTimeout(function() { thumbscript3.runAsync(world) }, 250)
+    log2("//" + world.tokens.slice(world.i - 1).join(" "))
+    setTimeout(function() { thumbscript3.runAsync(world) }, 500)
+    f99.lines = debugOutput
+    render()
 }
 
-thumbscript3.taker = function(type) {
+thumbscript3.mathFunc = function(f) {
     return function(world) {
+        var b = world.stack.pop()
         var a = world.stack.pop()
-        if (typeof a != type) {
-            world.stack.push(a) // stacks are the same
-            world.i--
-            var funcWorld = world
-            world = world.dynParent
-            world.waitingFuncs.push(world.waitingFunc)
-            world.waitingFunc = funcWorld
-        }
+        world.stack.push(f((a-0), (b-0)))
+        return world
     }
 }
-
 // built in funcs have to have func call last?
 thumbscript3.builtIns = {
     // "(": function(world) {
@@ -193,8 +205,8 @@ thumbscript3.builtIns = {
         return newWorld
     },
     set: function(world) {
-        var b = world.stack.pop()
         var a = world.stack.pop()
+        var b = world.stack.pop()
         var w = null
         for (w = world; w != null; w = w.parent) {
             if (a in w.state) {
@@ -207,19 +219,13 @@ thumbscript3.builtIns = {
         w.state[a] = b
         return world
     },
-    set2: function(world) {
+    setc: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
-        var w = null
-        for (w = world; w != null; w = w.parent) {
-            if (a in w.state) {
-                break
-            }
-        }
-        if (w == null) {
-            w = world
-        }
-        w.state[a] = b
+        world.stack.push(a.slice(0,-1))
+        thumbscript3.builtIns.ats(world)
+        obj = world.stack.pop()
+        obj[a[a.length-1]] = b
         return world
     },
     say: function(world) {
@@ -227,21 +233,13 @@ thumbscript3.builtIns = {
         log2(a)
         return world
     },
-    // _print_world: function(world) {
-    //     // var world2 = {...world}
-    //     // delete world2.parent
-    //     // delete world2.dynParent
-    //     // delete world2.waitingFunc
-    //     // delete world2.waitingFuncs
-    //     log2(world.state)
-    //     return world
-    // },
-    // the take stuff not implemented yet
-    takeString: thumbscript3.taker("string"),
-    takeNumber: thumbscript3.taker("number"),
-    takeBoolean: thumbscript3.taker("boolean"),
-    takeObject: thumbscript3.taker("object"),
     concat: function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push(a + b)
+        return world
+    },
+    "cc": function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push(a + b)
@@ -277,6 +275,18 @@ thumbscript3.builtIns = {
         world.stack.push((a-0) / (b-0))
         return world
     },
+    "<": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push((a-0) < (b-0))
+        return world
+    },
+    ">": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        world.stack.push((a-0) > (b-0))
+        return world
+    },
     "is": function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
@@ -289,9 +299,56 @@ thumbscript3.builtIns = {
         world.stack.push(a[b])
         return world
     },
+    "ats": function(world) {
+        var a = world.stack.pop()
+        var v = a[0]
+        for (var i = 1; i < a.length; i++) {
+            v = v[a[i]]
+        }
+        world.stack.push(v)
+        return world
+    },
+    "if": function(world) {
+        var c = world.stack.pop()
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        if (a) {
+            world.stack.push(b)
+        } else {
+            world.stack.push(c)
+        }
+        return world
+    },
+    "return": function(world) {
+        world = world.dynParent
+        return world
+    },
+    "break": function(world) {
+        var a = world.stack.pop()
+        a = a-0
+        for (var i=0; i<a; i++) {
+            world = world.dynParent
+        }
+        return world
+    },
     "length": function(world) {
         var a = world.stack.pop()
         world.stack.push(a.length)
+        return world
+    },
+    "pop": function(world) {
+        var a = world.stack.pop()
+        world.stack.push(a.pop())
+        return world
+    },
+    "shift": function(world) {
+        var a = world.stack.pop()
+        world.stack.push(a.shift())
+        return world
+    },
+    "copylist": function(world) {
+        var a = world.stack.pop()
+        world.stack.push([...a])
         return world
     },
     call: function(world) {
@@ -299,6 +356,29 @@ thumbscript3.builtIns = {
         var oldWorld = world
         world = {
             parent: f.world,
+            state: {},
+            stack: oldWorld.stack,
+            tokens: f.tokens,
+            i: 0,
+            dynParent: oldWorld
+        }
+        return world
+    },
+    tailcall: function(world) {
+        var f = world.stack.pop()
+        world.i = -1 // because same world and will increment
+        world.tokens = f.tokens
+        return world
+    },
+    tailcallself: function(world) {
+        world.i = -1 // because same world and will increment
+        return world
+    },
+    calld: function(world) {
+        var f = world.stack.pop()
+        var oldWorld = world
+        world = {
+            parent: oldWorld,
             state: {},
             stack: oldWorld.stack,
             tokens: f.tokens,
@@ -316,6 +396,7 @@ thumbscript3.next = function(world) {
         if (world.i >= world.tokens.length) {
             if (world.dynParent) {
                 world = world.dynParent
+                // the stacks shoild point to same thing
                 return world
             }
             return false
@@ -324,14 +405,14 @@ thumbscript3.next = function(world) {
         var token = world.tokens[world.i]
         if (typeof token == "string") {
             var doCall = true
-            
+
             if (token.startsWith("$")) {
                 world.stack.push(token.slice(1))
                 break
             }
             if (token.startsWith(":")) {
                 world.stack.push(token.slice(1))
-                newWorld = thumbscript3.builtIns.set2(world)
+                newWorld = thumbscript3.builtIns.set(world)
                 break
             }
             if (token.startsWith(".")) {
@@ -343,7 +424,7 @@ thumbscript3.next = function(world) {
                 newWorld = thumbscript3.builtIns[token](world)
                 break
             }
-            
+
             if (token.startsWith("~")) {
                 token = token.slice(1)
                 doCall = false
@@ -366,6 +447,7 @@ thumbscript3.next = function(world) {
             break
         } else if (typeof token == "object") {
             // not calling right away
+            // The only object we have not is an array which means a function definition
             world.stack.push({
                 thumbscript_type: "closure",
                 tokens: token,
@@ -374,16 +456,8 @@ thumbscript3.next = function(world) {
         }
         break
     } while (false)
-    
-    
-    // check call. (breaks if more than one thing pushed to stack at same time)
-    // while (world.waitingFunc != null && world.stack.length >= 1) {
-    //     var oldWorld = world
-    //     world = world.waitingFunc
-    //     world.waitingFunc = world.waitingFuncs.pop()
-    // }
     world.i++
-    
+
     if (newWorld) {
         world = newWorld
     }
@@ -392,6 +466,86 @@ thumbscript3.next = function(world) {
 
 // todo closure leakage issue?
 var code = `
+// {
+//     :body :next :check
+//     {
+//         check {
+//             body
+//             next
+//         } {
+//             2 break
+//         } if call
+//         tailcallself
+//     } call
+// } :loop
+// 
+// 0 :count
+// 0 :i {i 4 <}{i 1 add :i} {
+//     count i add :count
+// } loop
+// 
+// "the count is " count cc say
+
+{
+    copylist :theChain
+    {
+        theChain length 0 is {
+            break 2
+        } { } if call
+        theChain length 1 is {
+            theChain shift call
+            2 break
+        } {} if call
+        theChain shift :cond
+        theChain shift :success
+        cond {success 2 break} {} if call
+        tailcallself
+    } call
+    // "all done with chain" say
+} :ifc
+
+[
+    {x 1 is}
+    {"gold"}
+    {x 2 is}
+    {"green"}
+    {x 3 is}
+    {"blue"}
+    {"pink"}
+] :someConds
+7 :x
+someConds ifc :color
+"the color is " color cc say
+
+2 :x someConds ifc :color 
+"the color is " color cc say
+
+1 :x someConds ifc :color 
+"the new color is " color cc say
+return
+
+
+
+// {incr
+//     :body :incr :until :init
+//     init
+//
+//     {
+//
+//     }
+// } :loop
+// {
+//     :theChain
+//     theChain length 1 is {
+//         theChain pop
+//     } {
+//         theChain pop :cond
+//         theChain pop :success
+//         cond1 call {success} {theChain ifc} if
+//     } if call
+//
+// } :ifc
+
 $Drew :name
 name say
 $ someone
@@ -421,7 +575,7 @@ say
     ] :hobbies
     [
         [
-            1 :a
+            1 :a 500 :b
         ] :main
         [
             2002 :b
@@ -431,15 +585,25 @@ say
 
 person say
 
-person.work.secondary.b say
+1 :x
+"The selected b is " [person $work $secondary $b] ats cc say
+2012 [person $work $secondary $b] setc
+"The selected b is " [person $work $secondary $b] ats cc say
+"The selected b is " [person $work x 1 is $main $secondary if $b] ats cc say
 
 
 
 
 
-$The_list_has
-mylist length 
-concat $elements concat say
+"hello world" :message
+
+"The message is " message concat say
+
+
+
+"The list has " mylist length cc " elements" cc say
+«The list has » mylist length cc « elements» cc say
+
 
 $hi :name2
 name2 say
@@ -482,6 +646,33 @@ concat say
 { concat } :b
 $foo $bow b say
 
+
+{
+    $hello say
+    $goodbye say
+    return
+    $goodday say
+    $sir say
+} :something1
+something1
+
+{
+    10 :x
+    
+    // x 10 is
+    // 200
+    // 300
+    // if
+    
+    x 10 is {
+        200
+        2 break
+    } { 300 } if call
+    
+    500
+} :something2
+something2
+say
 `
 
 
