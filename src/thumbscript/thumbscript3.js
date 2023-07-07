@@ -85,8 +85,60 @@ thumbscript3.tokenize = function(code) {
             }
         }
     }
-    newTokens = thumbscript3.squishFuncs(tokens)
+    // showLog()
+    tokens = thumbscript3.squishFuncs(tokens)
+    tokens = thumbscript3.desugarAtSign(tokens)
+    // log2(tokens)
+    return tokens
+}
+thumbscript3.desugarAtSign = function(tokens) {
+    var newTokens = []
+    var stack = []
+    var state = null
+    var i = 0
+
+    var consume = function() {
+        while (state) {
+            // log2("before: " + token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
+            state.n--
+            if (state.n == 0) {
+                newTokens.push(state.token)
+                state = stack.pop()
+            } else {
+                // log2("after: " + token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
+                break
+            }
+        }
+    }
+    while (i < tokens.length) {
+        var token = tokens[i]
+
+        if (typeof token == "string") {
+            var j = 0
+            // while (j < token.length && token.charAt(j) == "@") {
+            while (j < token.length && "@•".indexOf(token.charAt(j)) != -1) {
+                j++
+            }
+            if (j == 0) {
+                newTokens.push(token)
+                consume()
+            } else {
+                stack.push(state)
+                state = {
+                    n: j,
+                    token: token.slice(j),
+                }
+                // log2(token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
+            }
+        } else {
+            newTokens.push(token)
+            consume()
+        }
+        i++
+    }
+    consume()
     return newTokens
+
 }
 
 thumbscript3.squishFuncs = function(tokens) {
@@ -102,19 +154,29 @@ thumbscript3.squishFuncs = function(tokens) {
         } else if (token == "[") {
             tokenStack.push(newTokens)
             newTokens = []
+        } else if (token == "(") {
+            tokenStack.push(newTokens)
+            newTokens = []
         } else if (token == "}") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
                 thumbscript_type: "func",
-                value: r,
+                value: thumbscript3.desugarAtSign(r),
             })
         } else if (token == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
                 thumbscript_type: "list",
-                value: r,
+                value: thumbscript3.desugarAtSign(r),
+            })
+        } else if (token == ")") {
+            var r = newTokens
+            newTokens = tokenStack.pop()
+            newTokens.push({
+                thumbscript_type: "paren",
+                value: thumbscript3.desugarAtSign(r),
             })
         } else {
             newTokens.push(token)
@@ -134,14 +196,14 @@ thumbscript3.eval = function(code) {
         parent: null
     }
     thumbscript3.run(world)
-   
-    
+
+
     // window.f99 = makeFile("__output", 0, "")
     // f99.fileMode = "file"
     // f99.cursorLineIndex = 0
     // f99.lines = debugOutput
     // addFileToList(f99)
-    // 
+    //
     // thumbscript3.runAsync(world)
 }
 
@@ -194,7 +256,7 @@ thumbscript3.builtIns = {
     //     newWorld.stack = newWorld.stack.concat(world.stack)
     //     return newWorld
     // },
-    
+
     // we now squish these so we don't need them
     // "[": function(world) {
     //     var oldWorld = world
@@ -433,6 +495,11 @@ thumbscript3.next = function(world) {
                 newWorld = thumbscript3.builtIns.set(world)
                 break
             }
+            if (token.endsWith(":")) {
+                world.stack.push(token.slice(0, -1))
+                newWorld = thumbscript3.builtIns.set(world)
+                break
+            }
             if (token.startsWith(".")) {
                 world.stack.push(token.slice(1))
                 newWorld = thumbscript3.builtIns.at(world)
@@ -443,10 +510,12 @@ thumbscript3.next = function(world) {
                 break
             }
 
+            // this tilde thing doesn't work?
             if (token.startsWith("~")) {
                 token = token.slice(1)
                 doCall = false
             }
+
             var w = null
             for (w = world; w != null; w = w.parent) {
                 if (token in w.state) {
@@ -465,7 +534,6 @@ thumbscript3.next = function(world) {
             break
         } else if (typeof token == "object") {
             // not calling right away
-            // The only object we have not is an array which means a function definition
             if (token.thumbscript_type == "func") {
                 world.stack.push({
                     thumbscript_type: "closure",
@@ -488,6 +556,18 @@ thumbscript3.next = function(world) {
                         }
                     }
                 }
+            } else if (token.thumbscript_type == "paren") {
+                newWorld = {
+                    parent: world,
+                    state: {},
+                    stack: [],
+                    tokens: token.value,
+                    i: 0,
+                    dynParent: world,
+                    onEnd: function(world) {
+                        world.dynParent.stack = world.dynParent.stack.concat(world.stack)
+                    }
+                }
             }
         }
         break
@@ -502,6 +582,24 @@ thumbscript3.next = function(world) {
 
 // todo closure leakage issue?
 var code = `
+// @a @@b c @d e f g h
+// c e d b a f g h
+
+@name1: "Drew"
+@say @@cc "Hello " name1
+@say ("hello " @cc name1)
+
+// •number: •ifc [
+//    | x •is 1
+//    | $one
+//    | x •is 2
+//    | $two
+//    | x •is 3
+//    | $three 
+// ]
+
+
+
 {
     :body :next :check
     {
@@ -554,34 +652,30 @@ var code = `
 someConds ifc :color
 "the color is " color cc say
 
-2 :x someConds ifc :color 
+2 :x someConds ifc :color
 "the color is " color cc say
 
-1 :x someConds ifc :color 
+1 :x someConds ifc :color
 "the new color is " color cc say
-return
+
+•x: 3
+•number: •ifc [
+   {x •is 1}
+   {$one}
+   {x •is 2}
+   {$two}
+   {x •is 3}
+   {$three}
+   {$other}
+]
+•say ••cc
+   $ The number is 
+   number
 
 
 
-// {incr
-//     :body :incr :until :init
-//     init
-//
-//     {
-//
-//     }
-// } :loop
-// {
-//     :theChain
-//     theChain length 1 is {
-//         theChain pop
-//     } {
-//         theChain pop :cond
-//         theChain pop :success
-//         cond1 call {success} {theChain ifc} if
-//     } if call
-//
-// } :ifc
+@say "hello world postfix swirl"
+
 
 $Drew :name
 name say
@@ -589,6 +683,9 @@ $ someone
 [999 2 3 4] :mylist
 
 "the first item is " mylist 0 at cc say
+// "the first item is " @cc (mylist 0 at) say
+// @say ("the first item is " @cc (mylist 0 at))
+// @say ("the first item is " (mylist 0 at) cc)
 [$blue :eyes $brown :hair] :info
 
 info say
@@ -695,17 +792,17 @@ something1
 
 {
     10 :x
-    
+
     // x 10 is
     // 200
     // 300
     // if
-    
+
     x 10 is {
         200
         2 break
     } { 300 } if call
-    
+
     500
 } :something2
 something2
@@ -796,6 +893,9 @@ say
 @say name
 
 x @is 1
+x @plus 3
+
+(x @is 4) @and (y @is 3)
 
 
 $Drew :name
