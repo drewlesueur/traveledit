@@ -7,15 +7,30 @@ thumbscript3.tokenize = function(code) {
     var currentToken = ""
     var tokens = []
     string2OpenCount = 0
+    var oneLinerInStack = []
     code += "\n" // to simplify last token
     for (var i=0; i < code.length; i++) {
         var chr = code.charAt(i)
+        
         if (state == "out") {
             if ("()[]{}".indexOf(chr) != -1) {
                 tokens.push(chr)
-            } else if (" \n\t".indexOf(chr) != -1) {
+            } else if ("|".indexOf(chr) != -1) {
+                oneLinerInStack.push("}")
+                tokens.push("{")
+            } else if ("*".indexOf(chr) != -1) {
+                oneLinerInStack.push("]")
+                tokens.push("[")
+            } else if (">".indexOf(chr) != -1) {
+                oneLinerInStack.push(")")
+                tokens.push("(")
+            } else if (" \t".indexOf(chr) != -1) {
+            } else if ("\n".indexOf(chr) != -1) {
+                while (oneLinerInStack.length) {
+                    tokens.push(oneLinerInStack.pop())
+                }
             } else if ("/".indexOf(chr) != -1) {
-                state = "slash"
+                state = "slash" // for comments
             } else if ('"'.indexOf(chr) != -1) {
                 state = "string"
             } else if ("«".indexOf(chr) != -1) {
@@ -31,10 +46,17 @@ thumbscript3.tokenize = function(code) {
                 currentToken = ""
                 tokens.push(chr)
                 state = "out"
-            } else if (" \n\t".indexOf(chr) != -1) {
+            } else if (" \t".indexOf(chr) != -1) {
                 tokens.push(currentToken)
                 currentToken = ""
                 state = "out"
+            } else if ("\n".indexOf(chr) != -1) {
+                tokens.push(currentToken)
+                currentToken = ""
+                state = "out"
+                while (oneLinerInStack.length) {
+                    tokens.push(oneLinerInStack.pop())
+                }
             } else {
                 currentToken += chr
             }
@@ -88,7 +110,7 @@ thumbscript3.tokenize = function(code) {
     // showLog()
     tokens = thumbscript3.squishFuncs(tokens)
     tokens = thumbscript3.desugarAtSign(tokens)
-    // log2(tokens)
+    log2(tokens)
     return tokens
 }
 thumbscript3.desugarAtSign = function(tokens) {
@@ -120,7 +142,16 @@ thumbscript3.desugarAtSign = function(tokens) {
                 j++
             }
             if (j == 0) {
-                newTokens.push(token)
+                // special case for setc
+                if (token == ":") {
+                    newTokens.push("•=")
+                } else if (token == "..") {
+                    newTokens.push("•cc")
+                } else {
+                    newTokens.push(token)
+                }
+                
+                
                 consume()
             } else {
                 stack.push(state)
@@ -239,48 +270,6 @@ thumbscript3.mathFunc = function(f) {
 }
 // built in funcs have to have func call last?
 thumbscript3.builtIns = {
-    // "(": function(world) {
-    //     var oldWorld = world
-    //     world = {
-    //         parent: oldWorld,
-    //         state: {},
-    //         stack: [],
-    //         tokens: oldWorld.tokens,
-    //         i: oldWorld.i,
-    //         dynParent: oldWorld
-    //     }
-    //     return world
-    // },
-    // ")": function(world) {
-    //     newWorld = world.dynParent
-    //     newWorld.stack = newWorld.stack.concat(world.stack)
-    //     return newWorld
-    // },
-
-    // we now squish these so we don't need them
-    // "[": function(world) {
-    //     var oldWorld = world
-    //     world = {
-    //         parent: oldWorld,
-    //         state: {},
-    //         stack: [],
-    //         tokens: oldWorld.tokens,
-    //         i: oldWorld.i+1,
-    //         dynParent: oldWorld
-    //     }
-    //     return world
-    // },
-    // "]": function(world) {
-    //     newWorld = world.dynParent
-    //     // also push the state if needed
-    //     if (Object.keys(world.state).length) {
-    //         newWorld.stack.push(world.state)
-    //     } else {
-    //         newWorld.stack.push(world.stack)
-    //     }
-    //     newWorld.i = world.i + 1
-    //     return newWorld
-    // },
     set: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
@@ -305,15 +294,31 @@ thumbscript3.builtIns = {
         obj[a[a.length-1]] = b
         return world
     },
+    "=": function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        if (typeof a == "string") {
+            var w = null
+            for (w = world; w != null; w = w.parent) {
+                if (a in w.state) {
+                    break
+                }
+            }
+            if (w == null) {
+                w = world
+            }
+            w.state[a] = b
+            return world
+        }
+        world.stack.push(a.slice(0,-1))
+        thumbscript3.builtIns.ats(world)
+        obj = world.stack.pop()
+        obj[a[a.length-1]] = b
+        return world
+    },
     say: function(world) {
         var a = world.stack.pop()
         log2(a)
-        return world
-    },
-    concat: function(world) {
-        var b = world.stack.pop()
-        var a = world.stack.pop()
-        world.stack.push(a + b)
         return world
     },
     "cc": function(world) {
@@ -328,37 +333,37 @@ thumbscript3.builtIns = {
         world.stack.push((a-0) + (b-0))
         return world
     },
-    "+": function(world) {
+    "plus": function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push((a-0) + (b-0))
         return world
     },
-    "-": function(world) {
+    "minus": function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push((a-0) - (b-0))
         return world
     },
-    "*": function(world) {
+    "times": function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push((a-0) * (b-0))
         return world
     },
-    "/": function(world) {
+    "divb": function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push((a-0) / (b-0))
         return world
     },
-    "<": function(world) {
+    "less_than": function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push((a-0) < (b-0))
         return world
     },
-    ">": function(world) {
+    "greater_than": function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
         world.stack.push((a-0) > (b-0))
@@ -398,6 +403,7 @@ thumbscript3.builtIns = {
     },
     "return": function(world) {
         world = world.dynParent
+        // todo: see onend
         return world
     },
     "break": function(world) {
@@ -405,6 +411,7 @@ thumbscript3.builtIns = {
         a = a-0
         for (var i=0; i<a; i++) {
             world = world.dynParent
+            // todo: see onend
         }
         return world
     },
@@ -582,22 +589,18 @@ thumbscript3.next = function(world) {
 
 // todo closure leakage issue?
 var code = `
+[foo bar baz]: 2012
+
+// 2012 •setc * foo bar baz
 // @a @@b c @d e f g h
 // c e d b a f g h
-
 @name1: "Drew"
 @say @@cc "Hello " name1
 @say ("hello " @cc name1)
 
-// •number: •ifc [
-//    | x •is 1
-//    | $one
-//    | x •is 2
-//    | $two
-//    | x •is 3
-//    | $three 
-// ]
 
+•say ••cc "Hello " "World!☎️" •cc "🕹️"
+•say > ••cc "Hello " "World!☎️" •cc "🕹️"
 
 
 {
@@ -614,8 +617,8 @@ var code = `
 } :loop
 
 0 :count
-0 :i {i 4 <}{i 1 add :i} {
-    count i add :count
+0 :i {i 4 less_than}{i 1 plus :i} {
+    count i plus :count
 } loop
 
 "the count is " count cc say
@@ -659,6 +662,24 @@ someConds ifc :color
 "the new color is " color cc say
 
 •x: 3
+
+•mylist: * 1 2 3 4 5
+"that's the list 💽" say
+mylist say
+// •say ; $yo •cc " " •cc $bro
+•number: •ifc [
+   | x •is 1
+   | $one
+   | x •is 2
+   | $two
+   | x •is 3
+   | $three 
+]
+•say > "The number is: " •cc number •cc "🔥"
+
+// •mylist: * 1 2 3 4 5
+// •say + $yo •cc " " •cc $bro
+
 •number: •ifc [
    {x •is 1}
    {$one}
@@ -668,13 +689,11 @@ someConds ifc :color
    {$three}
    {$other}
 ]
-•say ••cc
-   $ The number is 
-   number
+•say ••cc "The number is: " number "!"
 
 
 
-@say "hello world postfix swirl"
+•say "hello world postfix swirl"
 
 
 $Drew :name
@@ -695,9 +714,9 @@ info $eyes at say
 
 info $hair at say
 
-info $ha $ir concat at say
+info $ha $ir cc at say
 
-$ha $ir concat :key
+$ha $ir cc :key
 info key at
 say
 
@@ -721,7 +740,17 @@ person say
 
 1 :x
 "The selected b is " [person $work $secondary $b] ats cc say
-2012 [person $work $secondary $b] setc
+
+
+"how on earth??? 🌍" say
+2011 [person $work $secondary $b] setc
+•say > "the selected b is" •cc ([person $work $secondary $b] ats)
+[person $work $secondary $b] •= 2012
+•say > "the selected b is" •cc ([person $work $secondary $b] ats)
+[person $work $secondary $b]: 2013
+•say > "the selected b is" •cc ([person $work $secondary $b] ats)
+// $person •= 
+
 "The selected b is " [person $work $secondary $b] ats cc say
 "The selected b is " [person $work x 1 is $main $secondary if $b] ats cc say
 
@@ -731,7 +760,7 @@ person say
 
 "hello world" :message
 
-"The message is " message concat say
+"The message is " message cc say
 
 
 
@@ -744,22 +773,22 @@ name2 say
 
 
 
-$Why $hello concat name concat
+$Why $hello cc name cc
 say
 
-3 1 add say
-7 {1 add} call
+3 1 plus say
+7 {1 plus} call
 say
 
 9 :x 10 :y
 
-x y add say
+x y plus say
 
-{10 add} :add10
+{10 plus} :add10
 27 add10 say
 
 
-{ :x { 1 x add :x x } } :increr2
+{ :x { 1 x plus :x x } } :increr2
 20 increr2 :incr2
 
 incr2 say
@@ -767,7 +796,14 @@ incr2 say
 incr2 say
 incr2 say
 
-{ $! concat } :exclaim
+•increr3: {
+    :x
+    {
+        •x: # 1 •plus x
+    }
+}
+
+{ $! cc } :exclaim
 
 
 {say} :sayo
@@ -775,9 +811,9 @@ foobar sayo
 
 $hi exclaim
 $bye exclaim
-concat say
+cc say
 
-{ concat } :b
+{ cc } :b
 $foo $bow b say
 
 
