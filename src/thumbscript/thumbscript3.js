@@ -1,6 +1,7 @@
 
 var thumbscript3 = {}
 
+// thumbscript2 parser was cool with optional significant indenting
 // todo strings
 thumbscript3.tokenize = function(code) {
     var currentIndent = 0
@@ -18,7 +19,7 @@ thumbscript3.tokenize = function(code) {
     code = code.replace(/\}/g, " } ")
     code = code.replace(/\[/g, " [ ")
     code = code.replace(/\]/g, " ] ")
-    code = code.replace(/\./g, " .")
+    // code = code.replace(/\./g, " .")
     // code = code.replace(/:/g, " : ")
     // code = code.replace(/\|/g, " | ")
     // code = code.replace(/\*/g, " * ")
@@ -223,7 +224,6 @@ thumbscript3.builtIns = {
     },
     say: function(world) {
         var a = world.stack.pop()
-        // alert("hi")
         log2(a)
         return world
     },
@@ -394,14 +394,44 @@ thumbscript3.next = function(world) {
 var code = `
 $Drew :name
 name say
-
+$ someone
 [999 2 3 4] :mylist
 
 mylist.0 say
 [$blue :eyes $brown :hair] :info
-info.eyes say
+
+info say
+info .eyes say
+
+info $eyes at say
 
 info $hair at say
+
+info $ha $ir concat at say
+
+$ha $ir concat :key
+info key at
+say
+
+[
+    $Drew :name
+    38 :age
+    [
+        $programming $volleybal $family
+    ] :hobbies
+    [
+        [
+            1 :a
+        ] :main
+        [
+            2002 :b
+        ] :secondary
+    ] :work
+] :person
+
+person say
+
+person.work.secondary.b say
 
 
 
@@ -453,6 +483,84 @@ concat say
 $foo $bow b say
 
 `
+
+
+
+
+
 /*
+
+200 []
+9009 (person.work.())
+90009 person.work.secondary ::b
+
+9009 person .work . (x 1 eq $main $secondary) at ::b
+9009 :person.work.secondary.b
+[person $work x 1 eq $main $secondary] @
+
+9009 [person $work x 1 eq {$main} {$secondary} $b] setv
+
+{ {x 1 is} {x 2 is} and }
+{ true say }
+{ false say } if
+
+[
+    {x 1 is}
+    { `x is 1` say}
+    {x 2 is}
+    {"x is 2" say}
+] switch
+
+[person $work $secondary $b] get say
+
+
+
+90 person.work.secondary.b
+
+x is neg 3
+
+x is (3 neg)
+
+x is 1 and y is 2
+
+x is (7 3 plus)
+
+x is (3 1 add)
+
+foo: 3
+
+
+name: $Drew
+say name
+mylist: [999 2 3 4]
+
+say mylist.0
+info: [eyes: $blue hair: $brown]
+info: [eyes: 1 2 add hair: $brown]
+say info
+
+
+increr2: { :x { x: 1 + x x } }
+
+$Drew ;name
+name say
+$ someone
+[999 2 3 4] ;mylist
+
+mylist 0 . say
+[$blue ;eyes $brown ;hair] ;info
+
+info say
+info $eyes . say
+
+info $hair at say
+
+info $ha $ir concat at say
+
+$ha $ir concat :key
+info key at
+
+x (x plus 1)
+say
 */
 thumbscript3.eval(code)
