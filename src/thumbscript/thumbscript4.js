@@ -475,9 +475,9 @@ var code = `
 
 
 {
-    :body :next :check
+    :body :next :checky
     {
-        check {
+        checky {
             body
             next
         } {
@@ -502,7 +502,7 @@ var code = `
     {
         block
         "hahah" say
-        ii max check { 2 break } ifthen
+        ii max match { 2 break } ifthen
         ii 1 add ->ii
         repeat
     } call
@@ -537,7 +537,7 @@ var code = `
 
 0 ->i 1000 {
     $looping say
-    // i 4 match { 2 break } ifthen
+    i 4 match { 2 break } ifthen
     i 1 more ->i
 } loopmax
 
