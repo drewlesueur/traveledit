@@ -93,9 +93,64 @@ thumbscript3.tokenize = function(code) {
     return tokens
 }
 thumbscript3.desugarAtSign = function(tokens) {
-    return tokens
+    var newTokens = []
+    var stack = []
+    var state = null
+    var i = 0
+
+    var consume = function() {
+        while (state) {
+            // log2("before: " + token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
+            state.n--
+            if (state.n == 0) {
+                newTokens.push(state.token)
+                state = stack.pop()
+            } else {
+                // log2("after: " + token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
+                break
+            }
+        }
+    }
+    while (i < tokens.length) {
+        var token = tokens[i]
+
+        if (typeof token == "string") {
+            var j = 0
+            // while (j < token.length && token.charAt(j) == "@") {
+            while (j < token.length && "@•".indexOf(token.charAt(j)) != -1) {
+                j++
+            }
+            if (j == 0) {
+                // special case for setc
+                if (token == ":") {
+                    newTokens.push("•=")
+                } else if (token == "..") {
+                    newTokens.push("•cc")
+                } else {
+                    newTokens.push(token)
+                }
+                
+                
+                consume()
+            } else {
+                stack.push(state)
+                state = {
+                    n: j,
+                    token: token.slice(j),
+                }
+                // log2(token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
+            }
+        } else {
+            newTokens.push(token)
+            consume()
+        }
+        i++
+    }
+    consume()
+    return newTokens
 }
 
+// ()	[]	{}	<>
 thumbscript3.squishFuncs = function(tokens) {
     // function definitions can be turned into an array
     var newTokens = []
@@ -116,14 +171,14 @@ thumbscript3.squishFuncs = function(tokens) {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
-                thumbscript_type: "func",
+                thumbscript_type: "curly",
                 value: thumbscript3.desugarAtSign(r),
             })
         } else if (token == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
-                thumbscript_type: "list",
+                thumbscript_type: "square",
                 value: thumbscript3.desugarAtSign(r),
             })
         } else if (token == ")") {
@@ -243,6 +298,7 @@ thumbscript3.builtIns = {
     lte: thumbscript3.mathFunc2((a, b) => a <= b),
     gte: thumbscript3.mathFunc2((a, b) => a >= b),
     match: thumbscript3.mathFunc2((a, b) => a == b),
+    is: thumbscript3.mathFunc2((a, b) => a == b),
     prop: thumbscript3.genFunc2((a, b) => a[b]),
     props: thumbscript3.genFunc1((a) => {
         var v = a[0]
@@ -252,12 +308,19 @@ thumbscript3.builtIns = {
     not: thumbscript3.genFunc1((a) => !!!a),
     index: thumbscript3.genFunc2((a, b) => a[b]),
     "check": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
+    "if": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
     length: thumbscript3.genFunc1((a) => a.length),
     push: thumbscript3.genFunc2((a, b) => a.push(b)),
     pop: thumbscript3.genFunc1((a) => a.pop()),
     unshift: thumbscript3.genFunc2((a, b) => a.unshift(b)),
     shift: thumbscript3.genFunc1((a) => a.shift()),
     copylist: thumbscript3.genFunc1((a) => [...a]),
+    dyn: function(world) {
+        var a = world.stack.pop()
+        a.dynamic = true
+        world.stack.push(a)
+        return world
+    },
     get: function(world) {
         var a = world.stack.pop()
         var w = null
@@ -314,7 +377,7 @@ thumbscript3.builtIns = {
             runId: ++thumbscript3.runId
         }
 
-        if (f.paren) {
+        if (f.dynamic) {
             world.parent = oldWorld
         }
         return world
@@ -402,6 +465,11 @@ thumbscript3.next = function(world) {
                 newWorld = thumbscript3.builtIns.set(world)
                 break
             }
+            if (token.endsWith("<-")) {
+                world.stack.push(token.slice(0, -2))
+                newWorld = thumbscript3.builtIns.set(world)
+                break
+            }
             if (token.startsWith(".")) {
                 world.stack.push(token.slice(1))
                 newWorld = thumbscript3.builtIns.prop(world)
@@ -436,13 +504,13 @@ thumbscript3.next = function(world) {
             break
         } else if (typeof token == "object") {
             // not calling right away
-            if (token.thumbscript_type == "func") {
+            if (token.thumbscript_type == "curly") {
                 world.stack.push({
                     thumbscript_type: "closure",
                     tokens: token.value,
                     world: world,
                 })
-            } else if (token.thumbscript_type == "list") {
+            } else if (token.thumbscript_type == "square") {
                 newWorld = {
                     parent: world,
                     state: {},
@@ -463,7 +531,7 @@ thumbscript3.next = function(world) {
                     thumbscript_type: "closure",
                     tokens: token.value,
                     world: world,
-                    "paren": true,
+                    "dynamic": true,
                 })
                 // newWorld = {
                 //     parent: world,
@@ -476,6 +544,13 @@ thumbscript3.next = function(world) {
                 //         world.dynParent.stack = world.dynParent.stack.concat(world.stack)
                 //     }
                 // }
+            // } else if (token.thumbscript_type == "angle") {
+            //     world.stack.push({
+            //         thumbscript_type: "closure",
+            //         tokens: token.value,
+            //         world: world,
+            //         "dynamic": true,
+            //     })
             }
         }
         break
@@ -494,10 +569,20 @@ thumbscript3.next = function(world) {
 // todo closure leakage issue?
 var code = `
 main nameworld
+
+•say "trying again"
+1 •plus 100 say
+
+{1 •lt 200} call say
+{1 •lt -99} call say
+{1 200 lt} call say
+{1 -99 lt} call say
+
 {
     0 ->break // for scope
     { funnywrapper nameworld
         // { abstractbreak nameworld 1 breakn } ->break
+        // { abstractbreak nameworld 3 breakn } dyn ->break
         ( abstractbreak nameworld 3 breakn ) ->break
         "what is gong on?" say
 
@@ -518,10 +603,15 @@ main nameworld
 // interestingTest
 
 
-( incrfunc nameworld ->name
+{ incrfunc nameworld ->name
     "the value is " name get cc say
     name get 1 add name set
-) ->incr1
+} dyn ->incr1
+
+// ( incrfunc nameworld ->name
+//     "the value is " name get cc say
+//     name get 1 add name set
+// ) ->incr1
 
 {
     testwrapper nameworld
@@ -537,6 +627,7 @@ main nameworld
 "foobar " say
 
 // I don't like this loop
+// look at other more simple ones.
 {
     :body :next :checky
     {
@@ -551,18 +642,19 @@ main nameworld
 } :loopy
 
 0 :count
-0 :i {i 100 lt}{i 1 plus :i} {
+0 :i { i •lt 100 }{ i •plus 1 :i } {
     count i plus :count
 } loopy
-
 "the count is 🧆🧆🧆" count cc say
 
-( { 3 breakn } checkthen ) ->breakcheck
-( not { 3 breakn } checkthen ) ->guard
-{
-    ->block
-    ->theMax
-    0 ->ii
+
+
+{ { 3 breakn } checkthen } dyn ->breakcheck
+{ not { 3 breakn } checkthen } dyn ->guard
+// ( { 3 breakn } checkthen ) ->breakcheck
+// ( not { 3 breakn } checkthen ) ->guard
+
+{ ->block ->theMax 0 ->ii
     {
         block
         // ii theMax match { 2 breakn } checkthen
@@ -572,6 +664,16 @@ main nameworld
         repeat
     } call
 } ->loopmax
+
+// { ->block ->theMax 0 ->ii
+//     {
+//         block
+//         ii theMax lt guard
+//         ii 1 add ->ii
+//         repeat
+//     } call
+// } ->loopmax
+
 
 { ->block ->list 0->i list length ->theMax
   {
@@ -589,6 +691,12 @@ main nameworld
    } call
 } ->loopn
 
+
+0 ->i 1000 {
+    $looping say
+    i 4 match { 2 breakn } checkthen
+    i 1 more ->i
+} loopmax
 
 0 ->i 1000 {
     $looping say
@@ -741,12 +849,12 @@ incr2 say
 incr2 say
 incr2 say
 
-•increr3: {
-    :x
-    {
-        •x: # 1 •plus x
-    }
-}
+// •increr3: {
+//     :x
+//     {
+//         •x: # 1 •plus x
+//     }
+// }
 
 { $! cc } :exclaim
 
@@ -812,11 +920,7 @@ thumbscript3.eval(code)
 
 /*
 
-n < 100
 
-
-n 100 isasc
-n 100 isdsc
 
 
 
