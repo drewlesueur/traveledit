@@ -270,7 +270,7 @@ thumbscript3.builtIns = {
         return v
     }),
     index: thumbscript3.genFunc2((a, b) => a[b]),
-    "if": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
+    "check": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
     "return": function(world) {
         world = world.dynParent
         // todo: see onend
@@ -467,7 +467,7 @@ thumbscript3.next = function(world) {
 // `; var code2 = `
 // todo closure leakage issue?
 var code = `
-{ {} if call } ->ifthen
+{ {} check call } ->ifthen
 10 { "yay truthy!" say } ifthen
 1 0 match { "should not het here" say } ifthen
 
@@ -482,7 +482,7 @@ var code = `
             next
         } {
             2 break
-        } if call
+        } check call
         repeat
     } call
 } :loopy
@@ -548,7 +548,7 @@ var code = `
 // return
 
 // 0 ->count 0 ->i {
-//     // i 200 match { 2 break } { } if call
+//     // i 200 match { 2 break } { } check call
 //     i 200 match { 2 break } ifthen
 //     i 1 add ->i
 //     count i add ->count
@@ -562,14 +562,14 @@ var code = `
     {
         theChain length 0 match {
             break 2
-        } { } if call
+        } { } check call
         theChain length 1 match {
             theChain shift call
             2 break
-        } {} if call
+        } {} check call
         theChain shift :cond
         theChain shift :success
-        cond {success 2 break} {} if call
+        cond {success 2 break} {} check call
         repeat
     } call
     // "all done with chain" say
@@ -641,7 +641,7 @@ person say
 "how on earth??? 🌍" say
 2011 [person $work $secondary $b] setc
 "The selected b is " [person $work $secondary $b] props cc say
-"The selected b is " [person $work x 1 match $main $secondary if $b] props cc say
+"The selected b is " [person $work x 1 match $main $secondary check $b] props cc say
 
 
 "hello world" :message
@@ -717,12 +717,12 @@ something1
     // x 10 match
     // 200
     // 300
-    // if
+    // check
 
     x 10 match {
         200
         2 break
-    } { 300 } if call
+    } { 300 } check call
 
     500
 } :something2
