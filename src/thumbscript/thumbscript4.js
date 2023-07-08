@@ -10,7 +10,7 @@ thumbscript3.tokenize = function(code) {
     code += "\n" // to simplify last token
     for (var i=0; i < code.length; i++) {
         var chr = code.charAt(i)
-        
+
         if (state == "out") {
             if ("()[]{}".indexOf(chr) != -1) {
                 tokens.push(chr)
@@ -157,7 +157,6 @@ thumbscript3.eval = function(code) {
     // f99.cursorLineIndex = 0
     // f99.lines = debugOutput
     // addFileToList(f99)
-    // 
     // thumbscript3.runAsync(world)
 }
 
@@ -167,7 +166,8 @@ thumbscript3.run = function(world) {
         if (!world) {
             break
         }
-        // log2("// " +world.tokens.slice(world.i - 1).join(" "))
+        // log2("//" + world.tokens.slice(world.i, world.i+1))
+        // log2("+ in world " + world.name + "(" +world.runId+")")
     }
 }
 
@@ -177,8 +177,9 @@ thumbscript3.runAsync = function(world) {
         return
     }
     // log2(Object.keys(world))
-    log2("//" + world.tokens.slice(world.i - 1).join(" "))
-    setTimeout(function() { thumbscript3.runAsync(world) }, 500)
+    log2("//" + world.tokens.slice(world.i, world.i+1))
+    log2("+ in world " + world.name + "(" +world.runId+")")
+    setTimeout(function() { thumbscript3.runAsync(world) }, 250)
     f99.lines = debugOutput
     render()
 }
@@ -224,13 +225,6 @@ thumbscript3.genFunc3 = function(f) {
 }
 // built in funcs have to have func call last?
 thumbscript3.builtIns = {
-    getd: function() {
-        var w = null
-        for (w = world; w != null; w = w.dynParent) {
-            if (a in w.state) { break }
-        }
-        if (w == null) { world.stack.push(null) }
-    },
     set: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
@@ -272,38 +266,43 @@ thumbscript3.builtIns = {
     index: thumbscript3.genFunc2((a, b) => a[b]),
     "check": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
     "return": function(world) {
-        world = world.dynParent
+        // world = world.dynParent
+        world = world.parent
         // todo: see onend
         return world
     },
-    "break": function(world) {
-        // var a = world.stack.pop()
-        // a = a-0
-        // for (var i=0; i<a; i++) {
-        //     world = world.dynParent
-        //     // todo: see onend
-        // }
-        // return world
-        
-        // I kinda don't get it.
+    "breakn": function(world) {
         var a = world.stack.pop()
         a = a-0
         for (var i=0; i<a; i++) {
+            // i originally had dynParent but it wasn't right
+            // like when I wrapped if
             world = world.parent
             // todo: see onend
         }
         return world
     },
-    "breakid": function(world) {
+    nameworld: function(world) {
         var a = world.stack.pop()
-        while (world) {
-            if (world.runId == a) {
-                break
-            }
-            world = world.dynParent
-        }
+        world.name = a
         return world
     },
+    // "break": function(world) {
+    //     for (var i=0; i<2; i++) {
+    //         world = world.parent
+    //     }
+    //     return world
+    // },
+    // "breakid": function(world) {
+    //     var a = world.stack.pop()
+    //     while (world) {
+    //         if (world.runId == a) {
+    //             break
+    //         }
+    //         world = world.dynParent
+    //     }
+    //     return world
+    // },
     "length": function(world) {
         var a = world.stack.pop()
         world.stack.push(a.length)
@@ -336,6 +335,10 @@ thumbscript3.builtIns = {
             dynParent: oldWorld,
             runId: ++thumbscript3.runId
         }
+
+        if (f.paren) {
+            f.parent = oldWorld
+        }
         return world
     },
     runid: function(world) {
@@ -344,6 +347,14 @@ thumbscript3.builtIns = {
     },
     repeat: function(world) {
         // tail call!
+        if (!world.repeatCount) {
+            world.repeatCount = 0
+        }
+        world.repeatCount++
+        if (world.repeatCount === 1_000_000) {
+            world = null
+            alert("runaway loop")
+        }
         world.i = -1 // because same world and will increment
         return world
     },
@@ -441,17 +452,23 @@ thumbscript3.next = function(world) {
                     }
                 }
             } else if (token.thumbscript_type == "paren") {
-                newWorld = {
-                    parent: world,
-                    state: {},
-                    stack: [],
+                world.stack.push({
+                    thumbscript_type: "closure",
                     tokens: token.value,
-                    i: 0,
-                    dynParent: world,
-                    onEnd: function(world) {
-                        world.dynParent.stack = world.dynParent.stack.concat(world.stack)
-                    }
-                }
+                    world: world,
+                    "paren": true,
+                })
+                // newWorld = {
+                //     parent: world,
+                //     state: {},
+                //     stack: [],
+                //     tokens: token.value,
+                //     i: 0,
+                //     dynParent: world,
+                //     onEnd: function(world) {
+                //         world.dynParent.stack = world.dynParent.stack.concat(world.stack)
+                //     }
+                // }
             }
         }
         break
@@ -464,12 +481,48 @@ thumbscript3.next = function(world) {
     return world
 }
 
+// idea macros?
+
 // `; var code2 = `
 // todo closure leakage issue?
 var code = `
-{ {} check call } ->ifthen
-10 { "yay truthy!" say } ifthen
-1 0 match { "should not het here" say } ifthen
+main nameworld
+
+{
+    0 ->break // for scope
+    { funnywrapper nameworld
+        // { abstractbreak nameworld 1 breakn } ->break
+        ( abstractbreak nameworld 2 breakn ) ->break
+        "what is gong on?" say
+
+        // 1 breakn
+        return // same as breakn
+
+        // lol we get here if we don't use parens version
+        "ok for real" say
+    } call
+    {
+        testwrapper nameworld
+        "hello everyone" say
+        1 1 match { callingbreak nameworld break } { } check call
+        repeat
+    } call
+    oook say
+} ->interestingTest
+
+interestingTest
+
+
+// { ->name
+//     name get 1 add name set
+// } ->incr
+
+99 ->foo
+
+`; var code2 = `
+{ {} check call } ->checkthen
+10 { "yay truthy!" say } checkthen
+1 0 match { "should not het here" say } checkthen
 
 "foobar " say
 
@@ -481,14 +534,14 @@ var code = `
             body
             next
         } {
-            2 break
+            break
         } check call
         repeat
     } call
 } :loopy
 
 0 :count
-0 :i {i 4 firstless}{i 1 plus :i} {
+0 :i {i 100 firstless}{i 1 plus :i} {
     count i plus :count
 } loopy
 
@@ -502,7 +555,7 @@ var code = `
     {
         block
         "hahah" say
-        ii max match { 2 break } ifthen
+        ii max match { break } checkthen
         ii 1 add ->ii
         repeat
     } call
@@ -510,9 +563,9 @@ var code = `
 
 // todo rename break to breakn
 // make break { 2 break }
-{ ->block ->list 0->i list length ->max 
+{ ->block ->list 0->i list length ->max
   {
-    i max match { 2 break } ifthen
+    i max match { break } checkthen
     1 i add ->i
     i list i prop block
     repeat
@@ -520,9 +573,6 @@ var code = `
 } ->range
 
 
-{ ->name
-    name getd 1 add name setd
-} ->incr
 
 
 {
@@ -537,7 +587,7 @@ var code = `
 
 0 ->i 1000 {
     $looping say
-    i 4 match { 2 break } ifthen
+    i 4 match { 2 breakn } checkthen
     i 1 more ->i
 } loopmax
 
@@ -548,8 +598,8 @@ var code = `
 // return
 
 // 0 ->count 0 ->i {
-//     // i 200 match { 2 break } { } check call
-//     i 200 match { 2 break } ifthen
+//     // i 200 match { 2 breakn } { } check call
+//     i 200 match { 2 breakn } checkthen
 //     i 1 add ->i
 //     count i add ->count
 //     repeat
@@ -561,15 +611,15 @@ var code = `
     copylist :theChain
     {
         theChain length 0 match {
-            break 2
+            breakn 2
         } { } check call
         theChain length 1 match {
             theChain shift call
-            2 break
+            2 breakn
         } {} check call
         theChain shift :cond
         theChain shift :success
-        cond {success 2 break} {} check call
+        cond {success 2 breakn} {} check call
         repeat
     } call
     // "all done with chain" say
@@ -721,7 +771,7 @@ something1
 
     x 10 match {
         200
-        2 break
+        2 breakn
     } { 300 } check call
 
     500
