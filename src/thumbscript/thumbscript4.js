@@ -269,8 +269,10 @@ thumbscript3.builtIns = {
     less: thumbscript3.mathFunc2((a, b) => a - b),
     times: thumbscript3.mathFunc2((a, b) => a * b),
     div: thumbscript3.mathFunc2((a, b) => a * b),
-    firstless: thumbscript3.mathFunc2((a, b) => a < b),
-    firstgreater: thumbscript3.mathFunc2((a, b) => a > b),
+    isasc: thumbscript3.mathFunc2((a, b) => a < b),
+    isdesc: thumbscript3.mathFunc2((a, b) => a > b),
+    isasceq: thumbscript3.mathFunc2((a, b) => a <= b),
+    isdesceq: thumbscript3.mathFunc2((a, b) => a >= b),
     match: thumbscript3.mathFunc2((a, b) => a == b),
     prop: thumbscript3.genFunc2((a, b) => a[b]),
     props: thumbscript3.genFunc1((a) => {
@@ -527,9 +529,9 @@ main nameworld
 
 
 ( incrfunc nameworld ->name
-    "the name is " name get cc say
+    "the value is " name get cc say
     name get 1 add name set
-) ->incr
+) ->incr1
 
 {
     testwrapper nameworld
@@ -538,14 +540,13 @@ main nameworld
     foo say
 } call
 
-`; var code2 = `
 { {} check call } ->checkthen
 10 { "yay truthy!" say } checkthen
 1 0 match { "should not het here" say } checkthen
 
 "foobar " say
 
-
+// I don't like this loop
 {
     :body :next :checky
     {
@@ -553,14 +554,14 @@ main nameworld
             body
             next
         } {
-            break
+            2 breakn
         } check call
         repeat
     } call
 } :loopy
 
 0 :count
-0 :i {i 100 firstless}{i 1 plus :i} {
+0 :i {i 100 isasc}{i 1 plus :i} {
     count i plus :count
 } loopy
 
@@ -574,25 +575,20 @@ main nameworld
     {
         block
         "hahah" say
-        ii max match { break } checkthen
+        ii max match { 2 breakn } checkthen
         ii 1 add ->ii
         repeat
     } call
 } ->loopmax
 
-// todo rename break to breakn
-// make break { 2 break }
 { ->block ->list 0->i list length ->max
   {
-    i max match { break } checkthen
+    i max match { 2 breakn } checkthen
     1 i add ->i
     i list i prop block
     repeat
   } call
 } ->range
-
-
-
 
 {
    ->block
