@@ -157,6 +157,7 @@ thumbscript3.eval = function(code) {
     // f99.cursorLineIndex = 0
     // f99.lines = debugOutput
     // addFileToList(f99)
+    // clearTimeout(window.t99)
     // thumbscript3.runAsync(world)
 }
 
@@ -167,7 +168,7 @@ thumbscript3.run = function(world) {
             break
         }
         // log2("//" + world.tokens.slice(world.i, world.i+1))
-        // log2("+ in world " + world.name + "(" +world.runId+")")
+        // log2("+ in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     }
 }
 
@@ -178,10 +179,11 @@ thumbscript3.runAsync = function(world) {
     }
     // log2(Object.keys(world))
     log2("//" + world.tokens.slice(world.i, world.i+1))
-    log2("+ in world " + world.name + "(" +world.runId+")")
-    setTimeout(function() { thumbscript3.runAsync(world) }, 250)
+    log2("+ in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
+    window.t99 = setTimeout(function() { thumbscript3.runAsync(world) }, 250)
     f99.lines = debugOutput
     render()
+    
 }
 
 thumbscript3.mathFunc2 = function(f) {
@@ -225,6 +227,19 @@ thumbscript3.genFunc3 = function(f) {
 }
 // built in funcs have to have func call last?
 thumbscript3.builtIns = {
+    get: function(world) {
+        var a = world.stack.pop()
+        var w = null
+        for (w = world; w != null; w = w.parent) {
+            if (a in w.state) { break }
+        }
+        if (w == null) {
+            world.stack.push(null)
+        } else {
+            world.stack.push(w.state[a])
+        }
+        return world
+    },
     set: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
@@ -337,7 +352,7 @@ thumbscript3.builtIns = {
         }
 
         if (f.paren) {
-            f.parent = oldWorld
+            world.parent = oldWorld
         }
         return world
     },
@@ -487,12 +502,11 @@ thumbscript3.next = function(world) {
 // todo closure leakage issue?
 var code = `
 main nameworld
-
 {
     0 ->break // for scope
     { funnywrapper nameworld
         // { abstractbreak nameworld 1 breakn } ->break
-        ( abstractbreak nameworld 2 breakn ) ->break
+        ( abstractbreak nameworld 3 breakn ) ->break
         "what is gong on?" say
 
         // 1 breakn
@@ -509,15 +523,20 @@ main nameworld
     } call
     oook say
 } ->interestingTest
+// interestingTest
 
-interestingTest
 
+( incrfunc nameworld ->name
+    "the name is " name get cc say
+    name get 1 add name set
+) ->incr
 
-// { ->name
-//     name get 1 add name set
-// } ->incr
-
-99 ->foo
+{
+    testwrapper nameworld
+    99 ->foo
+    $foo incr
+    foo say
+} call
 
 `; var code2 = `
 { {} check call } ->checkthen
@@ -785,3 +804,31 @@ say
 
 
 thumbscript3.eval(code)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+
+n < 100
+
+
+n 100 isasc
+n 100 isdsc
+
+
+
+
+
+*/
