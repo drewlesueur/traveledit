@@ -227,6 +227,37 @@ thumbscript3.genFunc3 = function(f) {
 }
 // built in funcs have to have func call last?
 thumbscript3.builtIns = {
+    say: thumbscript3.genFunc1NoReturn(a => { log2(a) }),
+    cc: thumbscript3.genFunc2((a, b) => a + b),
+    add: thumbscript3.mathFunc2((a, b) => a + b),
+    plus: thumbscript3.mathFunc2((a, b) => a + b),
+    more: thumbscript3.mathFunc2((a, b) => a + b),
+    sum: thumbscript3.mathFunc2((a, b) => a + b),
+    less: thumbscript3.mathFunc2((a, b) => a - b),
+    sub: thumbscript3.mathFunc2((a, b) => a - b),
+    times: thumbscript3.mathFunc2((a, b) => a * b),
+    mult: thumbscript3.mathFunc2((a, b) => a * b),
+    divide: thumbscript3.mathFunc2((a, b) => a * b),
+    lt: thumbscript3.mathFunc2((a, b) => a < b),
+    gt: thumbscript3.mathFunc2((a, b) => a > b),
+    lte: thumbscript3.mathFunc2((a, b) => a <= b),
+    gte: thumbscript3.mathFunc2((a, b) => a >= b),
+    match: thumbscript3.mathFunc2((a, b) => a == b),
+    prop: thumbscript3.genFunc2((a, b) => a[b]),
+    props: thumbscript3.genFunc1((a) => {
+        var v = a[0]
+        for (var i = 1; i < a.length; i++) { v = v[a[i]] }
+        return v
+    }),
+    not: thumbscript3.genFunc1((a) => !!!a),
+    index: thumbscript3.genFunc2((a, b) => a[b]),
+    "check": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
+    length: thumbscript3.genFunc1((a) => a.length),
+    push: thumbscript3.genFunc2((a, b) => a.push(b)),
+    pop: thumbscript3.genFunc1((a) => a.pop()),
+    unshift: thumbscript3.genFunc2((a, b) => a.unshift(b)),
+    shift: thumbscript3.genFunc1((a) => a.shift()),
+    copylist: thumbscript3.genFunc1((a) => [...a]),
     get: function(world) {
         var a = world.stack.pop()
         var w = null
@@ -261,83 +292,13 @@ thumbscript3.builtIns = {
         obj[a[a.length-1]] = b
         return world
     },
-    say: thumbscript3.genFunc1NoReturn(a => { log2(a) }),
-    cc: thumbscript3.genFunc2((a, b) => a + b),
-    add: thumbscript3.mathFunc2((a, b) => a + b),
-    plus: thumbscript3.mathFunc2((a, b) => a + b),
-    more: thumbscript3.mathFunc2((a, b) => a + b),
-    less: thumbscript3.mathFunc2((a, b) => a - b),
-    times: thumbscript3.mathFunc2((a, b) => a * b),
-    div: thumbscript3.mathFunc2((a, b) => a * b),
-    isasc: thumbscript3.mathFunc2((a, b) => a < b),
-    isdesc: thumbscript3.mathFunc2((a, b) => a > b),
-    isasceq: thumbscript3.mathFunc2((a, b) => a <= b),
-    isdesceq: thumbscript3.mathFunc2((a, b) => a >= b),
-    match: thumbscript3.mathFunc2((a, b) => a == b),
-    prop: thumbscript3.genFunc2((a, b) => a[b]),
-    props: thumbscript3.genFunc1((a) => {
-        var v = a[0]
-        for (var i = 1; i < a.length; i++) { v = v[a[i]] }
-        return v
-    }),
-    index: thumbscript3.genFunc2((a, b) => a[b]),
-    "check": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
-    "return": function(world) {
-        // world = world.dynParent
-        world = world.parent
-        // todo: see onend
-        return world
-    },
-    "breakn": function(world) {
-        var a = world.stack.pop()
-        a = a-0
-        for (var i=0; i<a; i++) {
-            // i originally had dynParent but it wasn't right
-            // like when I wrapped if
-            world = world.parent
-            // todo: see onend
-        }
+    runid: function(world) {
+        world.stack.push(world.runId)
         return world
     },
     nameworld: function(world) {
         var a = world.stack.pop()
         world.name = a
-        return world
-    },
-    // "break": function(world) {
-    //     for (var i=0; i<2; i++) {
-    //         world = world.parent
-    //     }
-    //     return world
-    // },
-    // "breakid": function(world) {
-    //     var a = world.stack.pop()
-    //     while (world) {
-    //         if (world.runId == a) {
-    //             break
-    //         }
-    //         world = world.dynParent
-    //     }
-    //     return world
-    // },
-    "length": function(world) {
-        var a = world.stack.pop()
-        world.stack.push(a.length)
-        return world
-    },
-    "pop": function(world) {
-        var a = world.stack.pop()
-        world.stack.push(a.pop())
-        return world
-    },
-    "shift": function(world) {
-        var a = world.stack.pop()
-        world.stack.push(a.shift())
-        return world
-    },
-    "copylist": function(world) {
-        var a = world.stack.pop()
-        world.stack.push([...a])
         return world
     },
     call: function(world) {
@@ -358,10 +319,39 @@ thumbscript3.builtIns = {
         }
         return world
     },
-    runid: function(world) {
-        world.stack.push(world.runId)
+    "return": function(world) {
+        // world = world.dynParent
+        world = world.parent
+        // todo: see onend
         return world
     },
+    "breakn": function(world) {
+        var a = world.stack.pop()
+        a = a-0
+        for (var i=0; i<a; i++) {
+            // i originally had dynParent but it wasn't right
+            // like when I wrapped if
+            world = world.parent
+            // todo: see onend
+        }
+        return world
+    },
+    // "break": function(world) {
+    //     for (var i=0; i<2; i++) {
+    //         world = world.parent
+    //     }
+    //     return world
+    // },
+    // "breakid": function(world) {
+    //     var a = world.stack.pop()
+    //     while (world) {
+    //         if (world.runId == a) {
+    //             break
+    //         }
+    //         world = world.dynParent
+    //     }
+    //     return world
+    // },
     repeat: function(world) {
         // tail call!
         if (!world.repeatCount) {
@@ -561,38 +551,38 @@ main nameworld
 } :loopy
 
 0 :count
-0 :i {i 100 isasc}{i 1 plus :i} {
+0 :i {i 100 lt}{i 1 plus :i} {
     count i plus :count
 } loopy
 
 "the count is 🧆🧆🧆" count cc say
 
-
+( { 3 breakn } checkthen ) ->breakcheck
+( not { 3 breakn } checkthen ) ->guard
 {
     ->block
-    ->max
+    ->theMax
     0 ->ii
     {
         block
-        "hahah" say
-        ii max match { 2 breakn } checkthen
+        // ii theMax match { 2 breakn } checkthen
+        // ii theMax match breakcheck
+        ii theMax lt guard
         ii 1 add ->ii
         repeat
     } call
 } ->loopmax
 
-{ ->block ->list 0->i list length ->max
+{ ->block ->list 0->i list length ->theMax
   {
-    i max match { 2 breakn } checkthen
+    i theMax match { 2 breakn } checkthen
     1 i add ->i
     i list i prop block
     repeat
   } call
 } ->range
 
-{
-   ->block
-   ->n
+{ ->block ->n 0 ->i
    {
        $i incr1
        repeat
@@ -609,6 +599,11 @@ main nameworld
 "i is " i cc say
 
 
+0 ->i 10 {
+    "looping " i cc say
+    i 100 match { 2 breakn } checkthen
+    i 1 more ->i
+} loopmax
 
 // return
 
