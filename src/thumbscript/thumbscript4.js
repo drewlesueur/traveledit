@@ -300,6 +300,7 @@ thumbscript3.builtIns = {
     match: thumbscript3.mathFunc2((a, b) => a == b),
     is: thumbscript3.mathFunc2((a, b) => a == b),
     prop: thumbscript3.genFunc2((a, b) => a[b]),
+    at: thumbscript3.genFunc2((a, b) => a[b]),
     props: thumbscript3.genFunc1((a) => {
         var v = a[0]
         for (var i = 1; i < a.length; i++) { v = v[a[i]] }
@@ -343,6 +344,17 @@ thumbscript3.builtIns = {
         }
         if (w == null) { w = world }
         w.state[a] = b
+        return world
+    },
+    setplus1: function(world) {
+        var a = world.stack.pop()
+        var w = null
+        for (w = world; w != null; w = w.parent) {
+            if (a in w.state) { break }
+        }
+        if (w == null) { w = world }
+        w.state[a] -= 0
+        w.state[a] += 1
         return world
     },
     setc: function(world) {
@@ -460,14 +472,19 @@ thumbscript3.next = function(world) {
                 newWorld = thumbscript3.builtIns.set(world)
                 break
             }
-            if (token.startsWith("->")) {
+            if (token.startsWith("-" + ">")) {
                 world.stack.push(token.slice(2))
                 newWorld = thumbscript3.builtIns.set(world)
                 break
             }
-            if (token.endsWith("<-")) {
-                world.stack.push(token.slice(0, -2))
+            if (token.startsWith("→")) {
+                world.stack.push(token.slice(1))
                 newWorld = thumbscript3.builtIns.set(world)
+                break
+            }
+            if (token.endsWith("++")) {
+                world.stack.push(token.slice(0, -2))
+                newWorld = thumbscript3.builtIns.setplus1(world)
                 break
             }
             if (token.startsWith(".")) {
@@ -578,12 +595,17 @@ main nameworld
 {1 200 lt} call say
 {1 -99 lt} call say
 
+0 →i
+i++ "the new i is " i cc say
+i++ "the new i is " i cc say
+i++ "the new i is " i cc say
+
 {
-    0 ->break // for scope
+    0 →break // for scope
     { funnywrapper nameworld
-        // { abstractbreak nameworld 1 breakn } ->break
-        // { abstractbreak nameworld 3 breakn } dyn ->break
-        ( abstractbreak nameworld 3 breakn ) ->break
+        // { abstractbreak nameworld 1 breakn } →break
+        // ( abstractbreak nameworld 3 breakn ) →break
+        { abstractbreak nameworld 3 breakn } dyn →break
         "what is gong on?" say
 
         // 1 breakn
@@ -599,28 +621,27 @@ main nameworld
         repeat
     } call
     oook say
-} ->interestingTest
+} →interestingTest
 // interestingTest
 
-
-{ incrfunc nameworld ->name
+{ incrfunc nameworld →name
     "the value is " name get cc say
     name get 1 add name set
-} dyn ->incr1
+} dyn →incr1
 
-// ( incrfunc nameworld ->name
+// ( incrfunc nameworld →name
 //     "the value is " name get cc say
 //     name get 1 add name set
-// ) ->incr1
+// ) →incr1
 
 {
     testwrapper nameworld
-    99 ->foo
+    99 →foo
     $foo incr
     foo say
 } call
 
-{ {} check call } ->checkthen
+{ {} check call } →checkthen
 10 { "yay truthy!" say } checkthen
 1 0 match { "should not het here" say } checkthen
 
@@ -629,7 +650,7 @@ main nameworld
 // I don't like this loop
 // look at other more simple ones.
 {
-    :body :next :checky
+    →body →next :checky
     {
         checky {
             body
@@ -648,78 +669,76 @@ main nameworld
 "the count is 🧆🧆🧆" count cc say
 
 
+// ← →
 
-{ { 3 breakn } checkthen } dyn ->breakcheck
-{ not { 3 breakn } checkthen } dyn ->guard
-// ( { 3 breakn } checkthen ) ->breakcheck
-// ( not { 3 breakn } checkthen ) ->guard
+{ { 3 breakn } checkthen } dyn →breakcheck
+{ not { 3 breakn } checkthen } dyn →guard
+// ( { 3 breakn } checkthen ) →breakcheck
+// ( not { 3 breakn } checkthen ) →guard
 
-{ ->block ->theMax 0 ->ii
+{ →block →theMax 0 →ii
     {
         block
-        // ii theMax match { 2 breakn } checkthen
-        // ii theMax match breakcheck
         ii theMax lt guard
-        ii 1 add ->ii
+        ii 1 add →ii
         repeat
     } call
-} ->loopmax
+} →loopmax
 
-// { ->block ->theMax 0 ->ii
-//     {
-//         block
-//         ii theMax lt guard
-//         ii 1 add ->ii
-//         repeat
-//     } call
-// } ->loopmax
+{ →block →theMax 0 →ii
+    {
+        block
+        ii theMax lt guard
+        ii 1 add →ii
+        repeat
+    } call
+} →loopmax
 
+// { 1 add } →+1
+1 →+i
 
-{ ->block ->list 0->i list length ->theMax
+{ →block →list 0 →i list length →theMax
   {
-    i theMax match { 2 breakn } checkthen
-    1 i add ->i
-    i list i prop block
+    i •lt theMax guard
+    i 1 add →i
+    // i list i at block
+    i list •at i block
     repeat
   } call
-} ->range
+} →range
 
-{ ->block ->n 0 ->i
+{ →block →n 0 →i
    {
-       $i incr1
+       // $i incr1
+       // i +1 →i
+       i •plus 1 →i
        repeat
    } call
-} ->loopn
+} →loopn
 
 
-0 ->i 1000 {
+0 →i 1000 {
     $looping say
     i 4 match { 2 breakn } checkthen
-    i 1 more ->i
-} loopmax
-
-0 ->i 1000 {
-    $looping say
-    i 4 match { 2 breakn } checkthen
-    i 1 more ->i
+    i 1 more →i
 } loopmax
 
 "i is " i cc say
 
 
-0 ->i 10 {
+0 →i 10 {
     "looping " i cc say
     i 100 match { 2 breakn } checkthen
-    i 1 more ->i
+    i 1 more →i
 } loopmax
 
 // return
 
-// 0 ->count 0 ->i {
+// 0 →count 0 →i {
 //     // i 200 match { 2 breakn } { } check call
 //     i 200 match { 2 breakn } checkthen
-//     i 1 add ->i
-//     count i add ->count
+//     i 1 add →i
+//     count i add →count
 //     repeat
 // } call
 
