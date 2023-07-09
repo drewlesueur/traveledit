@@ -309,6 +309,8 @@ thumbscript3.builtIns = {
     pop: thumbscript3.genFunc1((a) => a.pop()),
     unshift: thumbscript3.genFunc2((a, b) => a.unshift(b)),
     shift: thumbscript3.genFunc1((a) => a.shift()),
+    split: thumbscript3.genFunc2((a, b) => a.split(b)),
+    join: thumbscript3.genFunc2((a, b) => a.join(b)),
     copylist: thumbscript3.genFunc1((a) => [...a]),
     dyn: function(world) {
         var a = world.stack.pop()
@@ -585,8 +587,13 @@ thumbscript3.next = function(world) {
 // todo closure leakage issue?
 var code = `
 main nameworld
-{ :b :a b a } →swap
-{ :a } →drop
+
+•swap: { :b :a b a }
+•drop: { :a }
+•loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
+•range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
+•ccc: { :l "" :r { drop r swap cc :r } l range r }
+
 
 •say "trying again"
 1 •plus 100 say
@@ -644,55 +651,21 @@ main nameworld
 
 "foobar " say
 
-// I don't like this loop
-// look at other more simple ones.
-{
-    →body →next :checky
+{ { 3 breakn } checkthen } dyn →breakcheck
+{ not { 3 breakn } checkthen } dyn →guard
+
+
+{ :theMax :block 0 :i
     {
-        checky {
-            body
-            next
-        } {
-            2 breakn
-        } check call
+        block
+        i theMax lt guard
+        i 1 plus :i
         repeat
     } call
-} :loopy
-
-
-{
-    0 →count
-    0 →i { i •lt 100 }{ i •plus 1 →i } {
-        count i plus →count
-    } loopy
-    "the count is 🧆🧆🧆" count cc say
-} call
-
-// ← →
+} :loopmax
 
 { { 3 breakn } checkthen } dyn →breakcheck
 { not { 3 breakn } checkthen } dyn →guard
-// ( { 3 breakn } checkthen ) →breakcheck
-// ( not { 3 breakn } checkthen ) →guard
-
-
-{ →theMax →block 0 →i
-    {
-        block
-        i theMax lt guard
-        i 1 plus →i
-        repeat
-    } call
-} →loopmax
-
-{ →theMax →block 0 →i
-    {
-        block
-        i theMax lt guard
-        i++
-        repeat
-    } call
-} →loopmax2
 
 // { 1 plus } →+1
 1 →+i
@@ -702,26 +675,7 @@ main nameworld
 
 
 
-{ →n →block 0 →i
-   {
-       i •lt n guard
-       i block
-       i++
-       repeat
-   } call
-} →loopn
 
-{ →list →block 0 →i list length →theMax
-  { :i list •at i i block } theMax loopn
-} →range
-{ :l
-    "" :r
-    {
-        drop
-        r swap cc :r
-    } l range
-    r
-} :ccc
 🥶 say
 [1 2 "ten"] ccc say
 [ one two three four ] ccc say
