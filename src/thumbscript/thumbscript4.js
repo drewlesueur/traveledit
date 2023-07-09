@@ -284,14 +284,9 @@ thumbscript3.genFunc3 = function(f) {
 thumbscript3.builtIns = {
     say: thumbscript3.genFunc1NoReturn(a => { log2(a) }),
     cc: thumbscript3.genFunc2((a, b) => a + b),
-    add: thumbscript3.mathFunc2((a, b) => a + b),
     plus: thumbscript3.mathFunc2((a, b) => a + b),
-    more: thumbscript3.mathFunc2((a, b) => a + b),
-    sum: thumbscript3.mathFunc2((a, b) => a + b),
-    less: thumbscript3.mathFunc2((a, b) => a - b),
-    sub: thumbscript3.mathFunc2((a, b) => a - b),
+    minus: thumbscript3.mathFunc2((a, b) => a - b),
     times: thumbscript3.mathFunc2((a, b) => a * b),
-    mult: thumbscript3.mathFunc2((a, b) => a * b),
     divide: thumbscript3.mathFunc2((a, b) => a * b),
     lt: thumbscript3.mathFunc2((a, b) => a < b),
     gt: thumbscript3.mathFunc2((a, b) => a > b),
@@ -307,7 +302,6 @@ thumbscript3.builtIns = {
         return v
     }),
     not: thumbscript3.genFunc1((a) => !!!a),
-    index: thumbscript3.genFunc2((a, b) => a[b]),
     "check": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
     "if": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
     length: thumbscript3.genFunc1((a) => a.length),
@@ -595,10 +589,12 @@ main nameworld
 {1 200 lt} call say
 {1 -99 lt} call say
 
-0 →i
-i++ "the new i is " i cc say
-i++ "the new i is " i cc say
-i++ "the new i is " i cc say
+{
+    0 →i
+    i++ "the new i is " i cc say
+    i++ "the new i is " i cc say
+    i++ "the new i is " i cc say
+} call
 
 {
     0 →break // for scope
@@ -626,12 +622,12 @@ i++ "the new i is " i cc say
 
 { incrfunc nameworld →name
     "the value is " name get cc say
-    name get 1 add name set
+    name get 1 plus name set
 } dyn →incr1
 
 // ( incrfunc nameworld →name
 //     "the value is " name get cc say
-//     name get 1 add name set
+//     name get 1 plus name set
 // ) →incr1
 
 {
@@ -662,12 +658,14 @@ i++ "the new i is " i cc say
     } call
 } :loopy
 
-0 :count
-0 :i { i •lt 100 }{ i •plus 1 :i } {
-    count i plus :count
-} loopy
-"the count is 🧆🧆🧆" count cc say
 
+{
+    0 →count
+    0 →i { i •lt 100 }{ i •plus 1 →i } {
+        count i plus →count
+    } loopy
+    "the count is 🧆🧆🧆" count cc say
+} call
 
 // ← →
 
@@ -676,31 +674,32 @@ i++ "the new i is " i cc say
 // ( { 3 breakn } checkthen ) →breakcheck
 // ( not { 3 breakn } checkthen ) →guard
 
-{ →block →theMax 0 →ii
+
+{ →block →theMax 0 →i
     {
         block
-        ii theMax lt guard
-        ii 1 add →ii
+        i theMax lt guard
+        i 1 plus →i
         repeat
     } call
 } →loopmax
 
-{ →block →theMax 0 →ii
+{ →block →theMax 0 →i
     {
         block
-        ii theMax lt guard
-        ii 1 add →ii
+        i theMax lt guard
+        i++
         repeat
     } call
-} →loopmax
+} →loopmax2
 
-// { 1 add } →+1
+// { 1 plus } →+1
 1 →+i
 
 { →block →list 0 →i list length →theMax
   {
     i •lt theMax guard
-    i 1 add →i
+    i 1 plus →i
     // i list i at block
     i list •at i block
     repeat
@@ -717,35 +716,38 @@ i++ "the new i is " i cc say
 } →loopn
 
 
-0 →i 1000 {
-    $looping say
-    i 4 match { 2 breakn } checkthen
-    i 1 more →i
-} loopmax
+{
+    0 →i 1000 {
+        $looping say
+        i 4 match { 2 breakn } checkthen
+        i 1 plus →i
+    } loopmax
+    "i is " i cc say
+} call
 
-"i is " i cc say
 
-
-0 →i 10 {
-    "looping " i cc say
-    i 100 match { 2 breakn } checkthen
-    i 1 more →i
-} loopmax
+{
+    0 →i 10 {
+        "looping " i cc say
+        i •lt 100 guard
+        i++
+    } loopmax
+} call
 
 // return
 
 // 0 →count 0 →i {
 //     // i 200 match { 2 breakn } { } check call
 //     i 200 match { 2 breakn } checkthen
-//     i 1 add →i
-//     count i add →count
+//     i 1 plus →i
+//     count i plus →count
 //     repeat
 // } call
 
 "the count is 🧆🧆🧆" count cc say
 
 {
-    copylist :theChain
+    copylist →theChain
     {
         theChain length 0 match {
             breakn 2
@@ -754,13 +756,13 @@ i++ "the new i is " i cc say
             theChain shift call
             2 breakn
         } {} check call
-        theChain shift :cond
-        theChain shift :success
+        theChain shift →cond
+        theChain shift →success
         cond {success 2 breakn} {} check call
         repeat
     } call
     // "all done with chain" say
-} :ifc
+} →ifc
 
 
 [
@@ -773,7 +775,7 @@ i++ "the new i is " i cc say
     {"pink"}
 ] :someConds
 7 :x
-someConds ifc :color
+someConds ifc →color
 "the color is " color cc say
 
 2 :x someConds ifc :color

@@ -522,8 +522,9 @@ They get changed later on.
     <div class=square onclick="cleanUpFiles()">Clean Up</div>
     <!--
         <div class=square onmousedown="setCurrentFile(lastFile)" ontouchstart="setCurrentFile(lastFile); event.preventDefault(); event.stopPropagation()">alt tab</div>
+        <div class=square onclick="googleIt()">Google it</div>
     -->
-    <div class=square onclick="googleIt()">Google it</div>
+    <div class=square onclick="scriptLinesWithOneLineScript(&quot;x.replace(/->/g, '→')&quot;)">→</div>
     <div class=square onclick="linkToRemote()">Share code</div>
     <!--
         <div class=square onclick="duplicateFile(fx, -1)">dupl file</div>
