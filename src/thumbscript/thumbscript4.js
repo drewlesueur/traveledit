@@ -473,16 +473,6 @@ thumbscript3.next = function(world) {
                 newWorld = thumbscript3.builtIns.set(world)
                 break
             }
-            if (token.startsWith("-" + ">")) {
-                world.stack.push(token.slice(2))
-                newWorld = thumbscript3.builtIns.set(world)
-                break
-            }
-            if (token.startsWith("→")) {
-                world.stack.push(token.slice(1))
-                newWorld = thumbscript3.builtIns.set(world)
-                break
-            }
             if (token.endsWith("++")) {
                 world.stack.push(token.slice(0, -2))
                 newWorld = thumbscript3.builtIns.setplus1(world)
@@ -593,7 +583,16 @@ main nameworld
 •loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
 •range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
 •ccc: { :l "" :r { drop r swap cc :r } l range r }
+•breakcheck: •dyn { { 3 breakn } checkthen }
+•guard: •dyn { not { 3 breakn } checkthen }
+•loopmax: { :theMax :block 0 :i { block i theMax lt guard i++ repeat } call }
 
+// •loopn •7 {
+//     "the number is " swap cc say
+// }
+// {
+//     "the number is " swap cc say
+// } 7 loopn
 
 •say "trying again"
 1 •plus 100 say
@@ -604,18 +603,20 @@ main nameworld
 {1 -99 lt} call say
 
 {
-    0 →i
+    0 :i
     i++ "the new i is " i cc say
     i++ "the new i is " i cc say
     i++ "the new i is " i cc say
 } call
 
+
+// this tests static vs dynamic scope
 {
-    0 →break // for scope
+    0 :break // for scope
     { funnywrapper nameworld
-        // { abstractbreak nameworld 1 breakn } →break
-        // ( abstractbreak nameworld 3 breakn ) →break
-        { abstractbreak nameworld 3 breakn } dyn →break
+        // { abstractbreak nameworld 1 breakn } :break
+        // ( abstractbreak nameworld 3 breakn ) :break
+        { abstractbreak nameworld 3 breakn } dyn :break
         "what is gong on?" say
 
         // 1 breakn
@@ -631,46 +632,25 @@ main nameworld
         repeat
     } call
     oook say
-} →interestingTest
+} :interestingTest
 // interestingTest
 
-{ incrfunc nameworld →name
+{ incrfunc nameworld :name
     "the value is " name get cc say
     name get 1 plus name set
-} dyn →incr1
+} dyn :incr1
 {
     testwrapper nameworld
-    99 →foo
+    99 :foo
     $foo incr1
     "after calling incr1, foo is " foo cc say
 } call
 
-{ {} check call } →checkthen
+{ {} check call } :checkthen
 10 { "yay truthy!" say } checkthen
 1 0 match { "should not het here" say } checkthen
 
 "foobar " say
-
-{ { 3 breakn } checkthen } dyn →breakcheck
-{ not { 3 breakn } checkthen } dyn →guard
-
-
-{ :theMax :block 0 :i
-    {
-        block
-        i theMax lt guard
-        i 1 plus :i
-        repeat
-    } call
-} :loopmax
-
-{ { 3 breakn } checkthen } dyn →breakcheck
-{ not { 3 breakn } checkthen } dyn →guard
-
-// { 1 plus } →+1
-1 →+i
-
-
 
 
 
@@ -692,17 +672,15 @@ main nameworld
 } 10 loopn
 
 {
-    0 →i {
+    0 :i {
+        i •lt 4 guard
         $looping say
-        i 4 match { 2 breakn } checkthen
-        i 1 plus →i
+        i++
     } 1000 loopmax
     "i is " i cc say
 } call
-
-
 {
-    0 →i {
+    0 :i {
         i •lt 100 guard
         "looping " i cc say
         i++
@@ -710,10 +688,10 @@ main nameworld
 } call
 
 {
-    0 →count 0 →i
+    0 :count 0 :i
     {
         i •lt 200 guard i++
-        count i plus →count
+        count i plus :count
         repeat
     } call
     "the count is 🧆🧆🧆" count cc say
@@ -721,7 +699,7 @@ main nameworld
 
 
 {
-    copylist →theChain
+    copylist :theChain
     {
         theChain length 0 match {
             breakn 2
@@ -730,13 +708,42 @@ main nameworld
             theChain shift call
             2 breakn
         } {} check call
-        theChain shift →cond
-        theChain shift →success
+        theChain shift :cond
+        theChain shift :success
         cond {success 2 breakn} {} check call
         repeat
     } call
     // "all done with chain" say
-} →ifc
+} :ifc
+
+{
+    :theChain
+    theChain length :theMax
+    0 :i
+    {
+        i •lt 
+        i++
+        repeat
+    } call
+    
+    
+    {
+        theChain length 0 match {
+            breakn 2
+        } { } check call
+        
+        
+        theChain length 1 match {
+            theChain shift call
+            2 breakn
+        } {} check call
+        theChain shift :cond
+        theChain shift :success
+        cond {success 2 breakn} {} check call
+        repeat
+    } call
+    // "all done with chain" say
+} :checkn
 
 
 [
@@ -749,7 +756,7 @@ main nameworld
     {"pink"}
 ] :someConds
 7 :x
-someConds ifc →color
+someConds ifc :color
 "the color is " color cc say
 
 2 :x someConds ifc :color
@@ -837,19 +844,10 @@ x y plus say
 27 add10 say
 
 
-{ :x { 1 x plus :x x } } :increr2
+{ :x { x++ x } } :increr2
 20 increr2 :incr2
-incr2 say
-incr2 say
-incr2 say
-incr2 say
 
-// •increr3: {
-//     :x
-//     {
-//         •x: # 1 •plus x
-//     }
-// }
+{ incr2 say } 20 loopn
 
 { $! cc } :exclaim
 
