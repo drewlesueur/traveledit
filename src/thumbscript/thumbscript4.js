@@ -466,6 +466,11 @@ thumbscript3.next = function(world) {
                 newWorld = thumbscript3.builtIns.set(world)
                 break
             }
+            if (token.endsWith(":")) {
+                world.stack.push(token.slice(0, -1))
+                newWorld = thumbscript3.builtIns.set(world)
+                break
+            }
             if (token.startsWith("-" + ">")) {
                 world.stack.push(token.slice(2))
                 newWorld = thumbscript3.builtIns.set(world)
@@ -580,6 +585,8 @@ thumbscript3.next = function(world) {
 // todo closure leakage issue?
 var code = `
 main nameworld
+{ :b :a b a } →swap
+{ :a } →drop
 
 •say "trying again"
 1 •plus 100 say
@@ -624,17 +631,11 @@ main nameworld
     "the value is " name get cc say
     name get 1 plus name set
 } dyn →incr1
-
-// ( incrfunc nameworld →name
-//     "the value is " name get cc say
-//     name get 1 plus name set
-// ) →incr1
-
 {
     testwrapper nameworld
     99 →foo
-    $foo incr
-    foo say
+    $foo incr1
+    "after calling incr1, foo is " foo cc say
 } call
 
 { {} check call } →checkthen
@@ -675,7 +676,7 @@ main nameworld
 // ( not { 3 breakn } checkthen ) →guard
 
 
-{ →block →theMax 0 →i
+{ →theMax →block 0 →i
     {
         block
         i theMax lt guard
@@ -684,7 +685,7 @@ main nameworld
     } call
 } →loopmax
 
-{ →block →theMax 0 →i
+{ →theMax →block 0 →i
     {
         block
         i theMax lt guard
@@ -696,55 +697,74 @@ main nameworld
 // { 1 plus } →+1
 1 →+i
 
-{ →block →list 0 →i list length →theMax
-  {
-    i •lt theMax guard
-    i 1 plus →i
-    // i list i at block
-    i list •at i block
-    repeat
-  } call
-} →range
 
-{ →block →n 0 →i
+
+
+
+
+{ →n →block 0 →i
    {
-       // $i incr1
-       // i +1 →i
-       i •plus 1 →i
+       i •lt n guard
+       i block
+       i++
        repeat
    } call
 } →loopn
 
+{ →list →block 0 →i list length →theMax
+  { :i list •at i i block } theMax loopn
+} →range
+{ :l
+    "" :r
+    {
+        drop
+        r swap cc :r
+    } l range
+    r
+} :ccc
+🥶 say
+[1 2 "ten"] ccc say
+[ one two three four ] ccc say
 
 {
-    0 →i 1000 {
+    "the number is " swap cc say
+} 7 loopn
+"------------" say
+{
+    :i
+    // i •lt 5 guard // that works too
+    i •is 6 { 2 breakn } checkthen
+    "ok number is " i cc say
+} 10 loopn
+
+{
+    0 →i {
         $looping say
         i 4 match { 2 breakn } checkthen
         i 1 plus →i
-    } loopmax
+    } 1000 loopmax
     "i is " i cc say
 } call
 
 
 {
-    0 →i 10 {
-        "looping " i cc say
+    0 →i {
         i •lt 100 guard
+        "looping " i cc say
         i++
-    } loopmax
+    } 10 loopmax
 } call
 
-// return
+{
+    0 →count 0 →i
+    {
+        i •lt 200 guard i++
+        count i plus →count
+        repeat
+    } call
+    "the count is 🧆🧆🧆" count cc say
+} call
 
-// 0 →count 0 →i {
-//     // i 200 match { 2 breakn } { } check call
-//     i 200 match { 2 breakn } checkthen
-//     i 1 plus →i
-//     count i plus →count
-//     repeat
-// } call
-
-"the count is 🧆🧆🧆" count cc say
 
 {
     copylist →theChain
@@ -940,9 +960,6 @@ thumbscript3.eval(code)
 
 
 /*
-
-
-
 
 
 
