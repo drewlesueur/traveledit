@@ -203,7 +203,8 @@ thumbscript3.eval = function(code) {
         stack: [],
         tokens: tokens,
         i: 0,
-        parent: null
+        parent: null,
+        indent: 0
     }
     thumbscript3.run(world)
 
@@ -218,11 +219,12 @@ thumbscript3.eval = function(code) {
 
 thumbscript3.run = function(world) {
     while (true) {
+        // log2("\t".repeat(world.indent) + "// token: " + JSON.stringify(world.tokens.slice(world.i, world.i+1)[0]))
         world = thumbscript3.next(world)
         if (!world) {
             break
         }
-        // log2("//" + world.tokens.slice(world.i, world.i+1))
+        // log2("\t".repeat(world.indent) + "// stack: " + "<" + world.stack.join(">, <") + ">")
         // log2("+ in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     }
 }
@@ -343,14 +345,14 @@ thumbscript3.builtIns = {
         return world
     },
     setplus1: function(world) {
-        var a = world.stack.pop()
-        var w = null
-        for (w = world; w != null; w = w.parent) {
-            if (a in w.state) { break }
-        }
-        if (w == null) { w = world }
-        w.state[a] -= 0
-        w.state[a] += 1
+    var a = world.stack.pop()
+    var w = null
+    for (w = world; w != null; w = w.parent) {
+        if (a in w.state) { break }
+    }
+    if (w == null) { w = world }
+    w.state[a] -= 0
+    w.state[a] += 1
         return world
     },
     setc: function(world) {
@@ -382,7 +384,8 @@ thumbscript3.builtIns = {
             tokens: f.tokens,
             i: 0,
             dynParent: oldWorld,
-            runId: ++thumbscript3.runId
+            runId: ++thumbscript3.runId,
+            indent: oldWorld.indent + 1
         }
 
         if (f.dynamic) {
@@ -532,26 +535,28 @@ thumbscript3.next = function(world) {
                         } else {
                             world.dynParent.stack.push(world.stack)
                         }
-                    }
+                    },
+                    indent: world.indent + 1
                 }
             } else if (token.thumbscript_type == "paren") {
-                world.stack.push({
-                    thumbscript_type: "closure",
-                    tokens: token.value,
-                    world: world,
-                    "dynamic": true,
-                })
-                // newWorld = {
-                //     parent: world,
-                //     state: {},
-                //     stack: [],
+                // world.stack.push({
+                //     thumbscript_type: "closure",
                 //     tokens: token.value,
-                //     i: 0,
-                //     dynParent: world,
-                //     onEnd: function(world) {
-                //         world.dynParent.stack = world.dynParent.stack.concat(world.stack)
-                //     }
-                // }
+                //     world: world,
+                //     "dynamic": true,
+                // })
+                newWorld = {
+                    parent: world,
+                    state: {},
+                    stack: [],
+                    tokens: token.value,
+                    i: 0,
+                    dynParent: world,
+                    onEnd: function(world) {
+                        world.dynParent.stack = world.dynParent.stack.concat(world.stack)
+                    },
+                    indent: world
+                }
             // } else if (token.thumbscript_type == "angle") {
             //     world.stack.push({
             //         thumbscript_type: "closure",
@@ -576,16 +581,40 @@ thumbscript3.next = function(world) {
 // `; var code2 = `
 // todo closure leakage issue?
 var code = `
+
+
+7 •plus (1 •times 2) say
+
 main nameworld
 
 •swap: { :b :a b a }
 •drop: { :a }
 •loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
+•loopn2: { :n :block 0 :i { i •lt (n •minus 1) guard i block i •plus 2 :i repeat } call }
 •range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
 •ccc: { :l "" :r { drop r swap cc :r } l range r }
 •breakcheck: •dyn { { 3 breakn } checkthen }
 •guard: •dyn { not { 3 breakn } checkthen }
 •loopmax: { :theMax :block 0 :i { block i theMax lt guard i++ repeat } call }
+•range2: { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
+•checkthen: { {} check call }
+•sayn: { " " join say }
+•take: { :n [] :a { drop a swap unshift drop } n loopn a }
+
+
+
+400 500 600 3 take say
+
+
+"every day is a new day" " " split sayn
+
+
+[] :mylist
+•loopn •20 { mylist swap push }
+// { mylist swap push } 20 loopn
+loop
+mylist sayn
+
 
 // •loopn •7 {
 //     "the number is " swap cc say
@@ -646,7 +675,6 @@ main nameworld
     "after calling incr1, foo is " foo cc say
 } call
 
-{ {} check call } :checkthen
 10 { "yay truthy!" say } checkthen
 1 0 match { "should not het here" say } checkthen
 
@@ -721,7 +749,7 @@ main nameworld
     theChain length :theMax
     0 :i
     {
-        i •lt 
+        i •lt theMax guard
         i++
         repeat
     } call
