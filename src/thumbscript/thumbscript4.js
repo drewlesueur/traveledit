@@ -7,13 +7,61 @@ thumbscript3.tokenize = function(code) {
     var currentToken = ""
     var tokens = []
     string2OpenCount = 0
+    var quoteNext = false
+    
     code += "\n" // to simplify last token
+    var addToken = function(token) {
+        if (quoteNext) {
+            quoteNext = false
+            token = "$" + token
+        }
+        if (token == "→") {
+            tokens.push("•")
+            tokens.push("setc")
+        } else if (token == "->") {
+            tokens.push("•")
+            tokens.push("setc")
+        } else if (token == "->1") {
+            tokens.push("•")
+            tokens.push("set")
+        } else if (token == "1<-") {
+            tokens.push("•")
+            tokens.push("setb")
+        } else if (token == "<-") {
+            tokens.push("•")
+            tokens.push("setcb")
+        } else if (token == "←") {
+            tokens.push("•")
+            tokens.push("setcb")
+        } else if (token == ":") {
+            tokens.push("•")
+            tokens.push("setcb")
+        } else {
+            tokens.push(token)
+        }
+    }
     for (var i=0; i < code.length; i++) {
         var chr = code.charAt(i)
 
         if (state == "out") {
-            if ("()[]{}".indexOf(chr) != -1) {
-                tokens.push(chr)
+            if ("()[]{}→←".indexOf(chr) != -1) {
+                addToken(chr)
+            } else if (":".indexOf(chr) != -1) {
+                var nextChar = code.charAt(i+1)
+                if (" \n\t".indexOf(nextChar) != -1) {
+                    // [foo bar]: 100
+                    addToken("<-")
+                } else if ("[".indexOf(nextChar) != -1) {
+                     // 500 :[foo bar]
+                     addToken("->")
+                } else {
+                     // 500 :baz
+                    addToken("->1")
+                    quoteNext = true
+                    
+                }
+                currentToken = ""
+                state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
             } else if ("/".indexOf(chr) != -1) {
                 state = "slash" // for comments
@@ -30,13 +78,18 @@ thumbscript3.tokenize = function(code) {
                 currentToken = chr
             }
         } else if (state == "in") {
-            if ("()[]{}".indexOf(chr) != -1) {
-                tokens.push(currentToken)
+            if ("()[]{}→←".indexOf(chr) != -1) {
+                addToken(currentToken) 
+                addToken(chr)
                 currentToken = ""
-                tokens.push(chr)
+                state = "out"
+            } else if (":".indexOf(chr) != -1) {
+                addToken("$" + currentToken) 
+                addToken("1<-")
+                currentToken = ""
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
-                tokens.push(currentToken)
+                addToken(currentToken)
                 currentToken = ""
                 state = "out"
             } else {
@@ -49,7 +102,7 @@ thumbscript3.tokenize = function(code) {
             } else if ('"'.indexOf(chr) != -1) {
                 // we could make every token an object
                 // but this is our strong trick for now
-                tokens.push("$" + currentToken)
+                addToken("$" + currentToken)
                 currentToken = ""
                 state = "out"
             } else {
@@ -63,7 +116,7 @@ thumbscript3.tokenize = function(code) {
                 // but this is our strong trick for now
                 string2OpenCount--
                 if (string2OpenCount == 0) {
-                    tokens.push("$" + currentToken)
+                    addToken("$" + currentToken)
                     currentToken = ""
                     state = "out"
                 }
@@ -80,7 +133,7 @@ thumbscript3.tokenize = function(code) {
             if ("/".indexOf(chr) != -1) {
                 state = "comment"
             } else {
-                // tokens.push("/")
+                // addToken("/")
                 // state = "out"
                 currentToken = "/"
                 state = "in"
@@ -90,7 +143,7 @@ thumbscript3.tokenize = function(code) {
                 currentToken += chr
             } else {
                 i--
-                tokens.push(currentToken)
+                addToken(currentToken)
                 currentToken = ""
                 state = "out"
             }
@@ -134,8 +187,8 @@ thumbscript3.desugarAtSign = function(tokens) {
                 j++
             }
             if (j == 0) {
-                // special case for setc
                 newTokens.push(token)
+                // newTokens.push(token)
                 consume()
             } else {
                 stack.push(state)
@@ -204,6 +257,7 @@ thumbscript3.squishFuncs = function(tokens) {
 thumbscript3.eval = function(code) {
     var tokens = thumbscript3.tokenize(code)
     // log2(tokens)
+    // return
     var world = {
         state: {},
         stack: [],
@@ -354,6 +408,17 @@ thumbscript3.builtIns = {
         w.state[a] = b
         return world
     },
+    setb: function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        var w = null
+        for (w = world; w != null; w = w.parent) {
+            if (a in w.state) { break }
+        }
+        if (w == null) { w = world }
+        w.state[a] = b
+        return world
+    },
     setplus1: function(world) {
     var a = world.stack.pop()
     var w = null
@@ -376,6 +441,16 @@ thumbscript3.builtIns = {
         // TODO: implement in thumbscript itself
         var a = world.stack.pop()
         var b = world.stack.pop()
+        world.stack.push(a.slice(0,-1))
+        thumbscript3.builtIns.props(world)
+        obj = world.stack.pop()
+        obj[a[a.length-1]] = b
+        return world
+    },
+    setcb: function(world) {
+        // TODO: implement in thumbscript itself
+        var b = world.stack.pop()
+        var a = world.stack.pop()
         world.stack.push(a.slice(0,-1))
         thumbscript3.builtIns.props(world)
         obj = world.stack.pop()
@@ -470,7 +545,7 @@ thumbscript3.builtIns = {
             world.repeatCount = 0
         }
         world.repeatCount++
-        if (world.repeatCount === 1_000_000) {
+        if (world.repeatCount === 10_000) {
             world = null
             alert("runaway loop")
         }
@@ -504,19 +579,9 @@ thumbscript3.next = function(world) {
                 world.stack.push(token.slice(1))
                 break
             }
-            if (token.startsWith(":")) {
-                world.stack.push(token.slice(1))
-                newWorld = thumbscript3.builtIns.set(world)
-                break
-            }
             if (token.startsWith("#")) {
                 world.stack.push(token.slice(1))
                 newWorld = thumbscript3.builtIns.nameworld(world)
-                break
-            }
-            if (token.endsWith(":")) {
-                world.stack.push(token.slice(0, -1))
-                newWorld = thumbscript3.builtIns.set(world)
                 break
             }
             if (token.endsWith("++")) {
@@ -533,7 +598,6 @@ thumbscript3.next = function(world) {
                 newWorld = thumbscript3.builtIns[token](world)
                 break
             }
-
             if (token.startsWith("~")) {
                 token = token.slice(1)
                 doCall = false
@@ -566,8 +630,10 @@ thumbscript3.next = function(world) {
                 
                 closure.toJSON = function() {
                     return {
-                        tokens: token.value,
-                        thumbscript_type: "closure",
+                        tokens: closure.tokens,
+                        thumbscript_type: closure.thumbscript_type,
+                        dynamic: closure.dynamic,
+                        // dynamic: "foobar",
                         // not world
                     }
                 }
@@ -657,6 +723,25 @@ thumbscript3.next = function(world) {
 // `; var code2 = `
 // todo closure leakage issue?
 var code = `
+// { not { 3 breakn } checkthen } dyn :guard
+// ~guard say
+
+100 :count
+count say
+count: 100
+count say
+person: [
+    [score: 10]
+]
+person say
+[person 0 $score] props say
+
+500 :[person 0 $score]
+[person 0 $score] props say
+
+[person 0 $score]: 600
+[person 0 $score] props say
+
 
 // 1 2 3 •5 4 6
 // foo •(bar baz) biz
@@ -671,38 +756,43 @@ var code = `
 
 main nameworld
 
-•swap: { :b :a b a }
-•drop: { :a }
-•loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
-•loopn2: { :n :block 0 :i { i •lt (n •minus 1) guard i block i •plus 2 :i repeat } call }
-•range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
-•ccc: { :l "" :r { drop r swap cc :r } l range r }
-•breakcheck: •dyn { { 3 breakn } checkthen }
-•guard: •dyn { not { 3 breakn } checkthen }
-•loopmax: { :theMax :block 0 :i { block i theMax lt guard i++ repeat } call }
-•range2: { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
-•checkthen: { {} check call }
-•sayn: { " " join say }
-•take: { :n [] :a { drop a swap unshift drop } n loopn a }
-•checkn: { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
+
+swap: { :b :a b a }
+drop: { :a }
+loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
+loopn2: { :n :block 0 :i { i •lt (n •minus 1) guard i block i •plus 2 :i repeat } call }
+range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
+ccc: { :l "" :r { drop r swap cc :r } l range r }
+// guard: ({ not { 4 breakn } checkthen } dyn)
+{ not { 3 breakn } checkthen } dyn :guard
+// ({ not { 4 breakn } checkthen } dyn) :guard
+loopmax: { :theMax :block 0 :i { block i theMax lt guard i++ repeat } call }
+range2: { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
+checkthen: { {} check call }
+sayn: { " " join say }
+take: { :n [] :a { drop a swap unshift drop } n loopn a }
+checkn: { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
+
 // •shallowcopylist: {
 //     [] :n
 //     { :i :v n i v set} swap range
 // }
 
-["drew" :name] :person
-"Drew" person "name" setprop
-"Drew2" [person "name"] setc
+// ["drew" :name] :person
+// "Drew" person "name" setprop
+// "Drew2" [person "name"] setc
+// "Drew2" : [person "name"]
+// 
+// "Drew" : name
+// •name : "Drew"
 
-•setc ("Drew2" [person "name"])
-// •setc •[person "name"] "Drew3"
 
 [$hi $my •$is $name $drew] sayn
 [$hi $my •"is" $name $drew] sayn
-person •at name say
 
-
-
+{
+    "hello! " swap cc say
+} 10 loopn
 // {
 //     "foobar" (1) drop drop
 //     dump exit
@@ -722,7 +812,6 @@ person •at name say
 
 // [{ "wohoo" say}] :mylist
 // mylist •at 0 call
-
 
 
 [
@@ -753,7 +842,6 @@ someConds checkn :color
 "the new color is " color cc say
 
 400 500 600 3 take say
-
 
 "every day is a new day" " " split :mylist
 
