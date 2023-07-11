@@ -19,6 +19,11 @@ thumbscript3.tokenize = function(code) {
             tokens.push(token-0)
             return
         }
+        if (typeof token == "string" && token.endsWith("++")) {
+            tokens.push("$" + token.slice(0, -2))
+            tokens.push("setplus1")
+            return
+        }
         if (token == "→") {
             tokens.push("•")
             tokens.push("setc")
@@ -311,11 +316,9 @@ thumbscript3.runAsync = function(world) {
     
 }
 
-thumbscript3.mathFunc2 = function(f) {
+thumbscript3.genFunc0 = function(f) {
     return function(world) {
-        var b = world.stack.pop()
-        var a = world.stack.pop()
-        world.stack.push(f((a-0), (b-0)))
+        world.stack.push(f())
         return world
     }
 }
@@ -354,16 +357,17 @@ thumbscript3.genFunc3 = function(f) {
 thumbscript3.builtIns = {
     say: thumbscript3.genFunc1NoReturn(a => { log2(a) }),
     cc: thumbscript3.genFunc2((a, b) => a + b),
-    plus: thumbscript3.mathFunc2((a, b) => a + b),
-    minus: thumbscript3.mathFunc2((a, b) => a - b),
-    times: thumbscript3.mathFunc2((a, b) => a * b),
-    divide: thumbscript3.mathFunc2((a, b) => a * b),
-    lt: thumbscript3.mathFunc2((a, b) => a < b),
-    gt: thumbscript3.mathFunc2((a, b) => a > b),
-    lte: thumbscript3.mathFunc2((a, b) => a <= b),
-    gte: thumbscript3.mathFunc2((a, b) => a >= b),
-    match: thumbscript3.mathFunc2((a, b) => a == b),
-    is: thumbscript3.mathFunc2((a, b) => a == b),
+    nowmillis: thumbscript3.genFunc0(() => Date.now()),
+    plus: thumbscript3.genFunc2((a, b) => a + b),
+    minus: thumbscript3.genFunc2((a, b) => a - b),
+    times: thumbscript3.genFunc2((a, b) => a * b),
+    divide: thumbscript3.genFunc2((a, b) => a * b),
+    lt: thumbscript3.genFunc2((a, b) => a < b),
+    gt: thumbscript3.genFunc2((a, b) => a > b),
+    lte: thumbscript3.genFunc2((a, b) => a <= b),
+    gte: thumbscript3.genFunc2((a, b) => a >= b),
+    match: thumbscript3.genFunc2((a, b) => a == b),
+    is: thumbscript3.genFunc2((a, b) => a == b),
     prop: thumbscript3.genFunc2((a, b) => a[b]),
     at: thumbscript3.genFunc2((a, b) => a[b]),
     props: thumbscript3.genFunc1((a) => {
@@ -556,7 +560,7 @@ thumbscript3.builtIns = {
             world.repeatCount = 0
         }
         world.repeatCount++
-        if (world.repeatCount === 10_000) {
+        if (world.repeatCount === 1_000_000) {
             world = null
             alert("runaway loop")
         }
@@ -566,6 +570,7 @@ thumbscript3.builtIns = {
 }
 thumbscript3.runId = 0
 thumbscript3.next = function(world) {
+    outer:
     do {
         if (!world) {
             return false
@@ -588,38 +593,54 @@ thumbscript3.next = function(world) {
             break
         } else if (typeof token == "string") {
             var doCall = true
-
-            if (token - 0 == token) {
-                world.stack.push(token-0) // lol
-                break
+            // these first char checks have sifnificant perf hit
+            var firstChar = token.charAt(0)
+            
+            switch (firstChar) {
+                case "$":
+                    world.stack.push(token.slice(1))
+                    break outer
+                case "#":
+                    world.stack.push(token.slice(1))
+                    break outer
+                case "~":
+                    token = token.slice(1)
+                    doCall = false
+                    break outer
             }
-            if (token.startsWith("$")) {
-                world.stack.push(token.slice(1))
-                break
-            }
-            if (token.startsWith("#")) {
-                world.stack.push(token.slice(1))
-                newWorld = thumbscript3.builtIns.nameworld(world)
-                break
-            }
-            if (token.endsWith("++")) {
-                world.stack.push(token.slice(0, -2))
-                newWorld = thumbscript3.builtIns.setplus1(world)
-                break
-            }
-            if (token.startsWith(".")) {
-                world.stack.push(token.slice(1))
-                newWorld = thumbscript3.builtIns.prop(world)
-                break
-            }
+            // shaved off 15 ms from 
+            // if (token.startsWith("$")) {
+            //     world.stack.push(token.slice(1))
+            //     break
+            // }
+            // if (token.startsWith(";")) {
+            //     world.stack.push(token.slice(1))
+            //     newWorld = thumbscript3.builtIns.set(world)
+            //     break
+            // }
+            // if (token.startsWith("#")) {
+            //     world.stack.push(token.slice(1))
+            //     newWorld = thumbscript3.builtIns.nameworld(world)
+            //     break
+            // }
+            // if (token.endsWith("++")) {
+            //     world.stack.push(token.slice(0, -2))
+            //     newWorld = thumbscript3.builtIns.setplus1(world)
+            //     break
+            // }
+            // if (token.startsWith(".")) {
+            //     world.stack.push(token.slice(1))
+            //     newWorld = thumbscript3.builtIns.prop(world)
+            //     break
+            // }
             if (token in thumbscript3.builtIns) {
                 newWorld = thumbscript3.builtIns[token](world)
                 break
             }
-            if (token.startsWith("~")) {
-                token = token.slice(1)
-                doCall = false
-            }
+            // if (token.startsWith("~")) {
+            //     token = token.slice(1)
+            //     doCall = false
+            // }
             var w = null
             for (w = world; w != null; w = w.parent) {
                 if (token in w.state) {
@@ -640,7 +661,9 @@ thumbscript3.next = function(world) {
             break
         } else if (typeof token == "object") {
             // not calling right away
-            if (token.thumbscript_type == "curly") {
+            if (token.thumbscript_type == "s") {
+                world.stack.push(token.value)
+            } else if (token.thumbscript_type == "curly") {
                 var closure = {
                     thumbscript_type: "closure",
                     tokens: token.value,
@@ -741,6 +764,23 @@ thumbscript3.next = function(world) {
 
 // `; var code2 = `
 // todo closure leakage issue?
+
+function timeit(n, f) {
+    var start = Date.now()
+    for (var i=0; i<n; i++) {
+        f(i)
+    }
+    var end = Date.now()
+    var total = end - start
+    log2("js: it took " + (total) + " milliseconds")
+}
+;(function() {
+    var count = 0
+    timeit(10_000, function(i) {
+        count += i
+    })
+    log2("count is " + count)
+})()
 var code = `
 
 100 :count
@@ -773,18 +813,32 @@ person say
 swap: { :b :a b a }
 drop: { :a }
 loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
+// loopn: { :n :block 0 :i { i •lt n guard i block i •plus 1 :i repeat } call }
+// loopn; { ;n ;block 0 ;i { i •lt n guard i block i++ repeat } call }
 loopn2: { :n :block 0 :i { i •lt (n •minus 1) guard i block i •plus 2 :i repeat } call }
 range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
 ccc: { :l "" :r { drop r swap cc :r } l range r }
-// guard: ({ not { 4 breakn } checkthen } dyn)
-{ not { 3 breakn } checkthen } dyn :guard
-// ({ not { 4 breakn } checkthen } dyn) :guard
+guard: ({ not { 3 breakn } checkthen } dyn)
+// { not { 3 breakn } checkthen } dyn :guard
 loopmax: { :theMax :block 0 :i { block i theMax lt guard i++ repeat } call }
 range2: { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
 checkthen: { {} check call }
 sayn: { " " join say }
 take: { :n [] :a { drop a swap unshift drop } n loopn a }
 checkn: { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
+
+timeit: { :n :block
+    nowmillis :start
+    ~block n loopn
+    nowmillis :end
+    end •minus start :total
+    ["it took" total "milliseconds"] sayn
+}
+{
+    0 :count
+    { count plus :count } 10000 timeit
+    ["count is" count] sayn
+} call
 
 // •shallowcopylist: {
 //     [] :n
