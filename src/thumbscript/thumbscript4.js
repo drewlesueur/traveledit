@@ -1,6 +1,15 @@
 
 var thumbscript3 = {}
 
+const stringType = 0;
+const numberType = 1;
+const squareType = 2;
+const curlyType = 3;
+const parenType = 4;
+const builtInType = 5;
+const varType = 6;
+const closureType = 7; // runtime only
+
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript3.tokenize = function(code) {
     var state = "out"
@@ -60,10 +69,22 @@ thumbscript3.tokenize = function(code) {
         if (typeof token == "string") {
             // not sure if faster
             if (token.charAt(0) == "$") {
-                // token = {thumbscript_type: "s", value: token.slice(1)}
+                token = {th_type: stringType, valueString: token.slice(1)}
             } else if (token in thumbscript3.builtIns) {
-                token = thumbscript3.builtIns[token]
+                token = {th_type: builtInType, valueFunc: thumbscript3.builtIns[token], name: token}
+            } else {
+                var preventCall = false
+                if (token.startsWith("~")) {
+                    preventCall = true
+                    token = token.slice(1)
+                }
+                token = {th_type: varType, valueString: token, preventCall: preventCall}
             }
+        } else if (typeof token == "number") {
+            token = {th_type: numberType, valueNumber: token}
+        } else {
+            log2("- unknowntoken type")
+            log2(token)
         }
         tokens.push(token)
     }
@@ -208,9 +229,9 @@ thumbscript3.desugarAtSign = function(tokens) {
     while (i < tokens.length) {
         var token = tokens[i]
 
-        if (typeof token == "string") {
+        if (token.th_type == varType) {
             var j = 0
-            while (j < token.length && "@•".indexOf(token.charAt(j)) != -1) {
+            while (j < token.valueString.length && "@•".indexOf(token.valueString.charAt(j)) != -1) {
                 j++
             }
             if (j == 0) {
@@ -243,35 +264,35 @@ thumbscript3.squishFuncs = function(tokens) {
     var i = 0
     while (i < tokens.length) {
         var token = tokens[i]
-        if (token == "{") {
+        if (token.valueString == "{") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token == "[") {
+        } else if (token.valueString == "[") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token == "(") {
+        } else if (token.valueString == "(") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token == "}") {
+        } else if (token.valueString == "}") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
-                thumbscript_type: "curly",
-                value: thumbscript3.desugarAtSign(r),
+                th_type: curlyType,
+                valueArr: thumbscript3.desugarAtSign(r),
             })
-        } else if (token == "]") {
+        } else if (token.valueString == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
-                thumbscript_type: "square",
-                value: thumbscript3.desugarAtSign(r),
+                th_type: squareType,
+                valueArr: thumbscript3.desugarAtSign(r),
             })
-        } else if (token == ")") {
+        } else if (token.valueString == ")") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
-                thumbscript_type: "paren",
-                value: thumbscript3.desugarAtSign(r),
+                th_type: parenType,
+                valueArr: thumbscript3.desugarAtSign(r),
             })
         } else {
             newTokens.push(token)
@@ -587,7 +608,111 @@ thumbscript3.builtIns = {
     },
 }
 thumbscript3.runId = 0
+
+var typeMap = [
+    // stringType
+    function(world, token) {
+        world.stack.push(token.valueString)
+        return world
+    },
+    // numberType
+    function(world, token) {
+        world.stack.push(token.valueNumber)
+        return world
+    },
+    // squareType
+    function(world, token) {
+        var newWorld = {
+            parent: world,
+            state: {},
+            stack: [],
+            tokens: token.valueArr,
+            i: 0,
+            dynParent: world,
+            onEnd: function(world) {
+                if (Object.keys(world.state).length) {
+                    world.dynParent.stack.push(world.state)
+                } else {
+                    world.dynParent.stack.push(world.stack)
+                }
+            },
+            indent: world.indent + 1,
+            runId: ++thumbscript3.runId,
+        }
+        return newWorld
+    },
+    // curlyType
+    function(world, token) {
+        var closure = {
+            th_type: closureType,
+            tokens: token.valueArr,
+            world: world,
+        }
+        // closure.toJSON = function() {
+        //     return {
+        //         tokens: closure.tokens,
+        //         th_type: closure.th_type,
+        //         dynamic: closure.dynamic,
+        //         // dynamic: "foobar",
+        //         // not world
+        //     }
+        // }
+        // closure.toString = function() {
+        //     return JSON.stringify(token.value)
+        // }
+        world.stack.push(closure)
+        return world
+    },
+    // parenType
+    function(world, token) {
+        var newWorld = {
+            parent: world,
+            state: {},
+            stack: [],
+            tokens: token.valueArr,
+            i: 0,
+            dynParent: world,
+            onEnd: function(world) {
+                for (var i=0; i<world.stack.length; i++) {
+                    world.dynParent.stack.push(world.stack[i])
+                }
+            },
+            indent: world.indent + 1,
+            runId: ++thumbscript3.runId,
+        }
+        return newWorld
+    },
+    // builtInType
+    function(world, token) {
+        var newWorld = token.valueFunc(world)
+        return newWorld
+    },
+    // varType
+    function(world, token) {
+        var newWorld = world
+        doCall = !token.preventCall
+        var w = null
+        for (w = world; w != null; w = w.parent) {
+            if (token.valueString in w.state) {
+                break
+            }
+        }
+        if (w === null) {
+            world.stack.push(token.valueString) // lol
+            // throw new Error("unknown variable");
+            log2("-unknown variable: " + token.valueString);
+            return newWorld
+        }
+        var x = w.state[token.valueString]
+        world.stack.push(x)
+        if (x && x.th_type === closureType && doCall) {
+             newWorld = thumbscript3.builtIns.call(world)
+        }
+        return newWorld
+    },
+] 
 thumbscript3.next = function(world) {
+    var newWorld = world
     outer:
     do {
         if (!world) {
@@ -604,132 +729,26 @@ thumbscript3.next = function(world) {
             }
             return false
         }
-        var newWorld = world
         var token = world.tokens[world.i]
-        if (typeof token === "number") {
-            world.stack.push(token)
-            break
-        } else if (typeof token === "string") {
-            var doCall = true
-            // these first char checks have sifnificant perf hit
-            var firstChar = token.charAt(0)
-            switch (firstChar) {
-                case "$":
-                    world.stack.push(token.slice(1))
-                    break outer
-                case "~":
-                    token = token.slice(1)
-                    doCall = false
-                default:
-                    // if (token in thumbscript3.builtIns) {
-                    //     newWorld = thumbscript3.builtIns[token](world)
-                    //     break outer
-                    // }
-                    var w = null
-                    for (w = world; w != null; w = w.parent) {
-                        if (token in w.state) {
-                            break
-                        }
-                    }
-                    if (w === null) {
-                        world.stack.push(token) // lol
-                        // throw new Error("unknown variable");
-                        log2("-unknown variable: " + token);
-                        break
-                    }
-                    var x = w.state[token]
-                    world.stack.push(x)
-                    if (x && x.thumbscript_type === "closure" && doCall) {
-                        newWorld = thumbscript3.builtIns.call(world)
-                    }
-                    break
-            }
-            
-            // shaved off 15 ms from 
-            // if (token.startsWith("$")) {
-            //     world.stack.push(token.slice(1))
-            //     break
-            // }
-            // if (token.startsWith(";")) {
-            //     world.stack.push(token.slice(1))
-            //     newWorld = thumbscript3.builtIns.set(world)
-            //     break
-            // }
-            // if (token.startsWith("#")) {
-            //     world.stack.push(token.slice(1))
-            //     newWorld = thumbscript3.builtIns.nameworld(world)
-            //     break
-            // }
-            // if (token.endsWith("++")) {
-            //     world.stack.push(token.slice(0, -2))
-            //     newWorld = thumbscript3.builtIns.setplus1(world)
-            //     break
-            // }
-            // if (token.startsWith(".")) {
-            //     world.stack.push(token.slice(1))
-            //     newWorld = thumbscript3.builtIns.prop(world)
-            //     break
-            // }
-            // if (token in thumbscript3.builtIns) {
-            //     newWorld = thumbscript3.builtIns[token](world)
-            //     break
-            // }
-            // if (token.startsWith("~")) {
-            //     token = token.slice(1)
-            //     doCall = false
-            // }
-            // var w = null
-            // for (w = world; w != null; w = w.parent) {
-            //     if (token in w.state) {
-            //         break
-            //     }
-            // }
-            // if (w == null) {
-            //     world.stack.push(token) // lol
-            //     // throw new Error("unknown variable");
-            //     log2("-unknown variable: " + token);
-            //     break
-            // }
-            // var x = w.state[token]
-            // world.stack.push(x)
-            // if (x && x.thumbscript_type == "closure" && doCall) {
-            //     newWorld = thumbscript3.builtIns.call(world)
-            // }
-            // break
-        } else if (typeof token === "function") {
-            newWorld = token(world)
-            break
-        } else if (typeof token == "object") {
-            // not calling right away
-            /*if (ftoken.thumbscript_type == "s") {
-                world.stack.push(token.value)
-            } else */
-            if (token.thumbscript_type == "curly") {
-                var closure = {
-                    thumbscript_type: "closure",
-                    tokens: token.value,
-                    world: world,
-                }
-                
-                closure.toJSON = function() {
-                    return {
-                        tokens: closure.tokens,
-                        thumbscript_type: closure.thumbscript_type,
-                        dynamic: closure.dynamic,
-                        // dynamic: "foobar",
-                        // not world
-                    }
-                }
-                closure.toString = function() {
-                    return JSON.stringify(token.value)
-                }
-                world.stack.push(closure)
-            } else if (token.thumbscript_type == "square") {
+        
+        // that's actually barely slower.
+        // newWorld = typeMap[token.th_type](world, token)
+        // break
+        
+        var newWorld = world
+        switch (token.th_type) {
+            case stringType:
+                world.stack.push(token.valueString)
+                break outer
+            case numberType:
+                world.stack.push(token.valueNumber)
+                break outer
+            case squareType:
                 newWorld = {
                     parent: world,
                     state: {},
                     stack: [],
-                    tokens: token.value,
+                    tokens: token.valueArr,
                     i: 0,
                     dynParent: world,
                     onEnd: function(world) {
@@ -742,19 +761,33 @@ thumbscript3.next = function(world) {
                     indent: world.indent + 1,
                     runId: ++thumbscript3.runId,
                 }
-            } else if (token.thumbscript_type == "paren") {
-                // world.stack.push({
-                //     thumbscript_type: "closure",
-                //     tokens: token.value,
-                //     world: world,
-                //     "dynamic": true,
-                // })
-
+                break outer
+            case curlyType:
+                var closure = {
+                    th_type: closureType,
+                    tokens: token.valueArr,
+                    world: world,
+                }
+                // closure.toJSON = function() {
+                //     return {
+                //         tokens: closure.tokens,
+                //         th_type: closure.th_type,
+                //         dynamic: closure.dynamic,
+                //         // dynamic: "foobar",
+                //         // not world
+                //     }
+                // }
+                // closure.toString = function() {
+                //     return JSON.stringify(token.value)
+                // }
+                world.stack.push(closure)
+                break outer
+            case parenType:
                 newWorld = {
                     parent: world,
                     state: {},
                     stack: [],
-                    tokens: token.value,
+                    tokens: token.valueArr,
                     i: 0,
                     dynParent: world,
                     onEnd: function(world) {
@@ -765,34 +798,32 @@ thumbscript3.next = function(world) {
                     indent: world.indent + 1,
                     runId: ++thumbscript3.runId,
                 }
-                
-                // newWorld = {
-                //     parent: world,
-                //     state: {},
-                //     stack: [],
-                //     tokens: token.value,
-                //     i: 0,
-                //     dynParent: world,
-                //     onEnd: function(world) {
-                //         if (Object.keys(world.state).length) {
-                //             world.dynParent.stack.push(world.state)
-                //         } else {
-                //             world.dynParent.stack.push(world.stack)
-                //         }
-                //     },
-                //     indent: world.indent + 1,
-                //     runId: ++thumbscript3.runId,
-                // }
-
-            // } else if (token.thumbscript_type == "angle") {
-            //     world.stack.push({
-            //         thumbscript_type: "closure",
-            //         tokens: token.value,
-            //         world: world,
-            //         "dynamic": true,
-            //     })
-            }
+                break outer 
+            case builtInType:
+                newWorld = token.valueFunc(world)
+                break outer
+            case varType:
+                doCall = !token.preventCall
+                var w = null
+                for (w = world; w != null; w = w.parent) {
+                    if (token.valueString in w.state) {
+                        break
+                    }
+                }
+                if (w === null) {
+                    world.stack.push(token.valueString) // lol
+                    // throw new Error("unknown variable");
+                    log2("-unknown variable: " + token.valueString);
+                    break outer
+                }
+                var x = w.state[token.valueString]
+                world.stack.push(x)
+                if (x && x.th_type === closureType && doCall) {
+                    newWorld = thumbscript3.builtIns.call(world)
+                }
+                break outer
         }
+        
         break
     } while (false)
     world.i++
@@ -817,11 +848,12 @@ function timeit(n, f) {
 }
 ;(function() {
     var count = 0
-    timeit(10_000, function(i) {
+    timeit(100_000, function(i) {
         count += i
     })
     log2("count is " + count)
 })()
+// `; var code2 = `
 var code = `
 
 100 :count
@@ -877,7 +909,8 @@ timeit: { :n :block
 }
 {
     0 :count
-    { count plus :count } 10000 timeit
+    { count plus :count } 100000 timeit
+    // { count plus :count } 10 timeit
     ["count is" count] sayn
 } call
 
