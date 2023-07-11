@@ -22,6 +22,9 @@ thumbscript3.tokenize = function(code) {
             } else if ("«".indexOf(chr) != -1) {
                 state = "string2"
                 string2OpenCount = 1
+            } else if ("•@".indexOf(chr) != -1) {
+                state = "dot"
+                currentToken = chr
             } else {
                 state = "in"
                 currentToken = chr
@@ -77,7 +80,18 @@ thumbscript3.tokenize = function(code) {
             if ("/".indexOf(chr) != -1) {
                 state = "comment"
             } else {
-                tokens.push("/")
+                // tokens.push("/")
+                // state = "out"
+                currentToken = "/"
+                state = "in"
+            }
+        } else if (state == "dot") {
+            if ("•@".indexOf(chr) != -1) {
+                currentToken += chr
+            } else {
+                i--
+                tokens.push(currentToken)
+                currentToken = ""
                 state = "out"
             }
         } else if (state == "comment") {
@@ -87,9 +101,9 @@ thumbscript3.tokenize = function(code) {
         }
     }
     // showLog()
+    // log2(tokens)
     tokens = thumbscript3.squishFuncs(tokens)
     tokens = thumbscript3.desugarAtSign(tokens)
-    // log2(tokens)
     return tokens
 }
 thumbscript3.desugarAtSign = function(tokens) {
@@ -116,27 +130,18 @@ thumbscript3.desugarAtSign = function(tokens) {
 
         if (typeof token == "string") {
             var j = 0
-            // while (j < token.length && token.charAt(j) == "@") {
             while (j < token.length && "@•".indexOf(token.charAt(j)) != -1) {
                 j++
             }
             if (j == 0) {
                 // special case for setc
-                if (token == ":") {
-                    newTokens.push("•=")
-                } else if (token == "..") {
-                    newTokens.push("•cc")
-                } else {
-                    newTokens.push(token)
-                }
-                
-                
+                newTokens.push(token)
                 consume()
             } else {
                 stack.push(state)
                 state = {
                     n: j,
-                    token: token.slice(j),
+                    token: tokens[++i],
                 }
                 // log2(token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
             }
@@ -198,6 +203,7 @@ thumbscript3.squishFuncs = function(tokens) {
 
 thumbscript3.eval = function(code) {
     var tokens = thumbscript3.tokenize(code)
+    // log2(tokens)
     var world = {
         state: {},
         stack: [],
@@ -652,6 +658,11 @@ thumbscript3.next = function(world) {
 // todo closure leakage issue?
 var code = `
 
+// 1 2 3 •5 4 6
+// foo •(bar baz) biz
+// another •"here" two foe
+
+
 // what (5 •6 4) foobar
 // dump
 // exit
@@ -686,6 +697,8 @@ main nameworld
 •setc ("Drew2" [person "name"])
 // •setc •[person "name"] "Drew3"
 
+[$hi $my •$is $name $drew] sayn
+[$hi $my •"is" $name $drew] sayn
 person •at name say
 
 
@@ -700,7 +713,7 @@ person •at name say
 //     "foobar" (1) drop drop
 //     dump exit
 // } call
-return
+// return
 
 // [ { "hidy hodly" say } { "neighbor" say} ] :mylist
 // { :v ~v say } :somefunc
