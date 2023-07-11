@@ -15,6 +15,10 @@ thumbscript3.tokenize = function(code) {
             quoteNext = false
             token = "$" + token
         }
+        if (token - 0 == token) {
+            tokens.push(token-0)
+            return
+        }
         if (token == "→") {
             tokens.push("•")
             tokens.push("setc")
@@ -451,7 +455,14 @@ thumbscript3.builtIns = {
         // TODO: implement in thumbscript itself
         var b = world.stack.pop()
         var a = world.stack.pop()
-        world.stack.push(a.slice(0,-1))
+        // try {
+            world.stack.push(a.slice(0,-1))
+        // } catch (err) {
+        //     log2("error on slice: " + JSON.stringify(a))
+        //     log2(world.tokens.slice(0, world.i+1))
+        //     // log2(world)
+        //     return null
+        // }
         thumbscript3.builtIns.props(world)
         obj = world.stack.pop()
         obj[a[a.length-1]] = b
@@ -572,9 +583,16 @@ thumbscript3.next = function(world) {
         }
         var newWorld = world
         var token = world.tokens[world.i]
-        if (typeof token == "string") {
+        if (typeof token == "number") {
+            world.stack.push(token)
+            break
+        } else if (typeof token == "string") {
             var doCall = true
 
+            if (token - 0 == token) {
+                world.stack.push(token-0) // lol
+                break
+            }
             if (token.startsWith("$")) {
                 world.stack.push(token.slice(1))
                 break
@@ -602,7 +620,6 @@ thumbscript3.next = function(world) {
                 token = token.slice(1)
                 doCall = false
             }
-
             var w = null
             for (w = world; w != null; w = w.parent) {
                 if (token in w.state) {
@@ -611,6 +628,8 @@ thumbscript3.next = function(world) {
             }
             if (w == null) {
                 world.stack.push(token) // lol
+                // throw new Error("unknown variable");
+                log2("-unknown variable: " + token);
                 break
             }
             var x = w.state[token]
@@ -723,8 +742,6 @@ thumbscript3.next = function(world) {
 // `; var code2 = `
 // todo closure leakage issue?
 var code = `
-// { not { 3 breakn } checkthen } dyn :guard
-// ~guard say
 
 100 :count
 count say
@@ -753,10 +770,6 @@ person say
 // exit
 
 // 7 •plus (1 •times 2) say
-
-main nameworld
-
-
 swap: { :b :a b a }
 drop: { :a }
 loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
@@ -894,7 +907,7 @@ mylist sayn
         "ok for real" say
     } call
     {
-        testwrapper nameworld
+        #testwrapper 
         "hello everyone" say
         1 1 match { callingbreak nameworld break } { } check call
         repeat
@@ -903,12 +916,12 @@ mylist sayn
 } :interestingTest
 // interestingTest
 
-{ incrfunc nameworld :name
+{ #incrfunc :name
     "the value is " name get cc say
     name get 1 plus name set
 } dyn :incr1
 {
-    testwrapper nameworld
+    #testwrapper 
     99 :foo
     $foo incr1
     "after calling incr1, foo is " foo cc say
@@ -923,9 +936,9 @@ mylist sayn
 
 
 
-🥶 say
+"🥶" say
 [1 2 "ten"] ccc say
-[ one two three four ] ccc say
+"one two three four" " " split ccc say
 
 {
     "the number is " swap cc say
@@ -964,63 +977,6 @@ mylist sayn
     "the count is 🧆🧆🧆" count cc say
 } call
 
-
-{
-    copylist :theChain
-    {
-        theChain length 0 match {
-            breakn 2
-        } { } check call
-        theChain length 1 match {
-            theChain shift call
-            2 breakn
-        } {} check call
-        theChain shift :cond
-        theChain shift :success
-        cond {success 2 breakn} {} check call
-        repeat
-    } call
-    // "all done with chain" say
-} :ifc
-
-{
-    :theChain theChain length :theMax
-    {
-        :v2 drop :v1 drop
-        // v1 { v2 3 breakn } checkthen
-        v1 { v2 3 breakn } { } check call
-    } theChain range2
-    theChain •at (theMax •minus 1) call
-} :checkn
-
-
-[
-    {x 1 match}
-    {"gold"}
-    {x 2 match}
-    {"green"}
-    {x 3 match}
-    {"blue"}
-    {"pink"}
-] :someConds
-7 :x
-someConds ifc :color
-"the color is " color cc say
-
-2 :x someConds ifc :color
-"the color is " color cc say
-
-1 :x someConds ifc :color
-"the new color is " color cc say
-"----" say
-someConds checkn :color
-"the color is " color cc say
-
-2 :x someConds checkn :color
-"the color is " color cc say
-
-1 :x someConds checkn :color
-"the new color is " color cc say
 
 $Drew :name
 name say
@@ -1109,7 +1065,7 @@ x y plus say
 
 
 {say} :sayo
-foobar sayo
+$foobar sayo
 
 $hi exclaim
 $bye exclaim
