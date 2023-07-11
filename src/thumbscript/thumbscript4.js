@@ -204,7 +204,9 @@ thumbscript3.eval = function(code) {
         tokens: tokens,
         i: 0,
         parent: null,
-        indent: 0
+        indent: 0,
+        runId: 0,
+        name: "main"
     }
     thumbscript3.run(world)
 
@@ -224,8 +226,10 @@ thumbscript3.run = function(world) {
         if (!world) {
             break
         }
-        // log2("\t".repeat(world.indent) + "// stack: " + "<" + world.stack.join(">, <") + ">")
-        // log2("+ in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
+        // log2("\t".repeat(world.indent) + "// stack: " + JSON.stringify(world.stack))
+        // if (world.name) {
+        //     log2("\t".repeat(world.indent) + "+ in world " + world.name + "(" +world.runId+") < " + (world.parent?.name || "") )
+        // }
     }
 }
 
@@ -236,7 +240,7 @@ thumbscript3.runAsync = function(world) {
     }
     // log2(Object.keys(world))
     log2("//" + world.tokens.slice(world.i, world.i+1))
-    log2("+ in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
+    log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     window.t99 = setTimeout(function() { thumbscript3.runAsync(world) }, 250)
     f99.lines = debugOutput
     render()
@@ -395,9 +399,29 @@ thumbscript3.builtIns = {
     },
     "return": function(world) {
         // world = world.dynParent
+        if (world.onEnd) world.onEnd(world)
         world = world.parent
         // todo: see onend
         return world
+    },
+    "exit": function(world) {
+        world = null
+        // todo: see onend
+        return world
+    },
+    "dump": function(world) {
+        while (world) {
+            // log2("\t".repeat(world.indent))
+            // log2(JSON.stringify(world, "\t".repeat(world.indent)), "   ")
+            var printWorld = {
+                stack: world.stack,
+                tokens: world.tokens.slice(0,20) + "...",
+                name: world.name
+            }
+            log2(JSON.stringify(printWorld, null, "   "))
+            log2("----")
+            world = world.dynParent
+        }
     },
     "breakn": function(world) {
         var a = world.stack.pop()
@@ -405,6 +429,7 @@ thumbscript3.builtIns = {
         for (var i=0; i<a; i++) {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
+            if (world.onEnd) world.onEnd(world)
             world = world.parent
             // todo: see onend
         }
@@ -443,21 +468,21 @@ thumbscript3.builtIns = {
 thumbscript3.runId = 0
 thumbscript3.next = function(world) {
     do {
-        // if (!world) {
-        //     return false
-        // }
+        if (!world) {
+            return false
+        }
         if (world.i >= world.tokens.length) {
             if (world.dynParent) {
                 if (world.onEnd) {
                     world.onEnd(world)
                 }
                 world = world.dynParent
-                // the stacks shoild point to same thing
+                // the stacks should point to same thing
                 return world
             }
             return false
         }
-        var newWorld
+        var newWorld = world
         var token = world.tokens[world.i]
         if (typeof token == "string") {
             var doCall = true
@@ -469,6 +494,11 @@ thumbscript3.next = function(world) {
             if (token.startsWith(":")) {
                 world.stack.push(token.slice(1))
                 newWorld = thumbscript3.builtIns.set(world)
+                break
+            }
+            if (token.startsWith("#")) {
+                world.stack.push(token.slice(1))
+                newWorld = thumbscript3.builtIns.nameworld(world)
                 break
             }
             if (token.endsWith(":")) {
@@ -491,7 +521,6 @@ thumbscript3.next = function(world) {
                 break
             }
 
-            // this tilde thing doesn't work?
             if (token.startsWith("~")) {
                 token = token.slice(1)
                 doCall = false
@@ -516,11 +545,23 @@ thumbscript3.next = function(world) {
         } else if (typeof token == "object") {
             // not calling right away
             if (token.thumbscript_type == "curly") {
-                world.stack.push({
+                var closure = {
                     thumbscript_type: "closure",
                     tokens: token.value,
                     world: world,
-                })
+                }
+                
+                closure.toJSON = function() {
+                    return {
+                        tokens: token.value,
+                        thumbscript_type: "closure",
+                        // not world
+                    }
+                }
+                closure.toString = function() {
+                    return JSON.stringify(token.value)
+                }
+                world.stack.push(closure)
             } else if (token.thumbscript_type == "square") {
                 newWorld = {
                     parent: world,
@@ -536,7 +577,8 @@ thumbscript3.next = function(world) {
                             world.dynParent.stack.push(world.stack)
                         }
                     },
-                    indent: world.indent + 1
+                    indent: world.indent + 1,
+                    runId: ++thumbscript3.runId,
                 }
             } else if (token.thumbscript_type == "paren") {
                 // world.stack.push({
@@ -545,6 +587,7 @@ thumbscript3.next = function(world) {
                 //     world: world,
                 //     "dynamic": true,
                 // })
+
                 newWorld = {
                     parent: world,
                     state: {},
@@ -553,10 +596,32 @@ thumbscript3.next = function(world) {
                     i: 0,
                     dynParent: world,
                     onEnd: function(world) {
-                        world.dynParent.stack = world.dynParent.stack.concat(world.stack)
+                        for (var i=0; i<world.stack.length; world.stack++) {
+                            world.dynParent.stack.push(world.stack[i])
+                        }
                     },
-                    indent: world
+                    indent: world.indent + 1,
+                    runId: ++thumbscript3.runId,
                 }
+                
+                // newWorld = {
+                //     parent: world,
+                //     state: {},
+                //     stack: [],
+                //     tokens: token.value,
+                //     i: 0,
+                //     dynParent: world,
+                //     onEnd: function(world) {
+                //         if (Object.keys(world.state).length) {
+                //             world.dynParent.stack.push(world.state)
+                //         } else {
+                //             world.dynParent.stack.push(world.stack)
+                //         }
+                //     },
+                //     indent: world.indent + 1,
+                //     runId: ++thumbscript3.runId,
+                // }
+
             // } else if (token.thumbscript_type == "angle") {
             //     world.stack.push({
             //         thumbscript_type: "closure",
@@ -570,9 +635,7 @@ thumbscript3.next = function(world) {
     } while (false)
     world.i++
 
-    if (newWorld) {
-        world = newWorld
-    }
+    world = newWorld
     return world
 }
 
@@ -583,7 +646,8 @@ thumbscript3.next = function(world) {
 var code = `
 
 
-7 •plus (1 •times 2) say
+
+// 7 •plus (1 •times 2) say
 
 main nameworld
 
@@ -600,19 +664,71 @@ main nameworld
 •checkthen: { {} check call }
 •sayn: { " " join say }
 •take: { :n [] :a { drop a swap unshift drop } n loopn a }
+•checkn: { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
 
 
+
+// {
+//     "foobar" (1) drop drop
+//     dump exit
+// } call
+// {
+//     // "foobar" [1] drop drop
+//     "foobar" 1 drop drop
+//     "foobar" (1) drop drop
+//     dump exit
+// } call
+// return
+
+// [ { "hidy hodly" say } { "neighbor" say} ] :mylist
+// { :v ~v say } :somefunc
+// mylist •at 0 somefunc
+
+
+// [{ "wohoo" say}] :mylist
+// mylist •at 0 call
+
+
+
+[
+    {x 1 match}
+    {"gold"}
+    {x 2 match}
+    {"green"}
+    {x 3 match}
+    {"blue"}
+    {"pink"}
+] :someConds
+7 :x
+someConds checkn "the color is " swap cc say
+
+
+"what's going on?" say
+
+20000 say
+
+
+someConds checkn :color
+"the color is " color cc say
+
+2 :x someConds checkn :color
+"the color is " color cc say
+
+1 :x someConds checkn :color
+"the new color is " color cc say
 
 400 500 600 3 take say
 
 
-"every day is a new day" " " split sayn
+"every day is a new day" " " split :mylist
+
+{
+    4 take say
+} mylist range2
 
 
 [] :mylist
-•loopn •20 { mylist swap push }
-// { mylist swap push } 20 loopn
-loop
+•loopn •20 { mylist swap push drop }
 mylist sayn
 
 
@@ -745,32 +861,13 @@ mylist sayn
 } :ifc
 
 {
-    :theChain
-    theChain length :theMax
-    0 :i
+    :theChain theChain length :theMax
     {
-        i •lt theMax guard
-        i++
-        repeat
-    } call
-    
-    
-    {
-        theChain length 0 match {
-            breakn 2
-        } { } check call
-        
-        
-        theChain length 1 match {
-            theChain shift call
-            2 breakn
-        } {} check call
-        theChain shift :cond
-        theChain shift :success
-        cond {success 2 breakn} {} check call
-        repeat
-    } call
-    // "all done with chain" say
+        :v2 drop :v1 drop
+        // v1 { v2 3 breakn } checkthen
+        v1 { v2 3 breakn } { } check call
+    } theChain range2
+    theChain •at (theMax •minus 1) call
 } :checkn
 
 
@@ -792,7 +889,15 @@ someConds ifc :color
 
 1 :x someConds ifc :color
 "the new color is " color cc say
+"----" say
+someConds checkn :color
+"the color is " color cc say
 
+2 :x someConds checkn :color
+"the color is " color cc say
+
+1 :x someConds checkn :color
+"the new color is " color cc say
 
 $Drew :name
 name say
@@ -875,7 +980,7 @@ x y plus say
 { :x { x++ x } } :increr2
 20 increr2 :incr2
 
-{ incr2 say } 20 loopn
+{ drop incr2 say } 22 loopn
 
 { $! cc } :exclaim
 
