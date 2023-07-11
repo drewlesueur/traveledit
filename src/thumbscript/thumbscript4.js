@@ -16,38 +16,56 @@ thumbscript3.tokenize = function(code) {
             token = "$" + token
         }
         if (token - 0 == token) {
-            tokens.push(token-0)
+            addToken2(token-0)
             return
         }
         if (typeof token == "string" && token.endsWith("++")) {
-            tokens.push("$" + token.slice(0, -2))
-            tokens.push("setplus1")
+            addToken2("$" + token.slice(0, -2))
+            addToken2("setplus1")
+            return
+        }
+        if (typeof token == "string" && token.startsWith("#")) {
+            addToken2("$" + token.slice(0, -1))
+            addToken2("nameworld")
             return
         }
         if (token == "→") {
-            tokens.push("•")
-            tokens.push("setc")
+            addToken2("•")
+            addToken2("setc")
         } else if (token == "->") {
-            tokens.push("•")
-            tokens.push("setc")
+            addToken2("•")
+            addToken2("setc")
         } else if (token == "->1") {
-            tokens.push("•")
-            tokens.push("set")
+            addToken2("•")
+            addToken2("set")
         } else if (token == "1<-") {
-            tokens.push("•")
-            tokens.push("setb")
+            addToken2("•")
+            addToken2("setb")
         } else if (token == "<-") {
-            tokens.push("•")
-            tokens.push("setcb")
+            addToken2("•")
+            addToken2("setcb")
         } else if (token == "←") {
-            tokens.push("•")
-            tokens.push("setcb")
+            addToken2("•")
+            addToken2("setcb")
         } else if (token == ":") {
-            tokens.push("•")
-            tokens.push("setcb")
+            addToken2("•")
+            addToken2("setcb")
         } else {
-            tokens.push(token)
+            addToken2(token)
         }
+    }
+
+    // lol
+    var addToken2 = function(token) {
+        if (typeof token == "string") {
+            // not sure if faster
+            if (token.charAt(0) == "$") {
+                // token = {thumbscript_type: "s", value: token.slice(1)}
+            } else if (token in thumbscript3.builtIns) {
+                token = thumbscript3.builtIns[token]
+            }
+        }
+        tokens.push(token)
     }
     for (var i=0; i < code.length; i++) {
         var chr = code.charAt(i)
@@ -588,26 +606,45 @@ thumbscript3.next = function(world) {
         }
         var newWorld = world
         var token = world.tokens[world.i]
-        if (typeof token == "number") {
+        if (typeof token === "number") {
             world.stack.push(token)
             break
-        } else if (typeof token == "string") {
+        } else if (typeof token === "string") {
             var doCall = true
             // these first char checks have sifnificant perf hit
             var firstChar = token.charAt(0)
-            
             switch (firstChar) {
                 case "$":
-                    world.stack.push(token.slice(1))
-                    break outer
-                case "#":
                     world.stack.push(token.slice(1))
                     break outer
                 case "~":
                     token = token.slice(1)
                     doCall = false
-                    break outer
+                default:
+                    // if (token in thumbscript3.builtIns) {
+                    //     newWorld = thumbscript3.builtIns[token](world)
+                    //     break outer
+                    // }
+                    var w = null
+                    for (w = world; w != null; w = w.parent) {
+                        if (token in w.state) {
+                            break
+                        }
+                    }
+                    if (w === null) {
+                        world.stack.push(token) // lol
+                        // throw new Error("unknown variable");
+                        log2("-unknown variable: " + token);
+                        break
+                    }
+                    var x = w.state[token]
+                    world.stack.push(x)
+                    if (x && x.thumbscript_type === "closure" && doCall) {
+                        newWorld = thumbscript3.builtIns.call(world)
+                    }
+                    break
             }
+            
             // shaved off 15 ms from 
             // if (token.startsWith("$")) {
             //     world.stack.push(token.slice(1))
@@ -633,37 +670,41 @@ thumbscript3.next = function(world) {
             //     newWorld = thumbscript3.builtIns.prop(world)
             //     break
             // }
-            if (token in thumbscript3.builtIns) {
-                newWorld = thumbscript3.builtIns[token](world)
-                break
-            }
+            // if (token in thumbscript3.builtIns) {
+            //     newWorld = thumbscript3.builtIns[token](world)
+            //     break
+            // }
             // if (token.startsWith("~")) {
             //     token = token.slice(1)
             //     doCall = false
             // }
-            var w = null
-            for (w = world; w != null; w = w.parent) {
-                if (token in w.state) {
-                    break
-                }
-            }
-            if (w == null) {
-                world.stack.push(token) // lol
-                // throw new Error("unknown variable");
-                log2("-unknown variable: " + token);
-                break
-            }
-            var x = w.state[token]
-            world.stack.push(x)
-            if (x && x.thumbscript_type == "closure" && doCall) {
-                newWorld = thumbscript3.builtIns.call(world)
-            }
+            // var w = null
+            // for (w = world; w != null; w = w.parent) {
+            //     if (token in w.state) {
+            //         break
+            //     }
+            // }
+            // if (w == null) {
+            //     world.stack.push(token) // lol
+            //     // throw new Error("unknown variable");
+            //     log2("-unknown variable: " + token);
+            //     break
+            // }
+            // var x = w.state[token]
+            // world.stack.push(x)
+            // if (x && x.thumbscript_type == "closure" && doCall) {
+            //     newWorld = thumbscript3.builtIns.call(world)
+            // }
+            // break
+        } else if (typeof token === "function") {
+            newWorld = token(world)
             break
         } else if (typeof token == "object") {
             // not calling right away
-            if (token.thumbscript_type == "s") {
+            /*if (ftoken.thumbscript_type == "s") {
                 world.stack.push(token.value)
-            } else if (token.thumbscript_type == "curly") {
+            } else */
+            if (token.thumbscript_type == "curly") {
                 var closure = {
                     thumbscript_type: "closure",
                     tokens: token.value,
