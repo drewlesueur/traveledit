@@ -359,6 +359,13 @@ thumbscript3.builtIns = {
     w.state[a] += 1
         return world
     },
+    setprop: function(world) {
+        var k = world.stack.pop()
+        var o = world.stack.pop()
+        var v = world.stack.pop()
+        o[k] = v
+        return world
+    },
     setc: function(world) {
         // TODO: implement in thumbscript itself
         var a = world.stack.pop()
@@ -596,7 +603,7 @@ thumbscript3.next = function(world) {
                     i: 0,
                     dynParent: world,
                     onEnd: function(world) {
-                        for (var i=0; i<world.stack.length; world.stack++) {
+                        for (var i=0; i<world.stack.length; i++) {
                             world.dynParent.stack.push(world.stack[i])
                         }
                     },
@@ -645,7 +652,9 @@ thumbscript3.next = function(world) {
 // todo closure leakage issue?
 var code = `
 
-
+// what (5 •6 4) foobar
+// dump
+// exit
 
 // 7 •plus (1 •times 2) say
 
@@ -665,6 +674,19 @@ main nameworld
 •sayn: { " " join say }
 •take: { :n [] :a { drop a swap unshift drop } n loopn a }
 •checkn: { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
+// •shallowcopylist: {
+//     [] :n
+//     { :i :v n i v set} swap range
+// }
+
+["drew" :name] :person
+"Drew" person "name" setprop
+"Drew2" [person "name"] setc
+
+•setc ("Drew2" [person "name"])
+// •setc •[person "name"] "Drew3"
+
+person •at name say
 
 
 
@@ -674,11 +696,11 @@ main nameworld
 // } call
 // {
 //     // "foobar" [1] drop drop
-//     "foobar" 1 drop drop
+//     // "foobar" 1 drop drop
 //     "foobar" (1) drop drop
 //     dump exit
 // } call
-// return
+return
 
 // [ { "hidy hodly" say } { "neighbor" say} ] :mylist
 // { :v ~v say } :somefunc
