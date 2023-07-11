@@ -314,8 +314,10 @@ thumbscript3.eval = function(code) {
         parent: null,
         indent: 0,
         runId: 0,
-        name: "main"
+        name: "main",
+        cachedLookupWorld: {},
     }
+    world.global = world
     thumbscript3.run(world)
 
     // window.f99 = makeFile("__output", 0, "")
@@ -407,6 +409,8 @@ thumbscript3.builtIns = {
     gte: thumbscript3.genFunc2((a, b) => a >= b),
     match: thumbscript3.genFunc2((a, b) => a == b),
     is: thumbscript3.genFunc2((a, b) => a == b),
+    eq: thumbscript3.genFunc2((a, b) => a === b),
+    ne: thumbscript3.genFunc2((a, b) => a !== b),
     prop: thumbscript3.genFunc2((a, b) => a[b]),
     at: thumbscript3.genFunc2((a, b) => a[b]),
     props: thumbscript3.genFunc1((a) => {
@@ -433,48 +437,29 @@ thumbscript3.builtIns = {
     },
     get: function(world) {
         var a = world.stack.pop()
-        var w = null
-        for (w = world; w != null; w = w.parent) {
-            if (a in w.state) { break }
-        }
-        if (w == null) {
-            world.stack.push(null)
-        } else {
-            world.stack.push(w.state[a])
-        }
+        var w = thumbscript3.getWorldForKey(world, a, false)
+        world.stack.push(w.state[a])
         return world
     },
     set: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
-        var w = null
-        for (w = world; w != null; w = w.parent) {
-            if (a in w.state) { break }
-        }
-        if (w == null) { w = world }
+        var w = thumbscript3.getWorldForKey(world, a, false)
         w.state[a] = b
         return world
     },
     setb: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
-        var w = null
-        for (w = world; w != null; w = w.parent) {
-            if (a in w.state) { break }
-        }
-        if (w == null) { w = world }
+        var w = thumbscript3.getWorldForKey(world, a, false)
         w.state[a] = b
         return world
     },
     setplus1: function(world) {
-    var a = world.stack.pop()
-    var w = null
-    for (w = world; w != null; w = w.parent) {
-        if (a in w.state) { break }
-    }
-    if (w == null) { w = world }
-    w.state[a] -= 0
-    w.state[a] += 1
+        var a = world.stack.pop()
+        var w = thumbscript3.getWorldForKey(world, a, false)
+        w.state[a] -= 0
+        w.state[a] += 1
         return world
     },
     setprop: function(world) {
@@ -531,7 +516,29 @@ thumbscript3.builtIns = {
             i: 0,
             dynParent: oldWorld,
             runId: ++thumbscript3.runId,
-            indent: oldWorld.indent + 1
+            indent: oldWorld.indent + 1,
+            cachedLookupWorld: {},
+            global: f.world.global,
+        }
+
+        if (f.dynamic) {
+            world.parent = oldWorld
+        }
+        return world
+    },
+    call_skipstack: function(world, f) {
+        var oldWorld = world
+        world = {
+            parent: f.world,
+            state: {},
+            stack: oldWorld.stack,
+            tokens: f.tokens,
+            i: 0,
+            dynParent: oldWorld,
+            runId: ++thumbscript3.runId,
+            indent: oldWorld.indent + 1,
+            cachedLookupWorld: {},
+            global: f.world.global,
         }
 
         if (f.dynamic) {
@@ -577,6 +584,25 @@ thumbscript3.builtIns = {
         }
         return world
     },
+    guardb: function(world) {
+        // it's a lot faster
+        // we can implement this in ths but it's faster here
+        var a = world.stack.pop()
+        if (!a) {
+            world = world.parent
+        }
+        return world
+    },
+    guardlt: function(world) {
+        // it's a lot faster
+        // we can implement this in ths but it's faster here
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        if (!(a<b)) {
+            world = world.parent
+        }
+        return world
+    },
     // "break": function(world) {
     //     for (var i=0; i<2; i++) {
     //         world = world.parent
@@ -599,13 +625,39 @@ thumbscript3.builtIns = {
             world.repeatCount = 0
         }
         world.repeatCount++
-        if (world.repeatCount === 1_000_000) {
+        if (world.repeatCount === 2_000_000) {
             world = null
             alert("runaway loop")
+            return world
         }
         world.i = -1 // because same world and will increment
         return world
     },
+}
+
+thumbscript3.getWorldForKey = function(world, key, errOnNotFound) {
+    // if (world.cachedLookupWorld[key]) {
+    //     return world.cachedLookupWorld[key]
+    // }
+    // if (key.length > 2) {
+    //     return world.global
+    // }
+    var w = null
+    for (w = world; w != null; w = w.parent) {
+        if (key in w.state) {
+            // world.cachedLookupWorld[key] = w
+            break
+        }
+    }
+    if (w === null) {
+        // world.stack.push(token.valueString) // lol
+        // throw new Error("unknown variable");
+        if (errOnNotFound) {
+            log2("-unknown variable: " + key);
+        }
+        return world
+    }
+    return w
 }
 thumbscript3.runId = 0
 
@@ -638,6 +690,8 @@ var typeMap = [
             },
             indent: world.indent + 1,
             runId: ++thumbscript3.runId,
+            cachedLookupWorld: {},
+            global: world.global,
         }
         return newWorld
     },
@@ -679,6 +733,8 @@ var typeMap = [
             },
             indent: world.indent + 1,
             runId: ++thumbscript3.runId,
+            cachedLookupWorld: {},
+            global: world.global,
         }
         return newWorld
     },
@@ -691,22 +747,14 @@ var typeMap = [
     function(world, token) {
         var newWorld = world
         doCall = !token.preventCall
-        var w = null
-        for (w = world; w != null; w = w.parent) {
-            if (token.valueString in w.state) {
-                break
-            }
-        }
-        if (w === null) {
-            world.stack.push(token.valueString) // lol
-            // throw new Error("unknown variable");
-            log2("-unknown variable: " + token.valueString);
-            return newWorld
-        }
+        var w = thumbscript3.getWorldForKey(world, token.valueString)
         var x = w.state[token.valueString]
         world.stack.push(x)
-        if (x && x.th_type === closureType && doCall) {
-             newWorld = thumbscript3.builtIns.call(world)
+        if (x && x.th_type === closureType && !token.preventCall) {
+            // newWorld = thumbscript3.builtIns.call(world)
+            newWorld = thumbscript3.builtIns.call_skipstack(world, x)
+        } else {
+            world.stack.push(x)
         }
         return newWorld
     },
@@ -760,6 +808,8 @@ thumbscript3.next = function(world) {
                     },
                     indent: world.indent + 1,
                     runId: ++thumbscript3.runId,
+                    cachedLookupWorld: {},
+                    global: world.global,
                 }
                 break outer
             case curlyType:
@@ -797,29 +847,21 @@ thumbscript3.next = function(world) {
                     },
                     indent: world.indent + 1,
                     runId: ++thumbscript3.runId,
+                    cachedLookupWorld: {},
+                    global: world.global,
                 }
                 break outer 
             case builtInType:
                 newWorld = token.valueFunc(world)
                 break outer
             case varType:
-                doCall = !token.preventCall
-                var w = null
-                for (w = world; w != null; w = w.parent) {
-                    if (token.valueString in w.state) {
-                        break
-                    }
-                }
-                if (w === null) {
-                    world.stack.push(token.valueString) // lol
-                    // throw new Error("unknown variable");
-                    log2("-unknown variable: " + token.valueString);
-                    break outer
-                }
+                var w = thumbscript3.getWorldForKey(world, token.valueString, true)
                 var x = w.state[token.valueString]
-                world.stack.push(x)
-                if (x && x.th_type === closureType && doCall) {
-                    newWorld = thumbscript3.builtIns.call(world)
+                if (x && x.th_type === closureType && !token.preventCall) {
+                    // newWorld = thumbscript3.builtIns.call(world)
+                    newWorld = thumbscript3.builtIns.call_skipstack(world, x)
+                } else {
+                    world.stack.push(x)
                 }
                 break outer
         }
@@ -885,9 +927,11 @@ person say
 // 7 •plus (1 •times 2) say
 swap: { :b :a b a }
 drop: { :a }
-loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
+// loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
+loopn: { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+// loopn: { :n :block 0 :i { i •ne n guardb i block i++ repeat } call }
+// loopn: { :n :block 0 :i { i n guardlt i block i++ repeat } call }
 // loopn: { :n :block 0 :i { i •lt n guard i block i •plus 1 :i repeat } call }
-// loopn; { ;n ;block 0 ;i { i •lt n guard i block i++ repeat } call }
 loopn2: { :n :block 0 :i { i •lt (n •minus 1) guard i block i •plus 2 :i repeat } call }
 range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
 ccc: { :l "" :r { drop r swap cc :r } l range r }
@@ -910,8 +954,8 @@ timeit: { :n :block
 {
     0 :count
     { count plus :count } 100000 timeit
-    // { count plus :count } 10 timeit
     ["count is" count] sayn
+    // h say
 } call
 
 // •shallowcopylist: {
