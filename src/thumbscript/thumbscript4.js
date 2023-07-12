@@ -403,9 +403,41 @@ thumbscript4.eval = function(code, state) {
     // thumbscript4.runAsync(world)
 }
 
+thumbscript4.displayToken = function(tk) {
+    try {
+        if (!tk) return ""
+        switch (tk.th_type) {
+            case stringType:
+                return `"${tk.valueString}"`
+            case numberType:
+                return `${tk.valueNumber}`
+            case squareType:
+                return `[${tk.valueArr.map(thumbscript4.displayToken)}]`
+            case curlyType:
+                return `{${tk.valueArr.map(thumbscript4.displayToken)}}`
+            case parenType:
+                return `(${tk.valueArr.map(thumbscript4.displayToken)})`
+            case builtInType:
+                return `<native ${tk.name}>`
+            case varType:
+                return `${tk.valueString}`
+        }
+    } catch (e) {
+        log2(JSON.stringify(tk))
+        log2(typeof tk)
+        log2(e.toString())
+        return "- huh? "
+    }
+}
+
 thumbscript4.run = function(world) {
     while (true) {
         // log2("\t".repeat(world.indent) + "// token: " + JSON.stringify(world.tokens.slice(world.i, world.i+1)[0]))
+        
+        // if (world.i + 1 < world.tokens.length) {
+        //     var tk = world.tokens.slice(world.i, world.i+1)[0]
+        //     log2("\t".repeat(world.indent) + "// token: " + thumbscript4.displayToken(tk))
+        // }
         newWorld = thumbscript4.next(world)
         if (!newWorld) {
             return world
@@ -982,20 +1014,21 @@ thumbscript4.next = function(world) {
 }
 
 thumbscript4.stdlib = `
-    swap: { :b :a b a }
-    drop: { :a }
-    loopn: { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
-    loopn2: { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
-    range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
-    ccc: { :l "" :r { drop r swap cc :r } l range r }
-    guard: ({ not { 3 breakn } checkthen } dyn)
-    loopmax: { :theMax :block 0 :i { block i theMax lt guardb i++ repeat } call }
-    range2: { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
-    checkthen: { {} check call }
-    sayn: { " " join say }
-    take: { :n [] :a { drop a swap unshift drop } n loopn a }
-    checkn: { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
-    timeit: { :n :block
+    swap: •local { :b :a b a }
+    drop: •local { :a }
+    // loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+    loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+    loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
+    range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
+    ccc: •local { :l "" :r { drop r swap cc :r } l range r }
+    guard: •local •dyn { not { 3 breakn } checkthen }
+    loopmax: •local { :theMax :block 0 :i { block i theMax lt guardb i++ repeat } call }
+    range2: •local { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
+    checkthen: •local { {} check call }
+    sayn: •local { " " join say }
+    take: •local { :n [] :a { drop a swap unshift drop } n loopn a }
+    checkn: •local { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
+    timeit: •local { :n :block
         nowmillis :start
         ~block n loopn
         nowmillis :end
@@ -1024,15 +1057,6 @@ thumbscript4.stdlib = `
 // })()
 // `; var code2 = `
 var code = `
-// ["me&you"] encodeURIComponent say
-// return
-// [yo: { "yo! " swap cc say }] :someobj
-// 
-// $Drew someobj $yo at call
-// 
-// "hi"
-// 
-// return
 
 100 :count
 count say
@@ -1049,7 +1073,8 @@ person say
 
 [person 0 $score]: 600
 [person 0 $score] props say
-
+"🍅" say
+"🍅" encodeURIComponent say
 
 // 1 2 3 •5 4 6
 // foo •(bar baz) biz
@@ -1060,7 +1085,7 @@ person say
 // dump
 // exit
 
-// 7 •plus (1 •times 2) say
+7 •plus (1 •times 2) say
 {
     0 :count
     { count plus :count } 100000 timeit
@@ -1396,8 +1421,11 @@ say
 // log2(world.state)
 
 
-// mid 70 ms for the onenperf check
-thumbscript4.eval(code, {})
+ // mid 70 ms for the onenperf check
+// thumbscript4.eval(code, {})
+thumbscript4.eval(code, window)
+// window makes my test a bit slower (in 80s) interesting
+
 // showLog()
 thumbscript4.eval(`
 
