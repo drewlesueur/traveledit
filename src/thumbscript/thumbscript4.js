@@ -61,6 +61,7 @@ thumbscript4.tokenize = function(code) {
                 var a = token.slice(0, -2)
                 var f = function(world) {
                     var w = thumbscript4.getWorldForKey(world, a, false, true)
+                    // var w = world.parent.parent
                     w.state[a] += world.stack.pop()
                     return world
                 }
@@ -643,6 +644,29 @@ thumbscript4.builtIns = {
         world.name = a
         return world
     },
+    jsloopn: function(world) {
+        var n = world.stack.pop()
+        var f = world.stack.pop()
+        var newWorld = {
+            parent: f.world,
+            state: {},
+            stack: world.stack,
+            tokens: f.tokens,
+            i: 0,
+            dynParent: null,
+            runId: ++thumbscript4.runId,
+            indent: world.indent + 1,
+            cachedLookupWorld: {},
+            // global: f.world.global,
+            local: f.local,
+        }
+        for (var i=0; i<n; i++) {
+            newWorld.stack.push(i)
+            thumbscript4.run(newWorld)
+            newWorld.i = 0
+        }
+        return world
+    },
     call: function(world) {
         var f = world.stack.pop()
         var oldWorld = world
@@ -784,15 +808,17 @@ thumbscript4.builtIns = {
 }
 
 thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
-    // if (world.cachedLookupWorld[key]) {
-    //     return world.cachedLookupWorld[key]
-    // }
+    // the cachedLookupWorld seems noticeably faster when running jsloopn
+    // 19ms vs 38ms on a loopn with somevar+= for 100k loops
+    if (world.cachedLookupWorld[key]) {
+        return world.cachedLookupWorld[key]
+    }
     for (var w = world; w != null; w = w.parent) {
         // perf doesn't seem to matter here
         // if (key in w.state) {
         if (w.state.hasOwnProperty(key)) {
         // if (typeof w.state[key] !== "undefined") {
-            // world.cachedLookupWorld[key] = w
+            world.cachedLookupWorld[key] = w
             break
         }
         if (w.local && forSetting) {
@@ -966,7 +992,9 @@ thumbscript4.stdlib = `
     swap: •local { :b :a b a }
     drop: •local { :a }
     // loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
-    // inlining the block is faster!
+    // inlining the block is faster! that pipe means inline.
+    // todo: look at what's slow with not inlining (object creation? and fix)
+    // that said jsloopn is fastest
     loopn: •local { :n :block 0 :i { i •lt n guardb i |block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
@@ -980,7 +1008,8 @@ thumbscript4.stdlib = `
     checkn: •local { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
     timeit: •local { :n :block
         nowmillis :start
-        ~block n loopn
+        // ~block n loopn
+        ~block n jsloopn
         nowmillis :end
         end •minus start :total
         ["it took" total "milliseconds"] sayn
@@ -989,7 +1018,7 @@ thumbscript4.stdlib = `
 
 // idea macros?
 // todo closure leakage issue?
-// function timeit(n, f) {
+// function jstimeit(n, f) {
 //     var start = Date.now()
 //     for (var i=0; i<n; i++) {
 //         f(i)
@@ -1000,7 +1029,7 @@ thumbscript4.stdlib = `
 // }
 // ;(function() {
 //     var count = 0
-//     timeit(100_000, function(i) {
+//     jstimeit(100_000, function(i) {
 //         count += i
 //     })
 //     log2("count is " + count)
@@ -1014,8 +1043,12 @@ var code = `
     // { count plus :count } 5000000 timeit
     // { count plus :count } 100 timeit
     // { count+= } 100 timeit
+    // { count+= } 100000 timeit
+    
+    // with jsloopn 18 ms
+    // with loopn inline sub 60ms
     { count+= } 100000 timeit
-    // { count+= } 10000 timeit
+    // { count plus :count } 100000 timeit
     ["count is" count] sayn
     
     
