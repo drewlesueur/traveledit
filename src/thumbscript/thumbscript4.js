@@ -87,11 +87,15 @@ thumbscript4.tokenize = function(code) {
                 token = {th_type: builtInType, valueFunc: thumbscript4.builtIns[token], name: token}
             } else {
                 var preventCall = false
+                var inline = false
                 if (token.startsWith("~")) {
                     preventCall = true
                     token = token.slice(1)
+                } else if (token.startsWith("|")) {
+                    inline = true
+                    token = token.slice(1)
                 }
-                token = {th_type: varType, valueString: token, preventCall: preventCall}
+                token = {th_type: varType, valueString: token, preventCall: preventCall, inline: inline}
             }
         } else if (typeof token == "number") {
             token = {th_type: numberType, valueNumber: token}
@@ -672,7 +676,7 @@ thumbscript4.builtIns = {
             dynParent: oldWorld,
             runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
-            // cachedLookupWorld: {},
+            cachedLookupWorld: {},
             // global: f.world.global,
             local: f.local,
         }
@@ -917,7 +921,23 @@ thumbscript4.next = function(world) {
                 var x = w.state[token.valueString]
                 if (x && x.th_type === closureType && !token.preventCall) {
                     // newWorld = thumbscript4.builtIns.call(world)
-                    newWorld = thumbscript4.builtIns.call_skipstack(world, x)
+                    if (token.inline) {
+                        // lol modify the tokens at runtime
+                        // log2("before")
+                        // log2(world.tokens.map(thumbscript4.displayToken))
+                        var oldState = world.state
+                        var start = {th_type: builtInType, valueFunc: function(world) {world.state = x.world.state; return world}, name: "updateWorld"}
+                        var end = {th_type: builtInType, valueFunc: function(world) {world.state = oldState; return world}, name: "return world"}
+                        world.tokens = [...world.tokens]
+                        spliceArgs = [world.i, 1, start, ...x.tokens, end]
+                        // log2(spliceArgs.slice(1))
+                        world.tokens.splice.apply(world.tokens, spliceArgs)
+                        // log2("after")
+                        // log2(world.tokens.map(thumbscript4.displayToken))
+                        world.i--
+                    } else {
+                        newWorld = thumbscript4.builtIns.call_skipstack(world, x)
+                    }
                 } else {
                     if (typeof x === "function") {
                         newWorld = thumbscript4.builtIns.call_js_skipstack(world, x)
@@ -945,7 +965,9 @@ thumbscript4.next = function(world) {
 thumbscript4.stdlib = `
     swap: •local { :b :a b a }
     drop: •local { :a }
-    loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+    // loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+    // inlining the block is faster!
+    loopn: •local { :n :block 0 :i { i •lt n guardb i |block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
     ccc: •local { :l "" :r { drop r swap cc :r } l range r }
@@ -988,17 +1010,23 @@ window.xyzzy = 0
 var code = `
 {
     0 :count
-    { count+= } 100000 timeit
     // { count plus :count } 100000 timeit
     // { count plus :count } 5000000 timeit
     // { count plus :count } 100 timeit
     // { count+= } 100 timeit
+    { count+= } 100000 timeit
+    // { count+= } 10000 timeit
     ["count is" count] sayn
+    
+    
+    // 70 :count2
+    // { count2+= } 100 timeit
+    // 
+    // ["count2 is" count2] sayn
     // h say
 } call
 
 window $xyzzy prop "xyzzy is " swap cc say
-`; var code2 = `
 
 100 :count
 count say
@@ -1363,6 +1391,8 @@ say
 // thumbscript4.eval(code, {})
 thumbscript4.eval(code, window)
 // window makes my test a bit slower (in 80s) interesting
+// actuallt down to sub 60 ms now. with inlining
+// was mis 60s before.
 // showLog()
 thumbscript4.eval(`
 
