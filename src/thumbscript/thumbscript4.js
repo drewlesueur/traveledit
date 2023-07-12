@@ -29,8 +29,21 @@ thumbscript4.tokenize = function(code) {
             return
         }
         if (typeof token == "string" && token.endsWith("++")) {
-            addToken2("$" + token.slice(0, -2))
-            addToken2("setplus1")
+            // keeping this old way in comments for reference
+            // addToken2("$" + token.slice(0, -2))
+            // addToken2("setplus1")
+            // return
+            
+            // attempt to go faster, but doesn't seem to help.
+            var a = token.slice(0, -2)
+            var f = function(world) {
+                // var w = world.parent // even  this doesn't seem to help perf
+                var w = thumbscript4.getWorldForKey(world, a, false, true)
+                w.state[a] += 1
+                return world
+            }
+            f.theName = token
+            addToken2(f)
             return
         }
         if (typeof token == "string" && token.startsWith("#")) {
@@ -38,24 +51,7 @@ thumbscript4.tokenize = function(code) {
             addToken2("nameworld")
             return
         }
-        // if (token == "->") {
-        //     addToken2("•")
-        //     addToken2("setc")
-        // } else if (token == "->1") {
-        //     addToken2("•")
-        //     addToken2("set")
-        // } else if (token == "1<-") {
-        //     addToken2("•")
-        //     addToken2("setb")
-        // } else if (token == "<-") {
-        //     addToken2("•")
-        //     addToken2("setcb")
-        // } else if (token == ":") {
-        //     addToken2("•")
-        //     addToken2("setcb")
-        // } else {
-            addToken2(token)
-        // }
+        addToken2(token)
     }
 
     // lol
@@ -76,6 +72,8 @@ thumbscript4.tokenize = function(code) {
             }
         } else if (typeof token == "number") {
             token = {th_type: numberType, valueNumber: token}
+        } else if (typeof token == "function") {
+            token = {th_type: builtInType, valueFunc: token, name: token.theName}
         } else {
             log2("- unknowntoken type")
             log2(token)
@@ -432,8 +430,6 @@ thumbscript4.displayToken = function(tk) {
 
 thumbscript4.run = function(world) {
     while (true) {
-        // log2("\t".repeat(world.indent) + "// token: " + JSON.stringify(world.tokens.slice(world.i, world.i+1)[0]))
-        
         // if (world.i + 1 < world.tokens.length) {
         //     var tk = world.tokens.slice(world.i, world.i+1)[0]
         //     log2("\t".repeat(world.indent) + "// token: " + thumbscript4.displayToken(tk))
@@ -1016,7 +1012,6 @@ thumbscript4.next = function(world) {
 thumbscript4.stdlib = `
     swap: •local { :b :a b a }
     drop: •local { :a }
-    // loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
     loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
@@ -1089,6 +1084,7 @@ person say
 {
     0 :count
     { count plus :count } 100000 timeit
+    // { count plus :count } 100 timeit
     ["count is" count] sayn
     // h say
 } call
