@@ -38,30 +38,24 @@ thumbscript4.tokenize = function(code) {
             addToken2("nameworld")
             return
         }
-        if (token == "→") {
-            addToken2("•")
-            addToken2("setc")
-        } else if (token == "->") {
-            addToken2("•")
-            addToken2("setc")
-        } else if (token == "->1") {
-            addToken2("•")
-            addToken2("set")
-        } else if (token == "1<-") {
-            addToken2("•")
-            addToken2("setb")
-        } else if (token == "<-") {
-            addToken2("•")
-            addToken2("setcb")
-        } else if (token == "←") {
-            addToken2("•")
-            addToken2("setcb")
-        } else if (token == ":") {
-            addToken2("•")
-            addToken2("setcb")
-        } else {
+        // if (token == "->") {
+        //     addToken2("•")
+        //     addToken2("setc")
+        // } else if (token == "->1") {
+        //     addToken2("•")
+        //     addToken2("set")
+        // } else if (token == "1<-") {
+        //     addToken2("•")
+        //     addToken2("setb")
+        // } else if (token == "<-") {
+        //     addToken2("•")
+        //     addToken2("setcb")
+        // } else if (token == ":") {
+        //     addToken2("•")
+        //     addToken2("setcb")
+        // } else {
             addToken2(token)
-        }
+        // }
     }
 
     // lol
@@ -92,9 +86,16 @@ thumbscript4.tokenize = function(code) {
         var chr = code.charAt(i)
 
         if (state == "out") {
-            if ("()[]{}→←".indexOf(chr) != -1) {
+            if ("()[]{}".indexOf(chr) != -1) {
                 addToken(chr)
             } else if (":".indexOf(chr) != -1) {
+                // some fancy desugaring here and below
+                // x: y means x 1<- y
+                // y :x means y ->1 x
+                // [w x]: y means [w x] <- y
+                // y :[w x] means y -> [w x]
+                // more desugaring happens in desugarArrows
+                
                 var nextChar = code.charAt(i+1)
                 if (" \n\t".indexOf(nextChar) != -1) {
                     // [foo bar]: 100
@@ -126,7 +127,7 @@ thumbscript4.tokenize = function(code) {
                 currentToken = chr
             }
         } else if (state == "in") {
-            if ("()[]{}→←".indexOf(chr) != -1) {
+            if ("()[]{}".indexOf(chr) != -1) {
                 addToken(currentToken) 
                 addToken(chr)
                 currentToken = ""
@@ -204,8 +205,73 @@ thumbscript4.tokenize = function(code) {
     // showLog()
     // log2(tokens)
     tokens = thumbscript4.squishFuncs(tokens)
-    tokens = thumbscript4.desugarAtSign(tokens)
+    // log2(tokens)
+    tokens = thumbscript4.desugar(tokens)
+    // log2(tokens)
     return tokens
+}
+thumbscript4.desugar = function(tokens) {
+    tokens = thumbscript4.desugarArrows(tokens)
+    // log2(tokens)
+    tokens = thumbscript4.desugarAtSign(tokens)
+    // log2(tokens)
+    return tokens
+}
+thumbscript4.desugarArrows = function(tokens) {
+    // return tokens
+    var newTokens = []
+    var i = 0
+    
+    var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+    var setToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.set, name: "set"}
+    var setcToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setc, name: "setc"}
+
+    while (i < tokens.length) {
+        var token = tokens[i]
+        // this does it in such a way that you can chain the stuff with dots when going backwards
+        if (token.th_type === varType) {
+            // log2("yay: " + token.valueString)
+            switch (token.valueString) {
+                case "->":
+                    // 100 -> [a $b]
+                    // 100 [a $b] setc
+                    newTokens.push(dotToken)
+                    newTokens.push(setcToken)
+                    break
+                case "->1":
+                    // 100 -> a
+                    // 100 a set
+                    newTokens.push(dotToken)
+                    newTokens.push(setToken)
+                    break
+                case "<-":
+                    // [a $b] <- 100
+                    // 100 [a $b] setc
+                    var lastToken = newTokens.pop()
+                    newTokens.push(dotToken)
+                    newTokens.push(setcToken)
+                    newTokens.push(dotToken)
+                    newTokens.push(lastToken)
+                    break
+                case "1<-":
+                    // a <- 100
+                    // 100 a set
+                    var lastToken = newTokens.pop()
+                    newTokens.push(dotToken)
+                    newTokens.push(setToken)
+                    newTokens.push(dotToken)
+                    newTokens.push(lastToken)
+                    break
+                default:
+                    newTokens.push(token)
+                    break
+            } 
+        } else {
+            newTokens.push(token)
+        }
+        i++
+    }
+    return newTokens
 }
 thumbscript4.desugarAtSign = function(tokens) {
     var newTokens = []
@@ -278,21 +344,21 @@ thumbscript4.squishFuncs = function(tokens) {
             newTokens = tokenStack.pop()
             newTokens.push({
                 th_type: curlyType,
-                valueArr: thumbscript4.desugarAtSign(r),
+                valueArr: thumbscript4.desugar(r),
             })
         } else if (token.valueString == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
                 th_type: squareType,
-                valueArr: thumbscript4.desugarAtSign(r),
+                valueArr: thumbscript4.desugar(r),
             })
         } else if (token.valueString == ")") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
                 th_type: parenType,
-                valueArr: thumbscript4.desugarAtSign(r),
+                valueArr: thumbscript4.desugar(r),
             })
         } else {
             newTokens.push(token)
@@ -312,7 +378,6 @@ thumbscript4.eval = function(code, state) {
     code = thumbscript4.stdlib + code
     
     var tokens = thumbscript4.tokenize(code)
-    // log2(tokens)
     // return
     world = {
         state: state || {},
@@ -1332,12 +1397,30 @@ say
 
 
 // mid 70 ms for the onenperf check
-// thumbscript4.eval(code, {})
+thumbscript4.eval(code, {})
 // showLog()
 thumbscript4.eval(`
+
+// this tests the desugaring
+bug: {•plus 1}
+fix: {•times 100}
+foo: [bar: 30]
+
+[foo $bar]: •fix •bug 4
+•say foo
+
+foo2: •fix •bug 3
+•say foo2
+
+7 bug fix :foo2
+•say foo2
+8 bug fix :[foo $bar]
+•say foo
+
+
+
 200 :a
 50 :b
-// { 900 :a  "b is " b cc say } :somefunc
 { 900 :a  "b is " b cc say } local :somefunc
 202 :a
 "the value of a is " a cc say
@@ -1351,10 +1434,6 @@ somefunc
 
 // 200000 say
 // "foo@bar" encodeURIComponent say
-
-
-
-foo: 
 `, window)
 /*
 
