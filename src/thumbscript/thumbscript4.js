@@ -8,7 +8,9 @@ const curlyType = 3;
 const parenType = 4;
 const builtInType = 5;
 const varType = 6;
-const closureType = 7; // runtime only
+const closureType = 7; // runtime only, not a token type
+const incrType = 8;
+const noOpType = 9;
 
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code) {
@@ -28,23 +30,44 @@ thumbscript4.tokenize = function(code) {
             addToken2(token-0)
             return
         }
-        if (typeof token == "string" && token.endsWith("++")) {
-            // keeping this old way in comments for reference
-            // addToken2("$" + token.slice(0, -2))
-            // addToken2("setplus1")
-            // return
-            
-            // attempt to go faster, but doesn't seem to help.
-            var a = token.slice(0, -2)
-            var f = function(world) {
-                // var w = world.parent // even  this doesn't seem to help perf
-                var w = thumbscript4.getWorldForKey(world, a, false, true)
-                w.state[a] += 1
-                return world
+        if (typeof token == "string") {
+            if (token.endsWith("++")) {
+                // another try
+                var tk = {th_type: incrType, valueString: token.slice(0, -2)}
+                addToken2(tk)
+                return
+                
+                // for (var i=0; i < 300; i++) {
+                //     addToken2({th_type: noOpType})
+                // }
+                
+                // keeping this old way in comments for reference
+                // addToken2("$" + token.slice(0, -2))
+                // addToken2("setplus1")
+                // return
+                
+                // attempt to go faster, but doesn't seem to help.
+                var a = token.slice(0, -2)
+                var f = function(world) {
+                    // var w = world.parent // even  this doesn't seem to help perf
+                    var w = thumbscript4.getWorldForKey(world, a, false, true)
+                    w.state[a] += 1
+                    return world
+                }
+                f.theName = token
+                addToken2(f)
+                return
+            } else if (token.endsWith("+=")) {
+                var a = token.slice(0, -2)
+                var f = function(world) {
+                    var w = thumbscript4.getWorldForKey(world, a, false, true)
+                    w.state[a] += world.stack.pop()
+                    return world
+                }
+                f.theName = token
+                addToken2(f)
+                return
             }
-            f.theName = token
-            addToken2(f)
-            return
         }
         if (typeof token == "string" && token.startsWith("#")) {
             addToken2("$" + token.slice(0, -1))
@@ -75,8 +98,8 @@ thumbscript4.tokenize = function(code) {
         } else if (typeof token == "function") {
             token = {th_type: builtInType, valueFunc: token, name: token.theName}
         } else {
-            log2("- unknowntoken type")
-            log2(token)
+            // log2("- unknowntoken type")
+            // log2(token)
         }
         tokens.push(token)
     }
@@ -403,7 +426,7 @@ thumbscript4.eval = function(code, state) {
 
 thumbscript4.displayToken = function(tk) {
     try {
-        if (!tk) return ""
+        if (!tk) return "what??"
         switch (tk.th_type) {
             case stringType:
                 return `"${tk.valueString}"`
@@ -419,6 +442,12 @@ thumbscript4.displayToken = function(tk) {
                 return `<native ${tk.name}>`
             case varType:
                 return `${tk.valueString}`
+            case incrType:
+                return `<incr ${tk.valueString}>`
+            case noOpType:
+                return `<noop>`
+            default:
+                return `huh????`
         }
     } catch (e) {
         log2(JSON.stringify(tk))
@@ -430,10 +459,6 @@ thumbscript4.displayToken = function(tk) {
 
 thumbscript4.run = function(world) {
     while (true) {
-        // if (world.i + 1 < world.tokens.length) {
-        //     var tk = world.tokens.slice(world.i, world.i+1)[0]
-        //     log2("\t".repeat(world.indent) + "// token: " + thumbscript4.displayToken(tk))
-        // }
         newWorld = thumbscript4.next(world)
         if (!newWorld) {
             return world
@@ -501,7 +526,8 @@ thumbscript4.genFunc3 = function(f) {
 thumbscript4.builtIns = {
     say: thumbscript4.genFunc1NoReturn(a => { log2(a) }),
     cc: thumbscript4.genFunc2((a, b) => a + b),
-    nowmillis: thumbscript4.genFunc0(() => Date.now()),
+    // nowmillis: thumbscript4.genFunc0(() => Date.now()),
+    nowmillis: thumbscript4.genFunc0(() => performance.now()),
     plus: thumbscript4.genFunc2((a, b) => a + b),
     minus: thumbscript4.genFunc2((a, b) => a - b),
     times: thumbscript4.genFunc2((a, b) => a * b),
@@ -626,7 +652,7 @@ thumbscript4.builtIns = {
             runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
             cachedLookupWorld: {},
-            global: f.world.global,
+            // global: f.world.global,
             local: f.local,
         }
 
@@ -646,8 +672,8 @@ thumbscript4.builtIns = {
             dynParent: oldWorld,
             runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
-            cachedLookupWorld: {},
-            global: f.world.global,
+            // cachedLookupWorld: {},
+            // global: f.world.global,
             local: f.local,
         }
 
@@ -743,7 +769,7 @@ thumbscript4.builtIns = {
             world.repeatCount = 0
         }
         world.repeatCount++
-        if (world.repeatCount === 2_000_000) {
+        if (world.repeatCount === 100_000_000) {
             world = null
             alert("runaway loop")
             return world
@@ -757,12 +783,11 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     // if (world.cachedLookupWorld[key]) {
     //     return world.cachedLookupWorld[key]
     // }
-    // if (key.length > 2) {
-    //     return world.global
-    // }
-    var w = null
-    for (w = world; w != null; w = w.parent) {
-        if (key in w.state) {
+    for (var w = world; w != null; w = w.parent) {
+        // perf doesn't seem to matter here
+        // if (key in w.state) {
+        if (w.state.hasOwnProperty(key)) {
+        // if (typeof w.state[key] !== "undefined") {
             // world.cachedLookupWorld[key] = w
             break
         }
@@ -788,108 +813,6 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
 }
 thumbscript4.runId = 0
 
-var typeMap = [
-    // stringType
-    function(world, token) {
-        world.stack.push(token.valueString)
-        return world
-    },
-    // numberType
-    function(world, token) {
-        world.stack.push(token.valueNumber)
-        return world
-    },
-    // squareType
-    function(world, token) {
-        var newWorld = {
-            parent: world,
-            state: {},
-            stack: [],
-            tokens: token.valueArr,
-            i: 0,
-            dynParent: world,
-            onEnd: function(world) {
-                if (Object.keys(world.state).length) {
-                    world.dynParent.stack.push(world.state)
-                } else {
-                    world.dynParent.stack.push(world.stack)
-                }
-            },
-            indent: world.indent + 1,
-            runId: ++thumbscript4.runId,
-            cachedLookupWorld: {},
-            global: world.global,
-        }
-        return newWorld
-    },
-    // curlyType
-    function(world, token) {
-        var closure = {
-            th_type: closureType,
-            tokens: token.valueArr,
-            world: world,
-        }
-        // closure.toJSON = function() {
-        //     return {
-        //         tokens: closure.tokens,
-        //         th_type: closure.th_type,
-        //         dynamic: closure.dynamic,
-        //         // dynamic: "foobar",
-        //         // not world
-        //     }
-        // }
-        // closure.toString = function() {
-        //     return JSON.stringify(token.value)
-        // }
-        world.stack.push(closure)
-        return world
-    },
-    // parenType
-    function(world, token) {
-        var newWorld = {
-            parent: world,
-            state: {},
-            stack: [],
-            tokens: token.valueArr,
-            i: 0,
-            dynParent: world,
-            onEnd: function(world) {
-                for (var i=0; i<world.stack.length; i++) {
-                    world.dynParent.stack.push(world.stack[i])
-                }
-            },
-            indent: world.indent + 1,
-            runId: ++thumbscript4.runId,
-            cachedLookupWorld: {},
-            global: world.global,
-        }
-        return newWorld
-    },
-    // builtInType
-    function(world, token) {
-        var newWorld = token.valueFunc(world)
-        return newWorld
-    },
-    // varType
-    function(world, token) {
-        var newWorld = world
-        doCall = !token.preventCall
-        var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
-        var x = w.state[token.valueString]
-        world.stack.push(x)
-        if (x && x.th_type === closureType && !token.preventCall) {
-            // newWorld = thumbscript4.builtIns.call(world)
-            newWorld = thumbscript4.builtIns.call_skipstack(world, x)
-        } else {
-            if (typeof x === "function") {
-                newWorld = thumbscript4.builtIns.call_js_skipstack(world, x)
-            } else {
-                world.stack.push(x)
-            }
-        }
-        return newWorld
-    },
-] 
 thumbscript4.next = function(world) {
     var newWorld = world
     outer:
@@ -909,6 +832,9 @@ thumbscript4.next = function(world) {
             return false
         }
         var token = world.tokens[world.i]
+        // logging token to debug
+        // log2("\t".repeat(world.indent) + "// token: " + thumbscript4.displayToken(token))
+        // log2("\t".repeat(world.indent) + "// stack length: " + world.stack.length)
         
         // that's actually barely slower.
         // newWorld = typeMap[token.th_type](world, token)
@@ -940,7 +866,7 @@ thumbscript4.next = function(world) {
                     indent: world.indent + 1,
                     runId: ++thumbscript4.runId,
                     cachedLookupWorld: {},
-                    global: world.global,
+                    // global: world.global,
                 }
                 break outer
             case curlyType:
@@ -980,7 +906,7 @@ thumbscript4.next = function(world) {
                     indent: world.indent + 1,
                     runId: ++thumbscript4.runId,
                     cachedLookupWorld: {},
-                    global: world.global,
+                    // global: world.global,
                 }
                 break outer 
             case builtInType:
@@ -999,6 +925,13 @@ thumbscript4.next = function(world) {
                         world.stack.push(x)
                     }
                 }
+                break outer
+            case incrType:
+                var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
+                w.state[token.valueString]++
+                break outer
+            case noOpType:
+                window.xyzzy++
                 break outer
         }
         break
@@ -1051,7 +984,21 @@ thumbscript4.stdlib = `
 //     log2("count is " + count)
 // })()
 // `; var code2 = `
+window.xyzzy = 0
 var code = `
+{
+    0 :count
+    { count+= } 100000 timeit
+    // { count plus :count } 100000 timeit
+    // { count plus :count } 5000000 timeit
+    // { count plus :count } 100 timeit
+    // { count+= } 100 timeit
+    ["count is" count] sayn
+    // h say
+} call
+
+window $xyzzy prop "xyzzy is " swap cc say
+`; var code2 = `
 
 100 :count
 count say
@@ -1081,13 +1028,8 @@ person say
 // exit
 
 7 •plus (1 •times 2) say
-{
-    0 :count
-    { count plus :count } 100000 timeit
-    // { count plus :count } 100 timeit
-    ["count is" count] sayn
-    // h say
-} call
+
+
 
 // •shallowcopylist: {
 //     [] :n
@@ -1421,7 +1363,6 @@ say
 // thumbscript4.eval(code, {})
 thumbscript4.eval(code, window)
 // window makes my test a bit slower (in 80s) interesting
-
 // showLog()
 thumbscript4.eval(`
 
