@@ -1,5 +1,5 @@
 
-var thumbscript3 = {}
+var thumbscript4 = {}
 
 const stringType = 0;
 const numberType = 1;
@@ -11,7 +11,7 @@ const varType = 6;
 const closureType = 7; // runtime only
 
 // thumbscript2 parser was cool with optional significant indenting
-thumbscript3.tokenize = function(code) {
+thumbscript4.tokenize = function(code) {
     var state = "out"
     var currentToken = ""
     var tokens = []
@@ -70,8 +70,8 @@ thumbscript3.tokenize = function(code) {
             // not sure if faster
             if (token.charAt(0) == "$") {
                 token = {th_type: stringType, valueString: token.slice(1)}
-            } else if (token in thumbscript3.builtIns) {
-                token = {th_type: builtInType, valueFunc: thumbscript3.builtIns[token], name: token}
+            } else if (token in thumbscript4.builtIns) {
+                token = {th_type: builtInType, valueFunc: thumbscript4.builtIns[token], name: token}
             } else {
                 var preventCall = false
                 if (token.startsWith("~")) {
@@ -203,11 +203,11 @@ thumbscript3.tokenize = function(code) {
     }
     // showLog()
     // log2(tokens)
-    tokens = thumbscript3.squishFuncs(tokens)
-    tokens = thumbscript3.desugarAtSign(tokens)
+    tokens = thumbscript4.squishFuncs(tokens)
+    tokens = thumbscript4.desugarAtSign(tokens)
     return tokens
 }
-thumbscript3.desugarAtSign = function(tokens) {
+thumbscript4.desugarAtSign = function(tokens) {
     var newTokens = []
     var stack = []
     var state = null
@@ -257,7 +257,7 @@ thumbscript3.desugarAtSign = function(tokens) {
 }
 
 // ()	[]	{}	<>
-thumbscript3.squishFuncs = function(tokens) {
+thumbscript4.squishFuncs = function(tokens) {
     // function definitions can be turned into an array
     var newTokens = []
     var tokenStack = []
@@ -278,21 +278,21 @@ thumbscript3.squishFuncs = function(tokens) {
             newTokens = tokenStack.pop()
             newTokens.push({
                 th_type: curlyType,
-                valueArr: thumbscript3.desugarAtSign(r),
+                valueArr: thumbscript4.desugarAtSign(r),
             })
         } else if (token.valueString == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
                 th_type: squareType,
-                valueArr: thumbscript3.desugarAtSign(r),
+                valueArr: thumbscript4.desugarAtSign(r),
             })
         } else if (token.valueString == ")") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
                 th_type: parenType,
-                valueArr: thumbscript3.desugarAtSign(r),
+                valueArr: thumbscript4.desugarAtSign(r),
             })
         } else {
             newTokens.push(token)
@@ -302,12 +302,20 @@ thumbscript3.squishFuncs = function(tokens) {
     return newTokens
 }
 
-thumbscript3.eval = function(code) {
-    var tokens = thumbscript3.tokenize(code)
+thumbscript4.eval = function(code, state) {
+    
+    // I tried to pass in the state of the stdlib
+    // wasn't working, so just doing this hacky string concat.
+    // would be nice to grab the state of the stdlib
+    // problem might be some function scope?
+    // look later
+    code = thumbscript4.stdlib + code
+    
+    var tokens = thumbscript4.tokenize(code)
     // log2(tokens)
     // return
-    var world = {
-        state: {},
+    world = {
+        state: state || {},
         stack: [],
         tokens: tokens,
         i: 0,
@@ -318,7 +326,8 @@ thumbscript3.eval = function(code) {
         cachedLookupWorld: {},
     }
     world.global = world
-    thumbscript3.run(world)
+    thumbscript4.run(world)
+    return world
 
     // window.f99 = makeFile("__output", 0, "")
     // f99.fileMode = "file"
@@ -326,16 +335,17 @@ thumbscript3.eval = function(code) {
     // f99.lines = debugOutput
     // addFileToList(f99)
     // clearTimeout(window.t99)
-    // thumbscript3.runAsync(world)
+    // thumbscript4.runAsync(world)
 }
 
-thumbscript3.run = function(world) {
+thumbscript4.run = function(world) {
     while (true) {
         // log2("\t".repeat(world.indent) + "// token: " + JSON.stringify(world.tokens.slice(world.i, world.i+1)[0]))
-        world = thumbscript3.next(world)
-        if (!world) {
-            break
+        newWorld = thumbscript4.next(world)
+        if (!newWorld) {
+            return world
         }
+        world = newWorld
         // log2("\t".repeat(world.indent) + "// stack: " + JSON.stringify(world.stack))
         // if (world.name) {
         //     log2("\t".repeat(world.indent) + "+ in world " + world.name + "(" +world.runId+") < " + (world.parent?.name || "") )
@@ -343,41 +353,41 @@ thumbscript3.run = function(world) {
     }
 }
 
-thumbscript3.runAsync = function(world) {
-    world = thumbscript3.next(world)
+thumbscript4.runAsync = function(world) {
+    world = thumbscript4.next(world)
     if (!world) {
         return
     }
     // log2(Object.keys(world))
     log2("//" + world.tokens.slice(world.i, world.i+1))
     log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
-    window.t99 = setTimeout(function() { thumbscript3.runAsync(world) }, 250)
+    window.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 250)
     f99.lines = debugOutput
     render()
     
 }
 
-thumbscript3.genFunc0 = function(f) {
+thumbscript4.genFunc0 = function(f) {
     return function(world) {
         world.stack.push(f())
         return world
     }
 }
-thumbscript3.genFunc1 = function(f) {
+thumbscript4.genFunc1 = function(f) {
     return function(world) {
         var a = world.stack.pop()
         world.stack.push(f(a))
         return world
     }
 }
-thumbscript3.genFunc1NoReturn = function(f) {
+thumbscript4.genFunc1NoReturn = function(f) {
     return function(world) {
         var a = world.stack.pop()
         f(a)
         return world
     }
 }
-thumbscript3.genFunc2 = function(f) {
+thumbscript4.genFunc2 = function(f) {
     return function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
@@ -385,7 +395,7 @@ thumbscript3.genFunc2 = function(f) {
         return world
     }
 }
-thumbscript3.genFunc3 = function(f) {
+thumbscript4.genFunc3 = function(f) {
     return function(world) {
         var c = world.stack.pop()
         var b = world.stack.pop()
@@ -395,70 +405,75 @@ thumbscript3.genFunc3 = function(f) {
     }
 }
 // built in funcs have to have func call last?
-thumbscript3.builtIns = {
-    say: thumbscript3.genFunc1NoReturn(a => { log2(a) }),
-    cc: thumbscript3.genFunc2((a, b) => a + b),
-    nowmillis: thumbscript3.genFunc0(() => Date.now()),
-    plus: thumbscript3.genFunc2((a, b) => a + b),
-    minus: thumbscript3.genFunc2((a, b) => a - b),
-    times: thumbscript3.genFunc2((a, b) => a * b),
-    divide: thumbscript3.genFunc2((a, b) => a * b),
-    lt: thumbscript3.genFunc2((a, b) => a < b),
-    gt: thumbscript3.genFunc2((a, b) => a > b),
-    lte: thumbscript3.genFunc2((a, b) => a <= b),
-    gte: thumbscript3.genFunc2((a, b) => a >= b),
-    match: thumbscript3.genFunc2((a, b) => a == b),
-    is: thumbscript3.genFunc2((a, b) => a == b),
-    eq: thumbscript3.genFunc2((a, b) => a === b),
-    ne: thumbscript3.genFunc2((a, b) => a !== b),
-    prop: thumbscript3.genFunc2((a, b) => a[b]),
-    at: thumbscript3.genFunc2((a, b) => a[b]),
-    props: thumbscript3.genFunc1((a) => {
+thumbscript4.builtIns = {
+    say: thumbscript4.genFunc1NoReturn(a => { log2(a) }),
+    cc: thumbscript4.genFunc2((a, b) => a + b),
+    nowmillis: thumbscript4.genFunc0(() => Date.now()),
+    plus: thumbscript4.genFunc2((a, b) => a + b),
+    minus: thumbscript4.genFunc2((a, b) => a - b),
+    times: thumbscript4.genFunc2((a, b) => a * b),
+    divide: thumbscript4.genFunc2((a, b) => a * b),
+    lt: thumbscript4.genFunc2((a, b) => a < b),
+    gt: thumbscript4.genFunc2((a, b) => a > b),
+    lte: thumbscript4.genFunc2((a, b) => a <= b),
+    gte: thumbscript4.genFunc2((a, b) => a >= b),
+    match: thumbscript4.genFunc2((a, b) => a == b),
+    is: thumbscript4.genFunc2((a, b) => a == b),
+    eq: thumbscript4.genFunc2((a, b) => a === b),
+    ne: thumbscript4.genFunc2((a, b) => a !== b),
+    prop: thumbscript4.genFunc2((a, b) => a[b]),
+    at: thumbscript4.genFunc2((a, b) => a[b]),
+    props: thumbscript4.genFunc1((a) => {
         var v = a[0]
         for (var i = 1; i < a.length; i++) { v = v[a[i]] }
         return v
     }),
-    not: thumbscript3.genFunc1((a) => !!!a),
-    "check": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
-    "if": thumbscript3.genFunc3((a, b, c) => (a ? b : c) ),
-    length: thumbscript3.genFunc1((a) => a.length),
-    push: thumbscript3.genFunc2((a, b) => a.push(b)),
-    pop: thumbscript3.genFunc1((a) => a.pop()),
-    unshift: thumbscript3.genFunc2((a, b) => a.unshift(b)),
-    shift: thumbscript3.genFunc1((a) => a.shift()),
-    split: thumbscript3.genFunc2((a, b) => a.split(b)),
-    join: thumbscript3.genFunc2((a, b) => a.join(b)),
-    copylist: thumbscript3.genFunc1((a) => [...a]),
+    not: thumbscript4.genFunc1((a) => !!!a),
+    "check": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
+    "if": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
+    length: thumbscript4.genFunc1((a) => a.length),
+    push: thumbscript4.genFunc2((a, b) => a.push(b)),
+    pop: thumbscript4.genFunc1((a) => a.pop()),
+    unshift: thumbscript4.genFunc2((a, b) => a.unshift(b)),
+    shift: thumbscript4.genFunc1((a) => a.shift()),
+    split: thumbscript4.genFunc2((a, b) => a.split(b)),
+    join: thumbscript4.genFunc2((a, b) => a.join(b)),
+    copylist: thumbscript4.genFunc1((a) => [...a]),
     dyn: function(world) {
         var a = world.stack.pop()
         a.dynamic = true
         world.stack.push(a)
         return world
     },
+    local: function(world) {
+        var a = world.stack.pop()
+        a.local = true
+        world.stack.push(a)
+        return world
+    },
     get: function(world) {
         var a = world.stack.pop()
-        var w = thumbscript3.getWorldForKey(world, a, false)
+        var w = thumbscript4.getWorldForKey(world, a, false)
         world.stack.push(w.state[a])
         return world
     },
     set: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
-        var w = thumbscript3.getWorldForKey(world, a, false)
+        var w = thumbscript4.getWorldForKey(world, a, false)
         w.state[a] = b
         return world
     },
     setb: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
-        var w = thumbscript3.getWorldForKey(world, a, false)
+        var w = thumbscript4.getWorldForKey(world, a, false)
         w.state[a] = b
         return world
     },
     setplus1: function(world) {
         var a = world.stack.pop()
-        var w = thumbscript3.getWorldForKey(world, a, false)
-        w.state[a] -= 0
+        var w = thumbscript4.getWorldForKey(world, a, false)
         w.state[a] += 1
         return world
     },
@@ -474,7 +489,7 @@ thumbscript3.builtIns = {
         var a = world.stack.pop()
         var b = world.stack.pop()
         world.stack.push(a.slice(0,-1))
-        thumbscript3.builtIns.props(world)
+        thumbscript4.builtIns.props(world)
         obj = world.stack.pop()
         obj[a[a.length-1]] = b
         return world
@@ -491,7 +506,7 @@ thumbscript3.builtIns = {
         //     // log2(world)
         //     return null
         // }
-        thumbscript3.builtIns.props(world)
+        thumbscript4.builtIns.props(world)
         obj = world.stack.pop()
         obj[a[a.length-1]] = b
         return world
@@ -515,10 +530,11 @@ thumbscript3.builtIns = {
             tokens: f.tokens,
             i: 0,
             dynParent: oldWorld,
-            runId: ++thumbscript3.runId,
+            runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
             cachedLookupWorld: {},
             global: f.world.global,
+            local: f.local,
         }
 
         if (f.dynamic) {
@@ -535,15 +551,24 @@ thumbscript3.builtIns = {
             tokens: f.tokens,
             i: 0,
             dynParent: oldWorld,
-            runId: ++thumbscript3.runId,
+            runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
             cachedLookupWorld: {},
             global: f.world.global,
+            local: f.local,
         }
 
         if (f.dynamic) {
             world.parent = oldWorld
         }
+        return world
+    },
+    call_js_skipstack: function(world, f) {
+        var args = []
+        for (var i=0; i < f.length; i++) {
+            args.unshift(world.stack.pop())
+        }
+        world.stack.push(f.apply(null, args))
         return world
     },
     "return": function(world) {
@@ -635,7 +660,7 @@ thumbscript3.builtIns = {
     },
 }
 
-thumbscript3.getWorldForKey = function(world, key, errOnNotFound) {
+thumbscript4.getWorldForKey = function(world, key, errOnNotFound) {
     // if (world.cachedLookupWorld[key]) {
     //     return world.cachedLookupWorld[key]
     // }
@@ -648,10 +673,19 @@ thumbscript3.getWorldForKey = function(world, key, errOnNotFound) {
             // world.cachedLookupWorld[key] = w
             break
         }
+        if (w.local) {
+            break
+        }
     }
     if (w === null) {
         // world.stack.push(token.valueString) // lol
         // throw new Error("unknown variable");
+        
+        // javascript hack
+        // var a = world.stack[world.stack.length-1]
+        // if (a && (key in a)) {
+        //     return a
+        // }
         if (errOnNotFound) {
             log2("-unknown variable: " + key);
         }
@@ -659,7 +693,7 @@ thumbscript3.getWorldForKey = function(world, key, errOnNotFound) {
     }
     return w
 }
-thumbscript3.runId = 0
+thumbscript4.runId = 0
 
 var typeMap = [
     // stringType
@@ -689,7 +723,7 @@ var typeMap = [
                 }
             },
             indent: world.indent + 1,
-            runId: ++thumbscript3.runId,
+            runId: ++thumbscript4.runId,
             cachedLookupWorld: {},
             global: world.global,
         }
@@ -732,7 +766,7 @@ var typeMap = [
                 }
             },
             indent: world.indent + 1,
-            runId: ++thumbscript3.runId,
+            runId: ++thumbscript4.runId,
             cachedLookupWorld: {},
             global: world.global,
         }
@@ -747,19 +781,23 @@ var typeMap = [
     function(world, token) {
         var newWorld = world
         doCall = !token.preventCall
-        var w = thumbscript3.getWorldForKey(world, token.valueString)
+        var w = thumbscript4.getWorldForKey(world, token.valueString)
         var x = w.state[token.valueString]
         world.stack.push(x)
         if (x && x.th_type === closureType && !token.preventCall) {
-            // newWorld = thumbscript3.builtIns.call(world)
-            newWorld = thumbscript3.builtIns.call_skipstack(world, x)
+            // newWorld = thumbscript4.builtIns.call(world)
+            newWorld = thumbscript4.builtIns.call_skipstack(world, x)
         } else {
-            world.stack.push(x)
+            if (typeof x === "function") {
+                newWorld = thumbscript4.builtIns.call_js_skipstack(world, x)
+            } else {
+                world.stack.push(x)
+            }
         }
         return newWorld
     },
 ] 
-thumbscript3.next = function(world) {
+thumbscript4.next = function(world) {
     var newWorld = world
     outer:
     do {
@@ -807,7 +845,7 @@ thumbscript3.next = function(world) {
                         }
                     },
                     indent: world.indent + 1,
-                    runId: ++thumbscript3.runId,
+                    runId: ++thumbscript4.runId,
                     cachedLookupWorld: {},
                     global: world.global,
                 }
@@ -818,18 +856,19 @@ thumbscript3.next = function(world) {
                     tokens: token.valueArr,
                     world: world,
                 }
-                // closure.toJSON = function() {
-                //     return {
-                //         tokens: closure.tokens,
-                //         th_type: closure.th_type,
-                //         dynamic: closure.dynamic,
-                //         // dynamic: "foobar",
-                //         // not world
-                //     }
-                // }
-                // closure.toString = function() {
-                //     return JSON.stringify(token.value)
-                // }
+                closure.toJSON = function() {
+                    return {
+                        tokens: closure.tokens,
+                        th_type: closure.th_type,
+                        dynamic: closure.dynamic,
+                        local: closure.local,
+                        // dynamic: "foobar",
+                        // not world
+                    }
+                }
+                closure.toString = function() {
+                    return JSON.stringify(token.value)
+                }
                 world.stack.push(closure)
                 break outer
             case parenType:
@@ -846,7 +885,7 @@ thumbscript3.next = function(world) {
                         }
                     },
                     indent: world.indent + 1,
-                    runId: ++thumbscript3.runId,
+                    runId: ++thumbscript4.runId,
                     cachedLookupWorld: {},
                     global: world.global,
                 }
@@ -855,17 +894,20 @@ thumbscript3.next = function(world) {
                 newWorld = token.valueFunc(world)
                 break outer
             case varType:
-                var w = thumbscript3.getWorldForKey(world, token.valueString, true)
+                var w = thumbscript4.getWorldForKey(world, token.valueString, true)
                 var x = w.state[token.valueString]
                 if (x && x.th_type === closureType && !token.preventCall) {
-                    // newWorld = thumbscript3.builtIns.call(world)
-                    newWorld = thumbscript3.builtIns.call_skipstack(world, x)
+                    // newWorld = thumbscript4.builtIns.call(world)
+                    newWorld = thumbscript4.builtIns.call_skipstack(world, x)
                 } else {
-                    world.stack.push(x)
+                    if (typeof x === "function") {
+                        newWorld = thumbscript4.builtIns.call_js_skipstack(world, x)
+                    } else {
+                        world.stack.push(x)
+                    }
                 }
                 break outer
         }
-        
         break
     } while (false)
     world.i++
@@ -874,29 +916,58 @@ thumbscript3.next = function(world) {
     return world
 }
 
-// idea macros?
-
-// `; var code2 = `
-// todo closure leakage issue?
-
-function timeit(n, f) {
-    var start = Date.now()
-    for (var i=0; i<n; i++) {
-        f(i)
+thumbscript4.stdlib = `
+    swap: { :b :a b a }
+    drop: { :a }
+    loopn: { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+    loopn2: { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
+    range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
+    ccc: { :l "" :r { drop r swap cc :r } l range r }
+    guard: ({ not { 3 breakn } checkthen } dyn)
+    loopmax: { :theMax :block 0 :i { block i theMax lt guardb i++ repeat } call }
+    range2: { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
+    checkthen: { {} check call }
+    sayn: { " " join say }
+    take: { :n [] :a { drop a swap unshift drop } n loopn a }
+    checkn: { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
+    timeit: { :n :block
+        nowmillis :start
+        ~block n loopn
+        nowmillis :end
+        end •minus start :total
+        ["it took" total "milliseconds"] sayn
     }
-    var end = Date.now()
-    var total = end - start
-    log2("js: it took " + (total) + " milliseconds")
-}
-;(function() {
-    var count = 0
-    timeit(100_000, function(i) {
-        count += i
-    })
-    log2("count is " + count)
-})()
+`
+
+// idea macros?
+// todo closure leakage issue?
+// function timeit(n, f) {
+//     var start = Date.now()
+//     for (var i=0; i<n; i++) {
+//         f(i)
+//     }
+//     var end = Date.now()
+//     var total = end - start
+//     log2("js: it took " + (total) + " milliseconds")
+// }
+// ;(function() {
+//     var count = 0
+//     timeit(100_000, function(i) {
+//         count += i
+//     })
+//     log2("count is " + count)
+// })()
 // `; var code2 = `
 var code = `
+// ["me&you"] encodeURIComponent say
+// return
+// [yo: { "yo! " swap cc say }] :someobj
+// 
+// $Drew someobj $yo at call
+// 
+// "hi"
+// 
+// return
 
 100 :count
 count say
@@ -925,32 +996,6 @@ person say
 // exit
 
 // 7 •plus (1 •times 2) say
-swap: { :b :a b a }
-drop: { :a }
-// loopn: { :n :block 0 :i { i •lt n guard i block i++ repeat } call }
-loopn: { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
-// loopn: { :n :block 0 :i { i •ne n guardb i block i++ repeat } call }
-// loopn: { :n :block 0 :i { i n guardlt i block i++ repeat } call }
-// loopn: { :n :block 0 :i { i •lt n guard i block i •plus 1 :i repeat } call }
-loopn2: { :n :block 0 :i { i •lt (n •minus 1) guard i block i •plus 2 :i repeat } call }
-range: { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
-ccc: { :l "" :r { drop r swap cc :r } l range r }
-guard: ({ not { 3 breakn } checkthen } dyn)
-// { not { 3 breakn } checkthen } dyn :guard
-loopmax: { :theMax :block 0 :i { block i theMax lt guard i++ repeat } call }
-range2: { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
-checkthen: { {} check call }
-sayn: { " " join say }
-take: { :n [] :a { drop a swap unshift drop } n loopn a }
-checkn: { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
-
-timeit: { :n :block
-    nowmillis :start
-    ~block n loopn
-    nowmillis :end
-    end •minus start :total
-    ["it took" total "milliseconds"] sayn
-}
 {
     0 :count
     { count plus :count } 100000 timeit
@@ -1020,7 +1065,9 @@ someConds checkn "the color is " swap cc say
 someConds checkn :color
 "the color is " color cc say
 
+"foooooooo" say
 2 :x someConds checkn :color
+"foooooooo2" say
 "the color is " color cc say
 
 1 :x someConds checkn :color
@@ -1278,23 +1325,37 @@ say
 
 
 
-
-thumbscript3.eval(code)
-
-
-
-
+// come back to this
+// var world = thumbscript4.eval(thumbscript4.stdlib, {})
+// thumbscript4.defaultState = world.state
+// log2(world.state)
 
 
+// mid 70 ms for the onenperf check
+// thumbscript4.eval(code, {})
+// showLog()
+thumbscript4.eval(`
+200 :a
+50 :b
+// { 900 :a  "b is " b cc say } :somefunc
+{ 900 :a  "b is " b cc say } local :somefunc
+202 :a
+"the value of a is " a cc say
+somefunc
+"the value of a is " a cc say
 
 
 
 
 
 
+// 200000 say
+// "foo@bar" encodeURIComponent say
 
 
 
+foo: 
+`, window)
 /*
 
 

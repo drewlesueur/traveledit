@@ -24,6 +24,7 @@ document.write(`
 <!-- For now not loading in third party diff library. -->
 <!--<script src="`+proxyPath+`/tepublic/diff.js"></scr`+`ipt>-->
 <script src="`+proxyPath+`/tepublic/md52.js"></scr`+`ipt>
+<script src="`+proxyPath+`/tepublic/thumbscript4.js"></scr`+`ipt>
 <!-- For now not loading in grapheme splitter to save pageload. -->
 <!-- it means we can't use emojis, other unicode chars for now -->
 <!-- <script src="`+proxyPath+`/tepublic/grapheme-splitter.js"></scr`+`ipt>
@@ -3293,6 +3294,7 @@ function runScript() {
     debugOutput = []
     var oldCopyBuffer = copyBuffer
     var theScriptLines = getSelectedLines(fx).lines
+    var originalScriptLines = [...theScriptLines]
     // theScriptLines = [fx.lines[fx.cursorLineIndex]]
 
     // add return to the last non-empty line
@@ -3303,7 +3305,15 @@ function runScript() {
         }
     }
     var code = theScriptLines.join("\n")
-    var f = new Function(code)
+    try {
+        var f = new Function(code)
+    } catch (e) {
+        // lol
+        var f = function() {
+            var w = thumbscript4.eval(originalScriptLines.join("\n"), window) // lol the window
+            return w.stack.pop()
+        }
+    }
     var ret = f()
     if (typeof ret != "undefined") {
         ret = ret + ""
