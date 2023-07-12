@@ -453,27 +453,27 @@ thumbscript4.builtIns = {
     },
     get: function(world) {
         var a = world.stack.pop()
-        var w = thumbscript4.getWorldForKey(world, a, false)
+        var w = thumbscript4.getWorldForKey(world, a, false, false)
         world.stack.push(w.state[a])
         return world
     },
     set: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
-        var w = thumbscript4.getWorldForKey(world, a, false)
+        var w = thumbscript4.getWorldForKey(world, a, false, true)
         w.state[a] = b
         return world
     },
     setb: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
-        var w = thumbscript4.getWorldForKey(world, a, false)
+        var w = thumbscript4.getWorldForKey(world, a, false, true)
         w.state[a] = b
         return world
     },
     setplus1: function(world) {
         var a = world.stack.pop()
-        var w = thumbscript4.getWorldForKey(world, a, false)
+        var w = thumbscript4.getWorldForKey(world, a, false, true)
         w.state[a] += 1
         return world
     },
@@ -660,7 +660,7 @@ thumbscript4.builtIns = {
     },
 }
 
-thumbscript4.getWorldForKey = function(world, key, errOnNotFound) {
+thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     // if (world.cachedLookupWorld[key]) {
     //     return world.cachedLookupWorld[key]
     // }
@@ -673,7 +673,7 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound) {
             // world.cachedLookupWorld[key] = w
             break
         }
-        if (w.local) {
+        if (w.local && forSetting) {
             break
         }
     }
@@ -781,7 +781,7 @@ var typeMap = [
     function(world, token) {
         var newWorld = world
         doCall = !token.preventCall
-        var w = thumbscript4.getWorldForKey(world, token.valueString)
+        var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
         var x = w.state[token.valueString]
         world.stack.push(x)
         if (x && x.th_type === closureType && !token.preventCall) {
@@ -894,7 +894,7 @@ thumbscript4.next = function(world) {
                 newWorld = token.valueFunc(world)
                 break outer
             case varType:
-                var w = thumbscript4.getWorldForKey(world, token.valueString, true)
+                var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
                 var x = w.state[token.valueString]
                 if (x && x.th_type === closureType && !token.preventCall) {
                     // newWorld = thumbscript4.builtIns.call(world)
