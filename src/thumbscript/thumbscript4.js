@@ -19,7 +19,7 @@ thumbscript4.tokenize = function(code) {
     var tokens = []
     string2OpenCount = 0
     var quoteNext = false
-    
+
     code += "\n" // to simplify last token
     var addToken = function(token) {
         if (quoteNext) {
@@ -36,16 +36,16 @@ thumbscript4.tokenize = function(code) {
                 var tk = {th_type: incrType, valueString: token.slice(0, -2)}
                 addToken2(tk)
                 return
-                
+
                 // for (var i=0; i < 300; i++) {
                 //     addToken2({th_type: noOpType})
                 // }
-                
+
                 // keeping this old way in comments for reference
                 // addToken2("$" + token.slice(0, -2))
                 // addToken2("setplus1")
                 // return
-                
+
                 // attempt to go faster, but doesn't seem to help.
                 var a = token.slice(0, -2)
                 var f = function(world) {
@@ -121,7 +121,7 @@ thumbscript4.tokenize = function(code) {
                 // [w x]: y means [w x] <- y
                 // y :[w x] means y -> [w x]
                 // more desugaring happens in desugarArrows
-                
+
                 var nextChar = code.charAt(i+1)
                 if (" \n\t".indexOf(nextChar) != -1) {
                     // [foo bar]: 100
@@ -133,7 +133,7 @@ thumbscript4.tokenize = function(code) {
                      // 500 :baz
                     addToken("->1")
                     quoteNext = true
-                    
+
                 }
                 currentToken = ""
                 state = "out"
@@ -154,12 +154,12 @@ thumbscript4.tokenize = function(code) {
             }
         } else if (state == "in") {
             if ("()[]{}".indexOf(chr) != -1) {
-                addToken(currentToken) 
+                addToken(currentToken)
                 addToken(chr)
                 currentToken = ""
                 state = "out"
             } else if (":".indexOf(chr) != -1) {
-                addToken("$" + currentToken) 
+                addToken("$" + currentToken)
                 addToken("1<-")
                 currentToken = ""
                 state = "out"
@@ -172,12 +172,25 @@ thumbscript4.tokenize = function(code) {
             }
         } else if (state == "string") {
             // haven't finished escaping in string
+            // I might not do it at all, just interpolate if you need
             if (false && "\\".indexOf(chr) != -1) {
                 state = "stringEscape"
             } else if ('"'.indexOf(chr) != -1) {
                 // we could make every token an object
                 // but this is our strong trick for now
-                addToken("$" + currentToken)
+
+                // auto interpolate unless prefixed with "raw"
+                // raw is a compiler directive, not function
+                var prevToken = tokens.pop()
+                if (prevToken.th_type == varType && prevToken.valueString == "raw") {
+                    addToken("$" + currentToken)
+                } else {
+                    tokens.push(prevToken)
+                    addToken("$" + currentToken)
+                    if (currentToken.indexOf("$") != -1) {
+                        addToken("interpolate")
+                    }
+                }
                 currentToken = ""
                 state = "out"
             } else {
@@ -191,7 +204,20 @@ thumbscript4.tokenize = function(code) {
                 // but this is our strong trick for now
                 string2OpenCount--
                 if (string2OpenCount == 0) {
-                    addToken("$" + currentToken)
+
+                    // auto interpolate unless prefixed with "raw"
+                    // raw is a compiler directive, not function
+                    var prevToken = tokens.pop()
+                    if (prevToken.th_type == varType && prevToken.valueString == "raw") {
+                        addToken("$" + currentToken)
+                    } else {
+                        tokens.push(prevToken)
+                        addToken("$" + currentToken)
+                        if (currentToken.indexOf("$") != -1) {
+                            addToken("interpolate")
+                        }
+                    }
+
                     currentToken = ""
                     state = "out"
                 }
@@ -247,7 +273,7 @@ thumbscript4.desugarArrows = function(tokens) {
     // return tokens
     var newTokens = []
     var i = 0
-    
+
     var dotToken = {th_type: varType, valueString: "•", preventCall: false}
     var setToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.set, name: "set"}
     var setcToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setc, name: "setc"}
@@ -291,7 +317,7 @@ thumbscript4.desugarArrows = function(tokens) {
                 default:
                     newTokens.push(token)
                     break
-            } 
+            }
         } else {
             newTokens.push(token)
         }
@@ -395,14 +421,14 @@ thumbscript4.squishFuncs = function(tokens) {
 }
 
 thumbscript4.eval = function(code, state) {
-    
+
     // I tried to pass in the state of the stdlib
     // wasn't working, so just doing this hacky string concat.
     // would be nice to grab the state of the stdlib
     // problem might be some function scope?
     // look later
     code = thumbscript4.stdlib + code
-    
+
     var tokens = thumbscript4.tokenize(code)
     // return
     world = {
@@ -487,7 +513,7 @@ thumbscript4.runAsync = function(world) {
     window.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 250)
     f99.lines = debugOutput
     render()
-    
+
 }
 
 thumbscript4.genFunc0 = function(f) {
@@ -560,8 +586,10 @@ thumbscript4.builtIns = {
     pop: thumbscript4.genFunc1((a) => a.pop()),
     unshift: thumbscript4.genFunc2((a, b) => a.unshift(b)),
     shift: thumbscript4.genFunc1((a) => a.shift()),
-    split: thumbscript4.genFunc2((a, b) => a.split(b)),
     join: thumbscript4.genFunc2((a, b) => a.join(b)),
+    split: thumbscript4.genFunc2((a, b) => a.split(b)),
+    tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
+    tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     copylist: thumbscript4.genFunc1((a) => [...a]),
     dyn: function(world) {
         var a = world.stack.pop()
@@ -818,11 +846,46 @@ thumbscript4.builtIns = {
         }, Math.floor(a * 1000))
         return null // lol
     },
+    runshell: function(world) {
+        var a = world.stack.pop()
+        runQuickShellCommand(a, function(err, text) {
+             log2("debugging2!" + text)
+             // log2("debug: " + text)
+             world.stack.push(text)
+             world.stack.push(err)
+             thumbscript4.run(world)
+        })
+        return null // lol
+    },
+    interpolate: function(world) {
+        var a = world.stack.pop()
+        var r = a.replace(/\$[\w]+/g, function(x) {
+            x = x.slice(1)
+            var w = thumbscript4.getWorldForKey(world, x, true, false)
+            return w.state[x]
+        })
+        world.stack.push(r)
+        return world
+    },
+    itp: function(world) {
+        var a = world.stack.pop()
+        var r = a.replace(/\$[\w]+/g, function(x) {
+            x = x.slice(1)
+            var w = thumbscript4.getWorldForKey(world, x, true, false)
+            return w.state[x]
+        })
+        world.stack.push(r)
+        return world
+    },
 }
 
 thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     // the cachedLookupWorld seems noticeably faster when running jsloopn
     // 19ms vs 38ms on a loopn with somevar+= for 100k loops
+
+    if (world.local && forSetting) {
+        return world
+    }
     if (world.cachedLookupWorld[key]) {
         return world.cachedLookupWorld[key]
     }
@@ -834,21 +897,19 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
             world.cachedLookupWorld[key] = w
             break
         }
-        if (w.local && forSetting) {
-            break
-        }
     }
     if (w === null) {
         // world.stack.push(token.valueString) // lol
         // throw new Error("unknown variable");
-        
+
         // javascript hack
         // var a = world.stack[world.stack.length-1]
         // if (a && (key in a)) {
         //     return a
         // }
         if (errOnNotFound) {
-            log2("-unknown variable: " + key);
+            // log2("-unknown variable: " + key);
+            log2("-unknown variable: " + JSON.stringify(key));
         }
         return world
     }
@@ -878,11 +939,11 @@ thumbscript4.next = function(world) {
         // logging token to debug
         // log2("\t".repeat(world.indent) + "// token: " + thumbscript4.displayToken(token)) // lime marker
         // log2("\t".repeat(world.indent) + "// stack length: " + world.stack.length)
-        
+
         // that's actually barely slower.
         // newWorld = typeMap[token.th_type](world, token)
         // break
-        
+
         var newWorld = world
         switch (token.th_type) {
             case stringType:
@@ -909,6 +970,7 @@ thumbscript4.next = function(world) {
                     indent: world.indent + 1,
                     runId: ++thumbscript4.runId,
                     cachedLookupWorld: {},
+                    local: true,
                     // global: world.global,
                 }
                 break outer
@@ -951,7 +1013,7 @@ thumbscript4.next = function(world) {
                     cachedLookupWorld: {},
                     // global: world.global,
                 }
-                break outer 
+                break outer
             case builtInType:
                 newWorld = token.valueFunc(world)
                 break outer
@@ -1075,6 +1137,13 @@ thumbscript4.stdlib = `
 window.xyzzy = 0
 var code = `
 
+"Drew" :name
+"hello $name" say
+raw "hello $name" say
+«hello $name» say
+raw «hello $name» say
+return
+
 {
     :n
     1 :result
@@ -1131,17 +1200,17 @@ say
     // { count plus :count } 100 timeit
     // { count+= } 100 timeit
     // { count+= } 100000 timeit
-    
+
     // with jsloopn 18 ms
     // with loopn inline sub 60ms
     { count+= } 100000 timeit
     // { count plus :count } 100000 timeit
     ["count is" count] sayn
-    
-    
+
+
     // 70 :count2
     // { count2+= } 100 timeit
-    // 
+    //
     // ["count2 is" count2] sayn
     // h say
 } call
@@ -1188,7 +1257,7 @@ person say
 // "Drew" person "name" setprop
 // "Drew2" [person "name"] setc
 // "Drew2" : [person "name"]
-// 
+//
 // "Drew" : name
 // •name : "Drew"
 
@@ -1302,7 +1371,7 @@ mylist sayn
         "ok for real" say
     } call
     {
-        #testwrapper 
+        #testwrapper
         "hello everyone" say
         1 1 match { callingbreak nameworld break } { } check call
         repeat
@@ -1316,7 +1385,7 @@ mylist sayn
     name get 1 plus name set
 } dyn :incr1
 {
-    #testwrapper 
+    #testwrapper
     99 :foo
     $foo incr1
     "after calling incr1, foo is " foo cc say

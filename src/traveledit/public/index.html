@@ -316,11 +316,13 @@ They get changed later on.
 <div class="toolbar hidden" id=fileToolbar1 style="--display: none">
     <!--
     <div class=longButton onclick="editEditorCommandText()" >status</div>
+    <div class=square onclick=undo()>undo</div>
+    <div class=square onclick=redo()>redo</div>
     -->
-    <div class=square onclick="runScript()" id=statusBar>run script</div>
-    <div class=square onclick=goUpDirectory()>⬆️</div>
     <div class=square id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
     <div class=square onclick=reloadFile(fx)>reload</div>
+    <div class=square onclick=goUpDirectory()>⬆️</div>
+    <div class=square onclick="runScript()" id=statusBar>run script</div>
     <div id=saveButton class=square onclick=saveWrapper()>save</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
@@ -2746,6 +2748,17 @@ function isWordy(a, strict) {
         ((!strict && fx.fileMode == "shell" || fx.fileMode == "terminal") && a == 45) // -
     )
 }
+
+function isHashTag(a) {
+    return (
+        (a >= 65 && a <= 90) ||  // A-Z
+        (a >= 97 && a <= 122) || // a-z
+        (a >= 48 && a <= 57) ||  // 0-9
+        (a == 95)            ||    // _
+        (a == 35)                  // #
+
+    )
+}
 function isRegularWord(theLine) {
     // a little regex could replace this :)
     for (var cI=0; cI<theLine.length; cI++) {
@@ -2755,20 +2768,26 @@ function isRegularWord(theLine) {
     }
     return true
 }
-function getWordAtCursor() {
-    return getWordAt(fx.lines[fx.cursorLineIndex], u(fx.cursorColIndex))
+function getWordAtCursor(isWordyFunc) {
+    if (!isWordyFunc) {
+        isWordyFunc = isWordy
+    }
+    return getWordAt(fx.lines[fx.cursorLineIndex], u(fx.cursorColIndex), isWordyFunc)
 }
-function getWordAt(line, x) {
+function getWordAt(line, x, isWordyFunc) {
+    if (!isWordyFunc) {
+        isWordyFunc = isWordy
+    }
     if (!line) return {start: x, end: x, word: ""}
     for (var startIndex=x-1; startIndex>=0; startIndex--) {
-        if (!isWordy(line.charCodeAt(startIndex))) {
+        if (!isWordyFunc(line.charCodeAt(startIndex))) {
             startIndex += 1
             break
         }
     }
     if (startIndex < 0) startIndex = 0
     for (var endIndex=x; endIndex < line.length; endIndex++) {
-        if (!isWordy(line.charCodeAt(endIndex))) {
+        if (!isWordyFunc(line.charCodeAt(endIndex))) {
             break
         }
     }
@@ -3278,7 +3297,8 @@ function copy(preventUnselect = false) {
 var debugOutput = []
 var logFile = null
 function clearLog2() {
-    debugOutput = []
+    // debugOutput = []
+    debugOutput.splice(0, debugOutput.length)
 }
 function showLog() {
     if (logFile == null || files.indexOf(logFile) == -1) {
@@ -3314,34 +3334,31 @@ function log2() {
 }
 function runScript() {
     clearLog2()
-    var oldCopyBuffer = copyBuffer
     var theScriptLines = getSelectedLines(fx).lines
-    var originalScriptLines = [...theScriptLines]
-    // theScriptLines = [fx.lines[fx.cursorLineIndex]]
-
-    // add return to the last non-empty line
-    for (var i=theScriptLines.length-1; i>=0; i--) {
-        if (theScriptLines[i].trim() != "") {
-            theScriptLines[i] = "return " + theScriptLines[i]
-            break
+    
+    if (theScriptLines[0] == "#thumbscript" || theScriptLines[0] == "#ths") {
+            // lol
+            thumbscript4.eval(theScriptLines.join("\n"), window) // lol the window
+            // return w.stack.pop()
+    } else {
+        // add return to the last non-empty line
+        for (var i=theScriptLines.length-1; i>=0; i--) {
+            if (theScriptLines[i].trim() != "") {
+                theScriptLines[i] = "return " + theScriptLines[i]
+                break
+            }
         }
-    }
-    var code = theScriptLines.join("\n")
-    // try {
+        // var oldCopyBuffer = copyBuffer
+        var code = theScriptLines.join("\n")
         var f = new Function(code)
-    // } catch (e) {
-    //     // lol
-    //     var f = function() {
-    //         var w = thumbscript4.eval(originalScriptLines.join("\n"), window) // lol the window
-    //         return w.stack.pop()
-    //     }
-    // }
-    var ret = f()
-    if (typeof ret != "undefined") {
-        ret = ret + ""
-        copyBuffer = ret.split("\n")
-        paste()
-        copyBuffer = oldCopyBuffer
+        var ret = f()
+        log2(ret)
+        // if (typeof ret != "undefined") {
+        //     ret = ret + ""
+        //     copyBuffer = ret.split("\n")
+        //     paste()
+        //     copyBuffer = oldCopyBuffer
+        // }
     }
     
     showLog()
@@ -7778,9 +7795,10 @@ function onStart(e) {
             }
         } else if (!countedAsMoved && cursorType == "move") {
             var bbox = c.getBoundingClientRect() // deeppink marker
-            
             // alert("yay")
-            if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
+            if (bbox.bottom - e.changedTouches[0].pageY > (5*verticalTouchSize)) {
+                // Fifth row from bottom // violet marker
+            } else if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
                 // Fifth row from bottom // aquamarine marker
                 // touchTopTopTopMiddle
                 // closeFile()
@@ -8051,33 +8069,32 @@ function onStart(e) {
             
             if (document.activeElement == theText || (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize))) { // high section handled on touch start with selecting
                 // #alternateTap
+                // lol buttons
                 var w = getWordBeforeCursor()
                 if (alternateTap && lastAction == "move" || w.word == "") { // red marker
-                    
-                    var w = getWordAtCursor()
-                    //if (w.word == "" || w.start == fx.cursorColIndex) {
-                    if (w.word == "") {
-                        selectMode = "char"
-                        // paste(false, false, true)
-                        // #taptopaste
-                        paste(false, false, true, true)
-                    } else if (w.word != "") {
-                        // # taptodelete #taptocut
-                        var sr = {}
-                        selectMode = "char"
-                        var theLine = fx.lines[fx.cursorLineIndex] || ""
-                        sr.startY = fx.cursorLineIndex
-                        sr.startX = expandTabIndex(theLine, w.start)
-                        sr.stopY = fx.cursorLineIndex
-                        sr.stopX = expandTabIndex(theLine, w.end)
-                        fx.selectedRegions = [sr]
-                        del(false, true) // new
-                        render()
+                    if (!checkButtonAction()) {
+                        var w = getWordAtCursor()
+                        //if (w.word == "" || w.start == fx.cursorColIndex) {
+                        if (w.word == "") {
+                            selectMode = "char"
+                            // paste(false, false, true)
+                            // #taptopaste
+                            paste(false, false, true, true)
+                        } else if (w.word != "") {
+                            // # taptodelete #taptocut
+                            var sr = {}
+                            selectMode = "char"
+                            var theLine = fx.lines[fx.cursorLineIndex] || ""
+                            sr.startY = fx.cursorLineIndex
+                            sr.startX = expandTabIndex(theLine, w.start)
+                            sr.stopY = fx.cursorLineIndex
+                            sr.stopX = expandTabIndex(theLine, w.end)
+                            fx.selectedRegions = [sr]
+                            del(false, true) // new
+                            render()
+                        }
                     }
                 } else {
-                    // this condition used to not be there
-                    // and we'd acWordToggle every time (alternate paste flow)
-                    // touchMiddleMiddle?
                     acWordToggle() // lime marker
                 }
             } else {
@@ -8134,7 +8151,10 @@ function onStart(e) {
                         // the handleFocusIn function will do some
                         // processing
 
-                        theText.focus() // aquamarine marker
+                        // lol buttons
+                        if (!checkButtonAction()) {
+                            theText.focus() // aquamarine marker
+                        }
                     }
                 }
             }
@@ -8565,6 +8585,7 @@ function onStart(e) {
         return false
     }
     var touchTopTopTopLeft = function() {
+        // runScript()
         undo()
         // toggleDarkMode()
     }
@@ -8674,7 +8695,8 @@ function onStart(e) {
         return
     } else if (startTouchX < navTouchSize) {
         var bbox = c.getBoundingClientRect()
-        if (bbox.bottom - startTouchY > (4*verticalTouchSize)) {
+        if (bbox.bottom - startTouchY > (5*verticalTouchSize)) {
+        } else if (bbox.bottom - startTouchY > (4*verticalTouchSize)) {
             touchTopTopTopLeft()
         } else if (bbox.bottom - startTouchY > (3*verticalTouchSize)) {
             touchTopTopLeft()
@@ -10647,6 +10669,20 @@ function toSnakeCase(str) {
     return str.replace(/\.?([A-Z]+)/g, function (x,y){
         return "_" + y.toLowerCase();
     }).replace(/^_/, "");
+}
+    
+function checkButtonAction() {
+    var w = getWordAtCursor(isHashTag)
+    if (w.word in buttonActions) {
+        buttonActions[w.word]()
+        return true
+    }
+    return false
+}
+var buttonActions = {
+    "#thumbscript": runScript,
+    "#close": closeFile,
+
 }
 
 
