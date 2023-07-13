@@ -1,0 +1,1 @@
+../../thumbscript/thumbscript4.js
