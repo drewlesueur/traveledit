@@ -524,8 +524,9 @@ They get changed later on.
     <!--
         <div class=square onmousedown="setCurrentFile(lastFile)" ontouchstart="setCurrentFile(lastFile); event.preventDefault(); event.stopPropagation()">alt tab</div>
         <div class=square onclick="googleIt()">Google it</div>
+        <div class=square onclick="scriptLinesWithOneLineScript(&quot;x.replace(/->/g, '→')&quot;)">→</div>
     -->
-    <div class=square onclick="scriptLinesWithOneLineScript(&quot;x.replace(/->/g, '→')&quot;)">→</div>
+    <div class=square onclick="showLog()">show log</div>
     <div class=square onclick="linkToRemote()">Share code</div>
     <!--
         <div class=square onclick="duplicateFile(fx, -1)">dupl file</div>
@@ -3275,6 +3276,23 @@ function copy(preventUnselect = false) {
 }
 
 var debugOutput = []
+var logFile = null
+function clearLog2() {
+    debugOutput = []
+}
+function showLog() {
+    if (logFile == null || files.indexOf(logFile) == -1) {
+        logFile = makeFile("__output", 0, "")
+        logFile.fileMode = "file"
+        logFile.cursorLineIndex = 0
+        addFileToList(logFile)
+        setCurrentFile(logFile)
+        logFile.lines = debugOutput
+        render()
+        return
+    }
+    setCurrentFile(logFile)
+}
 function log2() {
     var logRow = []
     for (var i=0; i<arguments.length; i++) {
@@ -3288,10 +3306,14 @@ function log2() {
         }
         logRow.push(arguments[i])
     }
-    debugOutput.push(logRow.join(" "))
+    var logLines = logRow.join(" ").split("\n")
+    for (var i=0; i<logLines.length; i++) {
+        debugOutput.push(logLines[i])
+    }
+    render()
 }
 function runScript() {
-    debugOutput = []
+    clearLog2()
     var oldCopyBuffer = copyBuffer
     var theScriptLines = getSelectedLines(fx).lines
     var originalScriptLines = [...theScriptLines]
@@ -3305,15 +3327,15 @@ function runScript() {
         }
     }
     var code = theScriptLines.join("\n")
-    try {
+    // try {
         var f = new Function(code)
-    } catch (e) {
-        // lol
-        var f = function() {
-            var w = thumbscript4.eval(originalScriptLines.join("\n"), window) // lol the window
-            return w.stack.pop()
-        }
-    }
+    // } catch (e) {
+    //     // lol
+    //     var f = function() {
+    //         var w = thumbscript4.eval(originalScriptLines.join("\n"), window) // lol the window
+    //         return w.stack.pop()
+    //     }
+    // }
     var ret = f()
     if (typeof ret != "undefined") {
         ret = ret + ""
@@ -3325,13 +3347,6 @@ function runScript() {
     showLog()
 }
 
-function showLog() {
-    var f3 = makeFile("__output", 0, debugOutput.join("\n"))
-    f3.fileMode = "file"
-    f3.cursorLineIndex = 0
-    addFileToList(f3)
-    setCurrentFile(f3)
-}
 
 async function runChatGPT(model, options) {
     options = options || {}
@@ -3352,7 +3367,7 @@ async function runChatGPT(model, options) {
         
         return
     }
-    debugOutput = []
+    clearLog2()
     var oldCopyBuffer = copyBuffer
     
     var deleteSelection = false

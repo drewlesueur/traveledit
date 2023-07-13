@@ -766,8 +766,7 @@ thumbscript4.builtIns = {
         return world
     },
     guardlt: function(world) {
-        // it's a lot faster
-        // we can implement this in ths but it's faster here
+        // test this again
         var b = world.stack.pop()
         var a = world.stack.pop()
         if (!(a<b)) {
@@ -804,6 +803,20 @@ thumbscript4.builtIns = {
         }
         world.i = -1 // because same world and will increment
         return world
+    },
+    sleepms: function(world) {
+        var a = world.stack.pop()
+        setTimeout(function() {
+             thumbscript4.run(world)
+        }, a)
+        return null // lol
+    },
+    sleep: function(world) {
+        var a = world.stack.pop()
+        setTimeout(function() {
+             thumbscript4.run(world)
+        }, Math.floor(a * 1000))
+        return null // lol
     },
 }
 
@@ -863,7 +876,7 @@ thumbscript4.next = function(world) {
         }
         var token = world.tokens[world.i]
         // logging token to debug
-        // log2("\t".repeat(world.indent) + "// token: " + thumbscript4.displayToken(token))
+        // log2("\t".repeat(world.indent) + "// token: " + thumbscript4.displayToken(token)) // lime marker
         // log2("\t".repeat(world.indent) + "// stack length: " + world.stack.length)
         
         // that's actually barely slower.
@@ -952,8 +965,30 @@ thumbscript4.next = function(world) {
                         // log2("before")
                         // log2(world.tokens.map(thumbscript4.displayToken))
                         var oldState = world.state
-                        var start = {th_type: builtInType, valueFunc: function(world) {world.state = x.world.state; return world}, name: "updateWorld"}
-                        var end = {th_type: builtInType, valueFunc: function(world) {world.state = oldState; return world}, name: "return world"}
+                        var oldLocal = world.local
+                        // this does not handle dynamic yet, should it?
+                        var start = {
+                            th_type: builtInType,
+                            valueFunc: function(world) {
+                                world.state = x.world.state;
+                                world.local = x.local;
+                                return world
+                            },
+                            name: "updateWorld"
+                        }
+                        var end = {
+                            th_type: builtInType,
+                            valueFunc: function(world) {
+                                if (!world) {
+                                    // because of suspending like sleep.
+                                    return world
+                                }
+                                world.state = oldState;
+                                world.local = oldLocal;
+                                return world
+                            },
+                            name: "revertWorld"
+                        }
                         world.tokens = [...world.tokens]
                         spliceArgs = [world.i, 1, start, ...x.tokens, end]
                         // log2(spliceArgs.slice(1))
@@ -996,6 +1031,8 @@ thumbscript4.stdlib = `
     // todo: look at what's slow with not inlining (object creation? and fix)
     // that said jsloopn is fastest
     loopn: •local { :n :block 0 :i { i •lt n guardb i |block i++ repeat } call }
+    // loopn: •local { :n :block 0 :ii { ii •lt n guardb ii |block ii++ repeat } call }
+    loopn: •local { :n :block 0 :i { i •lt n guardb i |block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
     ccc: •local { :l "" :r { drop r swap cc :r } l range r }
@@ -1037,6 +1074,56 @@ thumbscript4.stdlib = `
 // `; var code2 = `
 window.xyzzy = 0
 var code = `
+
+{
+    :n
+    1 :result
+    {
+        n 1 gte guard
+        result n times :result
+        n 1 minus :n
+        repeat
+    } call
+    result
+} :factorial
+
+10 factorial say
+
+// 1 1 plus 3 4 plus times
+
+// "what is your name?" prompt :name
+
+"Hello " name cc say
+
+
+20 :n
+n 1 plus
+say
+
+
+// {
+//     "Hi Hi Hi Hi Hi Hi Hi Hi Hi" say
+//     100 sleepms
+//     repeat
+// } call
+
+// {
+//     "Hi Hi Hi Hi Hi Hi Hi Hi Hi" say
+//     0 sleepms
+// } 35 loopn
+
+// "I'll wait" say
+// 1 sleep
+// "I waited" say
+
+
+{
+   :j ["number is" j] sayn
+   25 sleepms
+} local 10 loopn
+
+
+
 {
     0 :count
     // { count plus :count } 100000 timeit
@@ -1427,7 +1514,7 @@ thumbscript4.eval(code, window)
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
 // showLog()
-thumbscript4.eval(`
+false && thumbscript4.eval(`
 
 // this tests the desugaring
 bug: {•plus 1}
@@ -1463,6 +1550,12 @@ somefunc
 // 200000 say
 // "foo@bar" encodeURIComponent say
 `, window)
+
+
+// setTimeout(function() {
+//     showLog()
+// }, 1001)
+
 /*
 
 
