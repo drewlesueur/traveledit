@@ -588,6 +588,8 @@ thumbscript4.builtIns = {
     shift: thumbscript4.genFunc1((a) => a.shift()),
     join: thumbscript4.genFunc2((a, b) => a.join(b)),
     split: thumbscript4.genFunc2((a, b) => a.split(b)),
+    trim: thumbscript4.genFunc1((a) => a.trim()),
+    tonumber: thumbscript4.genFunc1((a) => a - 0),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     copylist: thumbscript4.genFunc1((a) => [...a]),
@@ -685,7 +687,7 @@ thumbscript4.builtIns = {
             runId: ++thumbscript4.runId,
             indent: world.indent + 1,
             cachedLookupWorld: {},
-            // global: f.world.global,
+            global: f.world.global,
             local: f.local,
         }
         for (var i=0; i<n; i++) {
@@ -708,7 +710,7 @@ thumbscript4.builtIns = {
             runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
             cachedLookupWorld: {},
-            // global: f.world.global,
+            global: f.world.global,
             local: f.local,
         }
 
@@ -729,7 +731,7 @@ thumbscript4.builtIns = {
             runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
             cachedLookupWorld: {},
-            // global: f.world.global,
+            global: f.world.global,
             local: f.local,
         }
 
@@ -744,18 +746,6 @@ thumbscript4.builtIns = {
             args.unshift(world.stack.pop())
         }
         world.stack.push(f.apply(null, args))
-        return world
-    },
-    "return": function(world) {
-        // world = world.dynParent
-        if (world.onEnd) world.onEnd(world)
-        world = world.parent
-        // todo: see onend
-        return world
-    },
-    "exit": function(world) {
-        world = null
-        // todo: see onend
         return world
     },
     "dump": function(world) {
@@ -784,9 +774,22 @@ thumbscript4.builtIns = {
         }
         return world
     },
+    "return": function(world) {
+        // world = world.dynParent
+        if (world.onEnd) world.onEnd(world)
+        world = world.dynParent
+        // todo: see onend
+        return world
+    },
+    "exit": function(world) {
+        world = null
+        // todo: see onend
+        return world
+    },
     guardb: function(world) {
         // it's a lot faster
         // we can implement this in ths but it's faster here
+        // see onend
         var a = world.stack.pop()
         if (!a) {
             world = world.parent
@@ -832,31 +835,6 @@ thumbscript4.builtIns = {
         world.i = -1 // because same world and will increment
         return world
     },
-    sleepms: function(world) {
-        var a = world.stack.pop()
-        setTimeout(function() {
-             thumbscript4.run(world)
-        }, a)
-        return null // lol
-    },
-    sleep: function(world) {
-        var a = world.stack.pop()
-        setTimeout(function() {
-             thumbscript4.run(world)
-        }, Math.floor(a * 1000))
-        return null // lol
-    },
-    runshell: function(world) {
-        var a = world.stack.pop()
-        runQuickShellCommand(a, function(err, text) {
-             log2("debugging2!" + text)
-             // log2("debug: " + text)
-             world.stack.push(text)
-             world.stack.push(err)
-             thumbscript4.run(world)
-        })
-        return null // lol
-    },
     interpolate: function(world) {
         var a = world.stack.pop()
         var r = a.replace(/\$[\w]+/g, function(x) {
@@ -876,6 +854,36 @@ thumbscript4.builtIns = {
         })
         world.stack.push(r)
         return world
+    },
+    sleepms: function(world) {
+        var a = world.stack.pop()
+        setTimeout(function() {
+            thumbscript4.outstandingCallbacks--
+            thumbscript4.run(world)
+        }, a)
+        thumbscript4.outstandingCallbacks++
+        return null // lol
+    },
+    sleep: function(world) {
+        var a = world.stack.pop()
+        setTimeout(function() {
+            thumbscript4.outstandingCallbacks--
+            thumbscript4.run(world)
+        }, Math.floor(a * 1000))
+        thumbscript4.outstandingCallbacks++
+        return null // lol
+    },
+    runshell: function(world) {
+        var a = world.stack.pop()
+        runQuickShellCommand(a, function(err, text) {
+            thumbscript4.outstandingCallbacks--
+             // log2("debug: " + text)
+             world.stack.push(text)
+             world.stack.push(err)
+             thumbscript4.run(world)
+        })
+        thumbscript4.outstandingCallbacks++
+        return null // lol
     },
 }
 
@@ -971,7 +979,7 @@ thumbscript4.next = function(world) {
                     runId: ++thumbscript4.runId,
                     cachedLookupWorld: {},
                     local: true,
-                    // global: world.global,
+                    global: world.global,
                 }
                 break outer
             case curlyType:
@@ -1011,7 +1019,7 @@ thumbscript4.next = function(world) {
                     indent: world.indent + 1,
                     runId: ++thumbscript4.runId,
                     cachedLookupWorld: {},
-                    // global: world.global,
+                    global: world.global,
                 }
                 break outer
             case builtInType:
@@ -1099,7 +1107,7 @@ thumbscript4.stdlib = `
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
     ccc: •local { :l "" :r { drop r swap cc :r } l range r }
     guard: •local •dyn { not { 3 breakn } checkthen }
-    loopmax: •local { :theMax :block 0 :i { block i theMax lt guardb i++ repeat } call }
+    loopmax: •local { :theMax :block 0 :i { i theMax lt guardb block i++ repeat } call }
     range2: •local { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
     checkthen: •local { {} check call }
     sayn: •local { " " join say }
