@@ -267,7 +267,39 @@ thumbscript4.desugar = function(tokens) {
     // log2(tokens)
     tokens = thumbscript4.desugarAtSign(tokens)
     // log2(tokens)
+    tokens = thumbscript4.someIfMagic(tokens)
+    // log2(tokens)
     return tokens
+}
+thumbscript4.someIfMagic = function(tokens) {
+    // when if is false, we need to jump to end of the chain
+    // makes syntax a little cleaner
+    // can accomplish same thing woth wrapper func or array (checkn) but not as pretty
+    var i = 0
+    var currentIfs = []
+    while (i < tokens.length) {
+        var token = tokens[i]
+        if (token.th_type == builtInType) {
+            if (token.name == "if") {
+                token.endOfIfChainI = -1
+                currentIfs = []
+                currentIfs.push(token)
+            } else if (token.name == "elseif") {
+                token.endOfIfChainI = -1
+                for (var j=0; j < currentIfs.length; j++) {
+                    currentIfs[j].endOfIfChainI = i
+                }
+                currentIfs.push(token)
+            } else if (token.name == "else") {
+                for (var j=0; j < currentIfs.length; j++) {
+                    currentIfs[j].endOfIfChainI = i
+                }
+            }
+        }
+        i++
+    }
+    return tokens
+
 }
 thumbscript4.desugarArrows = function(tokens) {
     // return tokens
@@ -580,7 +612,7 @@ thumbscript4.builtIns = {
     }),
     not: thumbscript4.genFunc1((a) => !!!a),
     "check": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
-    "if": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
+    "ifraw": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
     length: thumbscript4.genFunc1((a) => a.length),
     push: thumbscript4.genFunc2((a, b) => a.push(b)),
     pop: thumbscript4.genFunc1((a) => a.pop()),
@@ -777,6 +809,7 @@ thumbscript4.builtIns = {
     "return": function(world) {
         // world = world.dynParent
         if (world.onEnd) world.onEnd(world)
+        // TODO: other places need onend too
         world = world.dynParent
         // todo: see onend
         return world
@@ -792,6 +825,7 @@ thumbscript4.builtIns = {
         // see onend
         var a = world.stack.pop()
         if (!a) {
+            if (world.onEnd) world.onEnd(world)
             world = world.parent
         }
         return world
@@ -801,6 +835,7 @@ thumbscript4.builtIns = {
         var b = world.stack.pop()
         var a = world.stack.pop()
         if (!(a<b)) {
+            if (world.onEnd) world.onEnd(world)
             world = world.parent
         }
         return world
@@ -827,7 +862,8 @@ thumbscript4.builtIns = {
             world.repeatCount = 0
         }
         world.repeatCount++
-        if (world.repeatCount === 100_000_000) {
+        //if (world.repeatCount === 100_000_000) {
+        if (world.repeatCount === 1_000_000) {
             world = null
             alert("runaway loop")
             return world
@@ -835,17 +871,38 @@ thumbscript4.builtIns = {
         world.i = -1 // because same world and will increment
         return world
     },
-    interpolate: function(world) {
-        var a = world.stack.pop()
-        var r = a.replace(/\$[\w]+/g, function(x) {
-            x = x.slice(1)
-            var w = thumbscript4.getWorldForKey(world, x, true, false)
-            return w.state[x]
-        })
-        world.stack.push(r)
+    "if": function(world, token) {
+        var cond = world.stack.pop()
+        var block = world.stack.pop()
+        if (cond) {
+            if (token.endOfIfChainI != -1) {
+                // TODO: this will break if inlining happens in an if chain
+                // you should either handle it or prevent it
+                world.i = token.endOfIfChainI
+            }
+            world = thumbscript4.builtIns.call_skipstack(world, block)
+        }
         return world
     },
-    itp: function(world) {
+    "elseif": function(world, token) {
+        var cond = world.stack.pop()
+        var block = world.stack.pop()
+        if (cond) {
+            if (token.endOfIfChainI != -1) {
+                // TODO: this will break if inlining happens in an if chain
+                // you should either handle it or prevent it
+                world.i = token.endOfIfChainI
+            }
+            world = thumbscript4.builtIns.call_skipstack(world, block)
+        }
+        return world
+    },
+    "else": function(world, token) {
+        var block = world.stack.pop()
+        world = thumbscript4.builtIns.call_skipstack(world, block)
+        return world
+    },
+    interpolate: function(world) {
         var a = world.stack.pop()
         var r = a.replace(/\$[\w]+/g, function(x) {
             x = x.slice(1)
@@ -1023,7 +1080,7 @@ thumbscript4.next = function(world) {
                 }
                 break outer
             case builtInType:
-                newWorld = token.valueFunc(world)
+                newWorld = token.valueFunc(world, token)
                 break outer
             case varType:
                 var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
@@ -1145,12 +1202,31 @@ thumbscript4.stdlib = `
 window.xyzzy = 0
 var code = `
 
+2 :x
+{ "one" say } "checking 1" say x •is 1 if
+{ "two" say } "checking 2" say x •is 2 elseif
+{ "three" say } "checking 3" say x •is 3 elseif
+{ "other" say } "running else" say else
+"that was cool" say
+
+"----" say
+
+•if •("checking 1" say x •is 1) { "one" say }
+•elseif •("checking 2" say x •is 2) { "two" say }  
+•elseif •("checking 3" say x •is 3) { "three" say }  
+•else •("running else" say) { "other" say } 
+
+"that was cool2" say
+
+
+
+
+
 "Drew" :name
 "hello $name" say
 raw "hello $name" say
 «hello $name» say
 raw «hello $name» say
-return
 
 {
     :n
