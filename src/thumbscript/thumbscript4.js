@@ -11,6 +11,7 @@ const varType = 6;
 const closureType = 7; // runtime only, not a token type
 const incrType = 8;
 const noOpType = 9;
+const anchorType = 10;
 
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code) {
@@ -70,11 +71,11 @@ thumbscript4.tokenize = function(code) {
                 return
             }
         }
-        if (typeof token == "string" && token.startsWith("#")) {
-            addToken2("$" + token.slice(0, -1))
-            addToken2("nameworld")
-            return
-        }
+        // if (typeof token == "string" && token.startsWith("#")) {
+        //     addToken2("$" + token.slice(0, -1))
+        //     addToken2("nameworld")
+        //     return
+        // }
         addToken2(token)
     }
 
@@ -84,6 +85,8 @@ thumbscript4.tokenize = function(code) {
             // not sure if faster
             if (token.charAt(0) == "$") {
                 token = {th_type: stringType, valueString: token.slice(1)}
+            } else if (token.charAt(0) == "#") {
+                token = {th_type: anchorType, valueString: token.slice(1)}
             } else if (token in thumbscript4.builtIns) {
                 token = {th_type: builtInType, valueFunc: thumbscript4.builtIns[token], name: token}
             } else {
@@ -268,7 +271,7 @@ thumbscript4.desugar = function(tokens) {
     tokens = thumbscript4.desugarAtSign(tokens)
     // log2(tokens)
     tokens = thumbscript4.someIfMagic(tokens)
-    // log2(tokens)
+    // log2(tokens.anchors)
     return tokens
 }
 thumbscript4.someIfMagic = function(tokens) {
@@ -295,6 +298,12 @@ thumbscript4.someIfMagic = function(tokens) {
                     currentIfs[j].endOfIfChainI = i
                 }
             }
+        } else if (token.th_type == anchorType) {
+            if (!tokens.anchors) {
+                tokens.anchors = {}
+            }
+            // TODO: inlining with anchors
+            tokens.anchors[token.valueString] = i
         }
         i++
     }
@@ -473,6 +482,7 @@ thumbscript4.eval = function(code, state) {
         runId: 0,
         name: "main",
         cachedLookupWorld: {},
+        log: [], // for concenience
     }
     world.global = world
     thumbscript4.run(world)
@@ -591,6 +601,7 @@ thumbscript4.builtIns = {
     cc: thumbscript4.genFunc2((a, b) => a + b),
     // nowmillis: thumbscript4.genFunc0(() => Date.now()),
     nowmillis: thumbscript4.genFunc0(() => performance.now()),
+    now: thumbscript4.genFunc0(() => (Math.floor(Date.now()/1000))),
     plus: thumbscript4.genFunc2((a, b) => a + b),
     minus: thumbscript4.genFunc2((a, b) => a - b),
     times: thumbscript4.genFunc2((a, b) => a * b),
@@ -629,6 +640,15 @@ thumbscript4.builtIns = {
         var a = world.stack.pop()
         a.dynamic = true
         world.stack.push(a)
+        return world
+    },
+    log: function(world) {
+        var a = world.stack.pop()
+        world.global.log.push(a)
+        return world
+    },
+    clearlog: function(world) {
+        world.global.splice(0, debugOutput.length)
         return world
     },
     local: function(world) {
@@ -805,6 +825,15 @@ thumbscript4.builtIns = {
             // todo: see onend
         }
         return world
+    },
+    "goto": function(world) {
+        var loc = world.stack.pop()
+        var w = world
+        while (!w.tokens.anchors.hasOwnProperty(loc)) {
+            w = w.parent
+        }
+        w.i = w.tokens.anchors[loc]
+        return w
     },
     "return": function(world) {
         // world = world.dynParent
@@ -1141,6 +1170,9 @@ thumbscript4.next = function(world) {
             case noOpType:
                 window.xyzzy++
                 break outer
+            case anchorType:
+                world.name = token.valueString
+                break outer
         }
         break
     } while (false)
@@ -1202,11 +1234,24 @@ thumbscript4.stdlib = `
 window.xyzzy = 0
 var code = `
 
+"before goto" say
+"yoman" goto
+"slipped over this!" say
+"slipped over this!" say
+"slipped over this!" say
+#yoman
+"after goto" say
+
+
+
+
+
 2 :x
 { "one" say } "checking 1" say x •is 1 if
 { "two" say } "checking 2" say x •is 2 elseif
 { "three" say } "checking 3" say x •is 3 elseif
 { "other" say } "running else" say else
+
 "that was cool" say
 
 "----" say
