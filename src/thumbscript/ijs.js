@@ -193,8 +193,9 @@ ijs.tokenize = function(code) {
     for (var i=0; i<tokens.length; i++) {
         var token = tokens[i]
         if (token == "(") {
+            var prevToken = newTokens.pop()
             tokenStack.push(newTokens)
-            newTokens = []
+            newTokens = [prevToken]
         } else if (token == ")") {
             var list = newTokens
             newTokens = tokenStack.pop()
@@ -209,87 +210,153 @@ ijs.tokenize = function(code) {
 
 ijs.run = function(code) {
     var tokens = ijs.tokenize(code)
-    var f = ijs.makeFunc([[], tokens], {})
-    // ijs.exec(tokens)
-    f()
+    tokens.unshift("run")
     // log2(tokens)
+    
+    // return
+    var state = {}
+    var f = ijs.makeFunc([[], tokens], state)
+    var ret
+    try {
+        ret = f()
+    } catch (e) {
+        log2("-error: " + e)
+    }
+    log2("+state")
+    log2(state)
+    
+    log2("+return value")
+    log2(ret)
 }
 
-ijs.lookup = function(state, token) {
-    if (typeof token == "object") {
-        return
-    }
-    // string encoding
-    if (token.charAt(0) == "#") {
-        return token.slice(1)
-    }
-    
-    if (token in window) {
-        return window[token]
-    }
-    
-    if (token in state) {
-        return state[token]
-    }
-    
-    // or throw?
-    return undefined
-}
+// TODO: numbers
 
 ijs.makeFunc = function(funcDefArgs, state) {
     var params = funcDefArgs[0]
     var body = funcDefArgs[1]
-    
     var f = function(...args) {
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             state[params[i]] = args[i]
         }
-        
-        ijs.execFunc(body, state)
+        return ijs.exec(body, state)
     }
     return f
     // todo default args?
 }
 
-ijs.execFunc = function(tokens, state) {
+ijs.builtins = {
+    "var": function(args, state) {
+        try {
+            state[args[0]] = ijs.exec(args[1], state)
+        } catch (e) {
+            log2("-- error with args " + e)
+            log2(args)
+        }
+    },
+    "run": function(args, state) {
+        // var last = void 0;
+        for (var i=0; i<args.length; i++) {
+            var arg = args[i]
+            // some special cases
+            if (typeof arg == "object") {
+                if (arg[0] == "return") {
+                    return ijs.exec(arg[1], state)
+                }
+            }
+            ijs.exec(arg, state)
+        }
+    },
+    "obj": function(args, state) {
+        var o = {}
+        for (var i=0; i<args.length-1; i+=2) {
+            o[args[i]] = ijs.exec(args[i+1], state)
+        }
+        return o
+    },
+    "arr": function(args, state) {
+        var arr = args.map(function(a) {
+            return a.exec(a)
+        })
+        return arr
+    },
+    // "call":
+    //     // do auto binding?
+    //     var func = ijs.exec(args[0], state)
+    //     var lookedUpArgs = args.slice(1).map(function(arg) {
+    //         return ijs.exec(arg, state)
+    //     })
+    //     return func.apply(null, args)
+    //     break
+    // },
+    "access": function(args, state) {
+        var obj = ijs.exec(args[0], state)
+        var oldObj = null
+        var props = args.slice(1).map(function(arg) {
+            return ijs.exec(arg, state)
+        })
+        props.forEach(function(p) {
+            oldObj = obj
+            obj = obj[p]
+        })
+        if (typeof obj == "function") {
+            return obj.bind(oldObj)
+        }
+        return obj
+    },
+    "func": function(args, state) {
+        var funcName = ""
+        var funcDefArgs = args
+        if (args.length == 3) {
+            funcName = args[0]
+            funcDefArgs = args.slice(1)
+        }
+        var f = ijs.makeFunc(funcDefArgs, state)
+
+        if (funcName) {
+            state[args[0]] = f
+        }
+    },
+}
+ijs.exec = function(tokens, state) {
+    if (tokens.length == 0) {
+        return void 0;
+    }
     state = state || {}
     // simplify lexical rules?
     // anuthing in a function shares state.
     // no nested var.
-    
-    
-    for (var i = 0; i < tokens.length-1; i+= 2) {
-        var command = tokens[i]
-        var args = tokens[i+1]
-        log2("+ command is: " + command)
-        switch(command) {
-            case "var":
-                state[args[0]] = ijs.lookup(state, args[1])
-                break
-            case "func":
-                var funcName = ""
-                var funcDefArgs = args
-                if (args.length == 3) {
-                    funcName = args[0]
-                    funcDefArgs = args.slice(1)
-                }
-                var f = ijs.makeFunc(funcDefArgs, state)
-                
-                if (funcName) {
-                    state[args[0]] = f
-                }
-                break
-            default:
-                // var func = ijs.lookup(state, command)
-                // var lookedUpArgs = args.map(function(arg) {
-                //     return ijs.lookup(state, arg)
-                // })
-                // func.apply(null, args)
-                break
+
+    if (typeof tokens != "object") {
+        // string encoding
+        var token = tokens
+        if (token.charAt(0) == "#") {
+            return token.slice(1)
         }
+
+        if (token in state) {
+            return state[token]
+        }
+
+        if (token in window) {
+            return window[token]
+        }
+
+        // or throw?
+        return undefined
     }
-    log2(state)
+    
+    if (tokens[0] in ijs.builtins) {
+        func = ijs.builtins[tokens[0]]
+        var ret = func(tokens.slice(1), state)
+        // log2("return value from "+tokens[0]+" is: " + ret)
+        return ret
+    }
+    func = ijs.exec(tokens[0])
+    return func.apply(null, tokens.slice(1).map(function(t) {
+        return ijs.exec(t, state)
+    }))
+    
 }
 
 var code = String.raw`
@@ -297,25 +364,36 @@ var code = String.raw`
 
 
 var(name "drew \" lesueur")
-func(myFunc (a "b") (
-    set(a b)
-))
-func(returnInputValue (element index (child false) (childIndex 0))
-    trycatch(
-        run(
+var(name2 "Hi")
+var(person obj(name "Drew" age 38))
+return(name2)
+var(name3 access("yay" "toUpperCase")())
+var(name4 "hello dave")
 
-        )
 
-        run(
+// var(name2 call(access(yay "toUpperCase") 
+// var(name3 access(yay "toUpperCase")())
 
-        )
-    )
-)
-if( neq(element, "undefined")
-    code(
 
-    )
-)
+// func(myFunc (a "b") (
+//     set(a b)
+// ))
+// func(returnInputValue (element index (child false) (childIndex 0))
+//     trycatch(
+//         run(
+// 
+//         )
+// 
+//         run(
+// 
+//         )
+//     )
+// )
+// if( neq(element, "undefined")
+//     code(
+// 
+//     )
+// )
 `
 
 ijs.run(code)
@@ -323,9 +401,15 @@ ijs.run(code)
 /*
 
 var(name "drew")
-func(myFunc (a b) (
-    set(a b)
-))
+var(person obj(name "Drew" age 38))
+// var(name2 call(access(yay "toUpperCase")()))
+
+// call("log2", ("lol logs"))
+// func(myFunc (a b) (
+//     set(a b)
+//     call("log2", "somemlogs")
+// ))
+
 
 ["var", []]
 
