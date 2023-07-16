@@ -1,4 +1,36 @@
 
+
+// how to dynamically call new in javascript
+// 
+// There are a few ways to dynamically call constructors in JavaScript. You could use the "new" keyword directly, or you might use the "apply" or "call" method of the Function prototype. Here's how to do it:
+// 1. Using the `new` keyword directly:
+// ```javascript
+//     var MyClass = function(arg1, arg2) {
+//       this.arg1 = arg1;
+//       this.arg2 = arg2;
+//     };
+//     var obj = new MyClass('x', 'y');
+// ```
+// 2. Using `apply`:
+// ```javascript
+//     var MyClass = function(arg1, arg2) {
+//       this.arg1 = arg1;
+//       this.arg2 = arg2;
+//     };
+//     var obj = Object.create(MyClass.prototype);
+//     MyClass.apply(obj, ['x', 'y']);
+// ```
+// 3. Using `call`:
+// ```javascript
+//     var MyClass = function(arg1, arg2) {
+//       this.arg1 = arg1;
+//       this.arg2 = arg2;
+//     };
+//     var obj = Object.create(MyClass.prototype);
+//     MyClass.call(obj, 'x', 'y');
+// ```
+// In all these cases, `MyClass` is the constructor that you're calling with the `new` keyword or functionally invoking with `apply`/`call`. Your new object `obj` will have the properties arg1 and arg2 set to 'x' and 'y' respectively.
+
 // interpreted js
 // things are the same at function level
 // inside a function no guarantees
@@ -125,13 +157,19 @@ ijs.tokenize = function(code) {
     var state = "out"
     var currentToken = ""
     var tokens = []
+    var checkNumber = function(x) {
+        if (x - 0 == x) {
+            return x - 0
+        }
+        return x
+    }
     while (i < code.length) {
         var chr = code.charAt(i)
         if (state == "out") {
             if (" \t\n".indexOf(chr) != -1) {
             } else if ("/".indexOf(chr) != -1) {
                 state = "firstSlash"
-            } else if ("()".indexOf(chr) != -1) {
+            } else if ("()[]{}".indexOf(chr) != -1) {
                 tokens.push(chr)
             } else if ('"'.indexOf(chr) != -1) {
                 state = "quote"
@@ -142,12 +180,12 @@ ijs.tokenize = function(code) {
             }
         } else if (state == "in") {
             if (" \t\n".indexOf(chr) != -1) {
-                tokens.push(currentToken)
+                tokens.push(checkNumber(currentToken))
                 currentToken = ""
                 state = "out"
-            } else if ("()".indexOf(chr) != -1) {
+            } else if ("()[]{}".indexOf(chr) != -1) {
                 if (currentToken) {
-                    tokens.push(currentToken)
+                    tokens.push(checkNumber(currentToken))
                     currentToken = ""
                 }
                 tokens.push(chr)
@@ -196,7 +234,13 @@ ijs.tokenize = function(code) {
             var prevToken = newTokens.pop()
             tokenStack.push(newTokens)
             newTokens = [prevToken]
-        } else if (token == ")") {
+        } else if (token == "{") {
+            tokenStack.push(newTokens)
+            newTokens = []
+        } else if (token == "[") {
+            tokenStack.push(newTokens)
+            newTokens = []
+        } else if (")]}".indexOf(token) != -1) {
             var list = newTokens
             newTokens = tokenStack.pop()
             newTokens.push(list)
@@ -210,12 +254,11 @@ ijs.tokenize = function(code) {
 
 ijs.run = function(code) {
     var tokens = ijs.tokenize(code)
-    tokens.unshift("run")
     // log2(tokens)
     
     // return
     var state = {}
-    var f = ijs.makeFunc([[], tokens], state)
+    var f = ijs.makeFunc([[], tokens], state, "main")
     var ret
     try {
         ret = f()
@@ -231,15 +274,23 @@ ijs.run = function(code) {
 
 // TODO: numbers
 
-ijs.makeFunc = function(funcDefArgs, state) {
+ijs.makeFunc = function(funcDefArgs, state, name) {
     var params = funcDefArgs[0]
     var body = funcDefArgs[1]
+    body.unshift("run")
+    // log2("+ making func with")
+    // log2(body)
     var f = function(...args) {
+        log2("+calling func: " + name + " with: " + JSON.stringify(args))
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             state[params[i]] = args[i]
         }
-        return ijs.exec(body, state)
+        // log2("+set the state to")
+        // log2(state)
+        var ret = ijs.exec(body, state)
+        log2("+done func: " + name)
+        return ret
     }
     return f
     // todo default args?
@@ -261,7 +312,9 @@ ijs.builtins = {
             // some special cases
             if (typeof arg == "object") {
                 if (arg[0] == "return") {
-                    return ijs.exec(arg[1], state)
+                    var ret =  ijs.exec(arg[1], state)
+                    // log2("1 returning " + ret)
+                    return ret
                 }
             }
             ijs.exec(arg, state)
@@ -279,6 +332,12 @@ ijs.builtins = {
             return a.exec(a)
         })
         return arr
+    },
+    "new": function(args, state) {
+        var theClass = ijs.exec(args[i], state)
+        var obj = Object.create(theClass.prototype);
+        theClass.apply(obj, args.slice(1));
+        return obj
     },
     // "call":
     //     // do auto binding?
@@ -305,20 +364,25 @@ ijs.builtins = {
         return obj
     },
     "func": function(args, state) {
+        // log2("+func: " + JSON.stringify(args))
         var funcName = ""
         var funcDefArgs = args
         if (args.length == 3) {
             funcName = args[0]
             funcDefArgs = args.slice(1)
         }
-        var f = ijs.makeFunc(funcDefArgs, state)
+        var f = ijs.makeFunc(funcDefArgs, state, funcName)
 
         if (funcName) {
             state[args[0]] = f
         }
+        return f
     },
 }
 ijs.exec = function(tokens, state) {
+    if (typeof tokens == "number") {
+        return tokens
+    }
     if (tokens.length == 0) {
         return void 0;
     }
@@ -326,6 +390,10 @@ ijs.exec = function(tokens, state) {
     // simplify lexical rules?
     // anuthing in a function shares state.
     // no nested var.
+
+    // if (typeof tokens == "function") {
+    //     return tokens
+    // }
 
     if (typeof tokens != "object") {
         // string encoding
@@ -350,9 +418,10 @@ ijs.exec = function(tokens, state) {
         func = ijs.builtins[tokens[0]]
         var ret = func(tokens.slice(1), state)
         // log2("return value from "+tokens[0]+" is: " + ret)
+        // log2("2 returning " + ret)
         return ret
     }
-    func = ijs.exec(tokens[0])
+    func = ijs.exec(tokens[0], state)
     return func.apply(null, tokens.slice(1).map(function(t) {
         return ijs.exec(t, state)
     }))
@@ -361,16 +430,33 @@ ijs.exec = function(tokens, state) {
 
 var code = String.raw`
 
+// var name "Drew"
+// log2 name
+// 
+// JSON.stringify
+// set json[foo] 
+
+var (name "drew \" lesueur")
+var (name2 "Hi")
+var (person obj(name "Drew" age 38))
+// return(name2)
+var (name3 access("yay" "toUpperCase")())
+var (name4 "hello dave")
+
+func (doThing [a] {
+    // return(a)
+    // alert("doThing called")
+    return(access(a "toUpperCase")())
+})
+var (name5 doThing(name))
+
+setTimeout(func(yo [] {
+    alert("hi!")
+}) 1000)
+return(name5)
 
 
-var(name "drew \" lesueur")
-var(name2 "Hi")
-var(person obj(name "Drew" age 38))
-return(name2)
-var(name3 access("yay" "toUpperCase")())
-var(name4 "hello dave")
-
-
+// todo: ignore comma
 // var(name2 call(access(yay "toUpperCase") 
 // var(name3 access(yay "toUpperCase")())
 
