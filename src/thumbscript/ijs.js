@@ -191,7 +191,7 @@ ijs.tokenize = function(code) {
             } else if ('"'.indexOf(chr) != -1) {
                 state = "quote"
                 currentToken = chr
-            } else if (isVar(chr) || true) {
+            } else if (isVar(chr)) {
                 state = "in"
                 currentToken = chr
             } else {
@@ -220,9 +220,10 @@ ijs.tokenize = function(code) {
                 }
                 tokens.push(chr)
                 state = "out"
-            } else if (isVar(chr) || true) {
+            } else if (isVar(chr)) {
                 currentToken += chr
             } else {
+                log2("+in symbol")
                 tokens.push(currentToken)
                 currentToken = chr
                 state = "in_symbol"
@@ -249,7 +250,7 @@ ijs.tokenize = function(code) {
                 }
                 tokens.push(chr)
                 state = "out"
-            } else if (isVar(chr) || true) {
+            } else if (isVar(chr)) {
                 tokens.push(currentToken)
                 currentToken = chr
                 state = "in"
@@ -344,6 +345,7 @@ ijs.tokenize = function(code) {
 
 
 ijs.operatorate = function(tokens) {
+    tokens = ijs.infixate(tokens)
     // TODO: some precendence?
     var newTokens = []
     var token
@@ -375,11 +377,150 @@ ijs.operatorate = function(tokens) {
         newTokens.push(token)
     }
     
-    // return ijs.infixate(newTokens)
     return newTokens
 }
 
 ijs.infixes = {
+     "=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "+=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "-=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "**=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "*=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "/=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "%=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "<<=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     ">>=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     ">>>=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "&=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "^=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "|=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "&&=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "||=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "??=": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "??": {
+         "associatitivity": 0,
+         "precedence": 3,
+     },
+     "||": {
+         "associatitivity": 0,
+         "precedence": 3,
+     },
+     "&&": {
+         "associatitivity": 0,
+         "precedence": 4,
+     },
+     "|": {
+         "associatitivity": 0,
+         "precedence": 5,
+     },
+     "^": {
+         "associatitivity": 0,
+         "precedence": 6,
+     },
+     "&": {
+         "associatitivity": 0,
+         "precedence": 7,
+     },
+     "!==": {
+         "associatitivity": 0,
+         "precedence": 8,
+     },
+     "===": {
+         "associatitivity": 0,
+         "precedence": 8,
+     },
+     "!=": {
+         "associatitivity": 0,
+         "precedence": 8,
+     },
+     "==": {
+         "associatitivity": 0,
+         "precedence": 8,
+     },
+     "instanceof": {
+         "associatitivity": 0,
+         "precedence": 9,
+     },
+     "in": {
+         "associatitivity": 0,
+         "precedence": 9,
+     },
+     ">=": {
+         "associatitivity": 0,
+         "precedence": 9,
+     },
+     ">": {
+         "associatitivity": 0,
+         "precedence": 9,
+     },
+     "<=": {
+         "associatitivity": 0,
+         "precedence": 9,
+     },
+     "<": {
+         "associatitivity": 0,
+         "precedence": 9,
+     },
+     ">>>": {
+         "associatitivity": 0,
+         "precedence": 10,
+     },
+     ">>": {
+         "associatitivity": 0,
+         "precedence": 10,
+     },
+     "<<": {
+         "associatitivity": 0,
+         "precedence": 10,
+     },
      "+": {
          "associatitivity": 0,
          "precedence": 11,
@@ -408,10 +549,97 @@ ijs.infixes = {
          "associatitivity": 0,
          "precedence": 17,
      },
-     "": {
+     ".?": {
          "associatitivity": 0,
          "precedence": 17,
      },
+}
+
+ijs.prefixes = {
+     "!": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "~": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "+": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "-": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "++": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "--": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "typeof": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "void": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "delete": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "await": {
+         "associatitivity": 1,
+         "precedence": 13,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "new": {
+         "associatitivity": 1,
+         "precedence": 17,
+         "arity": 1,
+         "fix": "pre",
+     },
+}
+// -!a
+ijs.unaryHack = function(tokens) {
+    var token = tokens.shift()
+    if (token in ijs.prefixes && ijs.prefixes[token].fix == "pre") {
+        return [token + "_unary", ijs.unaryHack(tokens)]
+    } else {
+        return token
+    }
+    
+    
+    // while (token = tokens.shift()) {
+    //     if (token in ijs.infixes && ijs.infixes[token].fix == "pre") {
+    //         group = [token]
+    //     } else {
+    //         return token
+    //     }
+    // } 
 }
 ijs.infixate = function(tokens) {
     var newTokens = []
@@ -441,16 +669,24 @@ ijs.infixate = function(tokens) {
     // 1 + 2 * 3 ** 4
     // (+ 1 2)
     // (+ 1 (* 2 3))
+    
+    // 3 - -2
+    // = 3 + +7
+    // = 3 + +7++
+    
+    // 3 + 4 ----7 
+    // 3 + 4 - -7  + 5
     var lastPrecedence = -1
     var currPrecedence = -1
     var lastGroup = null
     while (token = tokens.shift()) {
         if (token in ijs.infixes) {
-            currPrecedence = ijs.infixes[token].precedence
-            currAssociatitivity = ijs.infixes[token].associatitivity
+            var opDef = ijs.infixes[token]
+            currPrecedence = opDef.precedence
+            currAssociatitivity = opDef.associatitivity
             // log2(JSON.stringify([token, currPrecedence, lastPrecedence]))
             if (lastPrecedence == -1) {
-                lastGroup = [token, newTokens.pop(), tokens.shift()]
+                lastGroup = [token, newTokens.pop(), ijs.unaryHack(tokens)]
                 newTokens.push(lastGroup)
             } else if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
                 // log2("-here")
@@ -473,7 +709,8 @@ ijs.infixate = function(tokens) {
         } else {
             // log2(JSON.stringify([token, -1, lastPrecedence]))
             lastPrecedence = -1
-            newTokens.push(token)
+            tokens.unshift(token)
+            newTokens.push(ijs.unaryHack(tokens))
         }
     }
     return newTokens
@@ -481,13 +718,16 @@ ijs.infixate = function(tokens) {
 }
 
 
-var tokens = "3 ** 4 * 2 + 1".split(" ")
-log2(ijs.infixate(tokens))
-var tokens = "1 + 2 * 3 ** 4".split(" ")
-log2(ijs.infixate(tokens))
-var tokens = "a b c 1 + 2 + 3 + 4 5 6 7".split(" ")
-log2(ijs.infixate(tokens))
-var tokens = "a b c 1 ** 2 ** 3 ** 4 5 6 7".split(" ")
+// var tokens = "3 ** 4 * 2 + 1".split(" ")
+// log2(ijs.infixate(tokens))
+// var tokens = "1 + 2 * 3 ** 4".split(" ")
+// log2(ijs.infixate(tokens))
+// var tokens = "a b c 1 + 2 + 3 + 4 5 6 7".split(" ")
+// log2(ijs.infixate(tokens))
+// var tokens = "a b c 1 ** 2 ** 3 ** 4 5 6 7".split(" ")
+// log2(ijs.infixate(tokens))
+// var tokens = "a + - ! b".split(" ")
+var tokens = "~ ! ++ b c".split(" ")
 log2(ijs.infixate(tokens))
 
 
@@ -684,6 +924,7 @@ var name2 "Hi"
 var person obj(name "Drew" age 38)
 // return(name2)
 var name3 prop("yay" "toUpperCase")()
+// var name3 "yay".toUpperCase()
 var name4 "hello dave"
 
 func doThing(a) {
@@ -691,6 +932,7 @@ func doThing(a) {
     // alert("doThing called")
     // a.toUpperCase()
     return prop(a "toUpperCase")()
+    // return a.toUpperCase()
 }
 // alert(-2)
 var name5 doThing(name)
