@@ -163,19 +163,39 @@ ijs.tokenize = function(code) {
         }
         return x
     }
+    
+    var isVar = function(chr) {
+        var a = chr.charCodeAt(0)
+        return (
+            (a >= 65 && a <= 90) ||  // A-Z
+            (a >= 97 && a <= 122) || // a-z
+            (a >= 48 && a <= 57) ||  // 0-9
+            (a == 95)            ||    // _
+            (a == 16)                  // $
+        )
+    }
+    
     while (i < code.length) {
         var chr = code.charAt(i)
         if (state == "out") {
             if (" \t\n".indexOf(chr) != -1) {
             } else if ("/".indexOf(chr) != -1) {
                 state = "firstSlash"
-            } else if ("()[]{}".indexOf(chr) != -1) {
+            } else if ("()".indexOf(chr) != -1) {
+                if (i != 0 && "([{".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                    tokens.push("<touching>")
+                }
+                tokens.push(chr)
+            } else if ("[]{}".indexOf(chr) != -1) {
                 tokens.push(chr)
             } else if ('"'.indexOf(chr) != -1) {
                 state = "quote"
                 currentToken = chr
-            } else {
+            } else if (isVar(chr)) {
                 state = "in"
+                currentToken = chr
+            } else {
+                state = "in_symbol"
                 currentToken = chr
             }
         } else if (state == "in") {
@@ -183,13 +203,56 @@ ijs.tokenize = function(code) {
                 tokens.push(checkNumber(currentToken))
                 currentToken = ""
                 state = "out"
-            } else if ("()[]{}".indexOf(chr) != -1) {
+            } else if ("()".indexOf(chr) != -1) {
+                if (currentToken) {
+                    tokens.push(checkNumber(currentToken))
+                    currentToken = ""
+                }
+                if (i != 0 && "([{".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                    tokens.push("<touching>")
+                }
+                tokens.push(chr)
+                state = "out"
+            } else if ("[]{}".indexOf(chr) != -1) {
                 if (currentToken) {
                     tokens.push(checkNumber(currentToken))
                     currentToken = ""
                 }
                 tokens.push(chr)
                 state = "out"
+            } else if (isVar(chr)) {
+                currentToken += chr
+            } else {
+                tokens.push(currentToken)
+                currentToken = chr
+                state = "in_symbol"
+            }
+        } else if (state == "in_symbol") {
+            if (" \t\n".indexOf(chr) != -1) {
+                tokens.push(checkNumber(currentToken))
+                currentToken = ""
+                state = "out"
+            } else if ("()".indexOf(chr) != -1) {
+                if (currentToken) {
+                    tokens.push(checkNumber(currentToken))
+                    currentToken = ""
+                }
+                if (i != 0 && "([{".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                    tokens.push("<touching>")
+                }
+                tokens.push(chr)
+                state = "out"
+            } else if ("[]{}".indexOf(chr) != -1) {
+                if (currentToken) {
+                    tokens.push(checkNumber(currentToken))
+                    currentToken = ""
+                }
+                tokens.push(chr)
+                state = "out"
+            } else if (isVar(chr)) {
+                tokens.push(currentToken)
+                currentToken = chr
+                state = "in"
             } else {
                 currentToken += chr
             }
@@ -223,6 +286,8 @@ ijs.tokenize = function(code) {
         }
         i++
     }
+    // return tokens
+
 
     // log2(tokens)
     var newTokens = []
@@ -231,9 +296,19 @@ ijs.tokenize = function(code) {
     for (var i=0; i<tokens.length; i++) {
         var token = tokens[i]
         if (token == "(") {
-            var prevToken = newTokens.pop()
             tokenStack.push(newTokens)
-            newTokens = [prevToken]
+            var prevToken = newTokens.pop()
+            if (prevToken == "<touching>") {
+                var prevPrevToken = newTokens.pop()
+                newTokens = [prevPrevToken]
+            } else {
+                newTokens.push(prevToken)
+                newTokens = []
+            }
+            // newTokens = [prevToken]
+            
+            // tokenStack.push(newTokens)
+            // newTokens = []
         } else if (token == "{") {
             tokenStack.push(newTokens)
             newTokens = []
@@ -243,19 +318,75 @@ ijs.tokenize = function(code) {
         } else if (")]}".indexOf(token) != -1) {
             var list = newTokens
             newTokens = tokenStack.pop()
-            newTokens.push(list)
+            newTokens.push(ijs.operatorate(list))
         } else {
             newTokens.push(token)
         }
     }
     // return tokenStack
+    return ijs.operatorate(newTokens)
+}
+// var operators = {
+//      "var": {
+//          "associatitivity": "ltr",
+//          "fix": "pre",
+//          "order": ["var", "$a", "=", $b"],
+//          "precedence": 19,
+//      }
+// }
+
+// write a javascript function that parses operators
+// 
+// for example
+// ["a", "b", "+", "c", "d"]
+// would evaluate to
+// ["a", ["+", "b", "c"], "d"]
+
+
+ijs.operatorate = function(tokens) {
+    // TODO: some precendence?
+    var newTokens = []
+    // for (var i=0; i<tokens.length; i++) {
+    //     var token = tokens[i]
+    //     if (token == "var") {
+    //         var next = 
+    //     }
+    // }
+    var token
+    while (token = tokens.shift()) {
+        if (token == "var") {
+            var name = tokens.shift()
+            var value = tokens.shift()
+            newTokens.push(["var", name, value])
+            continue
+        }
+        if (token == "set") {
+            var name = tokens.shift()
+            var value = tokens.shift()
+            newTokens.push(["set", name, value])
+            continue
+        }
+        if (token == "func") {
+            var nameAndArgs = tokens.shift()
+            var body = tokens.shift()
+            newTokens.push(["func", nameAndArgs, body])
+            continue
+        }
+        if (token == "return") {
+            var value = tokens.shift()
+            newTokens.push(["return", value])
+            continue
+        }
+        
+        newTokens.push(token)
+    }
+    
     return newTokens
 }
 
 ijs.run = function(code) {
     var tokens = ijs.tokenize(code)
-    // log2(tokens)
-    
+    log2(tokens)
     // return
     var state = {}
     var f = ijs.makeFunc([[], tokens], state, "main")
@@ -278,8 +409,8 @@ ijs.makeFunc = function(funcDefArgs, state, name) {
     var params = funcDefArgs[0]
     var body = funcDefArgs[1]
     body.unshift("run")
-    // log2("+ making func with")
-    // log2(body)
+    log2("+ making func with")
+    log2(body)
     var f = function(...args) {
         log2("+calling func: " + name + " with: " + JSON.stringify(args))
         for (var i=0; i<args.length; i++) {
@@ -339,15 +470,6 @@ ijs.builtins = {
         theClass.apply(obj, args.slice(1));
         return obj
     },
-    // "call":
-    //     // do auto binding?
-    //     var func = ijs.exec(args[0], state)
-    //     var lookedUpArgs = args.slice(1).map(function(arg) {
-    //         return ijs.exec(arg, state)
-    //     })
-    //     return func.apply(null, args)
-    //     break
-    // },
     "access": function(args, state) {
         var obj = ijs.exec(args[0], state)
         var oldObj = null
@@ -365,16 +487,13 @@ ijs.builtins = {
     },
     "func": function(args, state) {
         // log2("+func: " + JSON.stringify(args))
-        var funcName = ""
-        var funcDefArgs = args
-        if (args.length == 3) {
-            funcName = args[0]
-            funcDefArgs = args.slice(1)
-        }
-        var f = ijs.makeFunc(funcDefArgs, state, funcName)
+        var funcName = args[0][0]
+        log("+ making func with: ")
+        log([args[0].slice(1), args[1]])
+        var f = ijs.makeFunc([args[0].slice(1), args[1]], state, funcName)
 
         if (funcName) {
-            state[args[0]] = f
+            state[args[0][0]] = f
         }
         return f
     },
@@ -422,6 +541,10 @@ ijs.exec = function(tokens, state) {
         return ret
     }
     func = ijs.exec(tokens[0], state)
+    log2("+getting: " + tokens[0])
+    log2("+from: ")
+    log2(tokens)
+    log2("+applying: ")
     return func.apply(null, tokens.slice(1).map(function(t) {
         return ijs.exec(t, state)
     }))
@@ -430,30 +553,30 @@ ijs.exec = function(tokens, state) {
 
 var code = String.raw`
 
-// var name "Drew"
-// log2 name
+var name "Drew"
+log2(name)
 // 
 // JSON.stringify
 // set json[foo] 
-
-var (name "drew \" lesueur")
-var (name2 "Hi")
-var (person obj(name "Drew" age 38))
+var name "drew \" lesueur"
+var name2 "Hi"
+var person obj(name "Drew" age 38)
 // return(name2)
-var (name3 access("yay" "toUpperCase")())
-var (name4 "hello dave")
+var name3 access("yay" "toUpperCase")()
+var name4 "hello dave"
 
-func (doThing [a] {
+func doThing(a) {
     // return(a)
     // alert("doThing called")
-    return(access(a "toUpperCase")())
-})
-var (name5 doThing(name))
+    return access(a "toUpperCase")()
+}
 
-setTimeout(func(yo [] {
-    alert("hi!")
-}) 1000)
-return(name5)
+var name5 doThing(name)
+
+setTimeout(func yo() {
+    log2("what?")
+} 1000)
+return name5
 
 
 // todo: ignore comma
