@@ -191,7 +191,7 @@ ijs.tokenize = function(code) {
             } else if ('"'.indexOf(chr) != -1) {
                 state = "quote"
                 currentToken = chr
-            } else if (isVar(chr)) {
+            } else if (isVar(chr) || true) {
                 state = "in"
                 currentToken = chr
             } else {
@@ -220,7 +220,7 @@ ijs.tokenize = function(code) {
                 }
                 tokens.push(chr)
                 state = "out"
-            } else if (isVar(chr)) {
+            } else if (isVar(chr) || true) {
                 currentToken += chr
             } else {
                 tokens.push(currentToken)
@@ -249,7 +249,7 @@ ijs.tokenize = function(code) {
                 }
                 tokens.push(chr)
                 state = "out"
-            } else if (isVar(chr)) {
+            } else if (isVar(chr) || true) {
                 tokens.push(currentToken)
                 currentToken = chr
                 state = "in"
@@ -346,12 +346,6 @@ ijs.tokenize = function(code) {
 ijs.operatorate = function(tokens) {
     // TODO: some precendence?
     var newTokens = []
-    // for (var i=0; i<tokens.length; i++) {
-    //     var token = tokens[i]
-    //     if (token == "var") {
-    //         var next = 
-    //     }
-    // }
     var token
     while (token = tokens.shift()) {
         if (token == "var") {
@@ -381,14 +375,129 @@ ijs.operatorate = function(tokens) {
         newTokens.push(token)
     }
     
+    // return ijs.infixate(newTokens)
     return newTokens
 }
 
+ijs.infixes = {
+     "+": {
+         "associatitivity": 0,
+         "precedence": 11,
+     },
+     "-": {
+         "associatitivity": 0,
+         "precedence": 11,
+     },
+     "*": {
+         "associatitivity": 0,
+         "precedence": 12,
+     },
+     "/": {
+         "associatitivity": 0,
+         "precedence": 12,
+     },
+     "%": {
+         "associatitivity": 0,
+         "precedence": 12,
+     },
+     "**": {
+         "associatitivity": 1,
+         "precedence": 13,
+     },
+     ".": {
+         "associatitivity": 0,
+         "precedence": 17,
+     },
+     "": {
+         "associatitivity": 0,
+         "precedence": 17,
+     },
+}
+ijs.infixate = function(tokens) {
+    var newTokens = []
+    var stack = []
+    var d = null
+    // a b c x + y * 3 ** 4
+    // 3 ** 4 * y + c
+    // 3 ** 4 ** 5
+    // x + y z c b
+    // (+ x (* y 3))
+    // x + 3 + 4 + 5
+    // y * 3 + 2
+    // y ** 3 ** 4.bar
+    // (** (** y 3) 4) 
+    
+    // y + 3 + 4.bar
+    // (+ (+ y 3) 4)
+    
+    // x + 3 * 4.a
+    // 4.a * 3 + x
+    
+    
+    // 3 ** 4 * 2
+    // (** 3 4)
+    // (* (** 3 4) 2)
+    
+    // 1 + 2 * 3 ** 4
+    // (+ 1 2)
+    // (+ 1 (* 2 3))
+    var lastPrecedence = -1
+    var lastAssociativity = -
+    var currPrecedence = -1
+    var lastGroup = null
+    while (token = tokens.shift()) {
+        if (token in ijs.infixes) {
+            currPrecedence = ijs.infixes[token].precedence
+            // log2(JSON.stringify([token, currPrecedence, lastPrecedence]))
+            if (lastPrecedence == -1) {
+                lastGroup = [token, newTokens.pop(), tokens.shift()]
+                tokens.push(lastGroup)
+            } else if (currPrecedence < lastPrecedence) {
+                // log2("-here")
+                var lastOp = lastGroup[0]
+                var lastLeft = lastGroup[1]
+                var lastRight = lastGroup[2]
+                lastGroup[0] = token
+                lastGroup[1] = [lastOp, lastLeft, lastRight]
+                lastGroup[2] = tokens.shift()
+                lastGroup = lastGroup
+            } else if (currPrecedence > lastPrecedence) {
+                var lastOp = lastGroup[0]
+                var lastLeft = lastGroup[1]
+                var lastRight = lastGroup[2]
+                var newGroup = [token, lastRight, tokens.shift()]
+                lastGroup[2] = newGroup
+                lastGroup = newGroup
+            }
+            lastPrecedence = currPrecedence
+        } else {
+            // log2(JSON.stringify([token, -1, lastPrecedence]))
+            lastPrecedence = -1
+            newTokens.push(token)
+        }
+    }
+    return newTokens
+    
+}
+
+
+// var tokens = "4 ** 3 * 2 + 1".split(" ")
+// log2(ijs.infixate(tokens))
+var tokens = "1 + 2 * 3 ** 4".split(" ")
+log2(ijs.infixate(tokens))
+
+
 ijs.run = function(code) {
     var tokens = ijs.tokenize(code)
-    log2(tokens)
+    // log2(tokens)
     // return
-    var state = {}
+    var state = {
+        add: (x, y) => x + y,
+        substract: (x, y) => x - y,
+        multiply: (x, y) => x * y,
+        divide: (x, y) => x / y,
+        concat: (x, y) => x + y,
+    }
     var f = ijs.makeFunc([[], tokens], state, "main")
     var ret
     try {
@@ -409,8 +518,8 @@ ijs.makeFunc = function(funcDefArgs, state, name) {
     var params = funcDefArgs[0]
     var body = funcDefArgs[1]
     body.unshift("run")
-    log2("+ making func with")
-    log2(body)
+    // log2("+ making func with")
+    // log2(body)
     var f = function(...args) {
         log2("+calling func: " + name + " with: " + JSON.stringify(args))
         for (var i=0; i<args.length; i++) {
@@ -429,6 +538,14 @@ ijs.makeFunc = function(funcDefArgs, state, name) {
 
 ijs.builtins = {
     "var": function(args, state) {
+        try {
+            state[args[0]] = ijs.exec(args[1], state)
+        } catch (e) {
+            log2("-- error with args " + e)
+            log2(args)
+        }
+    },
+    "set": function(args, state) {
         try {
             state[args[0]] = ijs.exec(args[1], state)
         } catch (e) {
@@ -470,7 +587,7 @@ ijs.builtins = {
         theClass.apply(obj, args.slice(1));
         return obj
     },
-    "access": function(args, state) {
+    "prop": function(args, state) {
         var obj = ijs.exec(args[0], state)
         var oldObj = null
         var props = args.slice(1).map(function(arg) {
@@ -541,10 +658,10 @@ ijs.exec = function(tokens, state) {
         return ret
     }
     func = ijs.exec(tokens[0], state)
-    log2("+getting: " + tokens[0])
-    log2("+from: ")
-    log2(tokens)
-    log2("+applying: ")
+    // log2("+getting: " + tokens[0])
+    // log2("+from: ")
+    // log2(tokens)
+    // log2("+applying: ")
     return func.apply(null, tokens.slice(1).map(function(t) {
         return ijs.exec(t, state)
     }))
@@ -562,22 +679,35 @@ var name "drew \" lesueur"
 var name2 "Hi"
 var person obj(name "Drew" age 38)
 // return(name2)
-var name3 access("yay" "toUpperCase")()
+var name3 prop("yay" "toUpperCase")()
 var name4 "hello dave"
 
 func doThing(a) {
     // return(a)
     // alert("doThing called")
-    return access(a "toUpperCase")()
+    // a.toUpperCase()
+    return prop(a "toUpperCase")()
 }
-
+// alert(-2)
 var name5 doThing(name)
 
 setTimeout(func yo() {
     log2("what?")
 } 1000)
-return name5
 
+// func incerer(x) {
+//     return func incr() {
+//         set x (plus 1 x)
+//         return x
+//     }
+// }
+
+
+
+set foo (add 2 4)
+log2(concat(" the addition is " foo))
+
+return name5
 
 // todo: ignore comma
 // var(name2 call(access(yay "toUpperCase") 
