@@ -442,17 +442,17 @@ ijs.infixate = function(tokens) {
     // (+ 1 2)
     // (+ 1 (* 2 3))
     var lastPrecedence = -1
-    var lastAssociativity = -
     var currPrecedence = -1
     var lastGroup = null
     while (token = tokens.shift()) {
         if (token in ijs.infixes) {
             currPrecedence = ijs.infixes[token].precedence
+            currAssociatitivity = ijs.infixes[token].associatitivity
             // log2(JSON.stringify([token, currPrecedence, lastPrecedence]))
             if (lastPrecedence == -1) {
                 lastGroup = [token, newTokens.pop(), tokens.shift()]
-                tokens.push(lastGroup)
-            } else if (currPrecedence < lastPrecedence) {
+                newTokens.push(lastGroup)
+            } else if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
                 // log2("-here")
                 var lastOp = lastGroup[0]
                 var lastLeft = lastGroup[1]
@@ -461,7 +461,7 @@ ijs.infixate = function(tokens) {
                 lastGroup[1] = [lastOp, lastLeft, lastRight]
                 lastGroup[2] = tokens.shift()
                 lastGroup = lastGroup
-            } else if (currPrecedence > lastPrecedence) {
+            } else if (currPrecedence > lastPrecedence || (currPrecedence == lastPrecedence && currAssociatitivity)) {
                 var lastOp = lastGroup[0]
                 var lastLeft = lastGroup[1]
                 var lastRight = lastGroup[2]
@@ -481,9 +481,13 @@ ijs.infixate = function(tokens) {
 }
 
 
-// var tokens = "4 ** 3 * 2 + 1".split(" ")
-// log2(ijs.infixate(tokens))
+var tokens = "3 ** 4 * 2 + 1".split(" ")
+log2(ijs.infixate(tokens))
 var tokens = "1 + 2 * 3 ** 4".split(" ")
+log2(ijs.infixate(tokens))
+var tokens = "a b c 1 + 2 + 3 + 4 5 6 7".split(" ")
+log2(ijs.infixate(tokens))
+var tokens = "a b c 1 ** 2 ** 3 ** 4 5 6 7".split(" ")
 log2(ijs.infixate(tokens))
 
 
