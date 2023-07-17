@@ -623,12 +623,31 @@ ijs.prefixes = {
          "fix": "pre",
      },
 }
+ijs.postfixes = {
+     "++": {
+         "associatitivity": 1,
+         "precedence": 15,
+         "arity": 1,
+         "fix": "post",
+     },
+     "--": {
+         "associatitivity": 1,
+         "precedence": 15,
+         "arity": 1,
+         "fix": "post",
+     },
+}
 // -!a
 ijs.unaryHack = function(tokens) {
     var token = tokens.shift()
     if (token in ijs.prefixes && ijs.prefixes[token].fix == "pre") {
-        return [token + "_unary", ijs.unaryHack(tokens)]
+        return [token + "_unary_pre", ijs.unaryHack(tokens)]
     } else {
+        var next = tokens.shift()
+        if (next in ijs.postfixes) {
+            return [next + "_unary_post", token]
+        }
+        tokens.unshift(next)
         return token
     }
     
@@ -727,7 +746,8 @@ ijs.infixate = function(tokens) {
 // var tokens = "a b c 1 ** 2 ** 3 ** 4 5 6 7".split(" ")
 // log2(ijs.infixate(tokens))
 // var tokens = "a + - ! b".split(" ")
-var tokens = "~ ! ++ b c".split(" ")
+// var tokens = "~ ! ++ b ++ c".split(" ")
+var tokens = "7 - - 2 * 3".split(" ")
 log2(ijs.infixate(tokens))
 
 
