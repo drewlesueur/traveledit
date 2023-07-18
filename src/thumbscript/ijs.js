@@ -1,4 +1,6 @@
 
+// TODO: true, false
+// 
 
 // how to dynamically call new in javascript
 // 
@@ -182,7 +184,7 @@ ijs.tokenize = function(code) {
             } else if ("/".indexOf(chr) != -1) {
                 state = "firstSlash"
             } else if ("()".indexOf(chr) != -1) {
-                if (i != 0 && "([{".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<touching>")
                 }
                 tokens.push(chr)
@@ -208,7 +210,7 @@ ijs.tokenize = function(code) {
                     tokens.push(checkNumber(currentToken))
                     currentToken = ""
                 }
-                if (i != 0 && "([{".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<touching>")
                 }
                 tokens.push(chr)
@@ -290,7 +292,7 @@ ijs.tokenize = function(code) {
     // return tokens
 
 
-    // log2(tokens)
+    log2(tokens)
     var newTokens = []
     var tokenStack = []
     // squish funcs
@@ -298,18 +300,14 @@ ijs.tokenize = function(code) {
         var token = tokens[i]
         if (token == "(") {
             tokenStack.push(newTokens)
-            var prevToken = newTokens.pop()
-            if (prevToken == "<touching>") {
-                var prevPrevToken = newTokens.pop()
-                newTokens = [prevPrevToken]
-            } else {
-                newTokens.push(prevToken)
+            // var prevToken = newTokens.pop()
+            // if (prevToken == "<touching>") {
+            //     var prevPrevToken = newTokens.pop()
+            //     newTokens = [prevPrevToken]
+            // } else {
+            //     newTokens.push(prevToken)
                 newTokens = []
-            }
-            // newTokens = [prevToken]
-            
-            // tokenStack.push(newTokens)
-            // newTokens = []
+            // }
         } else if (token == "{") {
             tokenStack.push(newTokens)
             newTokens = []
@@ -344,8 +342,60 @@ ijs.tokenize = function(code) {
 // ["a", ["+", "b", "c"], "d"]
 
 
+ijs.processTouching = function(tokens) {
+   // return tokens
+   // [
+   //    "<touching>",
+   //    "log2",
+   //    [
+   //       [
+   //          ".",
+   //          "testObj",
+   //          "name"
+   //       ]
+   //    ]
+   // ],
+   //
+   // [
+   //    "log2",
+   //   [
+   //      ".",
+   //      "testObj",
+   //      "name"
+   //   ]
+   // ],
+   
+    // log2("+process touching! " + JSON.stringify(tokens))
+    
+    for (var i=0; i<tokens.length; i++) {
+        var token = tokens[i]
+        if (typeof token == "object") {
+            log2("+ yay obj")
+            var first = token[0]
+            if (first == "<touching>") {
+                log2("+touching!")
+                token.shift()
+                if (token[1].length) {
+                    token[1] = token[1][0]
+                } else {
+                    token.pop()
+                }
+            }
+        }
+    }
+    
+    return tokens
+    // for (var i=0; i<tokens.length; i++) {
+    //     var token = tokens[i]
+    //     if (typeof token == "object") {
+    //         ijs.processTouching(token)
+    //     }
+    // }
+}
+
 ijs.operatorate = function(tokens) {
     tokens = ijs.infixate(tokens)
+    tokens = ijs.processTouching(tokens)
     // TODO: some precendence?
     var newTokens = []
     var token
@@ -544,6 +594,10 @@ ijs.infixes = {
      "**": {
          "associatitivity": 1,
          "precedence": 13,
+     },
+     "<touching>": {
+         "associatitivity": 0,
+         "precedence": 16,
      },
      ".": {
          "associatitivity": 0,
@@ -747,13 +801,13 @@ ijs.infixate = function(tokens) {
 // log2(ijs.infixate(tokens))
 // var tokens = "a + - ! b".split(" ")
 // var tokens = "~ ! ++ b ++ c".split(" ")
-var tokens = "7 - - 2 * 3".split(" ")
-log2(ijs.infixate(tokens))
+// var tokens = "7 - - 2 * 3".split(" ")
+// log2(ijs.infixate(tokens))
 
 
 ijs.run = function(code) {
     var tokens = ijs.tokenize(code)
-    // log2(tokens)
+    log2(tokens)
     // return
     var state = {
         add: (x, y) => x + y,
@@ -809,14 +863,6 @@ ijs.builtins = {
             log2(args)
         }
     },
-    "set": function(args, state) {
-        try {
-            state[args[0]] = ijs.exec(args[1], state)
-        } catch (e) {
-            log2("-- error with args " + e)
-            log2(args)
-        }
-    },
     "run": function(args, state) {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
@@ -845,12 +891,12 @@ ijs.builtins = {
         })
         return arr
     },
-    "new": function(args, state) {
-        var theClass = ijs.exec(args[i], state)
-        var obj = Object.create(theClass.prototype);
-        theClass.apply(obj, args.slice(1));
-        return obj
-    },
+    // "new": function(args, state) {
+    //     var theClass = ijs.exec(args[i], state)
+    //     var obj = Object.create(theClass.prototype);
+    //     theClass.apply(obj, args.slice(1));
+    //     return obj
+    // },
     "prop": function(args, state) {
         var obj = ijs.exec(args[0], state)
         var oldObj = null
@@ -877,6 +923,207 @@ ijs.builtins = {
             state[args[0][0]] = f
         }
         return f
+    },
+    "function": function(args, state) {
+        // log2("+func: " + JSON.stringify(args))
+        var funcName = args[0][0]
+        log("+ making func with: ")
+        log([args[0].slice(1), args[1]])
+        var f = ijs.makeFunc([args[0].slice(1), args[1]], state, funcName)
+
+        if (funcName) {
+            state[args[0][0]] = f
+        }
+        return f
+    },
+    "=": function (args, state) {
+        state[args[0]] = ijs.exec(args[1], state)
+    },
+    "+=": function (args, state) {
+        state[args[0]] += ijs.exec(args[1], state)
+    },
+    "-=": function (args, state) {
+        state[args[0]] -= ijs.exec(args[1], state)
+    },
+    "**=": function (args, state) {
+        state[args[0]] **= ijs.exec(args[1], state)
+    },
+    "*=": function (args, state) {
+        state[args[0]] *= ijs.exec(args[1], state)
+    },
+    "/=": function (args, state) {
+        state[args[0]] /= ijs.exec(args[1], state)
+    },
+    "%=": function (args, state) {
+        state[args[0]] %= ijs.exec(args[1], state)
+    },
+    "<<=": function (args, state) {
+        state[args[0]] <<= ijs.exec(args[1], state)
+    },
+    ">>=": function (args, state) {
+        state[args[0]] >>= ijs.exec(args[1], state)
+    },
+    ">>>=": function (args, state) {
+        state[args[0]] >>>= ijs.exec(args[1], state)
+    },
+    "&=": function (args, state) {
+        state[args[0]] &= ijs.exec(args[1], state)
+    },
+    "^=": function (args, state) {
+        state[args[0]] ^= ijs.exec(args[1], state)
+    },
+    "|=": function (args, state) {
+        state[args[0]] |= ijs.exec(args[1], state)
+    },
+    "&&=": function (args, state) {
+        state[args[0]] &&= ijs.exec(args[1], state)
+    },
+    "||=": function (args, state) {
+        state[args[0]] ||= ijs.exec(args[1], state)
+    },
+    "??=": function (args, state) {
+        state[args[0]] ??= ijs.exec(args[1], state)
+    },
+    "??": function (args, state) {
+        return ijs.exec(args[0], state) ??= ijs.exec(args[1], state)
+    },
+    "||": function (args, state) {
+        return ijs.exec(args[0], state) || ijs.exec(args[1], state)
+    },
+    "&&": function (args, state) {
+        return ijs.exec(args[0], state) && ijs.exec(args[1], state)
+    },
+    "|": function (args, state) {
+        return ijs.exec(args[0], state) | ijs.exec(args[1], state)
+    },
+    "^": function (args, state) {
+        return ijs.exec(args[0], state) ^ ijs.exec(args[1], state)
+    },
+    "&": function (args, state) {
+        return ijs.exec(args[0], state) & ijs.exec(args[1], state)
+    },
+    "!==": function (args, state) {
+        return ijs.exec(args[0], state) !== ijs.exec(args[1], state)
+    },
+    "===": function (args, state) {
+        return ijs.exec(args[0], state) === ijs.exec(args[1], state)
+    },
+    "!=": function (args, state) {
+        return ijs.exec(args[0], state) != ijs.exec(args[1], state)
+    },
+    "==": function (args, state) {
+        return ijs.exec(args[0], state) == ijs.exec(args[1], state)
+    },
+    "instanceof": function (args, state) {
+        return ijs.exec(args[0], state) instanceof ijs.exec(args[1], state)
+    },
+    "in": function (args, state) {
+        return ijs.exec(args[0], state) in ijs.exec(args[1], state)
+    },
+    ">=": function (args, state) {
+        return ijs.exec(args[0], state) >= ijs.exec(args[1], state)
+    },
+    ">": function (args, state) {
+        return ijs.exec(args[0], state) > ijs.exec(args[1], state)
+    },
+    "<=": function (args, state) {
+        return ijs.exec(args[0], state) <= ijs.exec(args[1], state)
+    },
+    "<": function (args, state) {
+        return ijs.exec(args[0], state) < ijs.exec(args[1], state)
+    },
+    ">>>": function (args, state) {
+        return ijs.exec(args[0], state) >>> ijs.exec(args[1], state)
+    },
+    ">>": function (args, state) {
+        return ijs.exec(args[0], state) >> ijs.exec(args[1], state)
+    },
+    "<<": function (args, state) {
+        return ijs.exec(args[0], state) << ijs.exec(args[1], state)
+    },
+    "+": function (args, state) {
+        return ijs.exec(args[0], state) + ijs.exec(args[1], state)
+    },
+    "-": function (args, state) {
+        return ijs.exec(args[0], state) - ijs.exec(args[1], state)
+    },
+    "*": function (args, state) {
+        return ijs.exec(args[0], state) * ijs.exec(args[1], state)
+    },
+    "/": function (args, state) {
+        return ijs.exec(args[0], state) / ijs.exec(args[1], state)
+    },
+    "%": function (args, state) {
+        return ijs.exec(args[0], state) % ijs.exec(args[1], state)
+    },
+    "**": function (args, state) {
+        return ijs.exec(args[0], state) ** ijs.exec(args[1], state)
+    },
+    ".": function (args, state) {
+        var o = ijs.exec(args[0], state)
+        log2("+ "+args[0]+"."+args[1])
+        log2(o)
+        var ret = o[args[1]]
+        if (typeof ret == "function") {
+            return ret.bind(o)
+        }
+        return ret
+    },
+    ".?": function (args, state) {
+        var first = ijs.exec(args[0], state)
+        if (first == null || typeof first == "undefined") {
+            return void 0
+        }
+        return first[args[1]]
+    },
+    "!_unary_pre": function (args, state) {
+        return !ijs.exec(args[0], state)
+    },
+    "~_unary_pre": function (args, state) {
+        return ~ijs.exec(args[0], state)
+    },
+    "+_unary_pre": function (args, state) {
+        return +ijs.exec(args[0], state)
+    },
+    "-_unary_pre": function (args, state) {
+        return -ijs.exec(args[0], state)
+    },
+    "++_unary_pre": function (args, state) {
+        return ++ijs.exec(args[0], state)
+    },
+    "--_unary_pre": function (args, state) {
+        return --ijs.exec(args[0], state)
+    },
+    "typeof_unary_pre": function (args, state) {
+        return typeof ijs.exec(args[0], state)
+    },
+    "void_unary_pre": function (args, state) {
+        return void ijs.exec(args[0], state)
+    },
+    "delete_unary_pre": function (args, state) {
+        // TODO: finish this.
+        // delete foo.bar
+        // delete foo["bar"]
+        // var arg = args[0]
+        // // assuming (. x y)
+        // var o = ijs.exec(arg[1], state)
+        // delete(o, )
+        // return delete ijs.exec(args[0], state)
+    },
+    "await_unary_pre": async function (args, state) {
+        return await ijs.exec(args[0], state)
+    },
+    "new_unary_pre": function (args, state) {
+        var theClass = ijs.exec(args[0], state)
+        var obj = Object.create(theClass.prototype);
+        theClass.apply(obj, args.slice(1));
+        return obj
+    },
+    "++_unary_post": function (args, state) {
+        return ++ijs.exec(args[0], state)
+    },
+    "--_unary_post": function (args, state) {
+        return ++ijs.exec(args[0], state)
     },
 }
 ijs.exec = function(tokens, state) {
@@ -932,34 +1179,60 @@ ijs.exec = function(tokens, state) {
     
 }
 
+window.testObj = {
+    name: "drew2"
+}
 var code = String.raw`
 
-var name "Drew"
-log2(name)
+log2(testObj.name)
+log2("hi".toUpperCase())
+
+
+// [ foo.bar [ biz.baz + 1] ]
+
+// name = "drew"
+// log2(name)
 // 
-// JSON.stringify
-// set json[foo] 
-var name "drew \" lesueur"
-var name2 "Hi"
-var person obj(name "Drew" age 38)
-// return(name2)
-var name3 prop("yay" "toUpperCase")()
-// var name3 "yay".toUpperCase()
-var name4 "hello dave"
+// bar = 2 + 3 * 4
+// log2(bar)
+// 
+// function upper(a) {
+//     return a.toUpperCase()
+// }
+// 
+// upperName = upper(name)
+// log2(upperName)
+// return name
 
-func doThing(a) {
-    // return(a)
-    // alert("doThing called")
-    // a.toUpperCase()
-    return prop(a "toUpperCase")()
-    // return a.toUpperCase()
-}
-// alert(-2)
-var name5 doThing(name)
 
-setTimeout(func yo() {
-    log2("what?")
-} 1000)
+
+
+// var name "Drew"
+// log2(name)
+// // 
+// // JSON.stringify
+// // set json[foo] 
+// var name "drew \" lesueur"
+// var name2 "Hi"
+// var person obj(name "Drew" age 38)
+// // return(name2)
+// var name3 prop("yay" "toUpperCase")()
+// // var name3 "yay".toUpperCase()
+// var name4 "hello dave"
+// 
+// func doThing(a) {
+//     // return(a)
+//     // alert("doThing called")
+//     // a.toUpperCase()
+//     return prop(a "toUpperCase")()
+//     // return a.toUpperCase()
+// }
+// // alert(-2)
+// var name5 doThing(name)
+// 
+// setTimeout(func yo() {
+//     log2("what?")
+// } 1000)
 
 // func incerer(x) {
 //     return func incr() {
@@ -970,10 +1243,10 @@ setTimeout(func yo() {
 
 
 
-set foo (add 2 4)
-log2(concat(" the addition is " foo))
-
-return name5
+// set foo (add 2 4)
+// log2(concat(" the addition is " foo))
+// 
+// return name5
 
 // todo: ignore comma
 // var(name2 call(access(yay "toUpperCase") 
@@ -1057,7 +1330,38 @@ if( neq(element, "undefined")
       return ""
     }
   }
-
-
+  
+@[ ]
+chrome.storage.local.set(
+    %{
+        page1 false
+        page2 false
+        page3 false
+    }
+)
+    await new Promise(function (resolve, reject) {
+      chrome.storage.local.set(
+        {
+          iterateServiceArizona: {
+            page1: false,
+            page2: false,
+            page3: false,
+            page4: false,
+            page5: false,
+            page6: false,
+            page7: false,
+            page8: false,
+            page9: false,
+            page10: false,
+            page11: false,
+            page12: false,
+          },
+        },
+        function () {
+          console.log("Resolving page1 here")
+          resolve()
+        }
+      )
+    })
 
 */
