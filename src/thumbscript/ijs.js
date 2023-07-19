@@ -160,23 +160,40 @@ ijs.tokenize = function(code) {
     var state = "out"
     var currentToken = ""
     var tokens = []
-    var checkNumber = function(x) {
-        if (x == "true") {
-            return true
+    
+    var pushToken = function(x) {
+        if (x == ",") {
+            return
         }
+        if (x == ":") {
+            return
+        }
+        if (x == ";") {
+            return
+        }
+        
+        if (x == "true") {
+            tokens.push(true)
+            return
+        }
+        
         if (x == "false") {
-            return false
+            tokens.push(true)
+            return
         }
         if (x == "null") {
-            return null
+            tokens.push(null)
+            return
         }
         if (x == "undefined") { // lol
-            return undefined
+            tokens.push(void 0)
+            return
         }
         if (x - 0 == x) {
-            return x - 0
+            tokens.push(x - 0)
+            return
         }
-        return x
+        tokens.push(x)
     }
     
     var isVar = function(chr) {
@@ -202,11 +219,18 @@ ijs.tokenize = function(code) {
                 }
                 tokens.push(chr)
             } else if ("[]".indexOf(chr) != -1) {
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
-                    tokens.push("<computedMemberAccess>")
+                if (i != 0 && "[".indexOf(chr) != -1) {
+                    if (" \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                        tokens.push("<computedMemberAccess>")
+                    } else {
+                        tokens.push("<array>")
+                    }
                 }
                 tokens.push(chr)
             } else if ("{}".indexOf(chr) != -1) {
+                if (i != 0 && "{".indexOf(chr) != -1) {
+                    tokens.push("<object>")
+                }
                 tokens.push(chr)
             } else if ('"'.indexOf(chr) != -1) {
                 state = "quote"
@@ -220,12 +244,12 @@ ijs.tokenize = function(code) {
             }
         } else if (state == "in") {
             if (" \t\n".indexOf(chr) != -1) {
-                tokens.push(checkNumber(currentToken))
+                pushToken(currentToken)
                 currentToken = ""
                 state = "out"
             } else if ("()".indexOf(chr) != -1) {
                 if (currentToken) {
-                    tokens.push(checkNumber(currentToken))
+                    pushToken(currentToken)
                     currentToken = ""
                 }
                 if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
@@ -235,7 +259,7 @@ ijs.tokenize = function(code) {
                 state = "out"
             } else if ("[]".indexOf(chr) != -1) {
                 if (currentToken) {
-                    tokens.push(checkNumber(currentToken))
+                    pushToken(currentToken)
                     currentToken = ""
                 }
                 if (i != 0 && "[".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
@@ -245,7 +269,7 @@ ijs.tokenize = function(code) {
                 state = "out"
             } else if ("{}".indexOf(chr) != -1) {
                 if (currentToken) {
-                    tokens.push(checkNumber(currentToken))
+                    pushToken(currentToken)
                     currentToken = ""
                 }
                 tokens.push(chr)
@@ -254,18 +278,18 @@ ijs.tokenize = function(code) {
                 currentToken += chr
             } else {
                 log2("+in symbol")
-                tokens.push(currentToken)
+                pushToken(currentToken)
                 currentToken = chr
                 state = "in_symbol"
             }
         } else if (state == "in_symbol") {
             if (" \t\n".indexOf(chr) != -1) {
-                tokens.push(checkNumber(currentToken))
+                pushToken(currentToken)
                 currentToken = ""
                 state = "out"
             } else if ("()".indexOf(chr) != -1) {
                 if (currentToken) {
-                    tokens.push(checkNumber(currentToken))
+                    pushToken(currentToken)
                     currentToken = ""
                 }
                 if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
@@ -275,7 +299,7 @@ ijs.tokenize = function(code) {
                 state = "out"
             } else if ("[]".indexOf(chr) != -1) {
                 if (currentToken) {
-                    tokens.push(checkNumber(currentToken))
+                    pushToken(currentToken)
                     currentToken = ""
                 }
                 if (i != 0 && "[".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
@@ -285,17 +309,17 @@ ijs.tokenize = function(code) {
                 state = "out"
             } else if ("{}".indexOf(chr) != -1) {
                 if (currentToken) {
-                    tokens.push(checkNumber(currentToken))
+                    pushToken(currentToken)
                     currentToken = ""
                 }
                 tokens.push(chr)
                 state = "out"
             } else if ('"'.indexOf(chr) != -1) {
-                tokens.push(currentToken)
+                pushToken(currentToken)
                 state = "quote"
                 currentToken = chr
             } else if (isVar(chr)) {
-                tokens.push(currentToken)
+                pushToken(currentToken)
                 currentToken = chr
                 state = "in"
             } else {
@@ -361,11 +385,11 @@ ijs.tokenize = function(code) {
             // log2("+newTokens")
             // log2(newTokens)
             var list = newTokens
-            log2("+closing")
-            log2(newTokens)
+            // log2("+closing")
+            // log2(newTokens)
             var operated = ijs.operatorate(list)
-            log2("+operated")
-            log2(operated)
+            // log2("+operated")
+            // log2(operated)
             newTokens = tokenStack.pop()
             newTokens.push(operated)
             
@@ -732,6 +756,18 @@ ijs.prefixes = {
      "new": {
          "associatitivity": 1,
          "precedence": 17,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "<array>": {
+         "associatitivity": 1,
+         "precedence": 99,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "<object>": {
+         "associatitivity": 1,
+         "precedence": 99,
          "arity": 1,
          "fix": "pre",
      },
@@ -1190,6 +1226,25 @@ ijs.builtins = {
     "--_unary_post": function (args, state) {
         return ++ijs.exec(args[0], state)
     },
+    "<array>_unary_pre": function(args, state) {
+        var computed = args[0].map(function(t) {
+            return ijs.exec(t, state)
+        })
+        return computed
+    },
+    "<object>_unary_pre": function(args, state) {
+        var o = {}
+        args = args[0]
+        log2(args)
+        for (var i=0; i<args.length-1; i+=2) {
+            log2(args[i])
+            if (args[i].charAt(0) == "#") {
+                args[i] = args[i].slice(1)
+            }
+            o[args[i]] = ijs.exec(args[i+1], state)
+        }
+        return o
+    },
     "<callFunc>": function(args, state) {
         // (foo bar baz)
         // is the same as
@@ -1219,6 +1274,9 @@ ijs.builtins = {
 }
 ijs.exec = function(tokens, state) {
     if (typeof tokens == "number") {
+        return tokens
+    }
+    if (typeof tokens == "boolean") {
         return tokens
     }
     if (tokens.length == 0) {
@@ -1275,14 +1333,34 @@ window.testObj = {
 }
 var code = String.raw`
 
+
+b = [1 2 3]
+c = [1 2*1+2 3]
+
+d = [1, 2, 3]
+
+e = d[1*1]
+
+g = {bar: "baz", "other" 27}
+
+function upper(x) {
+    return x.toUpperCase()
+}
+lower = function upper(x) {
+    return x.toUpperCase()
+}
+
+// c = [1 2 * 1 + 2 3]
 // name = "Drew"
 // log2("what?".toUpperCase())
 // log2(name.toUpperCase())
 
 // log2(testObj["na"+"me"])
 
-s = testObj["na"+"me"].toUpperCase()
-log2(s)
+// s = testObj["na"+"me"].toUpperCase()
+// log2(s)
+
+
 
 
 // x = testObj["name"]
