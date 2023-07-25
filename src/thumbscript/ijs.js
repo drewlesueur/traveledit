@@ -472,7 +472,7 @@ ijs.processTouching = function(tokens) {
 }
 
 ijs.operatorate = function(tokens) {
-    tokens = ijs.infixate(tokens)
+    tokens = ijs.infixate(tokens, false, true, -1, 0)
     // tokens = ijs.processTouching(tokens)
     // TODO: some precendence?
     var newTokens = []
@@ -783,12 +783,12 @@ ijs.prefixes = {
          "arity": 1,
          "fix": "pre",
      },
-     // "function": {
-     //     "associatitivity": 1,
-     //     "precedence": 99,
-     //     "arity": 1,
-     //     "fix": "pre",
-     // },
+     "function": {
+         "associatitivity": 1,
+         "precedence": -1,
+         "arity": 2,
+         "fix": "pre",
+     },
 }
 ijs.forcedPrefixes = {
     "function": {
@@ -845,9 +845,13 @@ ijs.unaryHack = function(tokens) {
     //     }
     // } 
 }
-ijs.infixate = function(tokens, stopAfter, iter) {
-    log2("infixate called: " + JSON.stringify(tokens))
-    iter = iter || 0
+
+function logIndent(indent, msg, obj) {
+    log2("    ".repeat(indent) + msg + ": " + JSON.stringify(obj))
+}
+
+ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
+    logIndent(iter, "infixate called: " + JSON.stringify(tokens))
     if (iter == 500) {
         alert("oops")
         return
@@ -897,35 +901,41 @@ ijs.infixate = function(tokens, stopAfter, iter) {
     // (+ (* 2 3) 4)
     // !3 + 4
     
-    // !a.b
+    // !a.b + c
     // (! a)
     // (! (. a b))
     
     
-    var lastPrecedence = -1
     var currPrecedence = -1
     var lastGroup = null
     while (token = tokens.shift()) {
-        if (token in ijs.infixes) {
+        if (!skipInfix && (token in ijs.infixes)) {
+        // if (token in ijs.infixes) {
             var opDef = ijs.infixes[token]
             currPrecedence = opDef.precedence
             currAssociatitivity = opDef.associatitivity
             // log2(JSON.stringify([token, currPrecedence, lastPrecedence]))
             if (lastPrecedence == -1) {
-                lastGroup = [token, newTokens.pop(), ijs.infixate(tokens, true, iter+1)]
+                lastGroup = [token, newTokens.pop(), ijs.infixate(tokens, true, true, currPrecedence, iter+1)]
                 newTokens.push(lastGroup)
             } else if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
                 // log2("-here")
                 copiedLastGroup = JSON.parse(JSON.stringify(lastGroup))
                 lastGroup[0] = token
                 lastGroup[1] = copiedLastGroup
-                lastGroup[2] = ijs.infixate(tokens, true)
+                lastGroup[2] = ijs.infixate(tokens, true, true, currPrecedence, iter + 1)
                 lastGroup = lastGroup // lol
             } else if (currPrecedence > lastPrecedence || (currPrecedence == lastPrecedence && currAssociatitivity)) {
                 var lastRight = lastGroup[lastGroup.length - 1]
-                var newGroup = [token, lastRight, ijs.infixate(tokens, true, iter + 1)]
+                var newGroup = [token, lastRight, ijs.infixate(tokens, true, true, currPrecedence, iter + 1)]
                 lastGroup[lastGroup.length - 1] = newGroup
                 lastGroup = newGroup
+            }
+            if (stopAfter) {
+                // wait maybe just return lastGroup?
+                logIndent(iter, "infix return", lastGroup)
+                return lastGroup
+                // return newTokens
             }
             lastPrecedence = currPrecedence
         } else if (token in ijs.prefixes) {
@@ -933,27 +943,42 @@ ijs.infixate = function(tokens, stopAfter, iter) {
             currPrecedence = opDef.precedence
             len = opDef.len
             lastGroup = [token]
-            for (var i=0; i<(opDef.len || 1); i++) {
-                lastGroup.push(ijs.infixate(tokens, true, iter + 1))
+            for (var i=0; i<(opDef.arity || 1); i++) {
+                lastGroup.push(ijs.infixate(tokens, true, true, currPrecedence, iter + 1))
             }
             lastPrecedence = currPrecedence
             if (stopAfter) {
                 // wait maybe just return lastGroup?
-                return newTokens
+                logIndent(iter, "prefix return", lastGroup)
+                return lastGroup
+                // return newTokens
             }
             newTokens.push(lastGroup)
         } else {
-            // log2(JSON.stringify([token, -1, lastPrecedence]))
             if (stopAfter) {
-                // tokens.unshift(token)
-                // return newTokens
-                return token
+                var next = tokens.shift()
+                tokens.unshift(next)
+                if (next in ijs.infixes) {
+                    var opDef = ijs.infixes[next]
+                    currPrecedence = opDef.precedence
+                    currAssociatitivity = opDef.associatitivity
+                    // if (currPrecedence < lastPrecedence) {
+                    if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
+                        logIndent(iter, "token return a", token)
+                        return token
+                    }
+                } else {
+                    logIndent(iter, "token return b", token)
+                    return token
+                }
             }
             lastPrecedence = -1
-            tokens.unshift(token)
-            newTokens.push(ijs.infixate(tokens, true, iter+1))
+            newTokens.push(token)
         }
+        skipInfix = false // we only want it on the first one
+        logIndent(iter, "iterating", newTokens)
     }
+    logIndent(iter, "normal return", newTokens)
     return newTokens
     
 }
@@ -1406,13 +1431,37 @@ var code = String.raw`
 
 // !foo.bar
 // a + b * !c
+// 
+// 1 + !foo.bar
+// 1 + !foo + bar
+// 
+// 1 + 2 + 3
 
+
+// 1 = 2 = 3
+// 1 = !2 = 3
+// 
+// 1 + 2 + 3
+// 1 + !2 + 3
+
+!foo.bar + 3 * 4
+// !foo.bar + 3 * 4
 // !foo.bar
 // !foo+bar
+
+function x(bar baz) {
+    okie dokie
+}
+
+okay + +3
+
+
+
+
 // !a b c * f.d
 
 // 5 - -3 + 4 * 6
-5 - -3
+// 5 - -3.bar
 
 
 
