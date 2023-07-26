@@ -159,6 +159,7 @@ ijs.tokenize = function(code) {
     var i = 0
     var state = "out"
     var currentToken = ""
+    var quoteType = ""
     var tokens = []
     
     var pushToken = function(x) {
@@ -234,7 +235,16 @@ ijs.tokenize = function(code) {
                 tokens.push(chr)
             } else if ('"'.indexOf(chr) != -1) {
                 state = "quote"
+                quoteType = '"'
                 currentToken = chr
+            } else if ("'".indexOf(chr) != -1) {
+                state = "quote"
+                quoteType = "'"
+                currentToken = '"'
+            } else if ("`".indexOf(chr) != -1) {
+                state = "quote"
+                quoteType = "`"
+                currentToken = '"'
             } else if (isVar(chr)) {
                 state = "in"
                 currentToken = chr
@@ -317,7 +327,18 @@ ijs.tokenize = function(code) {
             } else if ('"'.indexOf(chr) != -1) {
                 pushToken(currentToken)
                 state = "quote"
+                quoteType = '"'
                 currentToken = chr
+            } else if ("'".indexOf(chr) != -1) {
+                pushToken(currentToken)
+                state = "quote"
+                quoteType = "'"
+                currentToken = '"'
+            } else if ("`".indexOf(chr) != -1) {
+                pushToken(currentToken)
+                state = "quote"
+                quoteType = "single"
+                currentToken = '"'
             } else if (isVar(chr)) {
                 pushToken(currentToken)
                 currentToken = chr
@@ -327,19 +348,31 @@ ijs.tokenize = function(code) {
             }
         } else if (state == "quote") {
             if (backslash.indexOf(chr) != -1) {
-                currentToken += chr
+                // currentToken += chr
                 state = "escape"
-            } else if ('"'.indexOf(chr) != -1) {
-                currentToken += chr
-                // tokens.push(currentToken)
-                tokens.push("#" + JSON.parse(currentToken))
+            } else if ('"'.indexOf(chr) != -1 && quoteType != '"') {
+                currentToken += '\\"'
+            } else if (quoteType.indexOf(chr) != -1) {
+                currentToken += '"'
+                if (quoteType == "`") {
+                    // todo: make $ escapable
+                    tokens.push(["<interpolate>", JSON.parse(currentToken)])
+                } else {
+                    tokens.push("#" + JSON.parse(currentToken))
+                }
+                log2("+" + currentToken)
+                // tokens.push("#" + currentToken)
                 currentToken = ""
                 state = "out"
             } else {
                 currentToken += chr
             }
         } else if (state == "escape") {
-            currentToken += chr
+            if ('"\\/bfnrtu'.indexOf(chr) != -1) {
+                currentToken += backslash + chr
+            } else {
+                currentToken += chr
+            }
             state = "quote"
         } else if (state == "firstSlash") {
             if ("/".indexOf(chr) != -1) {
@@ -744,6 +777,12 @@ ijs.infixes = {
 
 
 ijs.prefixes = {
+     "...": {
+         "associatitivity": 1,
+         "precedence": 17,
+         "arity": 1,
+         "fix": "pre",
+     },
      "!": {
          "associatitivity": 1,
          "precedence": 14,
@@ -836,19 +875,19 @@ ijs.prefixes = {
      },
      "var": {
          "associatitivity": 1,
-         "precedence": 0,
+         "precedence": 9,
          "arity": 1,
          "fix": "pre",
      },
      "let": {
          "associatitivity": 1,
-         "precedence": 0,
+         "precedence": 9,
          "arity": 1,
          "fix": "pre",
      },
      "const": {
          "associatitivity": 1,
-         "precedence": 0,
+         "precedence": 9,
          "arity": 1,
          "fix": "pre",
      },
@@ -868,6 +907,12 @@ ijs.prefixes = {
          "associatitivity": 1,
          "precedence": 1,
          "arity": 2,
+         "fix": "pre",
+     },
+     "try": {
+         "associatitivity": 1,
+         "precedence": 1,
+         "arity": 4,
          "fix": "pre",
      },
 }
@@ -1113,7 +1158,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
 ijs.run = function(code) {
     var tokens = ijs.tokenize(code)
     log2(tokens)
-    // return
+    return
     var state = {
         add: (x, y) => x + y,
         substract: (x, y) => x - y,
@@ -1539,12 +1584,19 @@ ijs.exec = function(tokens, state) {
     
 }
 
+
+
 window.testObj = {
     name: "Drew2"
 }
 var code = String.raw`
 
-
+// b = [1 2 ...c n]
+// c = {a: 1, ...d, f:2}
+// a = b
+// var [a, b] = [1, 2]
+// log2([a, b])
+// log2({a, b})
 // const { done, value } = await reader.read()
 // const [ done, value ] = await reader.read()
 // var foo = async function () {
@@ -1554,11 +1606,11 @@ var code = String.raw`
 //    return 1
 // }
 // 
-// try {
-//     biz baz
-// } catch (e) {
-//     borz buzz
-// }
+try {
+    biz baz
+} catch (e) {
+    borz buzz
+}
 // !foo.bar
 // a + b * !c
 // 
@@ -1632,9 +1684,12 @@ var code = String.raw`
 // 
 // }
 
-let a = 3
+// let a = 3
 
-
+// a = "foob\"ar"
+// a = 'foob"ar'
+// 
+// b = [1 2 ...c n]
 // if (x == 1) {
 //     "one"
 // } else if (x == 2) {
@@ -1798,7 +1853,9 @@ let a = 3
 //     )
 // )
 `
-
+// log2(JSON.parse('"\\`"'))
+// code = 'yo = `foob${lol}ar\\${ok}\\`r`'
+// code = "yo = `foob${lol}ar\\`r`"
 ijs.run(code)
 log2(0 in ijs.infixes)
 
