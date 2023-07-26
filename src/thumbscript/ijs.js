@@ -165,9 +165,9 @@ ijs.tokenize = function(code) {
         if (x == ",") {
             return
         }
-        if (x == ":") {
-            return
-        }
+        // if (x == ":") {
+        //     return
+        // }
         if (x == ";") {
             return
         }
@@ -426,6 +426,22 @@ ijs.tokenize = function(code) {
 // would evaluate to
 // ["a", ["+", "b", "c"], "d"]
 
+// write some code to parse javascript template strings
+// that doesn't use eval or `new Function`
+// and doesn't use template strings itself.
+// You don't need to evaluate, just parse
+function parseTemplateString (templateString, state) {
+    var regex = /\$\{([^}]+)\}/g;
+    return templateString.replace(regex, function (x, y) {
+        return state[y]
+    });
+}
+var ret = parseTemplateString("foo${xyz}bar${abc}", {
+    xyz: "hi",
+    abc: "bye"
+})
+log2(ret)
+
 
 ijs.processTouching = function(tokens) {
    // return tokens
@@ -473,6 +489,8 @@ ijs.processTouching = function(tokens) {
 
 ijs.operatorate = function(tokens) {
     tokens = ijs.infixate(tokens, false, true, -1, 0)
+    return tokens
+    
     // tokens = ijs.processTouching(tokens)
     // TODO: some precendence?
     var newTokens = []
@@ -510,6 +528,18 @@ ijs.operatorate = function(tokens) {
 }
 
 ijs.infixes = {
+     "?": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     ":": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
+     "=>": {
+         "associatitivity": 1,
+         "precedence": 2,
+     },
      "=": {
          "associatitivity": 1,
          "precedence": 2,
@@ -622,6 +652,10 @@ ijs.infixes = {
          "associatitivity": 0,
          "precedence": 9,
      },
+     "of": {
+         "associatitivity": 0,
+         "precedence": 9,
+     },
      ">=": {
          "associatitivity": 0,
          "precedence": 9,
@@ -676,7 +710,7 @@ ijs.infixes = {
      },
      "<callFunc>": {
          "associatitivity": 0,
-         "precedence": 16,
+         "precedence": 17,
      },
      "<computedMemberAccess>": {
          "associatitivity": 0,
@@ -689,6 +723,10 @@ ijs.infixes = {
      ".?": {
          "associatitivity": 0,
          "precedence": 17,
+     },
+     "else": {
+         "associatitivity": 1,
+         "precedence": 0.5,
      },
      // "!": {
      //     "associatitivity": 1,
@@ -703,6 +741,7 @@ ijs.infixes = {
      //     "fix": "pre",
      // },
 }
+
 
 ijs.prefixes = {
      "!": {
@@ -783,9 +822,51 @@ ijs.prefixes = {
          "arity": 1,
          "fix": "pre",
      },
+     "async": {
+         "associatitivity": 1,
+         "precedence": 0,
+         "arity": 1,
+         "fix": "pre",
+     },
      "function": {
          "associatitivity": 1,
-         "precedence": -1,
+         "precedence": 0,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "var": {
+         "associatitivity": 1,
+         "precedence": 0,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "let": {
+         "associatitivity": 1,
+         "precedence": 0,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "const": {
+         "associatitivity": 1,
+         "precedence": 0,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "for": {
+         "associatitivity": 1,
+         "precedence": 0,
+         "arity": 2,
+         "fix": "pre",
+     },
+     "return": {
+         "associatitivity": 1,
+         "precedence": 0,
+         "arity": 1,
+         "fix": "pre",
+     },
+     "if": {
+         "associatitivity": 1,
+         "precedence": 1,
          "arity": 2,
          "fix": "pre",
      },
@@ -827,11 +908,11 @@ ijs.unaryHack = function(tokens) {
     //     return ret
     // }
     if (token in ijs.prefixes && ijs.prefixes[token].fix == "pre") {
-        return [token + "_unary_pre", ijs.unaryHack(tokens)]
+        return [token + "_pre", ijs.unaryHack(tokens)]
     }
     var next = tokens.shift()
     if (next in ijs.postfixes) {
-        return [next + "_unary_post", token]
+        return [next + "_post", token]
     }
     tokens.unshift(next)
     return token
@@ -851,7 +932,7 @@ function logIndent(indent, msg, obj) {
 }
 
 ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
-    logIndent(iter, "infixate called: " + JSON.stringify(tokens))
+    logIndent(iter, "infixate called", tokens)
     if (iter == 500) {
         alert("oops")
         return
@@ -908,7 +989,15 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
     
     var currPrecedence = -1
     var lastGroup = null
-    while (token = tokens.shift()) {
+    while (true) {
+        if (tokens.length == 0) {
+            if (newTokens.length == 0) {
+                return (void 0)
+            }
+            return newTokens
+        }
+        token = tokens.shift()
+        // log2("+ token: " + JSON.stringify(token))
         if (!skipInfix && (token in ijs.infixes)) {
         // if (token in ijs.infixes) {
             var opDef = ijs.infixes[token]
@@ -942,7 +1031,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
             var opDef = ijs.prefixes[token]
             currPrecedence = opDef.precedence
             len = opDef.len
-            lastGroup = [token]
+            lastGroup = [token + "_prefix"]
             for (var i=0; i<(opDef.arity || 1); i++) {
                 lastGroup.push(ijs.infixate(tokens, true, true, currPrecedence, iter + 1))
             }
@@ -954,10 +1043,15 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
                 // return newTokens
             }
             newTokens.push(lastGroup)
+        // } else if (token in ijs.postfixes) {
+        //     lastGroup = [token + "_postfix", lastGroup]
         } else {
             if (stopAfter) {
-                var next = tokens.shift()
-                tokens.unshift(next)
+                var next = ""
+                if (tokens.length) {
+                    var next = tokens.shift()
+                    tokens.unshift(next)
+                }
                 if (next in ijs.infixes) {
                     var opDef = ijs.infixes[next]
                     currPrecedence = opDef.precedence
@@ -967,18 +1061,36 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
                         logIndent(iter, "token return a", token)
                         return token
                     }
+                } else if (next in ijs.postfixes) {
+                    tokens.shift()
+                    return [next + "_postfix", token]
                 } else {
                     logIndent(iter, "token return b", token)
                     return token
                 }
             }
             lastPrecedence = -1
-            newTokens.push(token)
+            // a little duplication here
+            var next = ""
+            if (tokens.length) {
+                var next = tokens.shift()
+                tokens.unshift(next)
+            }
+            if (next in ijs.postfixes) {
+                tokens.shift()
+                newTokens.push([next + "_postfix", token])
+            } else {
+                newTokens.push(token)
+            }
         }
         skipInfix = false // we only want it on the first one
         logIndent(iter, "iterating", newTokens)
     }
     logIndent(iter, "normal return", newTokens)
+    
+    if (newTokens.length == 0) {
+        return void 0
+    }
     return newTokens
     
 }
@@ -1208,6 +1320,9 @@ ijs.builtins = {
     "instanceof": function (args, state) {
         return ijs.exec(args[0], state) instanceof ijs.exec(args[1], state)
     },
+    // "of": function (args, state) {
+    //     return ijs.exec(args[0], state) of ijs.exec(args[1], state)
+    // },
     "in": function (args, state) {
         return ijs.exec(args[0], state) in ijs.exec(args[1], state)
     },
@@ -1273,31 +1388,31 @@ ijs.builtins = {
         }
         return first[args[1]]
     },
-    "!_unary_pre": function (args, state) {
+    "!_pre": function (args, state) {
         return !ijs.exec(args[0], state)
     },
-    "~_unary_pre": function (args, state) {
+    "~_pre": function (args, state) {
         return ~ijs.exec(args[0], state)
     },
-    "+_unary_pre": function (args, state) {
+    "+_pre": function (args, state) {
         return +ijs.exec(args[0], state)
     },
-    "-_unary_pre": function (args, state) {
+    "-_pre": function (args, state) {
         return -ijs.exec(args[0], state)
     },
-    "++_unary_pre": function (args, state) {
+    "++_pre": function (args, state) {
         return ++ijs.exec(args[0], state)
     },
-    "--_unary_pre": function (args, state) {
+    "--_pre": function (args, state) {
         return --ijs.exec(args[0], state)
     },
-    "typeof_unary_pre": function (args, state) {
+    "typeof_pre": function (args, state) {
         return typeof ijs.exec(args[0], state)
     },
-    "void_unary_pre": function (args, state) {
+    "void_pre": function (args, state) {
         return void ijs.exec(args[0], state)
     },
-    "delete_unary_pre": function (args, state) {
+    "delete_pre": function (args, state) {
         // TODO: finish this.
         // delete foo.bar
         // delete foo["bar"]
@@ -1307,28 +1422,28 @@ ijs.builtins = {
         // delete(o, )
         // return delete ijs.exec(args[0], state)
     },
-    "await_unary_pre": async function (args, state) {
+    "await_pre": async function (args, state) {
         return await ijs.exec(args[0], state)
     },
-    "new_unary_pre": function (args, state) {
+    "new_pre": function (args, state) {
         var theClass = ijs.exec(args[0], state)
         var obj = Object.create(theClass.prototype);
         theClass.apply(obj, args.slice(1));
         return obj
     },
-    "++_unary_post": function (args, state) {
+    "++_post": function (args, state) {
         return ++ijs.exec(args[0], state)
     },
-    "--_unary_post": function (args, state) {
+    "--_post": function (args, state) {
         return ++ijs.exec(args[0], state)
     },
-    "<array>_unary_pre": function(args, state) {
+    "<array>_pre": function(args, state) {
         var computed = args[0].map(function(t) {
             return ijs.exec(t, state)
         })
         return computed
     },
-    "<object>_unary_pre": function(args, state) {
+    "<object>_pre": function(args, state) {
         var o = {}
         args = args[0]
         log2(args)
@@ -1429,6 +1544,21 @@ window.testObj = {
 }
 var code = String.raw`
 
+
+// const { done, value } = await reader.read()
+// const [ done, value ] = await reader.read()
+// var foo = async function () {
+//    return 1
+// }
+// var foo = async () => {
+//    return 1
+// }
+// 
+// try {
+//     biz baz
+// } catch (e) {
+//     borz buzz
+// }
 // !foo.bar
 // a + b * !c
 // 
@@ -1444,17 +1574,93 @@ var code = String.raw`
 // 1 + 2 + 3
 // 1 + !2 + 3
 
-!foo.bar + 3 * 4
+// !foo.bar + 3 * 4
 // !foo.bar + 3 * 4
 // !foo.bar
 // !foo+bar
 
-function x(bar baz) {
-    okie dokie
-}
+// function x(bar baz) {
+//     okie dokie
+// }
 
-okay + +3
+// var x = 1
+// var x = 0
+// 
+// 
+// 1 + +3++
 
+// 1 + x++ + 4
+
+// x=0 x < 20 x+=1
+// x=0 x < 20 x++ foo
+
+
+
+// var x = 0
+
+// for (var x = 0; x < 20; x += 1) {
+//     crazy stuff
+// }
+// 
+// for (var x=0; x < 20; x++) {
+//     crazy stuff
+// }
+
+// function (a, b, c) {
+// 
+// }
+// function y(a, b, c) {
+// 
+// }
+
+// a = y => y + 1
+// a = y => y + 1
+// a = (a, b) => a + 1
+// a = (a, b) => { a + 1; return; x + 1}
+// bar
+
+// x = 1 ? 2 : 3
+// x = 1 ? (a ? b : c) : 3
+// log2(a(12))
+
+// a = {
+//     foo: bar+1
+//     "biz": baz
+// }
+
+// for (const i of something) {
+// 
+// }
+
+let a = 3
+
+
+// if (x == 1) {
+//     "one"
+// } else if (x == 2) {
+//     "two"
+// } else if (x == 3) {
+//     "three"
+// } else if (x == 4) {
+//     "four"
+// } else {
+//     "other"
+// }
+
+
+// switch (f) {
+//     case bar + q:
+//         yo+1
+//         bar
+//         break
+//     case other * + foo:
+//         donthing
+//         break
+// }
+
+// setTimeout(function () {
+//   document.getElementsByName("_eventId_continue")[0].click()
+// }, 0)
 
 
 
@@ -1594,6 +1800,7 @@ okay + +3
 `
 
 ijs.run(code)
+log2(0 in ijs.infixes)
 
 /*
 
