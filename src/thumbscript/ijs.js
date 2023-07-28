@@ -476,56 +476,11 @@ var ret = parseTemplateString("foo${xyz}bar${abc}", {
 log2(ret)
 
 
-ijs.processTouching = function(tokens) {
-   // return tokens
-   // [
-   //    "<callFunc>",
-   //    "log2",
-   //    [
-   //       [
-   //          ".",
-   //          "testObj",
-   //          "name"
-   //       ]
-   //    ]
-   // ],
-   //
-   // [
-   //    "log2",
-   //   [
-   //      ".",
-   //      "testObj",
-   //      "name"
-   //   ]
-   // ],
-   
-    // log2("+process callFunc! " + JSON.stringify(tokens))
-    
-    for (var i=0; i<tokens.length; i++) {
-        var token = tokens[i]
-        if (typeof token == "object") {
-            var first = token[0]
-            log2("+first " + first)
-            if (first == "<callFunc>") {
-                token.shift()
-                if (token[1].length) {
-                    token[1] = token[1][0]
-                } else {
-                    token.pop()
-                }
-            }
-        }
-    }
-    
-    return tokens
-}
 
 ijs.operatorate = function(tokens) {
     tokens = ijs.infixate(tokens, false, true, -1, 0)
     return tokens
     
-    // tokens = ijs.processTouching(tokens)
-    // TODO: some precendence?
     var newTokens = []
     var token
     while (token = tokens.shift()) {
@@ -761,18 +716,6 @@ ijs.infixes = {
          "associatitivity": 1,
          "precedence": 0.5,
      },
-     // "!": {
-     //     "associatitivity": 1,
-     //     "precedence": 14,
-     //     "arity": 1,
-     //     "fix": "pre",
-     // },
-     // "function": {
-     //     "associatitivity": 1,
-     //     "precedence": 0,
-     //     "arity": 3,
-     //     "fix": "pre",
-     // },
 }
 
 
@@ -870,7 +813,7 @@ ijs.prefixes = {
      "function": {
          "associatitivity": 1,
          "precedence": 0,
-         "arity": 1,
+         "arity": 2,
          "fix": "pre",
      },
      "var": {
@@ -915,11 +858,12 @@ ijs.prefixes = {
          "arity": 4,
          "fix": "pre",
      },
-}
-ijs.forcedPrefixes = {
-    "function": {
-        len: 3,
-    }
+     "do": {
+         "associatitivity": 1,
+         "precedence": 1,
+         "arity": 3,
+         "fix": "pre",
+     },
 }
 ijs.postfixes = {
      "++": {
@@ -935,45 +879,9 @@ ijs.postfixes = {
          "fix": "post",
      },
 }
-// -!a
-ijs.unaryHack = function(tokens) {
-    // return tokens.shift()
-    
-    var token = tokens.shift()
-    log2("+ checking unary with (" + token + ")")
-    // if (token in ijs.forcedPrefixes) {
-    //     log2("yay!!")
-    //     log2(tokens)
-    //     var ret = [token]
-    //     for (var i=0; i<ijs.forcedPrefixes[token].len; i++) {
-    //         ret.push(tokens.shift())
-    //     }
-    //     log2("+ret is")
-    //     log2(ret)
-    //     return ret
-    // }
-    if (token in ijs.prefixes && ijs.prefixes[token].fix == "pre") {
-        return [token + "_pre", ijs.unaryHack(tokens)]
-    }
-    var next = tokens.shift()
-    if (next in ijs.postfixes) {
-        return [next + "_post", token]
-    }
-    tokens.unshift(next)
-    return token
-    
-    
-    // while (token = tokens.shift()) {
-    //     if (token in ijs.infixes && ijs.infixes[token].fix == "pre") {
-    //         group = [token]
-    //     } else {
-    //         return token
-    //     }
-    // } 
-}
 
 function logIndent(indent, msg, obj) {
-    log2("    ".repeat(indent) + msg + ": " + JSON.stringify(obj))
+    // log2("    ".repeat(indent) + msg + ": " + JSON.stringify(obj))
 }
 
 ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
@@ -1076,7 +984,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
             var opDef = ijs.prefixes[token]
             currPrecedence = opDef.precedence
             len = opDef.len
-            lastGroup = [token + "_prefix"]
+            lastGroup = [token + "_pre"]
             for (var i=0; i<(opDef.arity || 1); i++) {
                 lastGroup.push(ijs.infixate(tokens, true, true, currPrecedence, iter + 1))
             }
@@ -1108,7 +1016,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
                     }
                 } else if (next in ijs.postfixes) {
                     tokens.shift()
-                    return [next + "_postfix", token]
+                    return [next + "_post", token]
                 } else {
                     logIndent(iter, "token return b", token)
                     return token
@@ -1123,7 +1031,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
             }
             if (next in ijs.postfixes) {
                 tokens.shift()
-                newTokens.push([next + "_postfix", token])
+                newTokens.push([next + "_post", token])
             } else {
                 newTokens.push(token)
             }
@@ -1158,15 +1066,18 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
 ijs.run = function(code) {
     var tokens = ijs.tokenize(code)
     log2(tokens)
-    return
-    var state = {
-        add: (x, y) => x + y,
-        substract: (x, y) => x - y,
-        multiply: (x, y) => x * y,
-        divide: (x, y) => x / y,
-        concat: (x, y) => x + y,
+    var globalWorld = {
+        state: window,
+        cachedLookupWorld: {},
+        parent: null,
     }
-    var f = ijs.makeFunc([[], tokens], state, "main")
+    var world = {
+        parent: globalWorld,
+        state: {},
+        cachedLookupWorld: {},
+        global: globalWorld
+    }
+    var f = ijs.makeFunc([], tokens, world)
     var ret
     try {
         ret = f()
@@ -1174,7 +1085,7 @@ ijs.run = function(code) {
         log2("-error: " + e)
     }
     log2("+state")
-    log2(state)
+    log2(world.state)
     
     log2("+return value")
     log2(ret)
@@ -1182,21 +1093,26 @@ ijs.run = function(code) {
 
 // TODO: numbers
 
-ijs.makeFunc = function(funcDefArgs, state, name) {
-    var params = funcDefArgs[0]
-    var body = funcDefArgs[1]
+ijs.makeFunc = function(params, body, world) {
+    body = body || []
     body.unshift("run")
     // log2("+ making func with")
     // log2(body)
+    var world = {
+        parent: world,
+        state: {},
+        cachedLookupWorld: {},
+        global: world.global
+    }
     var f = function(...args) {
         // log2("+calling func: " + name + " with: " + JSON.stringify(args))
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
-            state[params[i]] = args[i]
+            world.state[params[i]] = args[i]
         }
         // log2("+set the state to")
         // log2(state)
-        var ret = ijs.exec(body, state)
+        var ret = ijs.exec(body, world)
         // log2("+done func: " + name)
         return ret
     }
@@ -1205,290 +1121,234 @@ ijs.makeFunc = function(funcDefArgs, state, name) {
 }
 
 ijs.builtins = {
-    "var": function(args, state) {
-        try {
-            state[args[0]] = ijs.exec(args[1], state)
-        } catch (e) {
-            log2("-- error with args " + e)
-            log2(args)
-        }
-    },
-    "run": function(args, state) {
+    // "var": function(args, world) {
+    //     try {
+    //         world[args[0]] = ijs.exec(args[1], world)
+    //     } catch (e) {
+    //         log2("-- error with args " + e)
+    //         log2(args)
+    //     }
+    // },
+    "run": function(args, world) {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             // some special cases
             if (typeof arg == "object") {
                 if (arg[0] == "return") {
-                    var ret =  ijs.exec(arg[1], state)
+                    var ret =  ijs.exec(arg[1], world)
                     // log2("1 returning " + ret)
                     return ret
                 }
             }
-            ijs.exec(arg, state)
+            ijs.exec(arg, world)
         }
     },
-    "obj": function(args, state) {
-        var o = {}
-        for (var i=0; i<args.length-1; i+=2) {
-            o[args[i]] = ijs.exec(args[i+1], state)
-        }
-        return o
+    "=": function (args, world) {
+        world[args[0]] = ijs.exec(args[1], world)
     },
-    "arr": function(args, state) {
-        var arr = args.map(function(a) {
-            return a.exec(a)
-        })
-        return arr
+    "+=": function (args, world) {
+        world[args[0]] += ijs.exec(args[1], world)
     },
-    // "new": function(args, state) {
-    //     var theClass = ijs.exec(args[i], state)
-    //     var obj = Object.create(theClass.prototype);
-    //     theClass.apply(obj, args.slice(1));
-    //     return obj
+    "-=": function (args, world) {
+        world[args[0]] -= ijs.exec(args[1], world)
+    },
+    "**=": function (args, world) {
+        world[args[0]] **= ijs.exec(args[1], world)
+    },
+    "*=": function (args, world) {
+        world[args[0]] *= ijs.exec(args[1], world)
+    },
+    "/=": function (args, world) {
+        world[args[0]] /= ijs.exec(args[1], world)
+    },
+    "%=": function (args, world) {
+        world[args[0]] %= ijs.exec(args[1], world)
+    },
+    "<<=": function (args, world) {
+        world[args[0]] <<= ijs.exec(args[1], world)
+    },
+    ">>=": function (args, world) {
+        world[args[0]] >>= ijs.exec(args[1], world)
+    },
+    ">>>=": function (args, world) {
+        world[args[0]] >>>= ijs.exec(args[1], world)
+    },
+    "&=": function (args, world) {
+        world[args[0]] &= ijs.exec(args[1], world)
+    },
+    "^=": function (args, world) {
+        world[args[0]] ^= ijs.exec(args[1], world)
+    },
+    "|=": function (args, world) {
+        world[args[0]] |= ijs.exec(args[1], world)
+    },
+    "&&=": function (args, world) {
+        world[args[0]] &&= ijs.exec(args[1], world)
+    },
+    "||=": function (args, world) {
+        world[args[0]] ||= ijs.exec(args[1], world)
+    },
+    "??=": function (args, world) {
+        world[args[0]] ??= ijs.exec(args[1], world)
+    },
+    "??": function (args, world) {
+        return ijs.exec(args[0], world) ??= ijs.exec(args[1], world)
+    },
+    "||": function (args, world) {
+        return ijs.exec(args[0], world) || ijs.exec(args[1], world)
+    },
+    "&&": function (args, world) {
+        return ijs.exec(args[0], world) && ijs.exec(args[1], world)
+    },
+    "|": function (args, world) {
+        return ijs.exec(args[0], world) | ijs.exec(args[1], world)
+    },
+    "^": function (args, world) {
+        return ijs.exec(args[0], world) ^ ijs.exec(args[1], world)
+    },
+    "&": function (args, world) {
+        return ijs.exec(args[0], world) & ijs.exec(args[1], world)
+    },
+    "!==": function (args, world) {
+        return ijs.exec(args[0], world) !== ijs.exec(args[1], world)
+    },
+    "===": function (args, world) {
+        return ijs.exec(args[0], world) === ijs.exec(args[1], world)
+    },
+    "!=": function (args, world) {
+        return ijs.exec(args[0], world) != ijs.exec(args[1], world)
+    },
+    "==": function (args, world) {
+        return ijs.exec(args[0], world) == ijs.exec(args[1], world)
+    },
+    "instanceof": function (args, world) {
+        return ijs.exec(args[0], world) instanceof ijs.exec(args[1], world)
+    },
+    // "of": function (args, world) {
+    //     return ijs.exec(args[0], world) of ijs.exec(args[1], world)
     // },
-    "prop": function(args, state) {
-        var obj = ijs.exec(args[0], state)
-        var oldObj = null
-        var props = args.slice(1).map(function(arg) {
-            return ijs.exec(arg, state)
-        })
-        props.forEach(function(p) {
-            oldObj = obj
-            obj = obj[p]
-        })
-        if (typeof obj == "function") {
-            return obj.bind(oldObj)
-        }
-        return obj
+    "in": function (args, world) {
+        return ijs.exec(args[0], world) in ijs.exec(args[1], world)
     },
-    // "func": function(args, state) {
-    //     // log2("+func: " + JSON.stringify(args))
-    //     var funcName = args[0][0]
-    //     log("+ making func with: ")
-    //     log([args[0].slice(1), args[1]])
-    //     var f = ijs.makeFunc([args[0].slice(1), args[1]], state, funcName)
-    //     if (funcName) {
-    //         state[args[0][0]] = f
-    //     }
-    //     return f
-    // },
-    // "function": function(args, state) {
-    //     // log2("+func: " + JSON.stringify(args))
-    //     var funcName = args[0][0]
-    //     log("+ making func with: ")
-    //     log([args[0].slice(1), args[1]])
-    //     var f = ijs.makeFunc([args[0].slice(1), args[1]], state, funcName)
-    //     if (funcName) {
-    //         state[args[0][0]] = f
-    //     }
-    //     return f
-    // },
-    "=": function (args, state) {
-        state[args[0]] = ijs.exec(args[1], state)
+    ">=": function (args, world) {
+        return ijs.exec(args[0], world) >= ijs.exec(args[1], world)
     },
-    "+=": function (args, state) {
-        state[args[0]] += ijs.exec(args[1], state)
+    ">": function (args, world) {
+        return ijs.exec(args[0], world) > ijs.exec(args[1], world)
     },
-    "-=": function (args, state) {
-        state[args[0]] -= ijs.exec(args[1], state)
+    "<=": function (args, world) {
+        return ijs.exec(args[0], world) <= ijs.exec(args[1], world)
     },
-    "**=": function (args, state) {
-        state[args[0]] **= ijs.exec(args[1], state)
+    "<": function (args, world) {
+        return ijs.exec(args[0], world) < ijs.exec(args[1], world)
     },
-    "*=": function (args, state) {
-        state[args[0]] *= ijs.exec(args[1], state)
+    ">>>": function (args, world) {
+        return ijs.exec(args[0], world) >>> ijs.exec(args[1], world)
     },
-    "/=": function (args, state) {
-        state[args[0]] /= ijs.exec(args[1], state)
+    ">>": function (args, world) {
+        return ijs.exec(args[0], world) >> ijs.exec(args[1], world)
     },
-    "%=": function (args, state) {
-        state[args[0]] %= ijs.exec(args[1], state)
+    "<<": function (args, world) {
+        return ijs.exec(args[0], world) << ijs.exec(args[1], world)
     },
-    "<<=": function (args, state) {
-        state[args[0]] <<= ijs.exec(args[1], state)
+    "+": function (args, world) {
+        return ijs.exec(args[0], world) + ijs.exec(args[1], world)
     },
-    ">>=": function (args, state) {
-        state[args[0]] >>= ijs.exec(args[1], state)
+    "-": function (args, world) {
+        return ijs.exec(args[0], world) - ijs.exec(args[1], world)
     },
-    ">>>=": function (args, state) {
-        state[args[0]] >>>= ijs.exec(args[1], state)
+    "*": function (args, world) {
+        return ijs.exec(args[0], world) * ijs.exec(args[1], world)
     },
-    "&=": function (args, state) {
-        state[args[0]] &= ijs.exec(args[1], state)
+    "/": function (args, world) {
+        return ijs.exec(args[0], world) / ijs.exec(args[1], world)
     },
-    "^=": function (args, state) {
-        state[args[0]] ^= ijs.exec(args[1], state)
+    "%": function (args, world) {
+        return ijs.exec(args[0], world) % ijs.exec(args[1], world)
     },
-    "|=": function (args, state) {
-        state[args[0]] |= ijs.exec(args[1], state)
+    "**": function (args, world) {
+        return ijs.exec(args[0], world) ** ijs.exec(args[1], world)
     },
-    "&&=": function (args, state) {
-        state[args[0]] &&= ijs.exec(args[1], state)
-    },
-    "||=": function (args, state) {
-        state[args[0]] ||= ijs.exec(args[1], state)
-    },
-    "??=": function (args, state) {
-        state[args[0]] ??= ijs.exec(args[1], state)
-    },
-    "??": function (args, state) {
-        return ijs.exec(args[0], state) ??= ijs.exec(args[1], state)
-    },
-    "||": function (args, state) {
-        return ijs.exec(args[0], state) || ijs.exec(args[1], state)
-    },
-    "&&": function (args, state) {
-        return ijs.exec(args[0], state) && ijs.exec(args[1], state)
-    },
-    "|": function (args, state) {
-        return ijs.exec(args[0], state) | ijs.exec(args[1], state)
-    },
-    "^": function (args, state) {
-        return ijs.exec(args[0], state) ^ ijs.exec(args[1], state)
-    },
-    "&": function (args, state) {
-        return ijs.exec(args[0], state) & ijs.exec(args[1], state)
-    },
-    "!==": function (args, state) {
-        return ijs.exec(args[0], state) !== ijs.exec(args[1], state)
-    },
-    "===": function (args, state) {
-        return ijs.exec(args[0], state) === ijs.exec(args[1], state)
-    },
-    "!=": function (args, state) {
-        return ijs.exec(args[0], state) != ijs.exec(args[1], state)
-    },
-    "==": function (args, state) {
-        return ijs.exec(args[0], state) == ijs.exec(args[1], state)
-    },
-    "instanceof": function (args, state) {
-        return ijs.exec(args[0], state) instanceof ijs.exec(args[1], state)
-    },
-    // "of": function (args, state) {
-    //     return ijs.exec(args[0], state) of ijs.exec(args[1], state)
-    // },
-    "in": function (args, state) {
-        return ijs.exec(args[0], state) in ijs.exec(args[1], state)
-    },
-    ">=": function (args, state) {
-        return ijs.exec(args[0], state) >= ijs.exec(args[1], state)
-    },
-    ">": function (args, state) {
-        return ijs.exec(args[0], state) > ijs.exec(args[1], state)
-    },
-    "<=": function (args, state) {
-        return ijs.exec(args[0], state) <= ijs.exec(args[1], state)
-    },
-    "<": function (args, state) {
-        return ijs.exec(args[0], state) < ijs.exec(args[1], state)
-    },
-    ">>>": function (args, state) {
-        return ijs.exec(args[0], state) >>> ijs.exec(args[1], state)
-    },
-    ">>": function (args, state) {
-        return ijs.exec(args[0], state) >> ijs.exec(args[1], state)
-    },
-    "<<": function (args, state) {
-        return ijs.exec(args[0], state) << ijs.exec(args[1], state)
-    },
-    "+": function (args, state) {
-        return ijs.exec(args[0], state) + ijs.exec(args[1], state)
-    },
-    "-": function (args, state) {
-        return ijs.exec(args[0], state) - ijs.exec(args[1], state)
-    },
-    "*": function (args, state) {
-        return ijs.exec(args[0], state) * ijs.exec(args[1], state)
-    },
-    "/": function (args, state) {
-        return ijs.exec(args[0], state) / ijs.exec(args[1], state)
-    },
-    "%": function (args, state) {
-        return ijs.exec(args[0], state) % ijs.exec(args[1], state)
-    },
-    "**": function (args, state) {
-        return ijs.exec(args[0], state) ** ijs.exec(args[1], state)
-    },
-    ".": function (args, state) {
-        var o = ijs.exec(args[0], state)
+    ".": function (args, world) {
+        var o = ijs.exec(args[0], world)
         var ret = o[args[1]]
         if (typeof ret == "function") {
             return ret.bind(o)
         }
         return ret
     },
-    "<computedMemberAccess>": function (args, state) {
-        var o = ijs.exec(args[0], state)
-        var ret = o[ijs.exec(args[1], state)]
+    "<computedMemberAccess>": function (args, world) {
+        var o = ijs.exec(args[0], world)
+        var ret = o[ijs.exec(args[1], world)]
         if (typeof ret == "function") {
             return ret.bind(o)
         }
         return ret
     },
-    ".?": function (args, state) {
-        var first = ijs.exec(args[0], state)
+    ".?": function (args, world) {
+        var first = ijs.exec(args[0], world)
         if (first == null || typeof first == "undefined") {
             return void 0
         }
         return first[args[1]]
     },
-    "!_pre": function (args, state) {
-        return !ijs.exec(args[0], state)
+    "!_pre": function (args, world) {
+        return !ijs.exec(args[0], world)
     },
-    "~_pre": function (args, state) {
-        return ~ijs.exec(args[0], state)
+    "~_pre": function (args, world) {
+        return ~ijs.exec(args[0], world)
     },
-    "+_pre": function (args, state) {
-        return +ijs.exec(args[0], state)
+    "+_pre": function (args, world) {
+        return +ijs.exec(args[0], world)
     },
-    "-_pre": function (args, state) {
-        return -ijs.exec(args[0], state)
+    "-_pre": function (args, world) {
+        return -ijs.exec(args[0], world)
     },
-    "++_pre": function (args, state) {
-        return ++ijs.exec(args[0], state)
+    "++_pre": function (args, world) {
+        return ++ijs.exec(args[0], world)
     },
-    "--_pre": function (args, state) {
-        return --ijs.exec(args[0], state)
+    "--_pre": function (args, world) {
+        return --ijs.exec(args[0], world)
     },
-    "typeof_pre": function (args, state) {
-        return typeof ijs.exec(args[0], state)
+    "typeof_pre": function (args, world) {
+        return typeof ijs.exec(args[0], world)
     },
-    "void_pre": function (args, state) {
-        return void ijs.exec(args[0], state)
+    "void_pre": function (args, world) {
+        return void ijs.exec(args[0], world)
     },
-    "delete_pre": function (args, state) {
+    "delete_pre": function (args, world) {
         // TODO: finish this.
         // delete foo.bar
         // delete foo["bar"]
         // var arg = args[0]
         // // assuming (. x y)
-        // var o = ijs.exec(arg[1], state)
+        // var o = ijs.exec(arg[1], world)
         // delete(o, )
-        // return delete ijs.exec(args[0], state)
+        // return delete ijs.exec(args[0], world)
     },
-    "await_pre": async function (args, state) {
-        return await ijs.exec(args[0], state)
+    "await_pre": async function (args, world) {
+        return await ijs.exec(args[0], world)
     },
-    "new_pre": function (args, state) {
-        var theClass = ijs.exec(args[0], state)
+    "new_pre": function (args, world) {
+        var theClass = ijs.exec(args[0], world)
         var obj = Object.create(theClass.prototype);
         theClass.apply(obj, args.slice(1));
         return obj
     },
-    "++_post": function (args, state) {
-        return ++ijs.exec(args[0], state)
+    "++_post": function (args, world) {
+        return ++ijs.exec(args[0], world)
     },
-    "--_post": function (args, state) {
-        return ++ijs.exec(args[0], state)
+    "--_post": function (args, world) {
+        return ++ijs.exec(args[0], world)
     },
-    "<array>_pre": function(args, state) {
+    "<array>_pre": function(args, world) {
         var computed = args[0].map(function(t) {
-            return ijs.exec(t, state)
+            return ijs.exec(t, world)
         })
         return computed
     },
-    "<object>_pre": function(args, state) {
+    "<object>_pre": function(args, world) {
         var o = {}
         args = args[0]
         log2(args)
@@ -1497,11 +1357,54 @@ ijs.builtins = {
             if (args[i].charAt(0) == "#") {
                 args[i] = args[i].slice(1)
             }
-            o[args[i]] = ijs.exec(args[i+1], state)
+            o[args[i]] = ijs.exec(args[i+1], world)
         }
         return o
     },
-    "<callFunc>": function(args, state) {
+    "function_pre": function(args, world) {
+        // [
+        //    "function_pre",
+        //    [
+        //       "<callFunc>",
+        //       "testMe",
+        //       [
+        //          "a",
+        //          "b"
+        //       ]
+        //    ],
+        //    [
+        //       "<object>_pre",
+        //       [
+        //          [
+        //             "return_pre",
+        //             [
+        //                "+",
+        //                "a",
+        //                "b"
+        //             ]
+        //          ]
+        //       ]
+        //    ]
+        // ]
+        var name = ""
+        var params
+        var paramsAndName = args[0]
+        if (paramsAndName[0] == "<callFunc>") {
+            params = paramsAndName[2]
+            name = paramsAndName[1]
+        } else {
+            params = paramsAndName
+        }
+        var body = args[1][1]
+        var f = ijs.makeFunc(args, body, world)
+        log2("+the name is: " + name)
+        log2("+the func is: " + f)
+        if (name) {
+            ijs.set(name, f, world, "var")
+        }
+        
+    },
+    "<callFunc>": function(args, world) {
         // (foo bar baz)
         // is the same as
         // (<callfunc> bar baz)
@@ -1509,15 +1412,15 @@ ijs.builtins = {
         if (args[0] in ijs.builtins) {
             try {
                 func = ijs.builtins[args[1]]
-                var ret = func(args[2], state)
+                var ret = func(args[2], world)
                 return ret
             } catch (e) {
                 log2("-builtin error: " + e)
             }
         }
-        var func = ijs.exec(args[0], state)
+        var func = ijs.exec(args[0], world)
         var computedArgs = args[1].map(function(t) {
-            return ijs.exec(t, state)
+            return ijs.exec(t, world)
         })
         try {
             var ret = func.apply(null, computedArgs)
@@ -1528,7 +1431,44 @@ ijs.builtins = {
         }
     }
 }
-ijs.exec = function(tokens, state) {
+ijs.set = function(key, value, world, setType) {
+    var w
+    if (setType == "") { // global
+        w = world.globalWorld
+    } else if (setType == "var") {
+        w = world
+    }
+    w.state[key] = value
+}
+ijs.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
+    // the cachedLookupWorld seems noticeably faster when running jsloopn
+    // 19ms vs 38ms on a loopn with somevar+= for 100k loops
+
+    // if (world.local && forSetting) {
+    //     return world
+    // }
+    if (world.cachedLookupWorld[key]) {
+        return world.cachedLookupWorld[key]
+    }
+    for (var w = world; w != null; w = w.parent) {
+        // perf doesn't seem to matter here
+        // if (key in w.state) {
+        if (w.state.hasOwnProperty(key)) {
+        // if (typeof w.state[key] !== "undefined") {
+            world.cachedLookupWorld[key] = w
+            break
+        }
+    }
+    if (w === null) {
+        if (errOnNotFound) {
+            // log2("-unknown variable: " + key);
+            log2("-unknown variable: " + JSON.stringify(key));
+        }
+        return world
+    }
+    return w
+}
+ijs.exec = function(tokens, world) {
     if (typeof tokens == "number") {
         return tokens
     }
@@ -1538,7 +1478,7 @@ ijs.exec = function(tokens, state) {
     if (tokens.length == 0) {
         return void 0;
     }
-    state = state || {}
+    // state = state || {}
     // simplify lexical rules?
     // anuthing in a function shares state.
     // no nested var.
@@ -1554,13 +1494,13 @@ ijs.exec = function(tokens, state) {
             return token.slice(1)
         }
 
-        if (token in state) {
-            return state[token]
-        }
+        var w = ijs.getWorldForKey(world, token)
+        // alert("typeof w is " + typeof w)
+        return w.state[token]
 
-        if (token in window) {
-            return window[token]
-        }
+        // if (token in window) {
+        //     return window[token]
+        // }
 
         // or throw?
         return undefined
@@ -1568,29 +1508,48 @@ ijs.exec = function(tokens, state) {
     
     if (tokens[0] in ijs.builtins) {
         func = ijs.builtins[tokens[0]]
-        var ret = func(tokens.slice(1), state)
+        var ret = func(tokens.slice(1), world)
         // log2("return value from "+tokens[0]+" is: " + ret)
         // log2("2 returning " + ret)
         return ret
     }
-    func = ijs.exec(tokens[0], state)
+    func = ijs.exec(tokens[0], world)
     // log2("+getting: " + tokens[0])
     // log2("+from: ")
     // log2(tokens)
     // log2("+applying: ")
     return func.apply(null, tokens.slice(1).map(function(t) {
-        return ijs.exec(t, state)
+        return ijs.exec(t, world)
     }))
     
 }
 
+// not implementing (yet?)
+// labels for breaks (maybe we should)
+// comma operator
 
+// to implement
+// lexical scope
+// simple assignment
 
 window.testObj = {
     name: "Drew2"
 }
 var code = String.raw`
 
+// a = 1
+
+// arguments.length > 2 ? [].slice.call(arguments, 2) : vnode.children
+// [].slice.call(arguments, 2) : vnode.children
+function testMe(a, b) { return a + b }
+// function (a, b) { return a + b }
+
+// log2("+++++")
+// log2(testObj)
+// log2(testObj)
+// log2(testObj.name)
+// log2(100)
+// g = function (a, b) { return a + b }
 // b = [1 2 ...c n]
 // c = {a: 1, ...d, f:2}
 // a = b
@@ -1606,11 +1565,19 @@ var code = String.raw`
 //    return 1
 // }
 // 
-try {
-    biz baz
-} catch (e) {
-    borz buzz
-}
+// try {
+//     biz baz
+// } catch (e) {
+//     borz buzz
+// }
+
+// (function () {})()
+// 
+// function () {}
+// 
+// do {
+//     alert(100)
+// } while (yoyo + 1)
 // !foo.bar
 // a + b * !c
 // 
