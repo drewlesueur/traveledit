@@ -1085,9 +1085,7 @@ ijs.run = function(code) {
     //     log2("-error: " + e)
     // }
     log2("+state")
-    log2(world.state)
-    log2(Object.keys(world.state))
-    
+    log2(f.world.state)
     log2("+return value")
     log2(ret)
 }
@@ -1095,13 +1093,8 @@ ijs.run = function(code) {
 // TODO: numbers
 
 ijs.makeFunc = function(params, body, world) {
-    log2("+making func with params: ")
-    log2(params)
-    log2("+done params: ")
     body = body || []
     body.unshift("run")
-    // log2("+ making func with")
-    // log2(body)
     var world = {
         parent: world,
         state: {},
@@ -1109,30 +1102,19 @@ ijs.makeFunc = function(params, body, world) {
         global: world.global
     }
     var f = function(...args) {
-        log2("+calling func: " + name + " with: " + JSON.stringify(args))
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             world.state[params[i]] = args[i]
         }
-        log2("+set the state to")
-        log2(world.state)
         var ret = ijs.exec(body, world)
-        // log2("+done func: " + name)
         return ret
     }
+    f.world = world // lol
     return f
     // todo default args?
 }
 
 ijs.builtins = {
-    // "var": function(args, world) {
-    //     try {
-    //         world[args[0]] = ijs.exec(args[1], world)
-    //     } catch (e) {
-    //         log2("-- error with args " + e)
-    //         log2(args)
-    //     }
-    // },
     "run": function(args, world) {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
@@ -1141,7 +1123,6 @@ ijs.builtins = {
             if (typeof arg == "object") {
                 if (arg[0] == "return_pre") {
                     var ret = ijs.exec(arg[1], world)
-                    log2("returning " + ret)
                     return ret
                 }
             }
@@ -1150,7 +1131,33 @@ ijs.builtins = {
     },
     "=": function (args, world) {
         // TODO: wrangle these
-        world.state[args[0]] = ijs.exec(args[1], world)
+        // not doing destructuring yet
+        // lol maybe destructuring can be handled at the parser level?
+        // like it turns it into the more verbose syntax
+        // that way the core is smaller.
+        // gotta figure out let vs if
+        var varName = args[0]
+        var assignType = "global"
+        if (typeof args[0] == "object") {
+            if (args[0][0] == "var_pre") {
+                varName = args[0][1]
+                assignType = "var"
+                var w = ijs.getWorldForKey(world, varName) || world
+                w.state[varName] = ijs.exec(args[1], world)
+            } else if (args[0][0] == "let_pre") {
+                varName = args[0][1]
+                assignType = "let"
+                world.state[varName] = ijs.exec(args[1], world)
+            } else if (args[0][0] == "const_pre") {
+                varName = args[0][1]
+                assignType = "const"
+                // lol
+                world.state[varName] = ijs.exec(args[1], world)
+            }
+        } else {
+            var w = ijs.getWorldForKey(world, varName)
+            world.global.state[varName] = ijs.exec(args[1], world)
+        }
     },
     "+=": function (args, world) {
         world.state[args[0]] += ijs.exec(args[1], world)
@@ -1258,9 +1265,6 @@ ijs.builtins = {
         return ijs.exec(args[0], world) << ijs.exec(args[1], world)
     },
     "+": function (args, world) {
-        log2("+ calling + with")
-        log2(args)
-        log2(world.state)
         return ijs.exec(args[0], world) + ijs.exec(args[1], world)
     },
     "-": function (args, world) {
@@ -1359,9 +1363,7 @@ ijs.builtins = {
     "<object>_pre": function(args, world) {
         var o = {}
         args = args[0]
-        log2(args)
         for (var i=0; i<args.length-1; i+=2) {
-            log2(args[i])
             if (args[i].charAt(0) == "#") {
                 args[i] = args[i].slice(1)
             }
@@ -1401,19 +1403,16 @@ ijs.builtins = {
             params = paramsAndName[2]
             name = paramsAndName[1]
         } else {
-            params = paramsAndName
+            params = args[0]
         }
         var body = args[1][1]
         var f = ijs.makeFunc(params, body, world)
-        // log2("+the name is: " + name)
-        // log2("+the func is: " + f)
         if (name) {
             ijs.set(name, f, world, "var")
-            // log2
         }
+        return f
     },
     "<callFunc>": function(args, world) {
-        log("+calling a func")
         // (foo bar baz)
         // is the same as
         // (<callfunc> bar baz)
@@ -1449,13 +1448,13 @@ ijs.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
             break
         }
     }
-    if (w === null) {
-        if (errOnNotFound) {
-            // log2("-unknown variable: " + key);
-            log2("-unknown variable: " + JSON.stringify(key));
-        }
-        return world
-    }
+    // if (w === null) {
+    //     if (errOnNotFound) {
+    //         // log2("-unknown variable: " + key);
+    //         log2("-unknown variable: " + JSON.stringify(key));
+    //     }
+    //     return world
+    // }
     return w
 }
 ijs.exec = function(tokens, world) {
@@ -1500,18 +1499,11 @@ ijs.exec = function(tokens, world) {
 
 ijs.callFunc = function(funcAccessor, theArgs, world) {
     if (funcAccessor in ijs.builtins) {
-        // log2("+calling builtin func: " + funcAccessor)
         func = ijs.builtins[funcAccessor]
         var ret = func(theArgs, world)
-        // log2("return value from "+funcAccessor+" is: " + ret)
-        // log2("2 returning " + ret)
         return ret
     }
     func = ijs.exec(funcAccessor, world)
-    // log2("+getting: " + tokens[0])
-    // log2("+from: ")
-    // log2(tokens)
-    // log2("+applying: ")
     if (!func) {
         alert("no func: " + funcAccessor)
     }
@@ -1537,11 +1529,9 @@ var code = String.raw`
 
 // arguments.length > 2 ? [].slice.call(arguments, 2) : vnode.children
 // [].slice.call(arguments, 2) : vnode.children
-function testMe(a, b) { return a + b }
 // function (a, b) { return a + b }
-alert(testMe(1,2))
-// a = testMe(1,2)
-// alert(a)
+// alert(testMe(1,2))
+
 
 // log2("+++++")
 // log2(testObj)
@@ -1553,6 +1543,20 @@ alert(testMe(1,2))
 // c = {a: 1, ...d, f:2}
 // a = b
 // var [a, b] = [1, 2]
+
+// var testValue = testMe(1,2)
+// function testMe(a, b) { return a + b }
+// var testValue = testMe(1,2)
+
+var testMe2 = function (a, b) { return a * b }
+var testValue2 = testMe2(100, 7)
+
+
+// log2(testValue)
+// var drew1 = 1
+// log2(drew1)
+
+// a = 1
 // log2([a, b])
 // log2({a, b})
 // const { done, value } = await reader.read()
