@@ -951,7 +951,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
         }
         token = tokens.shift()
         // log2("+ token: " + JSON.stringify(token))
-        if (!skipInfix && (token in ijs.infixes)) {
+        if (!skipInfix && (ijs.infixes.hasOwnProperty(token))) {
         // if (token in ijs.infixes) {
             var opDef = ijs.infixes[token]
             currPrecedence = opDef.precedence
@@ -980,7 +980,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
                 // return newTokens
             }
             lastPrecedence = currPrecedence
-        } else if (token in ijs.prefixes) {
+        } else if (ijs.prefixes.hasOwnProperty(token)) {
             var opDef = ijs.prefixes[token]
             currPrecedence = opDef.precedence
             len = opDef.len
@@ -1102,9 +1102,11 @@ ijs.makeFunc = function(params, body, world) {
         global: world.global
     }
     var f = function(...args) {
-        for (var i=0; i<args.length; i++) {
-            var arg = args[i]
-            world.state[params[i]] = args[i]
+        if (params) {
+            for (var i=0; i<args.length; i++) {
+                var arg = args[i]
+                world.state[params[i]] = args[i]
+            }
         }
         var ret = ijs.exec(body, world)
         return ret
@@ -1349,10 +1351,12 @@ ijs.builtins = {
         return obj
     },
     "++_post": function (args, world) {
-        return ++ijs.exec(args[0], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        return w.state[args[0]]++
     },
     "--_post": function (args, world) {
-        return ++ijs.exec(args[0], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        return w.state[args[0]]--
     },
     "<array>_pre": function(args, world) {
         var computed = args[0].map(function(t) {
@@ -1399,7 +1403,7 @@ ijs.builtins = {
         var name = ""
         var params
         var paramsAndName = args[0]
-        if (paramsAndName[0] == "<callFunc>") {
+        if (paramsAndName && paramsAndName[0] == "<callFunc>") {
             params = paramsAndName[2]
             name = paramsAndName[1]
         } else {
@@ -1484,6 +1488,9 @@ ijs.exec = function(tokens, world) {
         }
 
         var w = ijs.getWorldForKey(world, token)
+        if (w == null) {
+            alert("can't find world for " + token)
+        }
         // alert("typeof w is " + typeof w)
         return w.state[token]
 
@@ -1507,6 +1514,7 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
     if (!func) {
         alert("no func: " + funcAccessor)
     }
+    theArgs = theArgs || []
     return func.apply(null, theArgs.map(function(t) {
         return ijs.exec(t, world)
     }))
@@ -1548,9 +1556,32 @@ var code = String.raw`
 // function testMe(a, b) { return a + b }
 // var testValue = testMe(1,2)
 
-var testMe2 = function (a, b) { return a * b }
-var testValue2 = testMe2(100, 7)
+var x = 2
+x++
+log2(x)
+// var testMe2 = function (a, b) { return a * b }
+// var testValue2 = testMe2(100, 7)
+// 
+var incerer = function (x) {
+    // return 6
+    return function () {
+        x++
+        return x
+    }
+}
 
+// var incerer = function () {
+//     return 18
+// }
+var f = incerer(70)
+log2(f())
+log2(f())
+log2(f())
+log2(f())
+
+// log2(y())
+// log2(y())
+// log2(y())
 
 // log2(testValue)
 // var drew1 = 1
