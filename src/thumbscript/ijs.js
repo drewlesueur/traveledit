@@ -1079,13 +1079,14 @@ ijs.run = function(code) {
     }
     var f = ijs.makeFunc([], tokens, world)
     var ret
-    try {
+    // try {
         ret = f()
-    } catch (e) {
-        log2("-error: " + e)
-    }
+    // } catch (e) {
+    //     log2("-error: " + e)
+    // }
     log2("+state")
     log2(world.state)
+    log2(Object.keys(world.state))
     
     log2("+return value")
     log2(ret)
@@ -1094,6 +1095,9 @@ ijs.run = function(code) {
 // TODO: numbers
 
 ijs.makeFunc = function(params, body, world) {
+    log2("+making func with params: ")
+    log2(params)
+    log2("+done params: ")
     body = body || []
     body.unshift("run")
     // log2("+ making func with")
@@ -1105,13 +1109,13 @@ ijs.makeFunc = function(params, body, world) {
         global: world.global
     }
     var f = function(...args) {
-        // log2("+calling func: " + name + " with: " + JSON.stringify(args))
+        log2("+calling func: " + name + " with: " + JSON.stringify(args))
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             world.state[params[i]] = args[i]
         }
-        // log2("+set the state to")
-        // log2(state)
+        log2("+set the state to")
+        log2(world.state)
         var ret = ijs.exec(body, world)
         // log2("+done func: " + name)
         return ret
@@ -1135,9 +1139,9 @@ ijs.builtins = {
             var arg = args[i]
             // some special cases
             if (typeof arg == "object") {
-                if (arg[0] == "return") {
-                    var ret =  ijs.exec(arg[1], world)
-                    // log2("1 returning " + ret)
+                if (arg[0] == "return_pre") {
+                    var ret = ijs.exec(arg[1], world)
+                    log2("returning " + ret)
                     return ret
                 }
             }
@@ -1145,13 +1149,14 @@ ijs.builtins = {
         }
     },
     "=": function (args, world) {
-        world[args[0]] = ijs.exec(args[1], world)
+        // TODO: wrangle these
+        world.state[args[0]] = ijs.exec(args[1], world)
     },
     "+=": function (args, world) {
-        world[args[0]] += ijs.exec(args[1], world)
+        world.state[args[0]] += ijs.exec(args[1], world)
     },
     "-=": function (args, world) {
-        world[args[0]] -= ijs.exec(args[1], world)
+        world.s[args[0]] -= ijs.exec(args[1], world)
     },
     "**=": function (args, world) {
         world[args[0]] **= ijs.exec(args[1], world)
@@ -1253,6 +1258,9 @@ ijs.builtins = {
         return ijs.exec(args[0], world) << ijs.exec(args[1], world)
     },
     "+": function (args, world) {
+        log2("+ calling + with")
+        log2(args)
+        log2(world.state)
         return ijs.exec(args[0], world) + ijs.exec(args[1], world)
     },
     "-": function (args, world) {
@@ -1396,39 +1404,21 @@ ijs.builtins = {
             params = paramsAndName
         }
         var body = args[1][1]
-        var f = ijs.makeFunc(args, body, world)
-        log2("+the name is: " + name)
-        log2("+the func is: " + f)
+        var f = ijs.makeFunc(params, body, world)
+        // log2("+the name is: " + name)
+        // log2("+the func is: " + f)
         if (name) {
             ijs.set(name, f, world, "var")
+            // log2
         }
-        
     },
     "<callFunc>": function(args, world) {
+        log("+calling a func")
         // (foo bar baz)
         // is the same as
         // (<callfunc> bar baz)
         // alternate
-        if (args[0] in ijs.builtins) {
-            try {
-                func = ijs.builtins[args[1]]
-                var ret = func(args[2], world)
-                return ret
-            } catch (e) {
-                log2("-builtin error: " + e)
-            }
-        }
-        var func = ijs.exec(args[0], world)
-        var computedArgs = args[1].map(function(t) {
-            return ijs.exec(t, world)
-        })
-        try {
-            var ret = func.apply(null, computedArgs)
-            return ret
-        } catch (e) {
-            log2("-apply error: " + e)
-            log2(args)
-        }
+        return ijs.callFunc(args[0], args[1], world)
     }
 }
 ijs.set = function(key, value, world, setType) {
@@ -1505,23 +1495,29 @@ ijs.exec = function(tokens, world) {
         // or throw?
         return undefined
     }
-    
-    if (tokens[0] in ijs.builtins) {
-        func = ijs.builtins[tokens[0]]
-        var ret = func(tokens.slice(1), world)
-        // log2("return value from "+tokens[0]+" is: " + ret)
+    return ijs.callFunc(tokens[0], tokens.slice(1), world)
+}
+
+ijs.callFunc = function(funcAccessor, theArgs, world) {
+    if (funcAccessor in ijs.builtins) {
+        // log2("+calling builtin func: " + funcAccessor)
+        func = ijs.builtins[funcAccessor]
+        var ret = func(theArgs, world)
+        // log2("return value from "+funcAccessor+" is: " + ret)
         // log2("2 returning " + ret)
         return ret
     }
-    func = ijs.exec(tokens[0], world)
+    func = ijs.exec(funcAccessor, world)
     // log2("+getting: " + tokens[0])
     // log2("+from: ")
     // log2(tokens)
     // log2("+applying: ")
-    return func.apply(null, tokens.slice(1).map(function(t) {
+    if (!func) {
+        alert("no func: " + funcAccessor)
+    }
+    return func.apply(null, theArgs.map(function(t) {
         return ijs.exec(t, world)
     }))
-    
 }
 
 // not implementing (yet?)
@@ -1543,6 +1539,9 @@ var code = String.raw`
 // [].slice.call(arguments, 2) : vnode.children
 function testMe(a, b) { return a + b }
 // function (a, b) { return a + b }
+alert(testMe(1,2))
+// a = testMe(1,2)
+// alert(a)
 
 // log2("+++++")
 // log2(testObj)
