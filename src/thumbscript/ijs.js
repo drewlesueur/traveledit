@@ -816,6 +816,18 @@ ijs.prefixes = {
          "arity": 2,
          "fix": "pre",
      },
+     "while": {
+         "associatitivity": 1,
+         "precedence": 0,
+         "arity": 2,
+         "fix": "pre",
+     },
+     "do": {
+         "associatitivity": 1,
+         "precedence": 0,
+         "arity": 4,
+         "fix": "pre",
+     },
      "var": {
          "associatitivity": 1,
          "precedence": 9,
@@ -1094,7 +1106,8 @@ ijs.run = function(code) {
 
 ijs.makeFunc = function(params, body, world) {
     body = body || []
-    body.unshift("run")
+    body = ["run", ...body]
+    // body.unshift("run")
     var world = {
         parent: world,
         state: {},
@@ -1115,6 +1128,8 @@ ijs.makeFunc = function(params, body, world) {
     return f
     // todo default args?
 }
+ijs.breakMessage = {}
+ijs.continueMessage = {}
 
 ijs.builtins = {
     "run": function(args, world) {
@@ -1122,11 +1137,18 @@ ijs.builtins = {
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             // some special cases
+            // log2("-running: "+JSON.stringify(arg))
             if (typeof arg == "object") {
                 if (arg[0] == "return_pre") {
                     var ret = ijs.exec(arg[1], world)
                     return ret
                 }
+            }
+            if (arg == "break") {
+                return ijs.breakMessage
+            }
+            if (arg == "continue") {
+                return ijs.continueMessage
             }
             ijs.exec(arg, world)
         }
@@ -1422,6 +1444,55 @@ ijs.builtins = {
         // (<callfunc> bar baz)
         // alternate
         return ijs.callFunc(args[0], args[1], world)
+    },
+    "while_pre": function (args, world) {
+        var condition = args[0][0]
+        var body = args[1][1] || []
+        
+        // body.unshift("run")
+        body = ["run", ...body]
+        // log2("+while body")
+        // log2(body)
+        // ijs.exec(body, world)
+        log2("+while condition")
+        log2(condition)
+        
+        var i = 0
+        while (ijs.exec(condition, world)) {
+            i++
+            // ijs.exec(body, world)
+            var ret = ijs.exec(body, world)
+            if (ret == ijs.breakMessage) {
+                break
+            }
+            if (i == 40) {
+                break
+            }
+        }
+    },
+    "if_pre": function (args, world) {
+        var condition = args[0][0]
+        var body = args[1][1] || []
+        // body.unshift("run")
+        body = ["run", ...body]
+        var condRet = ijs.exec(condition, world)
+        if (condRet) {
+            var ret = ijs.exec(body, world)
+        }
+        return condRet // hack so else works
+    },
+    "else": function (args, world) {
+        // var ret = ijs.exec(args[0], world)
+        var ret = ijs.exec(args[0], world)
+        if (!ret) {
+            var body = args[1]
+            if (body[0] == "<object>_pre") {
+                body = body[1]
+                // body.unshift("run")
+                body = ["run", ...body]
+            }
+            ijs.exec(body, world)
+        }
     }
 }
 ijs.set = function(key, value, world, setType) {
@@ -1533,6 +1604,44 @@ window.testObj = {
 }
 var code = String.raw`
 
+
+// if (a == 0) {
+//     log2("+it's 0")
+// // } else if (bleep) {
+// // 
+// // } else if (bloop) {
+// // 
+// // } else {
+// 
+// }
+
+var a = 9
+if (a == 0) {
+    log2("+it's 0")
+} else if (a == 1) {
+   log2("+it's 1")
+} else if (a == 2) {
+   log2("+it's 2")
+} else {
+    log2("+it's something else")
+}
+
+
+// var start = Date.now()
+// var i = 0
+// while (true) {
+//     i++
+//     if (i == 30) {
+//         break
+//     }
+//     log2("the value is " + i)
+// }
+// var end = Date.now()
+// log2("+diff: " + (end - start))
+
+
+log2("hello world")
+
 // a = 1
 
 // arguments.length > 2 ? [].slice.call(arguments, 2) : vnode.children
@@ -1556,28 +1665,38 @@ var code = String.raw`
 // function testMe(a, b) { return a + b }
 // var testValue = testMe(1,2)
 
-var x = 2
-x++
-log2(x)
+// var i = 0
+// while (true) {
+//     i++
+//     if (i == 50) {
+//         break
+//     }
+// }
+
+// var x = 2
+// x++
+// log2(x)
 // var testMe2 = function (a, b) { return a * b }
 // var testValue2 = testMe2(100, 7)
 // 
-var incerer = function (x) {
-    // return 6
-    return function () {
-        x++
-        return x
-    }
-}
+// var incerer = function (x) {
+//     // return 6
+//     return function () {
+//         x++
+//         return x
+//     }
+// }
 
 // var incerer = function () {
 //     return 18
 // }
-var f = incerer(70)
-log2(f())
-log2(f())
-log2(f())
-log2(f())
+// var f = incerer(70)
+// log2(f())
+// log2(f())
+// log2(f())
+// log2(f())
+
+
 
 // log2(y())
 // log2(y())
