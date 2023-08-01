@@ -466,6 +466,7 @@ thumbscript4.squishFuncs = function(tokens) {
 
 thumbscript4.eval = function(code, state) {
 
+    clearTimeout(window.t99)
     // I tried to pass in the state of the stdlib
     // wasn't working, so just doing this hacky string concat.
     // would be nice to grab the state of the stdlib
@@ -488,16 +489,10 @@ thumbscript4.eval = function(code, state) {
         log: [], // for concenience
     }
     world.global = world
+    
     thumbscript4.run(world)
     return world
 
-    // window.f99 = makeFile("__output", 0, "")
-    // f99.fileMode = "file"
-    // f99.cursorLineIndex = 0
-    // f99.lines = debugOutput
-    // addFileToList(f99)
-    // clearTimeout(window.t99)
-    // thumbscript4.runAsync(world)
 }
 
 thumbscript4.displayToken = function(tk) {
@@ -532,8 +527,17 @@ thumbscript4.displayToken = function(tk) {
         return "- huh? "
     }
 }
+// thumbscript4.async = false
+thumbscript4.async = true
+thumbscript4.asyncChunk = 500000
 
 thumbscript4.run = function(world) {
+    if (thumbscript4.async) {
+        thumbscript4.runAsync(world)
+        return
+    }
+    var oldPreventRender = preventRender
+    preventRender = true
     while (true) {
         newWorld = thumbscript4.next(world)
         if (!newWorld) {
@@ -545,20 +549,27 @@ thumbscript4.run = function(world) {
         //     log2("\t".repeat(world.indent) + "+ in world " + world.name + "(" +world.runId+") < " + (world.parent?.name || "") )
         // }
     }
+    preventRender = oldPreventRender
+    render()
 }
 
 thumbscript4.runAsync = function(world) {
-    world = thumbscript4.next(world)
-    if (!world) {
-        return
+    var oldPreventRender = preventRender
+    preventRender = true
+    for (var i = 0; i < thumbscript4.asyncChunk; i++) {
+        world = thumbscript4.next(world)
+        if (!world) {
+            break
+        }
+        // log2("//" + JSON.stringify(world.tokens.slice(world.i, world.i+1)))
+        // log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     }
-    // log2(Object.keys(world))
-    log2("//" + world.tokens.slice(world.i, world.i+1))
-    log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
-    window.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 250)
-    f99.lines = debugOutput
+    preventRender = oldPreventRender
     render()
-
+    
+    if (world) {
+        window.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 0)
+    }
 }
 
 thumbscript4.genFunc0 = function(f) {
@@ -607,6 +618,7 @@ thumbscript4.builtIns = {
     now: thumbscript4.genFunc0(() => (Math.floor(Date.now()/1000))),
     plus: thumbscript4.genFunc2((a, b) => a + b),
     minus: thumbscript4.genFunc2((a, b) => a - b),
+    mod: thumbscript4.genFunc2((a, b) => a % b),
     times: thumbscript4.genFunc2((a, b) => a * b),
     divide: thumbscript4.genFunc2((a, b) => a * b),
     lt: thumbscript4.genFunc2((a, b) => a < b),
@@ -617,6 +629,8 @@ thumbscript4.builtIns = {
     is: thumbscript4.genFunc2((a, b) => a == b),
     eq: thumbscript4.genFunc2((a, b) => a === b),
     ne: thumbscript4.genFunc2((a, b) => a !== b),
+    chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
+    ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
     prop: thumbscript4.genFunc2((a, b) => a[b]),
     at: thumbscript4.genFunc2((a, b) => a[b]),
     props: thumbscript4.genFunc1((a) => {
@@ -633,11 +647,13 @@ thumbscript4.builtIns = {
     unshift: thumbscript4.genFunc2((a, b) => a.unshift(b)),
     shift: thumbscript4.genFunc1((a) => a.shift()),
     join: thumbscript4.genFunc2((a, b) => a.join(b)),
+    slice: thumbscript4.genFunc3((a, b, c) => a.slice(b, c)),
     split: thumbscript4.genFunc2((a, b) => a.split(b)),
     trim: thumbscript4.genFunc1((a) => a.trim()),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
+    fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
     copylist: thumbscript4.genFunc1((a) => [...a]),
     dyn: function(world) {
         var a = world.stack.pop()
