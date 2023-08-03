@@ -287,7 +287,6 @@ ijs.tokenize = function(code) {
             } else if (isVar(chr)) {
                 currentToken += chr
             } else {
-                log2("+in symbol")
                 pushToken(currentToken)
                 currentToken = chr
                 state = "in_symbol"
@@ -360,7 +359,6 @@ ijs.tokenize = function(code) {
                 } else {
                     tokens.push("#" + JSON.parse(currentToken))
                 }
-                log2("+" + currentToken)
                 // tokens.push("#" + currentToken)
                 currentToken = ""
                 state = "out"
@@ -391,7 +389,7 @@ ijs.tokenize = function(code) {
     // return tokens
 
 
-    log2(tokens)
+    // log2(tokens)
     var newTokens = []
     var tokenStack = []
     // squish funcs
@@ -469,11 +467,11 @@ function parseTemplateString (templateString, state) {
         return state[y]
     });
 }
-var ret = parseTemplateString("foo${xyz}bar${abc}", {
-    xyz: "hi",
-    abc: "bye"
-})
-log2(ret)
+// var ret = parseTemplateString("foo${xyz}bar${abc}", {
+//     xyz: "hi",
+//     abc: "bye"
+// })
+// log2(ret)
 
 
 
@@ -1106,7 +1104,7 @@ ijs.run = function(code) {
 
 ijs.makeFunc = function(params, body, world) {
     body = body || []
-    body = ["run", ...body]
+    // body = ["run", ...body]
     // body.unshift("run")
     var world = {
         parent: world,
@@ -1121,7 +1119,8 @@ ijs.makeFunc = function(params, body, world) {
                 world.state[params[i]] = args[i]
             }
         }
-        var ret = ijs.exec(body, world)
+        // var ret = ijs.exec(body, world)
+        var ret = ijs.builtins.run(body, world)
         return ret
     }
     f.world = world // lol
@@ -1450,18 +1449,15 @@ ijs.builtins = {
         var body = args[1][1] || []
         
         // body.unshift("run")
-        body = ["run", ...body]
-        // log2("+while body")
-        // log2(body)
-        // ijs.exec(body, world)
+        // body = ["run", ...body]
         log2("+while condition")
         log2(condition)
         
         var i = 0
         while (ijs.exec(condition, world)) {
             i++
-            // ijs.exec(body, world)
-            var ret = ijs.exec(body, world)
+            // var ret = ijs.exec(body, world)
+            var ret = ijs.builtins.run(body, world)
             if (ret == ijs.breakMessage) {
                 break
             }
@@ -1474,10 +1470,11 @@ ijs.builtins = {
         var condition = args[0][0]
         var body = args[1][1] || []
         // body.unshift("run")
-        body = ["run", ...body]
+        // body = ["run", ...body]
         var condRet = ijs.exec(condition, world)
         if (condRet) {
-            var ret = ijs.exec(body, world)
+            // var ret = ijs.exec(body, world)
+            var ret = ijs.builtins.run(body, world)
         }
         return condRet // hack so else works
     },
@@ -1489,9 +1486,12 @@ ijs.builtins = {
             if (body[0] == "<object>_pre") {
                 body = body[1]
                 // body.unshift("run")
-                body = ["run", ...body]
+                // body = ["run", ...body]
+                ijs.builtins.run(body, world)
+            } else {
+                ijs.exec(body, world)
             }
-            ijs.exec(body, world)
+            // ijs.exec(body, world)
         }
     }
 }
@@ -1628,14 +1628,14 @@ if (a == 0) {
 
 
 // var start = Date.now()
-// var i = 0
-// while (true) {
-//     i++
-//     if (i == 30) {
-//         break
-//     }
-//     log2("the value is " + i)
-// }
+var i = 0
+while (true) {
+    i++
+    if (i == 30) {
+        break
+    }
+    log2("the value is " + i)
+}
 // var end = Date.now()
 // log2("+diff: " + (end - start))
 
