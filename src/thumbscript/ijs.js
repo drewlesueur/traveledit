@@ -1074,8 +1074,11 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
 
 
 ijs.run = function(code) {
+    var oldPreventRender = preventRender
+    preventRender = true
     var tokens = ijs.tokenize(code)
     log2(tokens)
+    // return
     var globalWorld = {
         state: window,
         cachedLookupWorld: {},
@@ -1094,6 +1097,7 @@ ijs.run = function(code) {
     // } catch (e) {
     //     log2("-error: " + e)
     // }
+    var preventRender = oldPreventRender
     log2("+state")
     log2(f.world.state)
     log2("+return value")
@@ -1121,17 +1125,24 @@ ijs.makeFunc = function(params, body, world) {
         }
         // var ret = ijs.exec(body, world)
         var ret = ijs.builtins.run(body, world)
+        // just a unique indicator for special return value
+        if (ijs.isSpecialReturn(ret)) {
+            return ret.returnValue
+        }
         return ret
     }
     f.world = world // lol
     return f
     // todo default args?
 }
-ijs.breakMessage = {}
-ijs.continueMessage = {}
+// ijs.breakMessage = {"break": true}
+// ijs.continueMessage = {"continue":true}
+
 
 ijs.builtins = {
-    "run": function(args, world) {
+    // todo: might conflict with a variable named run
+    // call it "<run>"
+    "run": function(args, world, inBlock) {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
@@ -1139,17 +1150,45 @@ ijs.builtins = {
             // log2("-running: "+JSON.stringify(arg))
             if (typeof arg == "object") {
                 if (arg[0] == "return_pre") {
+                    if (typeof arg[1] == "undefined") {
+                        return arg[1]
+                    }
                     var ret = ijs.exec(arg[1], world)
+                    if (inBlock) {
+                        var ret2 = ijs.makeSpecialReturn()
+                        ret2.returnMessage = true
+                        ret2.returnValue = ret
+                        return ret2
+                    }
                     return ret
                 }
             }
             if (arg == "break") {
-                return ijs.breakMessage
+                var ret = ijs.makeSpecialReturn()
+                ret.breakMessage = true
+                return ret
             }
             if (arg == "continue") {
-                return ijs.continueMessage
+                var ret = ijs.makeSpecialReturn()
+                ret.continueMessage = true
+                return ret
             }
-            ijs.exec(arg, world)
+            var ret = ijs.exec(arg, world)
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage || ret.returnMessage) {
+                    return ret
+                }
+            }
+            // if (inBlock) {
+                // if (ret == ijs.breakMessage) {
+                //     return ijs.breakMessage
+                //     // return
+                // }
+                // if (ret == ijs.continueMessage) {
+                //     return ijs.continueMessage
+                //     // return
+                // }
+            // }
         }
     },
     "=": function (args, world) {
@@ -1450,16 +1489,21 @@ ijs.builtins = {
         
         // body.unshift("run")
         // body = ["run", ...body]
-        log2("+while condition")
-        log2(condition)
         
         var i = 0
         while (ijs.exec(condition, world)) {
             i++
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins.run(body, world)
-            if (ret == ijs.breakMessage) {
-                break
+            var ret = ijs.builtins.run(body, world, true)
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage) {
+                    // we stop here and don't return the breakMessage
+                    // if we implemented
+                    break
+                }
+                if (ret.returnMessage) {
+                    return ret
+                }
             }
             if (i == 40) {
                 break
@@ -1474,24 +1518,32 @@ ijs.builtins = {
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins.run(body, world)
+            var ret = ijs.builtins.run(body, world, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
         }
         return condRet // hack so else works
     },
     "else": function (args, world) {
         // var ret = ijs.exec(args[0], world)
         var ret = ijs.exec(args[0], world)
+        var elseRet
         if (!ret) {
             var body = args[1]
             if (body[0] == "<object>_pre") {
                 body = body[1]
                 // body.unshift("run")
                 // body = ["run", ...body]
-                ijs.builtins.run(body, world)
+                elseRet = ijs.builtins.run(body, world, true)
             } else {
-                ijs.exec(body, world)
+                elseRet = ijs.exec(body, world)
             }
             // ijs.exec(body, world)
+            if (ijs.isSpecialReturn(elseRet)) {
+                return elseRet
+            }
         }
     }
 }
@@ -1586,9 +1638,20 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
         alert("no func: " + funcAccessor)
     }
     theArgs = theArgs || []
-    return func.apply(null, theArgs.map(function(t) {
+    var ret = func.apply(null, theArgs.map(function(t) {
         return ijs.exec(t, world)
     }))
+    return ret
+}
+
+ijs.isSpecialReturn = function (ret) {
+    return typeof ret == "object" && ret.ijs == 12332
+}
+
+ijs.makeSpecialReturn = function () {
+    return {
+        "ijs": 12332,
+    }
 }
 
 // not implementing (yet?)
@@ -1604,6 +1667,8 @@ window.testObj = {
 }
 var code = String.raw`
 
+// var x = 3 + 4
+// return
 
 // if (a == 0) {
 //     log2("+it's 0")
@@ -1615,30 +1680,96 @@ var code = String.raw`
 // 
 // }
 
-var a = 9
-if (a == 0) {
-    log2("+it's 0")
-} else if (a == 1) {
-   log2("+it's 1")
-} else if (a == 2) {
-   log2("+it's 2")
-} else {
-    log2("+it's something else")
+// var a = 9
+// if (a == 0) {
+//     log2("+it's 0")
+// } else if (a == 1) {
+//    log2("+it's 1")
+// } else if (a == 2) {
+//    log2("+it's 2")
+// } else {
+//     log2("+it's something else")
+// }
+
+
+// var f = function () {
+//     var i = 0
+//     while (true) {
+//         i++
+//         if (i == 30) {
+//             return 3
+//             // break
+//         }
+//         log2("the value is " + i)
+//     }
+//     log2("yo ok!")
+// }
+
+var f = function () {
+    var i = 0
+    while (true) {
+        i++
+        if (i == 30) {
+            return 3
+            // break
+        }
+        log2("the i value is " + i)
+        var j = 0
+        while (true) {
+            j++
+            if (j == 30) {
+                if (1 == 1) {
+                    return 400
+                }
+                // break
+            }
+            log2("the j value is " + j)
+        }
+    }
+    log2("yo ok!")
 }
 
+var x = f()
+// alert(x)
 
 // var start = Date.now()
-var i = 0
-while (true) {
-    i++
-    if (i == 30) {
-        break
-    }
-    log2("the value is " + i)
-}
+// var i = 0
+// while (true) {
+//     i++
+//     if (i == 30) {
+//         break
+//     }
+//     log2("the value is " + i)
+// }
 // var end = Date.now()
 // log2("+diff: " + (end - start))
 
+// var i = 0
+// while (true) {
+//     i++
+//     if (i < 30) {
+//     } else {
+//         break
+//     }
+//     log2("the value is " + i)
+// }
+
+// var i = 0
+// while (true) {
+//     i++
+//     if (i == 30) {
+//         break
+//     }
+//     log2("the value is " + i)
+//     var j = 0
+//     while (true) {
+//         j++
+//         if (j == 3) {
+//             break
+//         }
+//         log2("    the j value is " + j)
+//     }
+// }
 
 log2("hello world")
 
