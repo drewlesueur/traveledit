@@ -1,9 +1,9 @@
 
 // TODO: true, false
-// 
+//
 
 // how to dynamically call new in javascript
-// 
+//
 // There are a few ways to dynamically call constructors in JavaScript. You could use the "new" keyword directly, or you might use the "apply" or "call" method of the Function prototype. Here's how to do it:
 // 1. Using the `new` keyword directly:
 // ```javascript
@@ -161,7 +161,7 @@ ijs.tokenize = function(code) {
     var currentToken = ""
     var quoteType = ""
     var tokens = []
-    
+
     var pushToken = function(x) {
         if (x == ",") {
             return
@@ -172,12 +172,12 @@ ijs.tokenize = function(code) {
         if (x == ";") {
             return
         }
-        
+
         if (x == "true") {
             tokens.push(true)
             return
         }
-        
+
         if (x == "false") {
             tokens.push(true)
             return
@@ -196,7 +196,7 @@ ijs.tokenize = function(code) {
         }
         tokens.push(x)
     }
-    
+
     var isVar = function(chr) {
         var a = chr.charCodeAt(0)
         return (
@@ -207,7 +207,7 @@ ijs.tokenize = function(code) {
             (a == 16)                  // $
         )
     }
-    
+
     while (i < code.length) {
         var chr = code.charAt(i)
         if (state == "out") {
@@ -444,8 +444,8 @@ ijs.tokenize = function(code) {
             // log2(operated)
             newTokens = tokenStack.pop()
             newTokens.push(operated)
-            
-            
+
+
             if ("]".indexOf(token) != -1) {
                 var t = newTokens.pop()
                 var prev = newTokens.pop()
@@ -472,7 +472,7 @@ ijs.tokenize = function(code) {
 // }
 
 // write a javascript function that parses operators
-// 
+//
 // for example
 // ["a", "b", "+", "c", "d"]
 // would evaluate to
@@ -499,7 +499,7 @@ function parseTemplateString (templateString, state) {
 ijs.operatorate = function(tokens) {
     tokens = ijs.infixate(tokens, false, true, -1, 0)
     return tokens
-    
+
     var newTokens = []
     var token
     while (token = tokens.shift()) {
@@ -527,10 +527,10 @@ ijs.operatorate = function(tokens) {
             newTokens.push(["return", value])
             continue
         }
-        
+
         newTokens.push(token)
     }
-    
+
     return newTokens
 }
 
@@ -936,45 +936,45 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
     // x + 3 + 4 + 5
     // y * 3 + 2
     // y ** 3 ** 4.bar
-    // (** (** y 3) 4) 
-    
+    // (** (** y 3) 4)
+
     // y + 3 + 4.bar
     // (+ (+ y 3) 4)
-    
+
     // x + 3 * 4.a
     // 4.a * 3 + x
-    
-    
+
+
     // 3 ** 4 * 2
     // (** 3 4)
     // (* (** 3 4) 2)
-    
+
     // 1 + 2 * 3 ** 4
     // (+ 1 2)
     // (+ 1 (* 2 3))
-    
+
     // 3 - -2
     // = 3 + +7
     // = 3 + +7++
-    
-    // 3 + 4 ----7 
+
+    // 3 + 4 ----7
     // 3 + 4 - -7  + 5
-    
-    
+
+
     // 2 + 3 * !c.a
     // 2 + 3 * !c + a
     // 2 + 3 * !!c + a
-    
+
     // 2 * 3 + 4
     // (* 2 3)
     // (+ (* 2 3) 4)
     // !3 + 4
-    
+
     // !a.b + c
     // (! a)
     // (! (. a b))
-    
-    
+
+
     var currPrecedence = -1
     var lastGroup = null
     while (true) {
@@ -1075,12 +1075,12 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
         logIndent(iter, "iterating", newTokens)
     }
     logIndent(iter, "normal return", newTokens)
-    
+
     if (newTokens.length == 0) {
         return void 0
     }
     return newTokens
-    
+
 }
 
 
@@ -1502,10 +1502,6 @@ ijs.builtins = {
         return f
     },
     "<group>_pre": function(args, world) {
-        // (foo bar baz)
-        // is the same as
-        // (<callfunc> bar baz)
-        // alternate
         return ijs.exec(args[0][0], world)
     },
     "<callFunc>": function(args, world) {
@@ -1516,12 +1512,12 @@ ijs.builtins = {
         return ijs.callFunc(args[0], args[1], world)
     },
     "while_pre": function (args, world) {
-        var condition = args[0][0]
+        var condition = args[0][1][0]
         var body = args[1][1] || []
-        
+
         // body.unshift("run")
         // body = ["run", ...body]
-        
+
         var i = 0
         while (ijs.exec(condition, world)) {
             i++
@@ -1537,13 +1533,13 @@ ijs.builtins = {
                     return ret
                 }
             }
-            if (i == 40) {
-                break
-            }
+            // if (i == 40) {
+            //     break
+            // }
         }
     },
     "if_pre": function (args, world) {
-        var condition = args[0][0]
+        var condition = args[0][1][0]
         var body = args[1][1] || []
         // body.unshift("run")
         // body = ["run", ...body]
@@ -1595,25 +1591,16 @@ ijs.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     // if (world.local && forSetting) {
     //     return world
     // }
+    
     if (world.cachedLookupWorld[key]) {
         return world.cachedLookupWorld[key]
     }
     for (var w = world; w != null; w = w.parent) {
-        // perf doesn't seem to matter here
-        // if (key in w.state) {
         if (w.state.hasOwnProperty(key)) {
-        // if (typeof w.state[key] !== "undefined") {
             world.cachedLookupWorld[key] = w
             break
         }
     }
-    // if (w === null) {
-    //     if (errOnNotFound) {
-    //         // log2("-unknown variable: " + key);
-    //         log2("-unknown variable: " + JSON.stringify(key));
-    //     }
-    //     return world
-    // }
     return w
 }
 ijs.exec = function(tokens, world) {
@@ -1644,7 +1631,7 @@ ijs.exec = function(tokens, world) {
 
         var w = ijs.getWorldForKey(world, token)
         if (w == null) {
-            alert("can't find world for " + token)
+            log2("-can't find world for " + token)
         }
         // alert("typeof w is " + typeof w)
         return w.state[token]
@@ -1697,10 +1684,38 @@ ijs.makeSpecialReturn = function () {
 window.testObj = {
     name: "Drew2"
 }
+var start = Date.now()
+var i = 0
+var total = 0
+while (true) {
+    i++
+    if (i == 100000) {
+        break
+    }
+    total += i
+}
+var end = Date.now()
+log2("it took " + (end - start) + " milliseconds " + total)
+
+
 var code = String.raw`
 // something().yo()
 var hi = 2 * (3 + 1)
 var hi2 = 2 * 3 + 1
+
+
+// var start = Date.now()
+// var i = 0
+// var total = 0
+// while (true) {
+//     i++
+//     if (i == 100000) {
+//         break
+//     }
+//     total += i
+// }
+// var end = Date.now()
+// log2("it took " + (end - start) + " milliseconds " + total)
 
 // var x = 3 + 4
 // return
@@ -1708,11 +1723,11 @@ var hi2 = 2 * 3 + 1
 // if (a == 0) {
 //     log2("+it's 0")
 // // } else if (bleep) {
-// // 
+// //
 // // } else if (bloop) {
-// // 
+// //
 // // } else {
-// 
+//
 // }
 
 // var a = 9
@@ -1843,7 +1858,7 @@ log2("hello world")
 // log2(x)
 // var testMe2 = function (a, b) { return a * b }
 // var testValue2 = testMe2(100, 7)
-// 
+//
 // var incerer = function (x) {
 //     // return 6
 //     return function () {
@@ -1882,7 +1897,7 @@ log2("hello world")
 // var foo = async () => {
 //    return 1
 // }
-// 
+//
 // try {
 //     biz baz
 // } catch (e) {
@@ -1890,24 +1905,24 @@ log2("hello world")
 // }
 
 // (function () {})()
-// 
+//
 // function () {}
-// 
+//
 // do {
 //     alert(100)
 // } while (yoyo + 1)
 // !foo.bar
 // a + b * !c
-// 
+//
 // 1 + !foo.bar
 // 1 + !foo + bar
-// 
+//
 // 1 + 2 + 3
 
 
 // 1 = 2 = 3
 // 1 = !2 = 3
-// 
+//
 // 1 + 2 + 3
 // 1 + !2 + 3
 
@@ -1922,8 +1937,8 @@ log2("hello world")
 
 // var x = 1
 // var x = 0
-// 
-// 
+//
+//
 // 1 + +3++
 
 // 1 + x++ + 4
@@ -1938,16 +1953,16 @@ log2("hello world")
 // for (var x = 0; x < 20; x += 1) {
 //     crazy stuff
 // }
-// 
+//
 // for (var x=0; x < 20; x++) {
 //     crazy stuff
 // }
 
 // function (a, b, c) {
-// 
+//
 // }
 // function y(a, b, c) {
-// 
+//
 // }
 
 // a = y => y + 1
@@ -1966,14 +1981,14 @@ log2("hello world")
 // }
 
 // for (const i of something) {
-// 
+//
 // }
 
 // let a = 3
 
 // a = "foob\"ar"
 // a = 'foob"ar'
-// 
+//
 // b = [1 2 ...c n]
 // if (x == 1) {
 //     "one"
@@ -2015,11 +2030,11 @@ log2("hello world")
 
 // b = [1 2 3]
 // c = [1 2*1+2 3]
-// 
+//
 // d = [1, 2, 3]
-// 
+//
 // e = d[1*1]
-// 
+//
 // g = {bar: "baz", "other" 27}
 
 // function upper(x) {
@@ -2057,14 +2072,14 @@ log2("hello world")
 
 // name = "drew"
 // log2(name)
-// 
+//
 // bar = 2 + 3 * 4
 // log2(bar)
-// 
+//
 // function upper(a) {
 //     return a.toUpperCase()
 // }
-// 
+//
 // upperName = upper(name)
 // log2(upperName)
 // return name
@@ -2074,9 +2089,9 @@ log2("hello world")
 
 // var name "Drew"
 // log2(name)
-// // 
+// //
 // // JSON.stringify
-// // set json[foo] 
+// // set json[foo]
 // var name "drew \" lesueur"
 // var name2 "Hi"
 // var person obj(name "Drew" age 38)
@@ -2084,7 +2099,7 @@ log2("hello world")
 // var name3 prop("yay" "toUpperCase")()
 // // var name3 "yay".toUpperCase()
 // var name4 "hello dave"
-// 
+//
 // func doThing(a) {
 //     // return(a)
 //     // alert("doThing called")
@@ -2094,7 +2109,7 @@ log2("hello world")
 // }
 // // alert(-2)
 // var name5 doThing(name)
-// 
+//
 // setTimeout(func yo() {
 //     log2("what?")
 // } 1000)
@@ -2110,11 +2125,11 @@ log2("hello world")
 
 // set foo (add 2 4)
 // log2(concat(" the addition is " foo))
-// 
+//
 // return name5
 
 // todo: ignore comma
-// var(name2 call(access(yay "toUpperCase") 
+// var(name2 call(access(yay "toUpperCase")
 // var(name3 access(yay "toUpperCase")())
 
 
@@ -2124,17 +2139,17 @@ log2("hello world")
 // func(returnInputValue (element index (child false) (childIndex 0))
 //     trycatch(
 //         run(
-// 
+//
 //         )
-// 
+//
 //         run(
-// 
+//
 //         )
 //     )
 // )
 // if( neq(element, "undefined")
 //     code(
-// 
+//
 //     )
 // )
 `
@@ -2198,7 +2213,7 @@ if( neq(element, "undefined")
       return ""
     }
   }
-  
+
 @[ ]
 chrome.storage.local.set(
     %{
