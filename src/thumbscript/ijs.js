@@ -215,8 +215,15 @@ ijs.tokenize = function(code) {
             } else if ("/".indexOf(chr) != -1) {
                 state = "firstSlash"
             } else if ("()".indexOf(chr) != -1) {
-                if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
-                    tokens.push("<callFunc>")
+                // if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                //     tokens.push("<callFunc>")
+                // }
+                if ("(".indexOf(chr) != -1) {
+                    if (i != 0 && " \t\n".indexOf(code.charAt(i-1)) == -1) {
+                        tokens.push("<callFunc>")
+                    } else {
+                        tokens.push("<group>")
+                    }
                 }
                 tokens.push(chr)
             } else if ("[]".indexOf(chr) != -1) {
@@ -262,8 +269,15 @@ ijs.tokenize = function(code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
-                    tokens.push("<callFunc>")
+                // if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                //     tokens.push("<callFunc>")
+                // }
+                if ("(".indexOf(chr) != -1) {
+                    if (i != 0 && " \t\n".indexOf(code.charAt(i-1)) == -1) {
+                        tokens.push("<callFunc>")
+                    } else {
+                        tokens.push("<group>")
+                    }
                 }
                 tokens.push(chr)
                 state = "out"
@@ -301,8 +315,15 @@ ijs.tokenize = function(code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
-                    tokens.push("<callFunc>")
+                // if (i != 0 && "(".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                //     tokens.push("<callFunc>")
+                // }
+                if ("(".indexOf(chr) != -1) {
+                    if (i != 0 && " \t\n".indexOf(code.charAt(i-1)) == -1) {
+                        tokens.push("<callFunc>")
+                    } else {
+                        tokens.push("<group>")
+                    }
                 }
                 tokens.push(chr)
                 state = "out"
@@ -873,6 +894,10 @@ ijs.prefixes = {
          "precedence": 1,
          "arity": 3,
          "fix": "pre",
+     },
+     "<group>": {
+         "associatitivity": 0,
+         "precedence": 17,
      },
 }
 ijs.postfixes = {
@@ -1476,6 +1501,13 @@ ijs.builtins = {
         }
         return f
     },
+    "<group>_pre": function(args, world) {
+        // (foo bar baz)
+        // is the same as
+        // (<callfunc> bar baz)
+        // alternate
+        return ijs.exec(args[0][0], world)
+    },
     "<callFunc>": function(args, world) {
         // (foo bar baz)
         // is the same as
@@ -1666,6 +1698,9 @@ window.testObj = {
     name: "Drew2"
 }
 var code = String.raw`
+// something().yo()
+var hi = 2 * (3 + 1)
+var hi2 = 2 * 3 + 1
 
 // var x = 3 + 4
 // return
@@ -1705,31 +1740,30 @@ var code = String.raw`
 //     log2("yo ok!")
 // }
 
-var f = function () {
-    var i = 0
-    while (true) {
-        i++
-        if (i == 30) {
-            return 3
-            // break
-        }
-        log2("the i value is " + i)
-        var j = 0
-        while (true) {
-            j++
-            if (j == 30) {
-                if (1 == 1) {
-                    return 400
-                }
-                // break
-            }
-            log2("the j value is " + j)
-        }
-    }
-    log2("yo ok!")
-}
-
-var x = f()
+// var f = function () {
+//     var i = 0
+//     while (true) {
+//         i++
+//         if (i == 15) {
+//             return 3
+//             // break
+//         }
+//         log2("the i value is " + i)
+//         var j = 0
+//         while (true) {
+//             j++
+//             if (j == 10) {
+//                 if (1 == 1) {
+//                     return 400
+//                 }
+//                 // break
+//             }
+//             log2("the j value is " + j)
+//         }
+//     }
+//     log2("yo ok!")
+// }
+// var x = f()
 // alert(x)
 
 // var start = Date.now()
