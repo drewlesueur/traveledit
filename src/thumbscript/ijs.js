@@ -1,154 +1,5 @@
 // todo: not slicing as much would prob be faster
 // TODO: true, false
-//
-
-// how to dynamically call new in javascript
-//
-// There are a few ways to dynamically call constructors in JavaScript. You could use the "new" keyword directly, or you might use the "apply" or "call" method of the Function prototype. Here's how to do it:
-// 1. Using the `new` keyword directly:
-// ```javascript
-//     var MyClass = function(arg1, arg2) {
-//       this.arg1 = arg1;
-//       this.arg2 = arg2;
-//     };
-//     var obj = new MyClass('x', 'y');
-// ```
-// 2. Using `apply`:
-// ```javascript
-//     var MyClass = function(arg1, arg2) {
-//       this.arg1 = arg1;
-//       this.arg2 = arg2;
-//     };
-//     var obj = Object.create(MyClass.prototype);
-//     MyClass.apply(obj, ['x', 'y']);
-// ```
-// 3. Using `call`:
-// ```javascript
-//     var MyClass = function(arg1, arg2) {
-//       this.arg1 = arg1;
-//       this.arg2 = arg2;
-//     };
-//     var obj = Object.create(MyClass.prototype);
-//     MyClass.call(obj, 'x', 'y');
-// ```
-// In all these cases, `MyClass` is the constructor that you're calling with the `new` keyword or functionally invoking with `apply`/`call`. Your new object `obj` will have the properties arg1 and arg2 set to 'x' and 'y' respectively.
-
-// interpreted js
-// things are the same at function level
-// inside a function no guarantees
-// own if, own loop.
-// needs to work with
-// async, addEventListener setTimeout
-// closures, lexical scope?
-// bit maybe lexical scope on one known variable?
-// cuz that's  all we can do?
-// declare funcs wiith optional arguments.
-// the interpreter should just take a parsed representstion?
-// try/catch
-// async await
-// new
-// math operators
-// lazy eval?
-// this
-
-// all javascript operators
-
-// JavaScript supports several types of operators:
-// 1. **Arithmetic Operators**: Perform mathematical operations
-//    * Addition: `+`
-//    * Subtraction: `-`
-//    * Multiplication: `*`
-//    * Division: `/`
-//    * Modulus (Remainder): `%`
-//    * Increment: `++`
-//    * Decrement: `--`
-// 2. **Assignment Operators**: Assign values to JavaScript variables
-//    * Assign: `=`
-//    * Add and assign: `+=`
-//    * Subtract and assign: `-=`
-//    * Multiply and assign: `*=`
-//    * Divide and assign: `/=`
-//    * Modulus and assign: `%=`
-// 3. **Comparison Operators**: Compare two values
-//    * Equal to: `==`
-//    * Not equal to: `!=`
-//    * Greater than: `>`
-//    * Less than: `<`
-//    * Greater than or equal to: `>=`
-//    * Less than or equal to: `<=`
-//
-// 4. **Logical Operators**: Determine the logic between variables or values
-//    * Logical AND: `&&`
-//    * Logical OR: `||`
-//    * Logical NOT: `!`
-// 5. **Bitwise Operators**: Handle binary data
-//    * AND: `&`
-//    * OR: `|`
-//    * XOR: `^`
-//    * NOT: `~`
-//    * Left shift: `<<`
-//    * Right shift: `>>`
-//    * Zero fill right shift: `>>>`
-// 6. **String Operators**: JavaScript uses the `+` operator to concatenate strings.
-// 7. **Ternary/Conditional Operator**: Assign a value to a variable based on some condition.
-//    * `? :`
-// 8. **Type Operators**: JavaScript provides two operators for getting an object's type.
-//    * `typeof`
-//    * `instanceof`
-// 9. **Delete Operator**: Used to delete properties from an object.
-//    * `delete`
-// 10. **In Operator**: Returns `true` if the specified property is in the specified object.
-//     * `in`
-// 11. **Void Operator**: Evaluates the given expression and then returns `undefined`.
-//     * `void`
-// Each operator has different syntax and behavior characteristics.
-
-// list all the operators in javascript (including es6)
-// don't  explain them, just list them
-
-// Sure, here are all the JavaScript operators including ES6:
-// 1. Arithmetic Operators: +, -, *, /, %, ++, --, **
-// 2. Assignment Operators: =, +=, -=, *=, /=, %=, **=
-// 3. String Operators: +
-// 4. Comparison Operators: ==, ===, !=, !==, >, <, >=, <=
-// 5. Logical Operators: &&, ||, !
-// 6. Bitwise Operators: &, |, ~, ^, <<, >>
-// 7. Ternary Operator (Conditional): ?
-// 8. typeof Operator: typeof
-// 9. delete Operator: delete
-// 10. in Operator: in
-// 11. instanceof Operator: instanceof
-// 12. void Operator: void
-// 13. new Operator: new
-// 14. Spread Operator: ...
-// 15. yield Operator: yield
-// 16. await Operator: await
-// Please note that this list includes operators from ES6 and earlier versions.
-
-// Sure, here’s a comprehensive list of JavaScript operators:
-// - Assignment operators: `=, +=, -=, *=, /=, %=, **=`
-// - Comparison operators: `==, ===, !=, !==, >, <, >=, <=`
-// - Arithmetic operators: `+, -, *, /, %, ++, --`
-// - Bitwise operators: `&, |, ^, ~, <<, >>, >>>`
-// - Logical operators: `&&, ||, !`
-// - String operators: `+, +=`
-// - Conditional (ternary) operator: `? :`
-// - Type operators: `typeof, instanceof`
-// - Spread operator: `...`
-// - Rest parameter: `...`
-// - Destructuring assignment: `[a, b] = [1, 2], {a, b} = {a:1, b:2}`
-// - Arrow function `=>`
-// - Yield: `yield`
-// - Await: `await`
-// - Nullish coalescing operator `??`
-// - Optional chaining `.?`
-// laziness? and, or.
-// not worrying about let.
-// interpolation
-
-
-
-
 
 var ijs = {}
 // TODO: ignore : , ;
@@ -1300,17 +1151,22 @@ ijs.builtins = {
             if (args[0][0] == "var_pre") {
                 varName = args[0][1]
                 assignType = "var"
-                var w = ijs.getWorldForKey(world, varName) || world
+                // var w = ijs.getWorldForKey(world, varName) || world
+                var w = world
+                if (w.blockScope) {
+                    w = w.parent
+                }
                 w.state[varName] = ijs.exec(args[1], world)
             } else if (args[0][0] == "let_pre") {
                 varName = args[0][1]
                 assignType = "let"
-                world.state[varName] = ijs.exec(args[1], world)
+                var w = world
+                w.state[varName] = ijs.exec(args[1], world)
             } else if (args[0][0] == "const_pre") {
                 varName = args[0][1]
                 assignType = "const"
-                // lol
-                world.state[varName] = ijs.exec(args[1], world)
+                var w = world
+                w.state[varName] = ijs.exec(args[1], world)
             }
         } else {
             var w = ijs.getWorldForKey(world, varName)
@@ -1331,17 +1187,20 @@ ijs.builtins = {
                 varName = args[0][1]
                 assignType = "var"
                 var w = ijs.getWorldForKey(world, varName) || world
-                var val = await ijs.exec(args[1], world)
-                w.state[varName] = val
+                if (w.blockScope) {
+                    w = w.parent
+                }
+                w.state[varName] = await ijs.exec(args[1], world)
             } else if (args[0][0] == "let_pre") {
                 varName = args[0][1]
                 assignType = "let"
-                world.state[varName] = await ijs.exec(args[1], world)
+                var w = ijs.getWorldForKey(world, varName) || world
+                w.state[varName] = await ijs.exec(args[1], world)
             } else if (args[0][0] == "const_pre") {
                 varName = args[0][1]
                 assignType = "const"
-                // lol
-                world.state[varName] = await ijs.exec(args[1], world)
+                var w = ijs.getWorldForKey(world, varName) || world
+                w.state[varName] = await ijs.exec(args[1], world)
             }
         } else {
             var w = ijs.getWorldForKey(world, varName)
@@ -1660,6 +1519,14 @@ ijs.builtins = {
         // body.unshift("run")
         // body = ["run", ...body]
 
+        var world = {
+            parent: world,
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: false,
+            blockScope: true,
+        }
         var i = 0
         while (ijs.exec(condition, world)) {
             i++
@@ -1680,7 +1547,50 @@ ijs.builtins = {
             // }
         }
     },
+    "for_pre": function (args, world) {
+        var init = args[0][1][0]
+        var cond = args[0][1][1]
+        var next = args[0][1][2]
+        var body = args[1][1] || []
+
+        var world = {
+            parent: world,
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: false,
+            blockScope: true,
+        }
+        var i = 0
+        ijs.exec(init, world)
+        while (ijs.exec(cond, world)) {
+            i++
+            if (i > 50) {
+                break
+            }
+            // var ret = ijs.exec(body, world)
+            var ret = ijs.builtins.run(body, world, true)
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage) {
+                    break
+                }
+                if (ret.returnMessage) {
+                    return ret
+                }
+            }
+            ijs.exec(next, world)
+        }
+    },
     "if_pre": function (args, world) {
+        var world = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: false,
+            blockScope: true,
+        }
         var condition = args[0][1][0]
         var body = args[1][1] || []
         // body.unshift("run")
@@ -1726,7 +1636,7 @@ ijs.set = function(key, value, world, setType) {
     }
     w.state[key] = value
 }
-ijs.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
+ijs.getWorldForKey = function(world, key) {
     // the cachedLookupWorld seems noticeably faster when running jsloopn
     // 19ms vs 38ms on a loopn with somevar+= for 100k loops
 
@@ -1786,48 +1696,6 @@ ijs.exec = function(tokens, world) {
         return undefined
     }
     return ijs.callFunc(tokens[0], tokens.slice(1), world)
-}
-ijs.execAsync = async function(tokens, world) {
-    if (typeof tokens == "number") {
-        return tokens
-    }
-    if (typeof tokens == "boolean") {
-        return tokens
-    }
-    if (tokens.length == 0) {
-        return void 0;
-    }
-    // state = state || {}
-    // simplify lexical rules?
-    // anuthing in a function shares state.
-    // no nested var.
-
-    // if (typeof tokens == "function") {
-    //     return tokens
-    // }
-
-    if (typeof tokens != "object") {
-        // string encoding
-        var token = tokens
-        if (token.charAt(0) == "#") {
-            return token.slice(1)
-        }
-
-        var w = ijs.getWorldForKey(world, token)
-        if (w == null) {
-            log2("-can't find world for " + token)
-        }
-        // alert("typeof w is " + typeof w)
-        return w.state[token]
-
-        // if (token in window) {
-        //     return window[token]
-        // }
-
-        // or throw?
-        return undefined
-    }
-    return await ijs.callFunc(tokens[0], tokens.slice(1), world)
 }
 
 ijs.callFunc = function(funcAccessor, theArgs, world) {
@@ -1919,6 +1787,56 @@ window.testObj = {
 // })
 
 var code = String.raw`
+
+// var a = x => x + 1
+// var b = (x) => x + 1
+// var c = (x) => { return x + 1 }
+// var d = (x, y) => { return x + y }
+// var e = () => 200
+
+// while (true) {
+//     let letty1 = 1
+//     alert(letty1)
+//     var letty2 = 2
+//     alert(letty2)
+//     break
+// }
+// alert(letty2)
+// alert(letty1) // error
+
+// function foo() {
+//     var fooXYZZY = 10
+//     alert(fooXYZZY)
+// }
+// foo()
+// alert(fooXYZZY)
+// for (var i = 0; i < 15; i++) {
+//     log2("i is " + i)
+// }
+
+// var i = "lol"
+// for (let i = 0; i < 15; i++) {
+//     log2("i is " + i)
+// }
+// alert(i)
+
+// function increr(x) {
+//     return function () {
+//         x++
+//         return x
+//     }
+// }
+// 
+// var incr = increr(10)
+// for (let i = 0; i < 20; i++) {
+//     log2("incremented " + incr())
+// }
+
+
+
+
+
+
 // something().yo()
 // var hi = 2 * (3 + 1)
 // var hi2 = 2 * 3 + 1
@@ -1949,29 +1867,29 @@ var code = String.raw`
 // setTimeout(function () {
 //     alert("yay")
 // }, 1000)
-async function test10() {
-    // var sleep = function (ms) {
-    //     return new Promise(function (resolve, reject) {
-    //         log2("doing the setTimeout " + ms)
-    //         setTimeout(function () {
-    //             resolve()
-    //         }, ms)
-    //     })
-    // }
-    // alert("hi")
-    // await sleep(1000)
-    // alert("bye")
-    
-    var foo = async function (a) {
-        // return 200
-        return new Promise(function (resolve, reject) {
-            resolve(99)
-        })
-    }
-    var v = await foo(20)
-    alert(v)
-}
-test10()
+// async function test10() {
+//     // var sleep = function (ms) {
+//     //     return new Promise(function (resolve, reject) {
+//     //         log2("doing the setTimeout " + ms)
+//     //         setTimeout(function () {
+//     //             resolve()
+//     //         }, ms)
+//     //     })
+//     // }
+//     // alert("hi")
+//     // await sleep(1000)
+//     // alert("bye")
+//     
+//     var foo = async function (a) {
+//         // return 200
+//         return new Promise(function (resolve, reject) {
+//             resolve(99)
+//         })
+//     }
+//     var v = await foo(20)
+//     alert(v)
+// }
+// test10()
 
 
 
@@ -2159,10 +2077,6 @@ log2("hello world")
 // log2(drew1)
 
 // a = 1
-// log2([a, b])
-// log2({a, b})
-// const { done, value } = await reader.read()
-// const [ done, value ] = await reader.read()
 // var foo = async function () {
 //    return 1
 // }
@@ -2429,94 +2343,3 @@ log2("hello world")
 // code = 'yo = `foob${lol}ar\\${ok}\\`r`'
 // code = "yo = `foob${lol}ar\\`r`"
 ijs.run(code)
-log2(0 in ijs.infixes)
-
-/*
-
-var(name "drew")
-var(person obj(name "Drew" age 38))
-// var(name2 call(access(yay "toUpperCase")()))
-
-// call("log2", ("lol logs"))
-// func(myFunc (a b) (
-//     set(a b)
-//     call("log2", "somemlogs")
-// ))
-
-
-["var", []]
-
-
-func(returnInputValue (element index (child false) (childIndex 0))
-    trycatch(
-        run(
-
-        )
-
-        run(
-
-        )
-    )
-)
-
-
-if( neq(element, "undefined")
-    code(
-
-    )
-)
-
-  function returnInputValue(element, index, child = false, childIndex = 0) {
-    try {
-      if (element != "undefined") {
-        if (element.length > index) {
-          if (child) {
-            if (element[index].children.length > childIndex) {
-              return element[index].children[childIndex].value
-            }
-          } else {
-            return element[index].value
-          }
-        }
-      }
-      return ""
-    } catch (e) {
-      console.log("error ", e)
-      return ""
-    }
-  }
-
-@[ ]
-chrome.storage.local.set(
-    %{
-        page1 false
-        page2 false
-        page3 false
-    }
-)
-    await new Promise(function (resolve, reject) {
-      chrome.storage.local.set(
-        {
-          iterateServiceArizona: {
-            page1: false,
-            page2: false,
-            page3: false,
-            page4: false,
-            page5: false,
-            page6: false,
-            page7: false,
-            page8: false,
-            page9: false,
-            page10: false,
-            page11: false,
-            page12: false,
-          },
-        },
-        function () {
-          console.log("Resolving page1 here")
-          resolve()
-        }
-      )
-    })
-
-*/
