@@ -1,4 +1,4 @@
-
+// todo: not slicing as much would prob be faster
 // TODO: true, false
 //
 
@@ -1173,8 +1173,8 @@ ijs.makeFunc = function(params, body, world) {
         global: world.global,
         async: false
     }
-    log2("+params are")
-    log2(params)
+    // log2("+params are")
+    // log2(params)
     var f = function(...args) {
         if (params) {
             for (var i=0; i<args.length; i++) {
@@ -1221,9 +1221,13 @@ ijs.builtins = {
                     }
                     return ret
                 } else if (arg[0] == "await_pre") {
-                    var ret = await ijs.exec(arg[1], world)
-                    return ret
+                    await ijs.exec(arg[1], world)
+                    continue
+                // } else if (arg[0] == "=") {
+                //     // special case for var a = await smthbg()
+                //     return ijs.callFunc("=await", arg.slice(1), world)
                 }
+                // log2("the thing to run is " + JSON.stringify(arg))
             }
             if (arg == "break") {
                 var ret = ijs.makeSpecialReturn()
@@ -1262,8 +1266,6 @@ ijs.builtins = {
                         return ret2
                     }
                     return ret
-                // } else if (arg[0] == "await_pre") {
-                    // await
                 }
             }
             if (arg == "break") {
@@ -1312,6 +1314,36 @@ ijs.builtins = {
         } else {
             var w = ijs.getWorldForKey(world, varName)
             world.global.state[varName] = ijs.exec(args[1], world)
+        }
+    },
+    "=await": async function (args, world) {
+        // TODO: wrangle these
+        // not doing destructuring yet
+        // lol maybe destructuring can be handled at the parser level?
+        // like it turns it into the more verbose syntax
+        // that way the core is smaller.
+        // gotta figure out let vs if
+        var varName = args[0]
+        var assignType = "global"
+        if (typeof args[0] == "object") {
+            if (args[0][0] == "var_pre") {
+                varName = args[0][1]
+                assignType = "var"
+                var w = ijs.getWorldForKey(world, varName) || world
+                w.state[varName] = await ijs.exec(args[1], world)
+            } else if (args[0][0] == "let_pre") {
+                varName = args[0][1]
+                assignType = "let"
+                world.state[varName] = await ijs.exec(args[1], world)
+            } else if (args[0][0] == "const_pre") {
+                varName = args[0][1]
+                assignType = "const"
+                // lol
+                world.state[varName] = await ijs.exec(args[1], world)
+            }
+        } else {
+            var w = ijs.getWorldForKey(world, varName)
+            world.global.state[varName] = await ijs.exec(args[1], world)
         }
     },
     "+=": function (args, world) {
@@ -1499,7 +1531,7 @@ ijs.builtins = {
     },
     "new_pre": function (args, world) {
         // https://stackoverflow.com/questions/3871731/dynamic-object-construction-in-javascript
-        log2("+args for new")
+        // log2("+args for new")
         var theClass = ijs.exec(args[0][1], world)
         log2(args[0].slice(2)[0])
         var theArgs = args[0].slice(2)[0].map(function(t) {
@@ -1546,8 +1578,8 @@ ijs.builtins = {
         // log2(args)
         // return
         args = args[0].slice(1)
-        log2("+args for async")
-        log2(args)
+        // log2("+args for async")
+        // log2(args)
         var name = ""
         var params
         var paramsAndName = args[0]
@@ -1558,10 +1590,10 @@ ijs.builtins = {
             params = args[0]
         }
         var body = args[1][1]
-        log2("+params for async")
-        log2(params)
-        log2("+body for async")
-        log2(body)
+        // log2("+params for async")
+        // log2(params)
+        // log2("+body for async")
+        // log2(body)
         var f = ijs.makeAsyncFunc(params, body, world)
         if (name) {
             ijs.set(name, f, world, "var")
@@ -1818,7 +1850,7 @@ window.testObj = {
 //             }, ms)
 //         })
 //     }
-//
+// 
 //     alert("hi")
 //     await sleep(1000)
 //     alert("bye")
@@ -1847,13 +1879,12 @@ var code = String.raw`
 // var hi = 2 * (3 + 1)
 // var hi2 = 2 * 3 + 1
 
-var p = new Promise(function (resolve, reject) {
-    resolve("poo")
-})
-// alert("p is " + p)
-p.then(function (x) {
-    alert("resolved: " + x)
-})
+// var p = new Promise(function (resolve, reject) {
+//     resolve("poo")
+// })
+// p.then(function (x) {
+//     alert("resolved: " + x)
+// })
 
 
 // var a = new Date(foo)
@@ -1866,30 +1897,34 @@ p.then(function (x) {
 // }, 1000)
 
 
-
-// async function test10() {
-//     var sleep = function (ms) {
-//         return new Promise(function (resolve, reject) {
-//             setTimeout(function () {
-//                 alert("resolving")
-//                 resolve()
-//             }, ms)
-//         })
-//     }
-// 
-//     alert("hi")
-//     await sleep(1000)
-//     alert("bye")
-//     // var foo = async function (a) {
-//     //     return 1
-//     // }
-//     // log2(foo.toString())
-//     // var v = await foo(20)
-//     // // var v = foo(20)
-//     // alert(v)
+// var a = function () {
+//     alert("yay")
 // }
-// test10()
-// alert(foo2)
+
+
+// setTimeout(function () {
+//     alert("yay")
+// }, 1000)
+async function test10() {
+    var sleep = function (ms) {
+        return new Promise(function (resolve, reject) {
+            log2("doing the setTimeout " + ms)
+            setTimeout(function () {
+                resolve()
+            }, ms)
+        })
+    }
+    alert("hi")
+    await sleep(1000)
+    alert("bye")
+    // var foo = async function (a) {
+    //     return 1
+    // }
+    // alert("yo")
+    // var v = await foo(20)
+    // alert(v)
+}
+test10()
 
 
 
