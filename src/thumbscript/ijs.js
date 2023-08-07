@@ -1223,9 +1223,10 @@ ijs.builtins = {
                 } else if (arg[0] == "await_pre") {
                     await ijs.exec(arg[1], world)
                     continue
-                // } else if (arg[0] == "=") {
-                //     // special case for var a = await smthbg()
-                //     return ijs.callFunc("=await", arg.slice(1), world)
+                } else if (arg[0] == "=" && arg[2][0] == "await_pre") {
+                    // special case for var a = await smthbg()
+                    await ijs.callFunc("=await", arg.slice(1), world)
+                    continue
                 }
                 // log2("the thing to run is " + JSON.stringify(arg))
             }
@@ -1330,7 +1331,8 @@ ijs.builtins = {
                 varName = args[0][1]
                 assignType = "var"
                 var w = ijs.getWorldForKey(world, varName) || world
-                w.state[varName] = await ijs.exec(args[1], world)
+                var val = await ijs.exec(args[1], world)
+                w.state[varName] = val
             } else if (args[0][0] == "let_pre") {
                 varName = args[0][1]
                 assignType = "let"
@@ -1785,6 +1787,48 @@ ijs.exec = function(tokens, world) {
     }
     return ijs.callFunc(tokens[0], tokens.slice(1), world)
 }
+ijs.execAsync = async function(tokens, world) {
+    if (typeof tokens == "number") {
+        return tokens
+    }
+    if (typeof tokens == "boolean") {
+        return tokens
+    }
+    if (tokens.length == 0) {
+        return void 0;
+    }
+    // state = state || {}
+    // simplify lexical rules?
+    // anuthing in a function shares state.
+    // no nested var.
+
+    // if (typeof tokens == "function") {
+    //     return tokens
+    // }
+
+    if (typeof tokens != "object") {
+        // string encoding
+        var token = tokens
+        if (token.charAt(0) == "#") {
+            return token.slice(1)
+        }
+
+        var w = ijs.getWorldForKey(world, token)
+        if (w == null) {
+            log2("-can't find world for " + token)
+        }
+        // alert("typeof w is " + typeof w)
+        return w.state[token]
+
+        // if (token in window) {
+        //     return window[token]
+        // }
+
+        // or throw?
+        return undefined
+    }
+    return await ijs.callFunc(tokens[0], tokens.slice(1), world)
+}
 
 ijs.callFunc = function(funcAccessor, theArgs, world) {
     if (funcAccessor in ijs.builtins) {
@@ -1906,23 +1950,26 @@ var code = String.raw`
 //     alert("yay")
 // }, 1000)
 async function test10() {
-    var sleep = function (ms) {
+    // var sleep = function (ms) {
+    //     return new Promise(function (resolve, reject) {
+    //         log2("doing the setTimeout " + ms)
+    //         setTimeout(function () {
+    //             resolve()
+    //         }, ms)
+    //     })
+    // }
+    // alert("hi")
+    // await sleep(1000)
+    // alert("bye")
+    
+    var foo = async function (a) {
+        // return 200
         return new Promise(function (resolve, reject) {
-            log2("doing the setTimeout " + ms)
-            setTimeout(function () {
-                resolve()
-            }, ms)
+            resolve(99)
         })
     }
-    alert("hi")
-    await sleep(1000)
-    alert("bye")
-    // var foo = async function (a) {
-    //     return 1
-    // }
-    // alert("yo")
-    // var v = await foo(20)
-    // alert(v)
+    var v = await foo(20)
+    alert(v)
 }
 test10()
 
