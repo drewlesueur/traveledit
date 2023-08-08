@@ -581,7 +581,7 @@ ijs.infixes = {
          "associatitivity": 0,
          "precedence": 17,
      },
-     ".?": {
+     "?.": {
          "associatitivity": 0,
          "precedence": 17,
      },
@@ -1341,6 +1341,21 @@ ijs.builtins = {
         }
         return ret
     },
+    "?.": function (args, world) {
+        var o = ijs.exec(args[0], world)
+        
+        if (o === null) {
+            return undefined
+        }
+        if (o === undefined) {
+            return undefined
+        }
+        var ret = o[args[1]]
+        if (typeof ret == "function") {
+            return ret.bind(o)
+        }
+        return ret
+    },
     "<computedMemberAccess>": function (args, world) {
         var o = ijs.exec(args[0], world)
         var ret = o[ijs.exec(args[1], world)]
@@ -1429,6 +1444,9 @@ ijs.builtins = {
     "<object>_pre": function(args, world) {
         var o = {}
         args = args[0]
+        if (!args) {
+            return o
+        }
         for (var i=0; i<args.length; i++) {
             var kv = args[i]
             var key = kv[1]
@@ -1605,6 +1623,43 @@ ijs.builtins = {
             ijs.exec(next, world)
         }
     },
+    "try_pre": function (args, world) {
+        var tryWorld = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: false,
+            blockScope: true,
+        }
+        var catchWorld = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: false,
+            blockScope: true,
+        }
+        var tryBody = args[0][1] || []
+        var catchBody = args[3][1] || []
+        
+        try {
+            var ret = ijs.builtins.run(tryBody, tryWorld, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
+        } catch (e) {
+            catchWorld.state[args[2][1][0]] = e
+            var ret = ijs.builtins.run(catchBody, catchWorld, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
+        }
+    },
     "if_pre": function (args, world) {
         var world = {
             parent: world,
@@ -1706,9 +1761,9 @@ ijs.exec = function(tokens, world) {
         }
 
         var w = ijs.getWorldForKey(world, token)
-        if (w == null) {
-            log2("-can't find world for " + token)
-        }
+        // if (w == null) {
+        //     log2("-can't find world for " + token)
+        // }
         // alert("typeof w is " + typeof w)
         return w.state[token]
 
@@ -1812,6 +1867,17 @@ window.testObj = {
 
 var code = String.raw`
 
+// var foo = {}
+// alert(foo.a.b)
+// alert(foo?.a?.b)
+// try {
+//     // alert(wombat)
+//     // foo = 1
+//     // foo.bar.baz
+// } catch (e) {
+//     alert("woops")
+//     // alert("woops: ")
+// }
 // var a = x => x + 1
 // var b = (x) => x + 1
 // var c = (x) => { return x + 1 }
@@ -1827,8 +1893,8 @@ var code = String.raw`
 //     e()
 // ])
 
-p = {a: 10, b: 20}
-log2(p)
+// p = {a: 10, b: 20 c: {hey: 20, "yo": 21}}
+// log2(p)
 
 // while (true) {
 //     let letty1 = 1
