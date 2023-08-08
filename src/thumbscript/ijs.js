@@ -1,4 +1,7 @@
 // todo: not slicing as much would prob be faster
+// try catch
+// for in
+// for of
 // TODO: true, false
 
 var ijs = {}
@@ -1426,11 +1429,14 @@ ijs.builtins = {
     "<object>_pre": function(args, world) {
         var o = {}
         args = args[0]
-        for (var i=0; i<args.length-1; i+=2) {
-            if (args[i].charAt(0) == "#") {
-                args[i] = args[i].slice(1)
+        for (var i=0; i<args.length; i++) {
+            var kv = args[i]
+            var key = kv[1]
+            var value = kv[2]
+            if (key.charAt(0) == "#") {
+                key = key.slice(1)
             }
-            o[args[i]] = ijs.exec(args[i+1], world)
+            o[key] = ijs.exec(value, world)
         }
         return o
     },
@@ -1806,19 +1812,23 @@ window.testObj = {
 
 var code = String.raw`
 
-var a = x => x + 1
-var b = (x) => x + 1
-var c = (x) => { return x + 1 }
-var d = (x, y) => { return x + y }
-var e = () => 200
+// var a = x => x + 1
+// var b = (x) => x + 1
+// var c = (x) => { return x + 1 }
+// var d = (x, y) => { return x + y }
+// var e = () => 200
+// 
+// 
+// log2([
+//     a(2)
+//     b(2)
+//     c(2)
+//     d(2, 1)
+//     e()
+// ])
 
-log2([
-    a(2)
-    b(2)
-    c(2)
-    d(2, 1)
-    e()
-])
+p = {a: 10, b: 20}
+log2(p)
 
 // while (true) {
 //     let letty1 = 1
