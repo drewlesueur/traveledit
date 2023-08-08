@@ -79,7 +79,7 @@ ijs.tokenize = function(code) {
                 tokens.push(chr)
             } else if ("[]".indexOf(chr) != -1) {
                 if (i != 0 && "[".indexOf(chr) != -1) {
-                    if (" \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                    if (" \t\n(".indexOf(code.charAt(i-1)) == -1 ) {
                         tokens.push("<computedMemberAccess>")
                     } else {
                         tokens.push("<array>")
@@ -137,7 +137,7 @@ ijs.tokenize = function(code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n(".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<computedMemberAccess>")
                 }
                 tokens.push(chr)
@@ -183,7 +183,7 @@ ijs.tokenize = function(code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n(".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<computedMemberAccess>")
                 }
                 tokens.push(chr)
@@ -302,7 +302,7 @@ ijs.tokenize = function(code) {
                 var prev = newTokens.pop()
                 newTokens.push(prev) // lol
                 if (prev == "<computedMemberAccess>") {
-                    t = t[0]
+                    t = t[0] || []
                 }
                 newTokens.push(t)
             }
@@ -1502,6 +1502,24 @@ ijs.builtins = {
         }
         return f
     },
+    "=>": function(args, world) {
+        var name = ""
+        var params = args[0]
+        // var body = args[1][1]
+        var body = args[1]
+        if (typeof params == "object") {
+            params = params[1]
+        } else {
+            params = [params]
+        }
+        if (body[0] == "<object>_pre") {
+            body = body[1]
+        } else {
+            body = [["return_pre", body]]
+        }
+        var f = ijs.makeFunc(params, body, world, false)
+        return f
+    },
     "<group>_pre": function(args, world) {
         return ijs.exec(args[0][0], world)
     },
@@ -1788,11 +1806,19 @@ window.testObj = {
 
 var code = String.raw`
 
-// var a = x => x + 1
-// var b = (x) => x + 1
-// var c = (x) => { return x + 1 }
-// var d = (x, y) => { return x + y }
-// var e = () => 200
+var a = x => x + 1
+var b = (x) => x + 1
+var c = (x) => { return x + 1 }
+var d = (x, y) => { return x + y }
+var e = () => 200
+
+log2([
+    a(2)
+    b(2)
+    c(2)
+    d(2, 1)
+    e()
+])
 
 // while (true) {
 //     let letty1 = 1
