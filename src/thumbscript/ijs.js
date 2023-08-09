@@ -4,6 +4,34 @@
 // for of
 // TODO: true, false
 
+// how would I write this js without the sugar?
+// [...a]
+// 
+// Without using the ES6 spread syntax `[...a]`, you can use the slice() method of arrays:
+// ```javascript
+// var newArray = a.slice();
+// ```
+// The slice method will create a new array 
+// that is a shallow copy of `a`. 
+// Bear in mind that because it creates a shallow copy, 
+// deep objects will be referenced 
+// and not fully copied. 
+// This means if you modify a deep object 
+// in `newArray`, 
+// it will also modify `a`.
+
+
+
+
+// how would I write this js without the sugar?
+// {...a}
+
+// Sure! If you want to manually spread the properties of an object in JavaScript without using the spread syntax (`{...a}`), you can use `Object.assign()`. This method can be used to copy the values of all enumerable own properties from one or more source objects to a target object. Here's how you can do it:
+// ```javascript
+// Object.assign({}, a);
+// ```
+// So the Javascript object spread `{...a}` is simply a "sugar" for `Object.assign({}, a)`.
+
 var ijs = {}
 // TODO: ignore : , ;
 // TOODO: interpolation? (template literals)
@@ -73,7 +101,7 @@ ijs.tokenize = function(code) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\(\[".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -127,7 +155,7 @@ ijs.tokenize = function(code) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\(\[".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -173,7 +201,7 @@ ijs.tokenize = function(code) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\(\[".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -1156,7 +1184,7 @@ ijs.builtins = {
                 assignType = "var"
                 // var w = ijs.getWorldForKey(world, varName) || world
                 var w = world
-                if (w.blockScope) {
+                while (w.blockScope) {
                     w = w.parent
                 }
                 w.state[varName] = ijs.exec(args[1], world)
@@ -1172,8 +1200,8 @@ ijs.builtins = {
                 w.state[varName] = ijs.exec(args[1], world)
             }
         } else {
-            var w = ijs.getWorldForKey(world, varName)
-            world.global.state[varName] = ijs.exec(args[1], world)
+            var w = ijs.getWorldForKey(world, varName) || world.global
+            w.state[varName] = ijs.exec(args[1], world)
         }
     },
     "=await": async function (args, world) {
@@ -1211,10 +1239,12 @@ ijs.builtins = {
         }
     },
     "+=": function (args, world) {
-        world.state[args[0]] += ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] += ijs.exec(args[1], world)
     },
     "-=": function (args, world) {
-        world.s[args[0]] -= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] -= ijs.exec(args[1], world)
     },
     "**=": function (args, world) {
         world[args[0]] **= ijs.exec(args[1], world)
@@ -1561,7 +1591,7 @@ ijs.builtins = {
         // body.unshift("run")
         // body = ["run", ...body]
 
-        var world = {
+        var wrapperWorld = {
             parent: world,
             state: {},
             cachedLookupWorld: {},
@@ -1570,10 +1600,18 @@ ijs.builtins = {
             blockScope: true,
         }
         var i = 0
-        while (ijs.exec(condition, world)) {
+        while (ijs.exec(condition, wrapperWorld)) {
+            let loopWorld = {
+                parent: wrapperWorld,
+                state: {...wrapperWorld.state},
+                cachedLookupWorld: {},
+                global: wrapperWorld.global,
+                async: false,
+                blockScope: true,
+            }
             i++
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins.run(body, world, true)
+            var ret = ijs.builtins.run(body, loopWorld, true)
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     // we stop here and don't return the breakMessage
@@ -1584,18 +1622,15 @@ ijs.builtins = {
                     return ret
                 }
             }
-            // if (i == 40) {
-            //     break
-            // }
+            if (i == 40) {
+                break
+            }
         }
     },
     "for_pre": function (args, world) {
-        var init = args[0][1][0]
-        var cond = args[0][1][1]
-        var next = args[0][1][2]
-        var body = args[1][1] || []
-
-        var world = {
+        // crap you need a world per loop!
+        
+        let wrapperWorld = {
             parent: world,
             state: {},
             cachedLookupWorld: {},
@@ -1603,15 +1638,73 @@ ijs.builtins = {
             async: false,
             blockScope: true,
         }
-        var i = 0
-        ijs.exec(init, world)
-        while (ijs.exec(cond, world)) {
-            i++
-            if (i > 50) {
-                break
+        var body = args[1][1] || []
+        if (args[0][1].length == 1) {
+            // not doing destructuring,
+            // dang js is complex.
+            // for in, for of
+            var list = ijs.exec(args[0][1][0][2], world)
+            var assignType = args[0][1][0][1][0]
+            var varName = args[0][1][0][1][1]
+            alert("var name is " + varName)
+            if (args[0][1][0][0] == "of") {
+                for (var val of list) {
+                    // not allowing global
+                    if (assignType == "var") {
+                        world.parent.state[varName] = val
+                    } else if (assignType == "let" || assignType == "const") {
+                        world.state[varName] = val
+                    }
+                    var ret = ijs.builtins.run(body, world, true)
+                    if (ijs.isSpecialReturn(ret)) {
+                        if (ret.breakMessage) {
+                            break
+                        }
+                        if (ret.returnMessage) {
+                            return ret
+                        }
+                    }
+                }
+                return
+            } else if (args[0][1][0][0] == "in") {
+                for (var val in list) {
+                    // not allowing global
+                    if (assignType == "var") {
+                        world.parent.state[varName] = val
+                    } else if (assignType == "let" || assignType == "const") {
+                        world.state[varName] = val
+                    }
+                    var ret = ijs.builtins.run(body, world, true)
+                    if (ijs.isSpecialReturn(ret)) {
+                        if (ret.breakMessage) {
+                            break
+                        }
+                        if (ret.returnMessage) {
+                            return ret
+                        }
+                    }
+                }
+                return
             }
-            // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins.run(body, world, true)
+            return
+        }
+        var init = args[0][1][0]
+        var cond = args[0][1][1]
+        var next = args[0][1][2]
+
+        // var i = 0
+        ijs.exec(init, wrapperWorld)
+        while (ijs.exec(cond, wrapperWorld)) {
+            let loopWorld = {
+                parent: wrapperWorld,
+                // state: {...wrapperWorld.state},
+                state: {...wrapperWorld.state},
+                cachedLookupWorld: {},
+                global: wrapperWorld.global,
+                async: false,
+                blockScope: true,
+            }
+            var ret = ijs.builtins.run(body, loopWorld, true)
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     break
@@ -1620,7 +1713,7 @@ ijs.builtins = {
                     return ret
                 }
             }
-            ijs.exec(next, world)
+            ijs.exec(next, wrapperWorld)
         }
     },
     "try_pre": function (args, world) {
@@ -1761,10 +1854,10 @@ ijs.exec = function(tokens, world) {
         }
 
         var w = ijs.getWorldForKey(world, token)
-        // if (w == null) {
-        //     log2("-can't find world for " + token)
-        // }
-        // alert("typeof w is " + typeof w)
+        if (w == null) {
+            alert(token)
+            log2("-can't find world for " + token)
+        }
         return w.state[token]
 
         // if (token in window) {
@@ -1864,8 +1957,34 @@ window.testObj = {
 // p.then(function (x) {
 //     alert("resolved: " + x)
 // })
+// var start = Date.now()
+// var total = 0
+// for (let i = 0; i < 100000; i++) {
+//     total += i
+// }
+// var end = Date.now()
+// log2("this for loop took " + (end - start) + " milliseconds " + total)
 
+// var i = 0
+// while (i < 10) {
+//     i++
+//     var i2 = i
+//     setTimeout(() => {
+//         log2("hey " + i2)
+//     }, 100)
+// }
 var code = String.raw`
+
+// var nums = [2 19 23 14 15]
+// for (let x of nums) {
+//     log2("the number is ")
+// }
+
+// for (let i = 0; i < 10; i++) {
+//     setTimeout(() => {
+//         log2("i is " + i)
+//     })
+// }
 
 // var foo = {}
 // alert(foo.a.b)
@@ -1993,21 +2112,37 @@ var code = String.raw`
 // }
 // test10()
 
+// var start = Date.now()
+// var total = 0
+// for (let i = 0; i < 100000; i++) {
+//     total += i
+// }
+// var end = Date.now()
+// log2("for loop took " + (end - start) + " milliseconds " + total)
 
 
+// see difference with var
+// var i = 0
+// while (i < 10) {
+//     i++
+//     let i2 = i
+//     setTimeout(() => {
+//         log2("hey " + i2)
+//     }, 100)
+// }
 
 // var start = Date.now()
 // var i = 0
 // var total = 0
 // while (true) {
 //     i++
-//     if (i == 100000) {
+//     if (i == 10) {
 //         break
 //     }
 //     total += i
 // }
 // var end = Date.now()
-// log2("it took " + (end - start) + " milliseconds " + total)
+// log2("while loop took " + (end - start) + " milliseconds " + total)
 
 // var x = 3 + 4
 // return
