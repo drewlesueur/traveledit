@@ -1247,43 +1247,56 @@ ijs.builtins = {
         w.state[args[0]] -= ijs.exec(args[1], world)
     },
     "**=": function (args, world) {
-        world[args[0]] **= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] **= ijs.exec(args[1], world)
     },
     "*=": function (args, world) {
-        world[args[0]] *= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] *= ijs.exec(args[1], world)
     },
     "/=": function (args, world) {
-        world[args[0]] /= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] /= ijs.exec(args[1], world)
     },
     "%=": function (args, world) {
-        world[args[0]] %= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] %= ijs.exec(args[1], world)
     },
     "<<=": function (args, world) {
-        world[args[0]] <<= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] <<= ijs.exec(args[1], world)
     },
     ">>=": function (args, world) {
-        world[args[0]] >>= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] >>= ijs.exec(args[1], world)
     },
     ">>>=": function (args, world) {
-        world[args[0]] >>>= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] >>>= ijs.exec(args[1], world)
     },
     "&=": function (args, world) {
-        world[args[0]] &= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] &= ijs.exec(args[1], world)
     },
     "^=": function (args, world) {
-        world[args[0]] ^= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] ^= ijs.exec(args[1], world)
     },
     "|=": function (args, world) {
-        world[args[0]] |= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] |= ijs.exec(args[1], world)
     },
     "&&=": function (args, world) {
-        world[args[0]] &&= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] &&= ijs.exec(args[1], world)
     },
     "||=": function (args, world) {
-        world[args[0]] ||= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] ||= ijs.exec(args[1], world)
     },
     "??=": function (args, world) {
-        world[args[0]] ??= ijs.exec(args[1], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        w.state[args[0]] ??= ijs.exec(args[1], world)
     },
     "??": function (args, world) {
         return ijs.exec(args[0], world) ??= ijs.exec(args[1], world)
@@ -1373,7 +1386,6 @@ ijs.builtins = {
     },
     "?.": function (args, world) {
         var o = ijs.exec(args[0], world)
-        
         if (o === null) {
             return undefined
         }
@@ -1414,10 +1426,12 @@ ijs.builtins = {
         return -ijs.exec(args[0], world)
     },
     "++_pre": function (args, world) {
-        return ++ijs.exec(args[0], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        return ++w.state[args[0]]
     },
     "--_pre": function (args, world) {
-        return --ijs.exec(args[0], world)
+        var w = ijs.getWorldForKey(world, args[0])
+        return --w.state[args[0]]
     },
     "typeof_pre": function (args, world) {
         return typeof ijs.exec(args[0], world)
@@ -1446,16 +1460,8 @@ ijs.builtins = {
         var theArgs = args[0].slice(2)[0].map(function(t) {
             return ijs.exec(t, world)
         })
-        // return
         var ret = new (Function.prototype.bind.apply(theClass, [null].concat(theArgs)))
         return ret
-        // var ret = func.apply(null, )
-        // var ret = new (Function.prototype.bind.apply(theClass, [null].concat(array)))
-        // return
-        // var theClass = ijs.exec(args[0][1], world)
-        // var obj = Object.create(theClass.prototype);
-        // theClass.apply(obj, args[0].slice(2));
-        // return obj
     },
     "++_post": function (args, world) {
         var w = ijs.getWorldForKey(world, args[0])
@@ -1489,12 +1495,7 @@ ijs.builtins = {
         return o
     },
     "async_pre": function(args, world) {
-        // log2("+args for async")
-        // log2(args)
-        // return
         args = args[0].slice(1)
-        // log2("+args for async")
-        // log2(args)
         var name = ""
         var params
         var paramsAndName = args[0]
@@ -1505,10 +1506,6 @@ ijs.builtins = {
             params = args[0]
         }
         var body = args[1][1]
-        // log2("+params for async")
-        // log2(params)
-        // log2("+body for async")
-        // log2(body)
         var f = ijs.makeAsyncFunc(params, body, world)
         if (name) {
             ijs.set(name, f, world, "var")
@@ -1516,30 +1513,6 @@ ijs.builtins = {
         return f
     },
     "function_pre": function(args, world) {
-        // [
-        //    "function_pre",
-        //    [
-        //       "<callFunc>",
-        //       "testMe",
-        //       [
-        //          "a",
-        //          "b"
-        //       ]
-        //    ],
-        //    [
-        //       "<object>_pre",
-        //       [
-        //          [
-        //             "return_pre",
-        //             [
-        //                "+",
-        //                "a",
-        //                "b"
-        //             ]
-        //          ]
-        //       ]
-        //    ]
-        // ]
         var name = ""
         var params
         var paramsAndName = args[0]
@@ -1628,8 +1601,6 @@ ijs.builtins = {
         }
     },
     "for_pre": function (args, world) {
-        // crap you need a world per loop!
-        
         let wrapperWorld = {
             parent: world,
             state: {},
@@ -1646,16 +1617,24 @@ ijs.builtins = {
             var list = ijs.exec(args[0][1][0][2], world)
             var assignType = args[0][1][0][1][0]
             var varName = args[0][1][0][1][1]
-            alert("var name is " + varName)
             if (args[0][1][0][0] == "of") {
                 for (var val of list) {
-                    // not allowing global
-                    if (assignType == "var") {
-                        world.parent.state[varName] = val
-                    } else if (assignType == "let" || assignType == "const") {
-                        world.state[varName] = val
+                    let loopWorld = {
+                        parent: wrapperWorld,
+                        // state: {...wrapperWorld.state},
+                        state: {...wrapperWorld.state},
+                        cachedLookupWorld: {},
+                        global: wrapperWorld.global,
+                        async: false,
+                        blockScope: true,
                     }
-                    var ret = ijs.builtins.run(body, world, true)
+                    // not allowing global
+                    if (assignType == "var_pre") {
+                        world.state[varName] = val
+                    } else if (assignType == "let_pre" || assignType == "const_pre") {
+                        loopWorld.state[varName] = val
+                    }
+                    var ret = ijs.builtins.run(body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -1668,13 +1647,22 @@ ijs.builtins = {
                 return
             } else if (args[0][1][0][0] == "in") {
                 for (var val in list) {
-                    // not allowing global
-                    if (assignType == "var") {
-                        world.parent.state[varName] = val
-                    } else if (assignType == "let" || assignType == "const") {
-                        world.state[varName] = val
+                    let loopWorld = {
+                        parent: wrapperWorld,
+                        // state: {...wrapperWorld.state},
+                        state: {...wrapperWorld.state},
+                        cachedLookupWorld: {},
+                        global: wrapperWorld.global,
+                        async: false,
+                        blockScope: true,
                     }
-                    var ret = ijs.builtins.run(body, world, true)
+                    // not allowing global
+                    if (assignType == "var_pre") {
+                        world.state[varName] = val
+                    } else if (assignType == "let_pre" || assignType == "const_pre") {
+                        loopWorld.state[varName] = val
+                    }
+                    var ret = ijs.builtins.run(body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -1975,10 +1963,21 @@ window.testObj = {
 // }
 var code = String.raw`
 
-// var nums = [2 19 23 14 15]
-// for (let x of nums) {
-//     log2("the number is ")
-// }
+var nums = [2 19 23 14 15]
+for (let x of nums) {
+    // log2("the number is " + x)
+    setTimeout(() => {
+        log2("x is " + x)
+    }, 10)
+}
+
+var someObj = {z:99, a: 1, b:2 , c:3}
+for (let key in someObj) {
+    // log2("the number is " + x)
+    setTimeout(() => {
+        log2("key is " + key)
+    }, 10)
+}
 
 // for (let i = 0; i < 10; i++) {
 //     setTimeout(() => {
