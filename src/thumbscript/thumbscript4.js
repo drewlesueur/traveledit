@@ -12,6 +12,7 @@ const closureType = 7; // runtime only, not a token type
 const incrType = 8;
 const noOpType = 9;
 const anchorType = 10;
+const interpolateType = 11;
 
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code) {
@@ -189,9 +190,10 @@ thumbscript4.tokenize = function(code) {
                     addToken("$" + currentToken)
                 } else {
                     tokens.push(prevToken)
-                    addToken("$" + currentToken)
                     if (currentToken.indexOf("$") != -1) {
-                        addToken("interpolate")
+                        tokens.push({th_type: interpolateType, valueString: currentToken})
+                    } else {
+                        addToken("$" + currentToken)
                     }
                 }
                 currentToken = ""
@@ -215,9 +217,10 @@ thumbscript4.tokenize = function(code) {
                         addToken("$" + currentToken)
                     } else {
                         tokens.push(prevToken)
-                        addToken("$" + currentToken)
                         if (currentToken.indexOf("$") != -1) {
-                            addToken("interpolate")
+                            tokens.push({th_type: interpolateType, valueString: currentToken})
+                        } else {
+                            addToken("$" + currentToken)
                         }
                     }
 
@@ -475,8 +478,8 @@ thumbscript4.eval = function(code, state) {
     code = thumbscript4.stdlib + code
 
     var tokens = thumbscript4.tokenize(code)
-    log2(tokens)
-    return
+    // log2(tokens)
+    // return
     world = {
         state: state || {},
         stack: [],
@@ -518,6 +521,10 @@ thumbscript4.displayToken = function(tk) {
                 return `<incr ${tk.valueString}>`
             case noOpType:
                 return `<noop>`
+            case anchorType:
+                return `<anchor ${tk.valueString}>`
+            case interpolateType:
+                return `<interpolate ${tk.valueString}>`
             default:
                 return `huh????`
         }
@@ -1257,6 +1264,14 @@ thumbscript4.next = function(world) {
             case anchorType:
                 world.name = token.valueString
                 break outer
+            case interpolateType:
+                var r = token.valueString.replace(/\$[\w]+/g, function(x) {
+                    x = x.slice(1)
+                    var w = thumbscript4.getWorldForKey(world, x, true, false)
+                    return w.state[x]
+                })
+                world.stack.push(r)
+                break outer
         }
         break
     } while (false)
@@ -1317,6 +1332,12 @@ thumbscript4.stdlib = `
 // `; var code2 = `
 window.xyzzy = 0
 var code = `
+
+
+"Drew" :name
+"the name is $name" say
+•say "the name is $name"
+
 
 {
     0 :count
@@ -1388,7 +1409,7 @@ var code = `
 "that was cool" say
 
 "----" say
-
+3 :x
 •if •("checking 1" say x •is 1) { "one" say }
 •elseif •("checking 2" say x •is 2) { "two" say }  
 •elseif •("checking 3" say x •is 3) { "three" say }  
