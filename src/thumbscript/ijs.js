@@ -1,8 +1,7 @@
 // todo: not slicing as much would prob be faster
-// try catch
-// for in
-// for of
-// TODO: true, false
+// template strings, just the basics
+
+
 
 // how would I write this js without the sugar?
 // [...a]
@@ -365,6 +364,7 @@ ijs.tokenize = function(code) {
 // and doesn't use template strings itself.
 // You don't need to evaluate, just parse
 function parseTemplateString (templateString, state) {
+    // won't allow object literal in templste this way.
     var regex = /\$\{([^}]+)\}/g;
     return templateString.replace(regex, function (x, y) {
         return state[y]
@@ -1198,6 +1198,14 @@ ijs.builtins = {
                 assignType = "const"
                 var w = world
                 w.state[varName] = ijs.exec(args[1], world)
+            } else if (args[0][0] == ".") {
+                var obj = ijs.exec(args[0][1], world) 
+                varName = args[0][2]
+                obj[varName] = ijs.exec(args[1], world)
+            } else if (args[0][0] == "<computedMemberAccess>") {
+                var obj = ijs.exec(args[0][1], world) 
+                var varName = ijs.exec(args[0][2], world) 
+                obj[varName] = ijs.exec(args[1], world)
             }
         } else {
             var w = ijs.getWorldForKey(world, varName) || world.global
@@ -1232,6 +1240,14 @@ ijs.builtins = {
                 assignType = "const"
                 var w = ijs.getWorldForKey(world, varName) || world
                 w.state[varName] = await ijs.exec(args[1], world)
+            } else if (args[0][0] == ".") {
+                var obj = ijs.exec(args[0][1], world) 
+                varName = args[0][2]
+                obj[varName] = await ijs.exec(args[1], world)
+            } else if (args[0][0] == "<computedMemberAccess>") {
+                var obj = ijs.exec(args[0][1], world) 
+                var varName = ijs.exec(args[0][2], world) 
+                obj[varName] = await ijs.exec(args[1], world)
             }
         } else {
             var w = ijs.getWorldForKey(world, varName)
@@ -1239,6 +1255,18 @@ ijs.builtins = {
         }
     },
     "+=": function (args, world) {
+        if (typeof args[0] === "object") {
+            if (args[0][0] == ".") {
+                var obj = ijs.exec(args[0][1], world) 
+                varName = args[0][2]
+                obj[varName] += ijs.exec(args[1], world)
+            } else if (args[0][0] == "<computedMemberAccess>") {
+                var obj = ijs.exec(args[0][1], world) 
+                var varName = ijs.exec(args[0][2], world) 
+                obj[varName] += ijs.exec(args[1], world)
+            }
+            return
+        }
         var w = ijs.getWorldForKey(world, args[0])
         w.state[args[0]] += ijs.exec(args[1], world)
     },
@@ -1299,7 +1327,7 @@ ijs.builtins = {
         w.state[args[0]] ??= ijs.exec(args[1], world)
     },
     "??": function (args, world) {
-        return ijs.exec(args[0], world) ??= ijs.exec(args[1], world)
+        return ijs.exec(args[0], world) ?? ijs.exec(args[1], world)
     },
     "||": function (args, world) {
         return ijs.exec(args[0], world) || ijs.exec(args[1], world)
@@ -1963,21 +1991,54 @@ window.testObj = {
 // }
 var code = String.raw`
 
-var nums = [2 19 23 14 15]
-for (let x of nums) {
-    // log2("the number is " + x)
-    setTimeout(() => {
-        log2("x is " + x)
-    }, 10)
+var person = {
+    eyes: {
+        left: {
+            color: "blue"
+        },
+        right: {
+            color: "green"
+        },
+    }
 }
 
-var someObj = {z:99, a: 1, b:2 , c:3}
-for (let key in someObj) {
-    // log2("the number is " + x)
-    setTimeout(() => {
-        log2("key is " + key)
-    }, 10)
-}
+var p2 = 10
+let p3 = 11
+p4 = 12
+
+person.eyes.left.color = 10
+person.eyes.left.color += 100
+person.eyes["right"].color = 300
+person.eyes["right"].color += 3
+log2(person)
+
+// document.body.style.backgroundColor = 'pink'
+// document.body["style"].backgroundColor = 'pink'
+
+
+// alert(window.sss)
+// x = 7
+// 
+// y = x ? "yay" : "nay"
+// y = x ? (true ? "yay1" : "yay2") : "nay"
+
+// alert(y)
+
+// var nums = [2 19 23 14 15]
+// for (let x of nums) {
+//     // log2("the number is " + x)
+//     setTimeout(() => {
+//         log2("x is " + x)
+//     }, 10)
+// }
+// 
+// var someObj = {z:99, a: 1, b:2 , c:3}
+// for (let key in someObj) {
+//     // log2("the number is " + x)
+//     setTimeout(() => {
+//         log2("key is " + key + ", value is " + someObj[key])
+//     }, 10)
+// }
 
 // for (let i = 0; i < 10; i++) {
 //     setTimeout(() => {
