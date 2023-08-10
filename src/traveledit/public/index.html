@@ -2747,6 +2747,7 @@ function findPrevCharClass(theLine, index) {
 function isWordyChar(c, strict) {
     return c && isWordy(c.charCodeAt(0), strict)
 }
+
 // check for A-Za-z0-9_
 function isWordy(a, strict) {
     return (
