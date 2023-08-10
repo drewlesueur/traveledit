@@ -475,7 +475,8 @@ thumbscript4.eval = function(code, state) {
     code = thumbscript4.stdlib + code
 
     var tokens = thumbscript4.tokenize(code)
-    // return
+    log2(tokens)
+    return
     world = {
         state: state || {},
         stack: [],
@@ -554,8 +555,9 @@ thumbscript4.run = function(world) {
 }
 
 thumbscript4.runAsync = function(world) {
+    // TODO: rendering was really slow for rendering with log2
     var oldPreventRender = preventRender
-    preventRender = true
+    // preventRender = true
     for (var i = 0; i < thumbscript4.asyncChunk; i++) {
         world = thumbscript4.next(world)
         if (!world) {
@@ -564,7 +566,7 @@ thumbscript4.runAsync = function(world) {
         // log2("//" + JSON.stringify(world.tokens.slice(world.i, world.i+1)))
         // log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     }
-    preventRender = oldPreventRender
+    // preventRender = oldPreventRender
     render()
     
     if (world) {
@@ -640,7 +642,7 @@ thumbscript4.builtIns = {
     }),
     not: thumbscript4.genFunc1((a) => !!!a),
     "check": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
-    "ifraw": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
+    "?": thumbscript4.genFunc3((b, c, a) => (a ? b : c) ),
     length: thumbscript4.genFunc1((a) => a.length),
     push: thumbscript4.genFunc2((a, b) => a.push(b)),
     pop: thumbscript4.genFunc1((a) => a.pop()),
@@ -655,6 +657,60 @@ thumbscript4.builtIns = {
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
     copylist: thumbscript4.genFunc1((a) => [...a]),
+    jscall: function (world) {
+        var funcName = world.stack.pop()
+        var args = world.stack.pop()
+        var ret = window[funcName](...args)
+        world.stack.push(ret)
+        return world
+    },
+    jscallcb: function (world) {
+        var funcName = world.stack.pop()
+        var args = world.stack.pop()
+        args.push(function (err, ret) {
+            thumbscript4.outstandingCallbacks--
+            world.stack.push(ret)
+            world.stack.push(err)
+            thumbscript4.run(world)
+        })
+        window[funcName](...args)
+        thumbscript4.outstandingCallbacks++
+        return null // this suspends the execution
+    },
+    jscallpromise: function (world) {
+        var funcName = world.stack.pop()
+        var args = world.stack.pop()
+        try {
+            var p = window[funcName](...args)
+        } catch (e) {
+            alert(funcName)
+            alert(args)
+            alert(e)
+        }
+        var returned = false
+        p.then(function (r) {
+            if (!returned) {
+                try {
+                    returned = true
+                    thumbscript4.outstandingCallbacks--
+                    world.stack.push(r)
+                    world.stack.push(null)
+                    thumbscript4.run(world)
+                } catch (e) {
+                    alert(e)
+                }
+            }
+        }).catch(function (err) {
+            if (!returned) {
+                returned = true
+                thumbscript4.outstandingCallbacks--
+                world.stack.push(null)
+                world.stack.push(err)
+                thumbscript4.run(world)
+            }
+        })
+        return null // this suspends the execution
+    },
     dyn: function(world) {
         var a = world.stack.pop()
         a.dynamic = true
@@ -858,11 +914,17 @@ thumbscript4.builtIns = {
         return w
     },
     "return": function(world) {
+        // you could just go to end of tokens ?
         // world = world.dynParent
         if (world.onEnd) world.onEnd(world)
         // TODO: other places need onend too
         world = world.dynParent
         // todo: see onend
+        return world
+    },
+    "continue": function(world) {
+        // same as return, but I like better
+        world.i = world.tokens.length
         return world
     },
     "exit": function(world) {
