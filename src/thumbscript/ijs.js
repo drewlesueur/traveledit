@@ -1079,11 +1079,49 @@ ijs.makeFunc = function(params, body, world) {
 // ijs.breakMessage = {"break": true}
 // ijs.continueMessage = {"continue":true}
 
+ijs.assinmentOps = {
+    "+=": (o, k, v) => { return o[k] += v },
+    "-=": (o, k, v) => { return o[k] -= v },
+    "**=": (o, k, v) => { return o[k] **= v },
+    "*=": (o, k, v) => { return o[k] *= v },
+    "/=": (o, k, v) => { return o[k] /= v },
+    "%=": (o, k, v) => { return o[k] %= v },
+    "<<=": (o, k, v) => { return o[k] <<= v },
+    ">>=": (o, k, v) => { return o[k] >>= v },
+    ">>>=": (o, k, v) => { return o[k] >>>= v },
+    "&=": (o, k, v) => { return o[k] &= v },
+    "^=": (o, k, v) => { return o[k] ^= v },
+    "|=": (o, k, v) => { return o[k] |= v },
+    "&&=": (o, k, v) => { return o[k] &&= v },
+    "||=": (o, k, v) => { return o[k] ||= v },
+    "??=": (o, k, v) => { return o[k] ??= v },
+}
+ijs.makeAssignmentBuiltin = function (opFunc) {
+    return function (args, world) {
+        if (typeof args[0] === "object") {
+            if (args[0][0] == ".") {
+                var obj = ijs.exec(args[0][1], world) 
+                varName = args[0][2]
+                // obj[varName] += ijs.exec(args[1], world)
+                opFunc(obj, varName, ijs.exec(args[1], world))
+            } else if (args[0][0] == "<computedMemberAccess>") {
+                var obj = ijs.exec(args[0][1], world) 
+                var varName = ijs.exec(args[0][2], world) 
+                // obj[varName] += ijs.exec(args[1], world)
+                opFunc(obj, varName, ijs.exec(args[1], world))
+            }
+            return
+        }
+        var w = ijs.getWorldForKey(world, args[0])
+        // w.state[args[0]] += ijs.exec(args[1], world)
+        opFunc(w.state, args[0], ijs.exec(args[1], world))
+    }
+}
 
 ijs.builtins = {
     // todo: might conflict with a variable named run
     // call it "<run>"
-    "runAsync": async function(args, world, inBlock) {
+    "runAsync": async function (args, world, inBlock) {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
@@ -1254,78 +1292,22 @@ ijs.builtins = {
             world.global.state[varName] = await ijs.exec(args[1], world)
         }
     },
-    "+=": function (args, world) {
-        if (typeof args[0] === "object") {
-            if (args[0][0] == ".") {
-                var obj = ijs.exec(args[0][1], world) 
-                varName = args[0][2]
-                obj[varName] += ijs.exec(args[1], world)
-            } else if (args[0][0] == "<computedMemberAccess>") {
-                var obj = ijs.exec(args[0][1], world) 
-                var varName = ijs.exec(args[0][2], world) 
-                obj[varName] += ijs.exec(args[1], world)
-            }
-            return
-        }
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] += ijs.exec(args[1], world)
-    },
-    "-=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] -= ijs.exec(args[1], world)
-    },
-    "**=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] **= ijs.exec(args[1], world)
-    },
-    "*=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] *= ijs.exec(args[1], world)
-    },
-    "/=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] /= ijs.exec(args[1], world)
-    },
-    "%=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] %= ijs.exec(args[1], world)
-    },
-    "<<=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] <<= ijs.exec(args[1], world)
-    },
-    ">>=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] >>= ijs.exec(args[1], world)
-    },
-    ">>>=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] >>>= ijs.exec(args[1], world)
-    },
-    "&=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] &= ijs.exec(args[1], world)
-    },
-    "^=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] ^= ijs.exec(args[1], world)
-    },
-    "|=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] |= ijs.exec(args[1], world)
-    },
-    "&&=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] &&= ijs.exec(args[1], world)
-    },
-    "||=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] ||= ijs.exec(args[1], world)
-    },
-    "??=": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        w.state[args[0]] ??= ijs.exec(args[1], world)
-    },
+    "+=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["+="]),
+    "-=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["-="]),
+    "**=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["**="]),
+    "*=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["*="]),
+    "/=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["/="]),
+    "%=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["%="]),
+    "<<=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["<<="]),
+    ">>=": ijs.makeAssignmentBuiltin(ijs.assinmentOps[">>="]),
+    ">>>=": ijs.makeAssignmentBuiltin(ijs.assinmentOps[">>>="]),
+    "&=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["&="]),
+    "^=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["^="]),
+    "|=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["|="]),
+    "&&=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["&&="]),
+    "||=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["||="]),
+    "??=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["??="]),
+
     "??": function (args, world) {
         return ijs.exec(args[0], world) ?? ijs.exec(args[1], world)
     },
@@ -2010,6 +1992,7 @@ person.eyes.left.color = 10
 person.eyes.left.color += 100
 person.eyes["right"].color = 300
 person.eyes["right"].color += 3
+person.eyes["right"].color -= 1
 log2(person)
 
 // document.body.style.backgroundColor = 'pink'
