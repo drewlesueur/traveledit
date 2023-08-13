@@ -507,6 +507,16 @@ var oneTimeLinks map[string]string
 
 var proxyPath *string
 
+func addCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Add your headers here
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+		w.Header().Add("Access-Control-Allow-Methods", "*")
+		w.Header().Add("Access-Control-Allow-Headers", "*")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	workspaceCond = sync.NewCond(&workspaceMu)
 	// TODO: #wschange save workspace to file so ot persists
@@ -651,8 +661,12 @@ func main() {
 	}()
 
 	mux := http.NewServeMux()
+	
 	fs := http.FileServer(http.Dir("./public"))
-	mux.Handle("/tepublic/", http.StripPrefix("/tepublic/", fs))
+	// mux.Handle("/tepublic/", http.StripPrefix("/tepublic/", fs))
+	mux.Handle("/tepublic/", addCORS(http.StripPrefix("/tepublic/", fs)))
+    
+
 
 	publicPath2 := os.Getenv("PUBLICPATH")
 	if publicPath2 != "" {
@@ -1604,8 +1618,9 @@ func main() {
 	        fmt.Fprintf(w, "%s", "Error, could not find it")
 	        return
 	    }
+	    
 	    // one time
-	    delete(oneTimeLinks, code)
+	    // delete(oneTimeLinks, code)
 
 		fullPath = combinePath(*location, fullPath)
 		fileInfo, err := os.Stat(fullPath)

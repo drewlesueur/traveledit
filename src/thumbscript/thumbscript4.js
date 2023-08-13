@@ -475,6 +475,7 @@ thumbscript4.eval = function(code, state) {
     code = thumbscript4.stdlib + code
 
     var tokens = thumbscript4.tokenize(code)
+    // log2(tokens)
     // return
     world = {
         state: state || {},
@@ -1225,9 +1226,9 @@ thumbscript4.stdlib = `
     checkn: •local { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
     timeit: •local { :n :block
         nowmillis :start
-        ~block n loopn
+        // ~block n loopn
         // ~block n loopninline
-        // ~block n jsloopn
+        ~block n jsloopn
         nowmillis :end
         end •minus start :total
         ["it took" total "milliseconds"] sayn
@@ -1255,6 +1256,23 @@ thumbscript4.stdlib = `
 // `; var code2 = `
 window.xyzzy = 0
 var code = `
+
+
+// person: [a: 1 friend: [b: 1]]
+
+foo: [bar: [baz: 3]]
+// foo say
+[foo $bar $baz] props say
+
+10 :[foo "bar" "baz"]
+[foo $bar $baz] props say
+
+[foo "bar" "baz"]: 30
+[foo $bar $baz] props say
+
+// person say
+
+// "woa" : [person "a" "friend" "c"]
 
 {
     0 :count
