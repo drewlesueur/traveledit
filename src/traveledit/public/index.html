@@ -1349,9 +1349,14 @@ function osPasteText() {
         alert("not copied: " + e)
     })
 }
+
+
 function doRefresh() {
     saveWorkspace().then(function() {
-        location.reload()
+        // location.reload()
+        var fileIndex = files.indexOf(fx)
+        var newURL = addParamToCurrentURL("fileIndex", fileIndex)
+        location.href = newURL
     })
 }
 
@@ -2033,6 +2038,12 @@ function runEditorCommand(e) {
     case "e":
         var resp = eval(rest)
         alert(resp)
+        break
+    case "sort":
+        sortSelected()
+        break
+    case "uniq":
+        uniqSelected()
         break
     case "script":
     case "s":
@@ -3589,6 +3600,51 @@ function getSelectedLines(f, shouldDeleteSelected, shouldUnselect) {
         isWholeFile: isWholeFile,
     }
 }
+
+function sortSelected() {
+    var _t = getSelectedLines(fx, true)
+    var linesToProcess = _t.lines
+    var isWholeFile = _t.isWholeFile
+    linesToProcess.sort()
+    if (isWholeFile) {
+        setLines(linesToProcess)
+        docChanged()
+    } else {
+        pasteLines(linesToProcess, false, false)
+    }
+}
+function uniqSelected() {
+    var _t = getSelectedLines(fx, true)
+    var linesToProcess = _t.lines
+    var isWholeFile = _t.isWholeFile
+    
+    var updatedLines = []
+    var lastLine = null
+    linesToProcess.forEach(line => {
+        if (line !== lastLine) {
+            updatedLines.push(line)
+        }
+        lastLine = line
+    })
+    if (isWholeFile) {
+        setLines(updatedLines)
+        docChanged()
+    } else {
+        pasteLines(updatedLines, false, false)
+    }
+}
+
+function scriptFileLinesWithOneLineScript(f, oneLineScript) {
+    try {
+        var oldFx = fx
+        fx = f
+        scriptLinesWithOneLineScript(oneLineScript)
+        fx = oldFx
+    } catch (e) {
+        alert(e)
+    }
+}
+
 function scriptLinesWithOneLineScript(oneLineScript) {
     var oldPreventRender = preventRender
     preventRender = true
@@ -3660,14 +3716,16 @@ function scriptLinesWithOneLineScript(oneLineScript) {
 function scriptLines() {
     var oldPreventRender = preventRender
     preventRender = true
-
+    
+    var expectedFx = fx
+    
     // second-most-recent file
-    var _t = getSelectedLines(lastFile, true)
+    var _t = getSelectedLines(lastFile, false)
     var linesToProcess = _t.lines
     var isWholeFile = _t.isWholeFile
 
-    var theScriptLines = getSelectedLines(fx, false).lines
-
+    var theScriptLines = getSelectedLines(expectedFx, false).lines
+    
     if (theScriptLines.length) {
         // add return to the last non-empty line
         for (var i=theScriptLines.length-1; i>=0; i--) {
@@ -5379,13 +5437,25 @@ function saveWrapper() {
     autoSave = false
     save()
 }
+
+function saveFile(f) {
+    var oldFx = fx
+    fx = f
+    var p = save()
+    fx = oldFx
+    
+    return p
+}
 function save() {
+    var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
+    
     // using a single for loop to
     // simulate a goto
     // breaks will make sure the 'cleanup' step gets called
     for (var s=0; s<1; s++) {
         if (fx.fileMode != "file") break
         if (fx.savedVersion == fx.version) {
+            resolve()
             break
         }
         fx.savingVersion = fx.version
@@ -5400,7 +5470,8 @@ function save() {
                 render()
                 renderFileDropdown()
                 renderSaves()
-                return
+                resolve()
+                return p
             }
             fetchPromise = fetch(proxyPath + "/saveload?fullpath=" + encodeURIComponent(fx.fullPath), {
                 method: "POST",
@@ -5424,25 +5495,33 @@ function save() {
                 myFx.savingVersion = -1
                 myFx.undo.lastSavedLines = toSave.split("\n")
                 myFx.undo.lastSavedHash = toSaveHash
+                resolve()
             } else {
                 alert("issue saving: " + v.error)
                 myFx.savingVersion = -1
                 // saveDiffs = false
+                reject()
             }
             render()
             renderFileDropdown()
             renderSaves()
         })
-        .catch(e => alert(e))
+        .catch(e => {
+            alert(e)
+            reject(e)
+        })
         render()
     }
 
+    // no auto save
     if (autoSave) {
         setTimeout(save, saveEveryMS)
     }
 
     renderFileDropdown()
     renderSaves()
+    
+    return p
 }
 if (autoSave) {
     setTimeout(save, saveEveryMS)
@@ -9640,7 +9719,19 @@ function selectFileInDirectory(file, selectName) {
         }
     }
 }
+
+function waitFileLoad(f) {
+    if (f.loadPromise) {
+        return f.loadPromise
+    }
+}
 function addFile(fullPath, options, id, name) { // hotpink marker
+    var resolve
+    var p = new Promise(function(res, rej) {
+        resolve = res
+    })
+    
+    
     options = options || {}
     fullPath = normalizeFullPath(fullPath)
     if (fullPath == "") {
@@ -9656,6 +9747,11 @@ function addFile(fullPath, options, id, name) { // hotpink marker
     var cursorLineIndex = 0
     var explicitCursorLineIndex = false
     var parts = fullPath.split(":")
+    
+    // forgetting files with colons for now
+    if (parts.length > 2) {
+        parts = parts.slice(0, 2)
+    }
     
     // ./lib/foo.php:1310:
     if (parts[parts.length - 1] == "") {
@@ -9673,6 +9769,8 @@ function addFile(fullPath, options, id, name) { // hotpink marker
     // quick hack to duplicate file
     if (fx && fx.fullPath == fullPath && !explicitCursorLineIndex) {
         var duped = duplicateFile(fx, -1, options, id)
+        duped.loadPromise = p; resolve()
+        
         selectFileInDirectory(duped, options.selectName)
         return duped
     }
@@ -9680,6 +9778,7 @@ function addFile(fullPath, options, id, name) { // hotpink marker
         if (files[i].fullPath == fullPath) {
             var duped = duplicateFile(files[i], cursorLineIndex, options, id)
             selectFileInDirectory(duped, options.selectName)
+            duped.loadPromise = p; resolve()
             return duped
         }
     }
@@ -9717,12 +9816,12 @@ function addFile(fullPath, options, id, name) { // hotpink marker
         updateCursorXY(file)
         ensureCursorInScreen(file)
         render()
+        resolve()
     }).catch(e => {
         alert("Error loading file " + e)
     })
+    file.loadPromise = p
     return file
-    
-    
 }
 
 function verifyLoadedMD5(f, md5String) {
@@ -10213,6 +10312,10 @@ function fetchFile(fullPath, file, id="") {
             file.fileMode = "file"
         }
         verifyLoadedMD5(file, md5String)
+        
+        // updateCursorXY()
+        // ensureCursorInScreen()
+        // render() // for good measure
     }).catch(e => {
         alert("Error loading file " + e)
     })
@@ -10330,6 +10433,11 @@ function fetchWorkspaceWithList(index) {
             fx.highlightRanges = serverFile.HighlightRanges
         }
         initialFileAdding = false
+        var ust = new URLSearchParams(window.location.search)
+        if (ust.has("fileIndex")) {
+            // todo: rerender after all files finish loading?
+            selectFileIndex(ust.get("fileIndex"))
+        }
         if (workspace.FontName) {
             selectFont(workspace.FontName)
         }
@@ -10509,6 +10617,11 @@ function processHighlightMatches() {
 }
 
 
+function addParamToCurrentURL(key, value) {
+    let urlObject = new URL(window.location.href);
+    urlObject.searchParams.set(key, value);
+    return urlObject.href;
+}
 
 var ust = new URLSearchParams(window.location.search)
 if (ust.has("dark")) {

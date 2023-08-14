@@ -12,6 +12,7 @@ const closureType = 7; // runtime only, not a token type
 const incrType = 8;
 const noOpType = 9;
 const anchorType = 10;
+const interpolateType = 11;
 
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code) {
@@ -189,9 +190,10 @@ thumbscript4.tokenize = function(code) {
                     addToken("$" + currentToken)
                 } else {
                     tokens.push(prevToken)
-                    addToken("$" + currentToken)
                     if (currentToken.indexOf("$") != -1) {
-                        addToken("interpolate")
+                        tokens.push({th_type: interpolateType, valueString: currentToken})
+                    } else {
+                        addToken("$" + currentToken)
                     }
                 }
                 currentToken = ""
@@ -215,9 +217,10 @@ thumbscript4.tokenize = function(code) {
                         addToken("$" + currentToken)
                     } else {
                         tokens.push(prevToken)
-                        addToken("$" + currentToken)
                         if (currentToken.indexOf("$") != -1) {
-                            addToken("interpolate")
+                            tokens.push({th_type: interpolateType, valueString: currentToken})
+                        } else {
+                            addToken("$" + currentToken)
                         }
                     }
 
@@ -518,6 +521,10 @@ thumbscript4.displayToken = function(tk) {
                 return `<incr ${tk.valueString}>`
             case noOpType:
                 return `<noop>`
+            case anchorType:
+                return `<anchor ${tk.valueString}>`
+            case interpolateType:
+                return `<interpolate ${tk.valueString}>`
             default:
                 return `huh????`
         }
@@ -555,8 +562,9 @@ thumbscript4.run = function(world) {
 }
 
 thumbscript4.runAsync = function(world) {
+    // TODO: rendering was really slow for rendering with log2
     var oldPreventRender = preventRender
-    preventRender = true
+    // preventRender = true
     for (var i = 0; i < thumbscript4.asyncChunk; i++) {
         world = thumbscript4.next(world)
         if (!world) {
@@ -565,7 +573,7 @@ thumbscript4.runAsync = function(world) {
         // log2("//" + JSON.stringify(world.tokens.slice(world.i, world.i+1)))
         // log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     }
-    preventRender = oldPreventRender
+    // preventRender = oldPreventRender
     render()
     
     if (world) {
@@ -641,7 +649,7 @@ thumbscript4.builtIns = {
     }),
     not: thumbscript4.genFunc1((a) => !!!a),
     "check": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
-    "ifraw": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
+    "?": thumbscript4.genFunc3((b, c, a) => (a ? b : c) ),
     length: thumbscript4.genFunc1((a) => a.length),
     push: thumbscript4.genFunc2((a, b) => a.push(b)),
     pop: thumbscript4.genFunc1((a) => a.pop()),
@@ -656,6 +664,60 @@ thumbscript4.builtIns = {
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
     copylist: thumbscript4.genFunc1((a) => [...a]),
+    jscall: function (world) {
+        var funcName = world.stack.pop()
+        var args = world.stack.pop()
+        var ret = window[funcName](...args)
+        world.stack.push(ret)
+        return world
+    },
+    jscallcb: function (world) {
+        var funcName = world.stack.pop()
+        var args = world.stack.pop()
+        args.push(function (err, ret) {
+            thumbscript4.outstandingCallbacks--
+            world.stack.push(ret)
+            world.stack.push(err)
+            thumbscript4.run(world)
+        })
+        window[funcName](...args)
+        thumbscript4.outstandingCallbacks++
+        return null // this suspends the execution
+    },
+    jscallpromise: function (world) {
+        var funcName = world.stack.pop()
+        var args = world.stack.pop()
+        try {
+            var p = window[funcName](...args)
+        } catch (e) {
+            alert(funcName)
+            alert(args)
+            alert(e)
+        }
+        var returned = false
+        p.then(function (r) {
+            if (!returned) {
+                try {
+                    returned = true
+                    thumbscript4.outstandingCallbacks--
+                    world.stack.push(r)
+                    world.stack.push(null)
+                    thumbscript4.run(world)
+                } catch (e) {
+                    alert(e)
+                }
+            }
+        }).catch(function (err) {
+            if (!returned) {
+                returned = true
+                thumbscript4.outstandingCallbacks--
+                world.stack.push(null)
+                world.stack.push(err)
+                thumbscript4.run(world)
+            }
+        })
+        return null // this suspends the execution
+    },
     dyn: function(world) {
         var a = world.stack.pop()
         a.dynamic = true
@@ -859,11 +921,17 @@ thumbscript4.builtIns = {
         return w
     },
     "return": function(world) {
+        // you could just go to end of tokens ?
         // world = world.dynParent
         if (world.onEnd) world.onEnd(world)
         // TODO: other places need onend too
         world = world.dynParent
         // todo: see onend
+        return world
+    },
+    "continue": function(world) {
+        // same as return, but I like better
+        world.i = world.tokens.length
         return world
     },
     "exit": function(world) {
@@ -1196,6 +1264,14 @@ thumbscript4.next = function(world) {
             case anchorType:
                 world.name = token.valueString
                 break outer
+            case interpolateType:
+                var r = token.valueString.replace(/\$[\w]+/g, function(x) {
+                    x = x.slice(1)
+                    var w = thumbscript4.getWorldForKey(world, x, true, false)
+                    return w.state[x]
+                })
+                world.stack.push(r)
+                break outer
         }
         break
     } while (false)
@@ -1273,6 +1349,10 @@ foo: [bar: [baz: 3]]
 // person say
 
 // "woa" : [person "a" "friend" "c"]
+"Drew" :name
+"the name is $name" say
+•say "the name is $name"
+
 
 {
     0 :count
@@ -1344,7 +1424,7 @@ foo: [bar: [baz: 3]]
 "that was cool" say
 
 "----" say
-
+3 :x
 •if •("checking 1" say x •is 1) { "one" say }
 •elseif •("checking 2" say x •is 2) { "two" say }  
 •elseif •("checking 3" say x •is 3) { "three" say }  
