@@ -564,7 +564,7 @@ thumbscript4.run = function(world) {
 thumbscript4.runAsync = function(world) {
     // TODO: rendering was really slow for rendering with log2
     var oldPreventRender = preventRender
-    // preventRender = true
+    preventRender = true
     for (var i = 0; i < thumbscript4.asyncChunk; i++) {
         world = thumbscript4.next(world)
         if (!world) {
@@ -573,7 +573,7 @@ thumbscript4.runAsync = function(world) {
         // log2("//" + JSON.stringify(world.tokens.slice(world.i, world.i+1)))
         // log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     }
-    // preventRender = oldPreventRender
+    preventRender = oldPreventRender
     render()
     
     if (world) {
@@ -809,6 +809,8 @@ thumbscript4.builtIns = {
         return world
     },
     jsloopn: function(world) {
+        // for some reason this doesn't work unless you preventRender
+        // see preventRender assignment
         var n = world.stack.pop()
         var f = world.stack.pop()
         var newWorld = {
@@ -1333,7 +1335,6 @@ thumbscript4.stdlib = `
 window.xyzzy = 0
 var code = `
 
-
 // person: [a: 1 friend: [b: 1]]
 
 foo: [bar: [baz: 3]]
@@ -1349,6 +1350,7 @@ foo: [bar: [baz: 3]]
 // person say
 
 // "woa" : [person "a" "friend" "c"]
+
 "Drew" :name
 "the name is $name" say
 •say "the name is $name"
