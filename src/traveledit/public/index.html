@@ -10333,8 +10333,10 @@ function reloadAll() {
 }
 
 function reloadFile(theFile) {
+    var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
     theFile = theFile || fx
     if (theFile.fileMode != "file" && theFile.fileMode != "directory") {
+        resolve()
         return
     }
     // Update all the other instances of this same file, no matter if it's the current file I guess
@@ -10346,10 +10348,12 @@ function reloadFile(theFile) {
             }
         }
         render()
+        resolve()
     }).catch(e => {
         alert("Error loading file " + e)
+        reject()
     })
-
+    return p
 }
 
 var inDebugView = false

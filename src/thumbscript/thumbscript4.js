@@ -659,6 +659,7 @@ thumbscript4.builtIns = {
     slice: thumbscript4.genFunc3((a, b, c) => a.slice(b, c)),
     split: thumbscript4.genFunc2((a, b) => a.split(b)),
     trim: thumbscript4.genFunc1((a) => a.trim()),
+    indexof: thumbscript4.genFunc2((a, b) => a.indexOf(b)),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
