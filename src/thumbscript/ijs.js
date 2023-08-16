@@ -1,5 +1,6 @@
 // todo: not slicing as much would prob be faster
 // template strings, just the basics
+// rename run function
 
 
 
@@ -257,7 +258,10 @@ ijs.tokenize = function(code) {
                 currentToken += '"'
                 if (quoteType == "`") {
                     // todo: make $ escapable
-                    tokens.push(["<interpolate>", JSON.parse(currentToken)])
+                    // log2("current token is ")
+                    // log2(currentToken)
+                    // return
+                    tokens.push(["<interpolate>", JSON.parse(currentToken.replaceAll("\n", "\\n"))])
                 } else {
                     tokens.push("#" + JSON.parse(currentToken))
                 }
@@ -363,6 +367,8 @@ ijs.tokenize = function(code) {
 // that doesn't use eval or `new Function`
 // and doesn't use template strings itself.
 // You don't need to evaluate, just parse
+ijs.templateRegex = /\$\{([^}]+)\}/g;
+
 function parseTemplateString (templateString, state) {
     // won't allow object literal in templste this way.
     var regex = /\$\{([^}]+)\}/g;
@@ -980,22 +986,25 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
 // log2(ijs.infixate(tokens))
 
 
-ijs.run = function(code) {
+ijs.run = function(code, world) {
     var oldPreventRender = preventRender
     preventRender = true
     var tokens = ijs.tokenize(code)
-    log2(tokens)
+    // log2(tokens)
     // return
-    var globalWorld = {
-        state: window,
-        cachedLookupWorld: {},
-        parent: null,
-    }
-    var world = {
-        parent: globalWorld,
-        state: {},
-        cachedLookupWorld: {},
-        global: globalWorld
+    
+    if (!world) {
+        var globalWorld = {
+            state: window,
+            cachedLookupWorld: {},
+            parent: null,
+        }
+        world = {
+            parent: globalWorld,
+            state: {},
+            cachedLookupWorld: {},
+            global: globalWorld
+        }
     }
     var f = ijs.makeFunc([], tokens, world)
     var ret
@@ -1009,6 +1018,7 @@ ijs.run = function(code) {
     log2(f.world.state)
     log2("+return value")
     log2(ret)
+    return ret
 }
 
 // TODO: numbers
@@ -1795,6 +1805,15 @@ ijs.builtins = {
                 return elseRet
             }
         }
+    },
+    "<interpolate>": function (args, world) {
+        return args[0].replace(ijs.templateRegex, function (x, y) {
+            // using runninstead of exec because run also parses
+            y = "return " + y
+            // y = "return 2 + 4"
+            var value = ijs.run(y, world)
+            return value
+        });
     }
 }
 ijs.set = function(key, value, world, setType) {
@@ -1971,29 +1990,53 @@ window.testObj = {
 //         log2("hey " + i2)
 //     }, 100)
 // }
-var code = String.raw`
 
-var person = {
-    eyes: {
-        left: {
-            color: "blue"
-        },
-        right: {
-            color: "green"
-        },
-    }
-}
 
-var p2 = 10
-let p3 = 11
-p4 = 12
 
-person.eyes.left.color = 10
-person.eyes.left.color += 100
-person.eyes["right"].color = 300
-person.eyes["right"].color += 3
-person.eyes["right"].color -= 1
-log2(person)
+
+// function lol() {
+// /*
+// this is a test lol
+// how this work?
+// `yo`
+// */
+// }
+// alert(lol.toString())
+
+
+
+ijs.exampleCode = function () {
+/*
+
+var name = "Drew"
+var x = 20
+// var greeting = `Hello ${name}, is your number ${x + 1}?`
+var greeting = `Hello ${name}, is your number ${x + 1}?
+and your uppercase name is ${name.toUpperCase()}
+`
+log2(greeting)
+
+// var person = {
+//     eyes: {
+//         left: {
+//             color: "blue"
+//         },
+//         right: {
+//             color: "green"
+//         },
+//     }
+// }
+// 
+// var p2 = 10
+// let p3 = 11
+// p4 = 12
+// 
+// person.eyes.left.color = 10
+// person.eyes.left.color += 100
+// person.eyes["right"].color = 300
+// person.eyes["right"].color += 3
+// person.eyes["right"].color -= 1
+// log2(person)
 
 // document.body.style.backgroundColor = 'pink'
 // document.body["style"].backgroundColor = 'pink'
@@ -2290,7 +2333,7 @@ log2(person)
 //     }
 // }
 
-log2("hello world")
+// log2("hello world")
 
 // a = 1
 
@@ -2618,8 +2661,11 @@ log2("hello world")
 //
 //     )
 // )
-`
-// log2(JSON.parse('"\\`"'))
-// code = 'yo = `foob${lol}ar\\${ok}\\`r`'
-// code = "yo = `foob${lol}ar\\`r`"
+
+
+*/
+}
+
+var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
+// var code = String.raw``
 ijs.run(code)

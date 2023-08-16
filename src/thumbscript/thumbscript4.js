@@ -564,7 +564,7 @@ thumbscript4.run = function(world) {
 thumbscript4.runAsync = function(world) {
     // TODO: rendering was really slow for rendering with log2
     var oldPreventRender = preventRender
-    // preventRender = true
+    preventRender = true
     for (var i = 0; i < thumbscript4.asyncChunk; i++) {
         world = thumbscript4.next(world)
         if (!world) {
@@ -573,7 +573,7 @@ thumbscript4.runAsync = function(world) {
         // log2("//" + JSON.stringify(world.tokens.slice(world.i, world.i+1)))
         // log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     }
-    // preventRender = oldPreventRender
+    preventRender = oldPreventRender
     render()
     
     if (world) {
@@ -810,6 +810,8 @@ thumbscript4.builtIns = {
         return world
     },
     jsloopn: function(world) {
+        // for some reason this doesn't work unless you preventRender
+        // see preventRender assignment
         var n = world.stack.pop()
         var f = world.stack.pop()
         var newWorld = {
@@ -1303,9 +1305,9 @@ thumbscript4.stdlib = `
     checkn: •local { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
     timeit: •local { :n :block
         nowmillis :start
-        ~block n loopn
+        // ~block n loopn
         // ~block n loopninline
-        // ~block n jsloopn
+        ~block n jsloopn
         nowmillis :end
         end •minus start :total
         ["it took" total "milliseconds"] sayn
@@ -1334,6 +1336,21 @@ thumbscript4.stdlib = `
 window.xyzzy = 0
 var code = `
 
+// person: [a: 1 friend: [b: 1]]
+
+foo: [bar: [baz: 3]]
+// foo say
+[foo $bar $baz] props say
+
+10 :[foo "bar" "baz"]
+[foo $bar $baz] props say
+
+[foo "bar" "baz"]: 30
+[foo $bar $baz] props say
+
+// person say
+
+// "woa" : [person "a" "friend" "c"]
 
 "Drew" :name
 "the name is $name" say
