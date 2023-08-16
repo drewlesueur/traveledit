@@ -645,17 +645,9 @@ func main() {
 	// trying to use a single mutex for multiple shells?
 	// TODO: serialize and de-serialize the state
 
-	// 📖📖📖📖📖📖📖📖📖📖📖📖
-	// single global mutex for everything.
-	var pollerMu sync.Mutex
-	var pollerRequestID = 0
-	pollerCond := sync.NewCond(&pollerMu)
-	var requestsForPolling = map[string][]*PolledRequest{}
-	var responsesForPolling = map[string]*PolledResponse{}
 	go func() {
 		for range time.NewTicker(1 * time.Second).C {
 			viewCond.Broadcast()
-			pollerCond.Broadcast()
 			workspaceCond.Broadcast()
 		}
 	}()
@@ -1832,35 +1824,6 @@ func main() {
 	mux.HandleFunc("/mylangserver", func(w http.ResponseWriter, r *http.Request) {
 		proxyToLangServer.ServeHTTP(w, r)
 	})
-	mux.HandleFunc("/pollerResponse", func(w http.ResponseWriter, r *http.Request) {
-	})
-	mux.HandleFunc("/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
-		// 👂👂👂👂👂👂
-		pollerName := r.FormValue("poller_name")
-		pollerMu.Lock()
-		defer pollerMu.Unlock()
-		startWait := time.Now()
-		var prs = []*PolledRequest{}
-		for {
-			if time.Since(startWait) > (10 * time.Second) {
-				fmt.Fprintf(w, "%s", "{}")
-				return
-			}
-			prs = requestsForPolling[pollerName]
-			if len(prs) > 0 {
-				break
-			}
-			pollerCond.Wait()
-		}
-		pr := prs[0]
-		// prs = prs[1:]
-		// shift
-		copy(prs, prs[1:])
-		prs = prs[0 : len(prs)-1]
-		requestsForPolling[pollerName] = prs
-		// TODO: underlying array stays large, you could trim it at some point?
-		json.NewEncoder(w).Encode(pr)
-	})
 
 	var mainMux http.Handler = mux
 	if os.Getenv("NOGZIP") != "1" {
@@ -1947,62 +1910,6 @@ func main() {
 		pollForRequests(mainMux)
 		return
 	}
-
-	// Doing the polling handling after we send thr mainMux to pollForRequests
-	// so that we don't get into infinite loop.
-	oldMainMux := mainMux
-	// 🙊🙊🙊🙊🙊🙊🙊🙊
-	mainMux = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pollerName := r.Header.Get("X-Poller-Name")
-		if pollerName == "" {
-			oldMainMux.ServeHTTP(w, r)
-			return
-		}
-		pollerRequestID++
-		requestIDString := fmt.Sprintf("%d", pollerRequestID)
-		rBody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			logAndErr(w, "couldn't open file: %v", err)
-			return
-		}
-		polledRequest := &PolledRequest{
-			RequestID: requestIDString,
-			Method:    r.Method,
-			URL:       r.RequestURI,
-			Header:    r.Header,
-			Body:      rBody,
-		}
-		pollerMu.Lock()
-		requestsForPolling[pollerName] = append(requestsForPolling[pollerName], polledRequest)
-		pollerCond.Broadcast()
-		pollerMu.Unlock()
-		// dead zone. need to unlock so that pollForRequests endpoint can get it and return it
-		pollerMu.Lock()
-		defer pollerMu.Unlock()
-		startWait := time.Now()
-		var polledResponse *PolledResponse
-		for {
-			if time.Since(startWait) > (10 * time.Second) {
-				w.WriteHeader(504)
-				fmt.Fprintf(w, "%s", "{}")
-				return
-			}
-			polledResponse = responsesForPolling[requestIDString]
-			if polledResponse != nil {
-				break
-			}
-			pollerCond.Wait()
-		}
-		delete(responsesForPolling, requestIDString)
-
-		w.WriteHeader(polledResponse.StatusCode)
-		// add headers
-		for k, v := range polledResponse.Header {
-			w.Header().Set(k, v[0])
-		}
-		w.Write(polledResponse.Body)
-
-	})
 
 	httpServer := http.Server{
 		Addr:         *serverAddress,
