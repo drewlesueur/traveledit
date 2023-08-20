@@ -1174,6 +1174,14 @@ ijs.builtins = {
                     // special case for var a = await smthbg()
                     await ijs.callFunc("=await", arg.slice(1), world)
                     continue
+                } else if (arg[0] == "if_pre") {
+                    // control structures need to be awaited
+                    await ijs.builtins.if_pre_await(arg.slice(1), world)
+                    continue
+                } else if (arg[0] == "for_pre") {
+                    // control structures need to be awaited
+                    await ijs.builtins.for_pre_await(arg.slice(1), world)
+                    continue
                 }
                 // log2("the thing to run is " + JSON.stringify(arg))
             }
@@ -1785,7 +1793,7 @@ ijs.builtins = {
         }
     },
     "if_pre": function (args, world) {
-        var world = {
+        world = {
             parent: world,
             // TODO: perf
             state: {},
@@ -1810,6 +1818,32 @@ ijs.builtins = {
         }
         return condRet // hack so else works
     },
+    "if_pre_await": async function (args, world, extra) {
+        var ifWorld = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: false,
+            blockScope: true,
+            async: world.async,
+        }
+        var condition = args[0][1][0]
+        var body = args[1][1] || []
+        // body.unshift("run")
+        // body = ["run", ...body]
+        var condRet = ijs.exec(condition, ifWorld)
+        if (condRet) {
+            // var ret = ijs.exec(body, ifWorld)
+            var ret = await ijs.builtins[ijs.getRunFunc(ifWorld.async)](body, world, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
+        }
+        return condRet // hack so else works
+    },
     "else": function (args, world) {
         // var ret = ijs.exec(args[0], world)
         var ret = ijs.exec(args[0], world)
@@ -1822,6 +1856,27 @@ ijs.builtins = {
                 // body = ["run", ...body]
                 elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             } else {
+                elseRet = ijs.exec(body, world)
+            }
+            // ijs.exec(body, world)
+            if (ijs.isSpecialReturn(elseRet)) {
+                return elseRet
+            }
+        }
+    },
+    "else_await": async function (args, world) {
+        // var ret = ijs.exec(args[0], world)
+        var ret = ijs.exec(args[0], world)
+        var elseRet
+        if (!ret) {
+            var body = args[1]
+            if (body[0] == "<object>_pre") {
+                body = body[1]
+                // body.unshift("run")
+                // body = ["run", ...body]
+                elseRet = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+            } else {
+                // This isn't awaited bug?
                 elseRet = ijs.exec(body, world)
             }
             // ijs.exec(body, world)
@@ -2732,3 +2787,47 @@ log2("hey")
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 ijs.run(code)
+
+// alert("weird")
+// ijs.builtins.if_pre_await([], {foo: "bar"})
+// ok([], {foo: "bar"})
+// if_pre_await([], {foo: "bar"})
+
+
+// function ok(args, world) {
+//     alert("ok world")
+//     alert(world)
+// }
+
+
+// async function if_pre_await(args, world2, extra) {
+//     alert("got here0?? ")
+//     alert(world2)
+    // world2 = extra
+    // var world2 = {
+    //     parent: world2,
+    //     // TODO: perf
+    //     state: {},
+    //     cachedLookupWorld: {},
+    //     global: world2.global,
+    //     async: false,
+    //     blockScope: true,
+    //     async: world2.async,
+    // }
+    // alert("got here1?")
+    // var condition = args[0][1][0]
+    // var body = args[1][1] || []
+    // // body.unshift("run")
+    // // body = ["run", ...body]
+    // alert("got here2?")
+    // var condRet = ijs.exec(condition, world2)
+    // if (condRet) {
+    //     // var ret = ijs.exec(body, world2)
+    //     var ret = await ijs.builtins[ijs.getRunFunc(world2.async)](body, world, true)
+    //     // log2("ret from if is: " + JSON.stringify(ret))
+    //     if (ijs.isSpecialReturn(ret)) {
+    //         return ret
+    //     }
+    // }
+    // return condRet // hack so else works
+// }
