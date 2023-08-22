@@ -1174,10 +1174,10 @@ ijs.builtins = {
                 } else if (arg[0] == "await_pre") {
                     await ijs.exec(arg[1], world)
                     continue
-                // } else if (arg[0] == "=" && arg[2][0] == "await_pre") {
-                //     // special case for var a = await smthbg()
-                //     await ijs.callFunc("=_await", arg.slice(1), world)
-                //     continue
+                } else if (arg[0] == "=" && arg[2][0] == "await_pre") {
+                    // special case for var a = await smthbg()
+                    await ijs.callFunc("=_await", arg.slice(1), world)
+                    continue
                 // instead of doing this here, I handle in exec
                 // then await here, a bit kludgy
                 // } else if (arg[0] == "if_pre") {
@@ -1257,6 +1257,7 @@ ijs.builtins = {
         }
     },
     "=": function (args, world) {
+        // alert("= " + JSON.stringify(args))
         // TODO: wrangle these
         // not doing destructuring yet
         // lol maybe destructuring can be handled at the parser level?
@@ -1300,6 +1301,7 @@ ijs.builtins = {
         }
     },
     "=_await": async function (args, world) {
+        // alert("=_await")
         // TODO: wrangle these
         // not doing destructuring yet
         // lol maybe destructuring can be handled at the parser level?
@@ -1312,8 +1314,9 @@ ijs.builtins = {
             if (args[0][0] == "var_pre") {
                 varName = args[0][1]
                 assignType = "var"
-                var w = ijs.getWorldForKey(world, varName) || world
-                if (w.blockScope) {
+                // var w = ijs.getWorldForKey(world, varName) || world
+                var w = world
+                while (w.blockScope) {
                     w = w.parent
                 }
                 w.state[varName] = await ijs.exec(args[1], world)
@@ -1890,7 +1893,6 @@ ijs.builtins = {
         var cond = args[0][1][1]
         var next = args[0][1][2]
 
-        // var i = 0
         ijs.exec(init, wrapperWorld)
         while (ijs.exec(cond, wrapperWorld)) {
             let loopWorld = {
@@ -1902,7 +1904,7 @@ ijs.builtins = {
                 blockScope: true,
                 async: wrapperWorld.async,
             }
-            log2("the call is: " + ijs.getRunFunc(loopWorld.async))
+            // log2("the call is: " + ijs.getRunFunc(loopWorld.async))
             var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
@@ -2109,13 +2111,14 @@ ijs.getWorldForKey = function(world, key) {
     // if (world.local && forSetting) {
     //     return world
     // }
-
-    if (world.cachedLookupWorld[key]) {
-        return world.cachedLookupWorld[key]
-    }
+    
+    // not sure why exactly, but this causes problems with async
+    // if (world.cachedLookupWorld[key]) {
+    //     return world.cachedLookupWorld[key]
+    // }
     for (var w = world; w != null; w = w.parent) {
         if (w.state.hasOwnProperty(key)) {
-            world.cachedLookupWorld[key] = w
+            // world.cachedLookupWorld[key] = w
             break
         }
     }
@@ -2172,12 +2175,14 @@ ijs.asyncVersions = {
     "else": true,
     "for_pre": true,
     "while_pre": true,
-    "=": true,
     "try_pre": true,
+    
+    // not doing this because of initialization assignments in for loops?
+    // "=": true,
 }
 ijs.callFunc = function(funcAccessor, theArgs, world) {
     if (funcAccessor in ijs.builtins) {
-        if (world.async && funcAccessor in ijs.asyncVersions) {
+        if (world.async && (funcAccessor in ijs.asyncVersions)) {
             funcAccessor = funcAccessor + "_await"
         }
         func = ijs.builtins[funcAccessor]
@@ -2347,28 +2352,44 @@ function sleep(ms) {
 //     alert(a)
 // }
 // foo2()
-
+// 
 // return
 async function foo() {
-// function foo() {
     log2("what?")
-    // if (false) {
-    //     log2(1)
-    //     await sleep(1000)
-    //     log2(2)
-    // } else if (false) {
-    //     log2(1.1)
-    //     await sleep(1000)
-    //     log2(2.1)
-    // } else {
-    //     log2(1.2)
-    //     await sleep(1000)
-    //     log2(2.2)
-    // }
-    
+    if (false) {
+        log2(1)
+        await sleep(200)
+        log2(2)
+    } else if (false) {
+        log2(1.1)
+        await sleep(200)
+        log2(2.1)
+    } else {
+        log2(1.2)
+        await sleep(200)
+        log2(2.2)
+    }
     for (var i = 0; i < 5; i++) {
         log2(i)
-        await sleep(500)
+        await sleep(100)
+    }
+    log2("=====")
+    var i = 0
+    while (i < 10) {
+        i++
+        log2(i)
+        await sleep(100)
+    }
+    
+    var colors = ["red", "yellow", "blue"]
+    for (let color of colors) {
+        log2(color)
+        await sleep(100)
+    }
+    var stuff = {a: 1, b: 2, c: 3}
+    for (let key in stuff) {
+        log2(key)
+        await sleep(100)
     }
     log2("done")
 }
