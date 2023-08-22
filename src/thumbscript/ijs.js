@@ -61,7 +61,7 @@ ijs.tokenize = function(code) {
         }
 
         if (x == "false") {
-            tokens.push(true)
+            tokens.push(false)
             return
         }
         if (x == "null") {
@@ -187,9 +187,13 @@ ijs.tokenize = function(code) {
             } else if (isVar(chr)) {
                 currentToken += chr
             } else {
-                pushToken(currentToken)
-                currentToken = chr
-                state = "in_symbol"
+                if (currentToken - 0 == currentToken && chr == ".") {
+                    currentToken += "."
+                } else {
+                    pushToken(currentToken)
+                    currentToken = chr
+                    state = "in_symbol"
+                }
             }
         } else if (state == "in_symbol") {
             if (" \t\n\r".indexOf(chr) != -1) {
@@ -1170,18 +1174,20 @@ ijs.builtins = {
                 } else if (arg[0] == "await_pre") {
                     await ijs.exec(arg[1], world)
                     continue
-                } else if (arg[0] == "=" && arg[2][0] == "await_pre") {
-                    // special case for var a = await smthbg()
-                    await ijs.callFunc("=await", arg.slice(1), world)
-                    continue
-                } else if (arg[0] == "if_pre") {
-                    // control structures need to be awaited
-                    await ijs.builtins.if_pre_await(arg.slice(1), world)
-                    continue
-                } else if (arg[0] == "for_pre") {
-                    // control structures need to be awaited
-                    await ijs.builtins.for_pre_await(arg.slice(1), world)
-                    continue
+                // } else if (arg[0] == "=" && arg[2][0] == "await_pre") {
+                //     // special case for var a = await smthbg()
+                //     await ijs.callFunc("=_await", arg.slice(1), world)
+                //     continue
+                // instead of doing this here, I handle in exec
+                // then await here, a bit kludgy
+                // } else if (arg[0] == "if_pre") {
+                //     // control structures need to be awaited
+                //     await ijs.builtins.if_pre_await(arg.slice(1), world)
+                //     continue
+                // } else if (arg[0] == "for_pre") {
+                //     // control structures need to be awaited
+                //     await ijs.builtins.for_pre_await(arg.slice(1), world)
+                //     continue
                 }
                 // log2("the thing to run is " + JSON.stringify(arg))
             }
@@ -1195,7 +1201,13 @@ ijs.builtins = {
                 ret.continueMessage = true
                 return ret
             }
-            var ret = ijs.exec(arg, world)
+            var pRet = ijs.exec(arg, world)
+            var ret
+            if (arg[0] in ijs.asyncVersions) {
+                ret = await pRet
+            } else {
+                ret = pRet
+            }
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage || ret.returnMessage) {
                     return ret
@@ -1287,7 +1299,7 @@ ijs.builtins = {
             w.state[varName] = ijs.exec(args[1], world)
         }
     },
-    "=await": async function (args, world) {
+    "=_await": async function (args, world) {
         // TODO: wrangle these
         // not doing destructuring yet
         // lol maybe destructuring can be handled at the parser level?
@@ -1742,7 +1754,7 @@ ijs.builtins = {
                 blockScope: true,
                 async: wrapperWorld.async,
             }
-            log2("the call is: " + ijs.getRunFunc(loopWorld.async))
+            // log2("the call is: " + ijs.getRunFunc(loopWorld.async))
             var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
@@ -1866,7 +1878,7 @@ ijs.builtins = {
     },
     "else_await": async function (args, world) {
         // var ret = ijs.exec(args[0], world)
-        var ret = ijs.exec(args[0], world)
+        var ret = await ijs.exec(args[0], world)
         var elseRet
         if (!ret) {
             var body = args[1]
@@ -1877,7 +1889,8 @@ ijs.builtins = {
                 elseRet = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             } else {
                 // This isn't awaited bug?
-                elseRet = ijs.exec(body, world)
+                // elseRet = ijs.exec(body, world)
+                elseRet = await ijs.exec(body, world)
             }
             // ijs.exec(body, world)
             if (ijs.isSpecialReturn(elseRet)) {
@@ -1969,8 +1982,18 @@ ijs.exec = function(tokens, world) {
     return ijs.callFunc(tokens[0], tokens.slice(1), world)
 }
 
+ijs.asyncVersions = {
+    "if_pre": true,
+    "else": true,
+    "for_pre": true,
+    "while_pre": true,
+    "=": true,
+}
 ijs.callFunc = function(funcAccessor, theArgs, world) {
     if (funcAccessor in ijs.builtins) {
+        if (world.async && funcAccessor in ijs.asyncVersions) {
+            funcAccessor = funcAccessor + "_await"
+        }
         func = ijs.builtins[funcAccessor]
         var ret = func(theArgs, world)
         return ret
@@ -2098,6 +2121,25 @@ ijs.exampleCode = function () {
 // `
 // log2(greeting)
 
+// var b = 3.1
+// var b = -300.5
+// alert(b)
+// return
+
+// 
+// if (false) {
+//     log2(0)
+// } else if (1 == 1) {
+//     log2(300)
+// }
+// if (false) {
+//     log2(1)
+// } else if (1 == 1) {
+//     log2(1.1)
+// }
+
+// return
+
 function sleep(ms) {
     return new Promise(function (resolve, reject) {
         setTimeout(function () {
@@ -2105,11 +2147,34 @@ function sleep(ms) {
         }, ms)
     })
 }
+
+// function getStuff() {
+//     return new Promise(function (resolve, reject) {
+//         sleep(100).then(function () {
+//             resolve(13)
+//         })
+//     })
+// }
+// 
+// async function foo2() {
+//     var a = await getStuff()
+//     alert(a)
+// }
+// foo2()
+
+// return
 async function foo() {
-    if (true) {
+    log2("what?")
+    // if (0 == 1) {
+    if (false) {
         log2(1)
         await sleep(1000)
         log2(2)
+    // } else if (1 == 1) {
+    } else {
+        log2(1.1)
+        await sleep(1000)
+        log2(2.1)
     }
     log2(3)
     // for (var i = 0; i < 20; i++) {
