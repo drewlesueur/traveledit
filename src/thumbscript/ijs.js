@@ -1662,6 +1662,49 @@ ijs.builtins = {
             }
         }
     },
+    "while_pre_await": async function (args, world) {
+        var condition = args[0][1][0]
+        var body = args[1][1] || []
+
+        // body.unshift("run")
+        // body = ["run", ...body]
+
+        var wrapperWorld = {
+            parent: world,
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            blockScope: true,
+            async: world.async
+        }
+        var i = 0
+        while (ijs.exec(condition, wrapperWorld)) {
+            let loopWorld = {
+                parent: wrapperWorld,
+                state: {...wrapperWorld.state},
+                cachedLookupWorld: {},
+                global: wrapperWorld.global,
+                blockScope: true,
+                async: wrapperWorld.async
+            }
+            i++
+            // var ret = ijs.exec(body, world)
+            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage) {
+                    // we stop here and don't return the breakMessage
+                    // if we implemented
+                    break
+                }
+                if (ret.returnMessage) {
+                    return ret
+                }
+            }
+            if (i == 40) {
+                break
+            }
+        }
+    },
     "for_pre": function (args, world) {
         let wrapperWorld = {
             parent: world,
@@ -1767,7 +1810,112 @@ ijs.builtins = {
             ijs.exec(next, wrapperWorld)
         }
     },
-    "try_pre": function (args, world) {
+    "for_pre_await": async function (args, world) {
+        let wrapperWorld = {
+            parent: world,
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            blockScope: true,
+            async: world.async
+        }
+        var body = args[1][1] || []
+        if (args[0][1].length == 1) {
+            // not doing destructuring,
+            // dang js is complex.
+            // for in, for of
+            var list = ijs.exec(args[0][1][0][2], world)
+            var assignType = args[0][1][0][1][0]
+            var varName = args[0][1][0][1][1]
+            if (args[0][1][0][0] == "of") {
+                for (var val of list) {
+                    let loopWorld = {
+                        parent: wrapperWorld,
+                        // state: {...wrapperWorld.state},
+                        state: {...wrapperWorld.state},
+                        cachedLookupWorld: {},
+                        global: wrapperWorld.global,
+                        blockScope: true,
+                        async: wrapperWorld.async
+                    }
+                    // not allowing global
+                    if (assignType == "var_pre") {
+                        world.state[varName] = val
+                    } else if (assignType == "let_pre" || assignType == "const_pre") {
+                        loopWorld.state[varName] = val
+                    }
+                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+                    if (ijs.isSpecialReturn(ret)) {
+                        if (ret.breakMessage) {
+                            break
+                        }
+                        if (ret.returnMessage) {
+                            return ret
+                        }
+                    }
+                }
+                return
+            } else if (args[0][1][0][0] == "in") {
+                for (var val in list) {
+                    let loopWorld = {
+                        parent: wrapperWorld,
+                        // state: {...wrapperWorld.state},
+                        state: {...wrapperWorld.state},
+                        cachedLookupWorld: {},
+                        global: wrapperWorld.global,
+                        blockScope: true,
+                        async: wrapperWorld.async
+                    }
+                    // not allowing global
+                    if (assignType == "var_pre") {
+                        world.state[varName] = val
+                    } else if (assignType == "let_pre" || assignType == "const_pre") {
+                        loopWorld.state[varName] = val
+                    }
+                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+                    if (ijs.isSpecialReturn(ret)) {
+                        if (ret.breakMessage) {
+                            break
+                        }
+                        if (ret.returnMessage) {
+                            return ret
+                        }
+                    }
+                }
+                return
+            }
+            return
+        }
+        var init = args[0][1][0]
+        var cond = args[0][1][1]
+        var next = args[0][1][2]
+
+        // var i = 0
+        ijs.exec(init, wrapperWorld)
+        while (ijs.exec(cond, wrapperWorld)) {
+            let loopWorld = {
+                parent: wrapperWorld,
+                // state: {...wrapperWorld.state},
+                state: {...wrapperWorld.state},
+                cachedLookupWorld: {},
+                global: wrapperWorld.global,
+                blockScope: true,
+                async: wrapperWorld.async,
+            }
+            log2("the call is: " + ijs.getRunFunc(loopWorld.async))
+            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage) {
+                    break
+                }
+                if (ret.returnMessage) {
+                    return ret
+                }
+            }
+            ijs.exec(next, wrapperWorld)
+        }
+    },
+    "try_pre": async function (args, world) {
         var tryWorld = {
             parent: world,
             // TODO: perf
@@ -1798,6 +1946,43 @@ ijs.builtins = {
         } catch (e) {
             catchWorld.state[args[2][1][0]] = e
             var ret = ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
+        }
+    },
+    "try_pre_await": async function (args, world) {
+        var tryWorld = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: world.async,
+            blockScope: true,
+        }
+        var catchWorld = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: world.async,
+            blockScope: true,
+        }
+        var tryBody = args[0][1] || []
+        var catchBody = args[3][1] || []
+        
+        try {
+            var ret = await ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
+        } catch (e) {
+            catchWorld.state[args[2][1][0]] = e
+            var ret = await ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true)
             // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
@@ -1988,6 +2173,7 @@ ijs.asyncVersions = {
     "for_pre": true,
     "while_pre": true,
     "=": true,
+    "try_pre": true,
 }
 ijs.callFunc = function(funcAccessor, theArgs, world) {
     if (funcAccessor in ijs.builtins) {
@@ -2164,23 +2350,27 @@ function sleep(ms) {
 
 // return
 async function foo() {
+// function foo() {
     log2("what?")
-    // if (0 == 1) {
-    if (false) {
-        log2(1)
-        await sleep(1000)
-        log2(2)
-    // } else if (1 == 1) {
-    } else {
-        log2(1.1)
-        await sleep(1000)
-        log2(2.1)
-    }
-    log2(3)
-    // for (var i = 0; i < 20; i++) {
-    //     log2(i)
-    //     await sleep(500)
+    // if (false) {
+    //     log2(1)
+    //     await sleep(1000)
+    //     log2(2)
+    // } else if (false) {
+    //     log2(1.1)
+    //     await sleep(1000)
+    //     log2(2.1)
+    // } else {
+    //     log2(1.2)
+    //     await sleep(1000)
+    //     log2(2.2)
     // }
+    
+    for (var i = 0; i < 5; i++) {
+        log2(i)
+        await sleep(500)
+    }
+    log2("done")
 }
 foo()
 log2("hey")
