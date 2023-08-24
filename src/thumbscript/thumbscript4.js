@@ -467,8 +467,9 @@ thumbscript4.squishFuncs = function(tokens) {
     return newTokens
 }
 
+// alert("woa!")
 thumbscript4.eval = function(code, state) {
-
+    // alert("evaling")
     clearTimeout(window.t99)
     // I tried to pass in the state of the stdlib
     // wasn't working, so just doing this hacky string concat.
@@ -629,6 +630,7 @@ thumbscript4.genFunc3 = function(f) {
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
     say: thumbscript4.genFunc1NoReturn(a => { log2(a) }),
+    alert: thumbscript4.genFunc1NoReturn(a => { alert(a) }),
     cc: thumbscript4.genFunc2((a, b) => a + b),
     // nowmillis: thumbscript4.genFunc0(() => Date.now()),
     nowmillis: thumbscript4.genFunc0(() => performance.now()),
@@ -640,6 +642,7 @@ thumbscript4.builtIns = {
     mod: thumbscript4.genFunc2((a, b) => a % b),
     times: thumbscript4.genFunc2((a, b) => a * b),
     divide: thumbscript4.genFunc2((a, b) => a * b),
+    neg: thumbscript4.genFunc1((a) => -a),
     lt: thumbscript4.genFunc2((a, b) => a < b),
     gt: thumbscript4.genFunc2((a, b) => a > b),
     lte: thumbscript4.genFunc2((a, b) => a <= b),
@@ -1344,6 +1347,8 @@ thumbscript4.stdlib = `
     // bit inlining breaks with conditions because indexes change.
     loopninline: •local { :n :block 0 :i { i •lt n guardb i |block i++ repeat } call }
     loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+    // loopn: •local { :n :block 0 :i { { breakp } i n lt not if i block i++ repeat } call }
+    // loopn: •local { :n :block 0 :i { ~breakp i n lt not if i block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
     ccc: •local { :l "" :r { drop r swap cc :r } l range r }
@@ -1406,6 +1411,13 @@ thumbscript4.stdlib = `
 // `; var code2 = `
 window.xyzzy = 0
 var code = `
+"yo" say
+
+// 200 alert
+
+{
+  say 
+} 10 loopn
 
 { -1 } { 0 } and :a
 "value of a is $a" say
@@ -1436,7 +1448,6 @@ foo: [bar: [baz: 3]]
 
 {
     0 :count
-    // { count plus :count } 100000 timeit
     // { count plus :count } 5000000 timeit
     // { count plus :count } 100 timeit
     // { count+= } 100 timeit
@@ -1444,8 +1455,8 @@ foo: [bar: [baz: 3]]
 
     // with jsloopn 18 ms
     // with loopn inline sub 60ms
-    { count+= } 100000 timeit
-    // { count plus :count } 100000 timeit
+    // { count+= } 100000 timeit
+    { count plus :count } 100000 timeit
     ["count is" count] sayn
 
 
