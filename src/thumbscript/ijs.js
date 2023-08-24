@@ -1,5 +1,6 @@
 // todo: not slicing as much would prob be faster
 // template strings, just the basics
+// rename run function
 
 
 
@@ -60,7 +61,7 @@ ijs.tokenize = function(code) {
         }
 
         if (x == "false") {
-            tokens.push(true)
+            tokens.push(false)
             return
         }
         if (x == "null") {
@@ -92,7 +93,7 @@ ijs.tokenize = function(code) {
     while (i < code.length) {
         var chr = code.charAt(i)
         if (state == "out") {
-            if (" \t\n".indexOf(chr) != -1) {
+            if (" \t\n\r".indexOf(chr) != -1) {
             } else if ("/".indexOf(chr) != -1) {
                 state = "firstSlash"
             } else if ("()".indexOf(chr) != -1) {
@@ -100,7 +101,7 @@ ijs.tokenize = function(code) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n\(\[".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\r\(\[".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -109,7 +110,7 @@ ijs.tokenize = function(code) {
                 tokens.push(chr)
             } else if ("[]".indexOf(chr) != -1) {
                 if (i != 0 && "[".indexOf(chr) != -1) {
-                    if (" \t\n(".indexOf(code.charAt(i-1)) == -1 ) {
+                    if (" \t\n\r(".indexOf(code.charAt(i-1)) == -1 ) {
                         tokens.push("<computedMemberAccess>")
                     } else {
                         tokens.push("<array>")
@@ -141,8 +142,12 @@ ijs.tokenize = function(code) {
                 currentToken = chr
             }
         } else if (state == "in") {
-            if (" \t\n".indexOf(chr) != -1) {
+            if (" \t\n\r".indexOf(chr) != -1) {
                 pushToken(currentToken)
+                // special case for return
+                if (currentToken == "return" && ("\r\n\r".indexOf(chr) != -1)) {
+                    pushToken("undefined")
+                }
                 currentToken = ""
                 state = "out"
             } else if ("()".indexOf(chr) != -1) {
@@ -154,7 +159,7 @@ ijs.tokenize = function(code) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n\(\[".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\r\(\[".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -167,7 +172,7 @@ ijs.tokenize = function(code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n(".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r(".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<computedMemberAccess>")
                 }
                 tokens.push(chr)
@@ -182,12 +187,16 @@ ijs.tokenize = function(code) {
             } else if (isVar(chr)) {
                 currentToken += chr
             } else {
-                pushToken(currentToken)
-                currentToken = chr
-                state = "in_symbol"
+                if (currentToken - 0 == currentToken && chr == ".") {
+                    currentToken += "."
+                } else {
+                    pushToken(currentToken)
+                    currentToken = chr
+                    state = "in_symbol"
+                }
             }
         } else if (state == "in_symbol") {
-            if (" \t\n".indexOf(chr) != -1) {
+            if (" \t\n\r".indexOf(chr) != -1) {
                 pushToken(currentToken)
                 currentToken = ""
                 state = "out"
@@ -200,7 +209,7 @@ ijs.tokenize = function(code) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n\(\[".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\r\(\[".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -213,7 +222,7 @@ ijs.tokenize = function(code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n(".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r(".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<computedMemberAccess>")
                 }
                 tokens.push(chr)
@@ -257,7 +266,10 @@ ijs.tokenize = function(code) {
                 currentToken += '"'
                 if (quoteType == "`") {
                     // todo: make $ escapable
-                    tokens.push(["<interpolate>", JSON.parse(currentToken)])
+                    // log2("current token is ")
+                    // log2(currentToken)
+                    // return
+                    tokens.push(["<interpolate>", JSON.parse(currentToken.replaceAll("\n", "\\n"))])
                 } else {
                     tokens.push("#" + JSON.parse(currentToken))
                 }
@@ -282,7 +294,7 @@ ijs.tokenize = function(code) {
                 i--
             }
         } else if (state == "comment") {
-            if ("\n".indexOf(chr) != -1) {
+            if ("\n\r".indexOf(chr) != -1) {
                 state = "out"
             }
         }
@@ -291,7 +303,7 @@ ijs.tokenize = function(code) {
     // return tokens
 
     // logging pre tokens
-    log2(tokens)
+    // log2(tokens)
     var newTokens = []
     var tokenStack = []
     // squish funcs
@@ -363,6 +375,8 @@ ijs.tokenize = function(code) {
 // that doesn't use eval or `new Function`
 // and doesn't use template strings itself.
 // You don't need to evaluate, just parse
+ijs.templateRegex = /\$\{([^}]+)\}/g;
+
 function parseTemplateString (templateString, state) {
     // won't allow object literal in templste this way.
     var regex = /\$\{([^}]+)\}/g;
@@ -980,22 +994,31 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
 // log2(ijs.infixate(tokens))
 
 
-ijs.run = function(code) {
-    var oldPreventRender = preventRender
-    preventRender = true
+ijs.run = function(code, world) {
+    // var oldPreventRender = preventRender
+    // preventRender = true
     var tokens = ijs.tokenize(code)
-    log2(tokens)
+    // log2(tokens)
     // return
-    var globalWorld = {
-        state: window,
-        cachedLookupWorld: {},
-        parent: null,
-    }
-    var world = {
-        parent: globalWorld,
-        state: {},
-        cachedLookupWorld: {},
-        global: globalWorld
+    
+    if (!world) {
+        var globalObject
+        if (typeof window != "undefined") {
+            globalObject = window
+        } else if (typeof self != "undefined") {
+            globalObject = self
+        }
+        var globalWorld = {
+            state: globalObject,
+            cachedLookupWorld: {},
+            parent: null,
+        }
+        world = {
+            parent: globalWorld,
+            state: {},
+            cachedLookupWorld: {},
+            global: globalWorld
+        }
     }
     var f = ijs.makeFunc([], tokens, world)
     var ret
@@ -1004,11 +1027,12 @@ ijs.run = function(code) {
     // } catch (e) {
     //     log2("-error: " + e)
     // }
-    var preventRender = oldPreventRender
-    log2("+state")
-    log2(f.world.state)
-    log2("+return value")
-    log2(ret)
+    // var preventRender = oldPreventRender
+    // log2("+state")
+    // log2(f.world.state)
+    // log2("+return value")
+    // log2(ret)
+    return ret
 }
 
 // TODO: numbers
@@ -1032,7 +1056,7 @@ ijs.makeAsyncFunc = function(params, body, world) {
             }
         }
         // var ret = ijs.exec(body, world)
-        var ret = ijs.builtins.runAsync(body, world)
+        var ret = ijs.builtins["<runAsync>"](body, world)
         // just a unique indicator for special return value
         if (ijs.isSpecialReturn(ret)) {
             return ret.returnValue
@@ -1065,7 +1089,7 @@ ijs.makeFunc = function(params, body, world) {
             }
         }
         // var ret = ijs.exec(body, world)
-        var ret = ijs.builtins.run(body, world)
+        var ret = ijs.builtins["<run>"](body, world)
         // just a unique indicator for special return value
         if (ijs.isSpecialReturn(ret)) {
             return ret.returnValue
@@ -1117,11 +1141,16 @@ ijs.makeAssignmentBuiltin = function (opFunc) {
         opFunc(w.state, args[0], ijs.exec(args[1], world))
     }
 }
-
+ijs.getRunFunc = function (isAsync) {
+    if (isAsync) {
+        return "<runAsync>"
+    }
+    return "<run>"
+}
 ijs.builtins = {
     // todo: might conflict with a variable named run
     // call it "<run>"
-    "runAsync": async function (args, world, inBlock) {
+    "<runAsync>": async function (args, world, inBlock) {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
@@ -1129,10 +1158,12 @@ ijs.builtins = {
             // log2("-running: "+JSON.stringify(arg))
             if (typeof arg == "object") {
                 if (arg[0] == "return_pre") {
+                    var ret
                     if (typeof arg[1] == "undefined") {
-                        return arg[1]
+                        ret = arg[1]
+                    } else {
+                        ret = ijs.exec(arg[1], world)
                     }
-                    var ret = ijs.exec(arg[1], world)
                     if (inBlock) {
                         var ret2 = ijs.makeSpecialReturn()
                         ret2.returnMessage = true
@@ -1145,8 +1176,18 @@ ijs.builtins = {
                     continue
                 } else if (arg[0] == "=" && arg[2][0] == "await_pre") {
                     // special case for var a = await smthbg()
-                    await ijs.callFunc("=await", arg.slice(1), world)
+                    await ijs.callFunc("=_await", arg.slice(1), world)
                     continue
+                // instead of doing this here, I handle in exec
+                // then await here, a bit kludgy
+                // } else if (arg[0] == "if_pre") {
+                //     // control structures need to be awaited
+                //     await ijs.builtins.if_pre_await(arg.slice(1), world)
+                //     continue
+                // } else if (arg[0] == "for_pre") {
+                //     // control structures need to be awaited
+                //     await ijs.builtins.for_pre_await(arg.slice(1), world)
+                //     continue
                 }
                 // log2("the thing to run is " + JSON.stringify(arg))
             }
@@ -1160,7 +1201,13 @@ ijs.builtins = {
                 ret.continueMessage = true
                 return ret
             }
-            var ret = ijs.exec(arg, world)
+            var pRet = ijs.exec(arg, world)
+            var ret
+            if (arg[0] in ijs.asyncVersions) {
+                ret = await pRet
+            } else {
+                ret = pRet
+            }
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage || ret.returnMessage) {
                     return ret
@@ -1168,7 +1215,7 @@ ijs.builtins = {
             }
         }
     },
-    "run": function(args, world, inBlock) {
+    "<run>": function(args, world, inBlock) {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
@@ -1176,10 +1223,12 @@ ijs.builtins = {
             // log2("-running: "+JSON.stringify(arg))
             if (typeof arg == "object") {
                 if (arg[0] == "return_pre") {
+                    var ret
                     if (typeof arg[1] == "undefined") {
-                        return arg[1]
+                        ret = arg[1]
+                    } else {
+                        ret = ijs.exec(arg[1], world)
                     }
-                    var ret = ijs.exec(arg[1], world)
                     if (inBlock) {
                         var ret2 = ijs.makeSpecialReturn()
                         ret2.returnMessage = true
@@ -1208,6 +1257,7 @@ ijs.builtins = {
         }
     },
     "=": function (args, world) {
+        // alert("= " + JSON.stringify(args))
         // TODO: wrangle these
         // not doing destructuring yet
         // lol maybe destructuring can be handled at the parser level?
@@ -1250,7 +1300,8 @@ ijs.builtins = {
             w.state[varName] = ijs.exec(args[1], world)
         }
     },
-    "=await": async function (args, world) {
+    "=_await": async function (args, world) {
+        // alert("=_await")
         // TODO: wrangle these
         // not doing destructuring yet
         // lol maybe destructuring can be handled at the parser level?
@@ -1263,8 +1314,9 @@ ijs.builtins = {
             if (args[0][0] == "var_pre") {
                 varName = args[0][1]
                 assignType = "var"
-                var w = ijs.getWorldForKey(world, varName) || world
-                if (w.blockScope) {
+                // var w = ijs.getWorldForKey(world, varName) || world
+                var w = world
+                while (w.blockScope) {
                     w = w.parent
                 }
                 w.state[varName] = await ijs.exec(args[1], world)
@@ -1466,11 +1518,14 @@ ijs.builtins = {
         // https://stackoverflow.com/questions/3871731/dynamic-object-construction-in-javascript
         // log2("+args for new")
         var theClass = ijs.exec(args[0][1], world)
-        log2(args[0].slice(2)[0])
-        var theArgs = args[0].slice(2)[0].map(function(t) {
-            return ijs.exec(t, world)
-        })
-        var ret = new (Function.prototype.bind.apply(theClass, [null].concat(theArgs)))
+        var theArgs = args[0].slice(2)[0]
+        var evaledArgs = []
+        if (typeof theArgs == 'object') {
+            var evaledArgs = theArgs.map(function(t) {
+                return ijs.exec(t, world)
+            })
+        }
+        var ret = new (Function.prototype.bind.apply(theClass, [null].concat(evaledArgs)))
         return ret
     },
     "++_post": function (args, world) {
@@ -1579,8 +1634,8 @@ ijs.builtins = {
             state: {},
             cachedLookupWorld: {},
             global: world.global,
-            async: false,
             blockScope: true,
+            async: world.async
         }
         var i = 0
         while (ijs.exec(condition, wrapperWorld)) {
@@ -1589,12 +1644,55 @@ ijs.builtins = {
                 state: {...wrapperWorld.state},
                 cachedLookupWorld: {},
                 global: wrapperWorld.global,
-                async: false,
                 blockScope: true,
+                async: wrapperWorld.async
             }
             i++
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins.run(body, loopWorld, true)
+            var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage) {
+                    // we stop here and don't return the breakMessage
+                    // if we implemented
+                    break
+                }
+                if (ret.returnMessage) {
+                    return ret
+                }
+            }
+            if (i == 40) {
+                break
+            }
+        }
+    },
+    "while_pre_await": async function (args, world) {
+        var condition = args[0][1][0]
+        var body = args[1][1] || []
+
+        // body.unshift("run")
+        // body = ["run", ...body]
+
+        var wrapperWorld = {
+            parent: world,
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            blockScope: true,
+            async: world.async
+        }
+        var i = 0
+        while (ijs.exec(condition, wrapperWorld)) {
+            let loopWorld = {
+                parent: wrapperWorld,
+                state: {...wrapperWorld.state},
+                cachedLookupWorld: {},
+                global: wrapperWorld.global,
+                blockScope: true,
+                async: wrapperWorld.async
+            }
+            i++
+            // var ret = ijs.exec(body, world)
+            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     // we stop here and don't return the breakMessage
@@ -1616,8 +1714,8 @@ ijs.builtins = {
             state: {},
             cachedLookupWorld: {},
             global: world.global,
-            async: false,
             blockScope: true,
+            async: world.async
         }
         var body = args[1][1] || []
         if (args[0][1].length == 1) {
@@ -1635,8 +1733,8 @@ ijs.builtins = {
                         state: {...wrapperWorld.state},
                         cachedLookupWorld: {},
                         global: wrapperWorld.global,
-                        async: false,
                         blockScope: true,
+                        async: wrapperWorld.async
                     }
                     // not allowing global
                     if (assignType == "var_pre") {
@@ -1644,7 +1742,7 @@ ijs.builtins = {
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
                         loopWorld.state[varName] = val
                     }
-                    var ret = ijs.builtins.run(body, loopWorld, true)
+                    var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -1663,8 +1761,8 @@ ijs.builtins = {
                         state: {...wrapperWorld.state},
                         cachedLookupWorld: {},
                         global: wrapperWorld.global,
-                        async: false,
                         blockScope: true,
+                        async: wrapperWorld.async
                     }
                     // not allowing global
                     if (assignType == "var_pre") {
@@ -1672,7 +1770,7 @@ ijs.builtins = {
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
                         loopWorld.state[varName] = val
                     }
-                    var ret = ijs.builtins.run(body, loopWorld, true)
+                    var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -1699,10 +1797,11 @@ ijs.builtins = {
                 state: {...wrapperWorld.state},
                 cachedLookupWorld: {},
                 global: wrapperWorld.global,
-                async: false,
                 blockScope: true,
+                async: wrapperWorld.async,
             }
-            var ret = ijs.builtins.run(body, loopWorld, true)
+            // log2("the call is: " + ijs.getRunFunc(loopWorld.async))
+            var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     break
@@ -1714,14 +1813,118 @@ ijs.builtins = {
             ijs.exec(next, wrapperWorld)
         }
     },
-    "try_pre": function (args, world) {
+    "for_pre_await": async function (args, world) {
+        let wrapperWorld = {
+            parent: world,
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            blockScope: true,
+            async: world.async
+        }
+        var body = args[1][1] || []
+        if (args[0][1].length == 1) {
+            // not doing destructuring,
+            // dang js is complex.
+            // for in, for of
+            var list = ijs.exec(args[0][1][0][2], world)
+            var assignType = args[0][1][0][1][0]
+            var varName = args[0][1][0][1][1]
+            if (args[0][1][0][0] == "of") {
+                for (var val of list) {
+                    let loopWorld = {
+                        parent: wrapperWorld,
+                        // state: {...wrapperWorld.state},
+                        state: {...wrapperWorld.state},
+                        cachedLookupWorld: {},
+                        global: wrapperWorld.global,
+                        blockScope: true,
+                        async: wrapperWorld.async
+                    }
+                    // not allowing global
+                    if (assignType == "var_pre") {
+                        world.state[varName] = val
+                    } else if (assignType == "let_pre" || assignType == "const_pre") {
+                        loopWorld.state[varName] = val
+                    }
+                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+                    if (ijs.isSpecialReturn(ret)) {
+                        if (ret.breakMessage) {
+                            break
+                        }
+                        if (ret.returnMessage) {
+                            return ret
+                        }
+                    }
+                }
+                return
+            } else if (args[0][1][0][0] == "in") {
+                for (var val in list) {
+                    let loopWorld = {
+                        parent: wrapperWorld,
+                        // state: {...wrapperWorld.state},
+                        state: {...wrapperWorld.state},
+                        cachedLookupWorld: {},
+                        global: wrapperWorld.global,
+                        blockScope: true,
+                        async: wrapperWorld.async
+                    }
+                    // not allowing global
+                    if (assignType == "var_pre") {
+                        world.state[varName] = val
+                    } else if (assignType == "let_pre" || assignType == "const_pre") {
+                        loopWorld.state[varName] = val
+                    }
+                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+                    if (ijs.isSpecialReturn(ret)) {
+                        if (ret.breakMessage) {
+                            break
+                        }
+                        if (ret.returnMessage) {
+                            return ret
+                        }
+                    }
+                }
+                return
+            }
+            return
+        }
+        var init = args[0][1][0]
+        var cond = args[0][1][1]
+        var next = args[0][1][2]
+
+        ijs.exec(init, wrapperWorld)
+        while (ijs.exec(cond, wrapperWorld)) {
+            let loopWorld = {
+                parent: wrapperWorld,
+                // state: {...wrapperWorld.state},
+                state: {...wrapperWorld.state},
+                cachedLookupWorld: {},
+                global: wrapperWorld.global,
+                blockScope: true,
+                async: wrapperWorld.async,
+            }
+            // log2("the call is: " + ijs.getRunFunc(loopWorld.async))
+            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage) {
+                    break
+                }
+                if (ret.returnMessage) {
+                    return ret
+                }
+            }
+            ijs.exec(next, wrapperWorld)
+        }
+    },
+    "try_pre": async function (args, world) {
         var tryWorld = {
             parent: world,
             // TODO: perf
             state: {},
             cachedLookupWorld: {},
             global: world.global,
-            async: false,
+            async: world.async,
             blockScope: true,
         }
         var catchWorld = {
@@ -1730,21 +1933,58 @@ ijs.builtins = {
             state: {},
             cachedLookupWorld: {},
             global: world.global,
-            async: false,
+            async: world.async,
             blockScope: true,
         }
         var tryBody = args[0][1] || []
         var catchBody = args[3][1] || []
         
         try {
-            var ret = ijs.builtins.run(tryBody, tryWorld, true)
+            var ret = ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
             // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
         } catch (e) {
             catchWorld.state[args[2][1][0]] = e
-            var ret = ijs.builtins.run(catchBody, catchWorld, true)
+            var ret = ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
+        }
+    },
+    "try_pre_await": async function (args, world) {
+        var tryWorld = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: world.async,
+            blockScope: true,
+        }
+        var catchWorld = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: world.async,
+            blockScope: true,
+        }
+        var tryBody = args[0][1] || []
+        var catchBody = args[3][1] || []
+        
+        try {
+            var ret = await ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
+        } catch (e) {
+            catchWorld.state[args[2][1][0]] = e
+            var ret = await ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true)
             // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
@@ -1752,7 +1992,7 @@ ijs.builtins = {
         }
     },
     "if_pre": function (args, world) {
-        var world = {
+        world = {
             parent: world,
             // TODO: perf
             state: {},
@@ -1760,6 +2000,7 @@ ijs.builtins = {
             global: world.global,
             async: false,
             blockScope: true,
+            async: world.async,
         }
         var condition = args[0][1][0]
         var body = args[1][1] || []
@@ -1768,7 +2009,33 @@ ijs.builtins = {
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins.run(body, world, true)
+            var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+            // log2("ret from if is: " + JSON.stringify(ret))
+            if (ijs.isSpecialReturn(ret)) {
+                return ret
+            }
+        }
+        return condRet // hack so else works
+    },
+    "if_pre_await": async function (args, world, extra) {
+        var ifWorld = {
+            parent: world,
+            // TODO: perf
+            state: {},
+            cachedLookupWorld: {},
+            global: world.global,
+            async: false,
+            blockScope: true,
+            async: world.async,
+        }
+        var condition = args[0][1][0]
+        var body = args[1][1] || []
+        // body.unshift("run")
+        // body = ["run", ...body]
+        var condRet = ijs.exec(condition, ifWorld)
+        if (condRet) {
+            // var ret = ijs.exec(body, ifWorld)
+            var ret = await ijs.builtins[ijs.getRunFunc(ifWorld.async)](body, world, true)
             // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
@@ -1786,7 +2053,7 @@ ijs.builtins = {
                 body = body[1]
                 // body.unshift("run")
                 // body = ["run", ...body]
-                elseRet = ijs.builtins.run(body, world, true)
+                elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             } else {
                 elseRet = ijs.exec(body, world)
             }
@@ -1795,6 +2062,37 @@ ijs.builtins = {
                 return elseRet
             }
         }
+    },
+    "else_await": async function (args, world) {
+        // var ret = ijs.exec(args[0], world)
+        var ret = await ijs.exec(args[0], world)
+        var elseRet
+        if (!ret) {
+            var body = args[1]
+            if (body[0] == "<object>_pre") {
+                body = body[1]
+                // body.unshift("run")
+                // body = ["run", ...body]
+                elseRet = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+            } else {
+                // This isn't awaited bug?
+                // elseRet = ijs.exec(body, world)
+                elseRet = await ijs.exec(body, world)
+            }
+            // ijs.exec(body, world)
+            if (ijs.isSpecialReturn(elseRet)) {
+                return elseRet
+            }
+        }
+    },
+    "<interpolate>": function (args, world) {
+        return args[0].replace(ijs.templateRegex, function (x, y) {
+            // using runninstead of exec because run also parses
+            y = "return " + y
+            // y = "return 2 + 4"
+            var value = ijs.run(y, world)
+            return value
+        });
     }
 }
 ijs.set = function(key, value, world, setType) {
@@ -1813,19 +2111,23 @@ ijs.getWorldForKey = function(world, key) {
     // if (world.local && forSetting) {
     //     return world
     // }
-
-    if (world.cachedLookupWorld[key]) {
-        return world.cachedLookupWorld[key]
-    }
+    
+    // not sure why exactly, but this causes problems with async
+    // if (world.cachedLookupWorld[key]) {
+    //     return world.cachedLookupWorld[key]
+    // }
     for (var w = world; w != null; w = w.parent) {
         if (w.state.hasOwnProperty(key)) {
-            world.cachedLookupWorld[key] = w
+            // world.cachedLookupWorld[key] = w
             break
         }
     }
     return w
 }
 ijs.exec = function(tokens, world) {
+    if (tokens === null) {
+        return null
+    }
     if (typeof tokens == "number") {
         return tokens
     }
@@ -1853,8 +2155,8 @@ ijs.exec = function(tokens, world) {
 
         var w = ijs.getWorldForKey(world, token)
         if (w == null) {
-            alert(token)
-            log2("-can't find world for " + token)
+            alert("can't find: " + token)
+            // log2("-can't find world for " + token)
         }
         return w.state[token]
 
@@ -1868,8 +2170,21 @@ ijs.exec = function(tokens, world) {
     return ijs.callFunc(tokens[0], tokens.slice(1), world)
 }
 
+ijs.asyncVersions = {
+    "if_pre": true,
+    "else": true,
+    "for_pre": true,
+    "while_pre": true,
+    "try_pre": true,
+    
+    // not doing this because of initialization assignments in for loops?
+    // "=": true,
+}
 ijs.callFunc = function(funcAccessor, theArgs, world) {
     if (funcAccessor in ijs.builtins) {
+        if (world.async && (funcAccessor in ijs.asyncVersions)) {
+            funcAccessor = funcAccessor + "_await"
+        }
         func = ijs.builtins[funcAccessor]
         var ret = func(theArgs, world)
         return ret
@@ -1886,7 +2201,7 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
 }
 
 ijs.isSpecialReturn = function (ret) {
-    return typeof ret == "object" && ret.ijs == 12332
+    return typeof ret == "object" && ret && ret.ijs == 12332
 }
 
 ijs.makeSpecialReturn = function () {
@@ -1903,9 +2218,9 @@ ijs.makeSpecialReturn = function () {
 // lexical scope
 // simple assignment
 
-window.testObj = {
-    name: "Drew2"
-}
+// window.testObj = {
+//     name: "Drew2"
+// }
 // var start = Date.now()
 // var i = 0
 // var total = 0
@@ -1971,29 +2286,151 @@ window.testObj = {
 //         log2("hey " + i2)
 //     }, 100)
 // }
-var code = String.raw`
 
-var person = {
-    eyes: {
-        left: {
-            color: "blue"
-        },
-        right: {
-            color: "green"
-        },
-    }
+
+
+
+// function lol() {
+// /*
+// this is a test lol
+// how this work?
+// `yo`
+// */
+// }
+// alert(lol.toString())
+
+
+
+ijs.exampleCode = function () {
+/*
+
+// var name = "Drew"
+// var x = 20
+// // var greeting = `Hello ${name}, is your number ${x + 1}?`
+// var greeting = `Hello ${name}, is your number ${x + 1}?
+// and your uppercase name is ${name.toUpperCase()}
+// `
+// log2(greeting)
+
+// var b = 3.1
+// var b = -300.5
+// alert(b)
+// return
+
+// 
+// if (false) {
+//     log2(0)
+// } else if (1 == 1) {
+//     log2(300)
+// }
+// if (false) {
+//     log2(1)
+// } else if (1 == 1) {
+//     log2(1.1)
+// }
+
+// return
+
+function sleep(ms) {
+    return new Promise(function (resolve, reject) {
+        setTimeout(function () {
+            resolve()
+        }, ms)
+    })
 }
 
-var p2 = 10
-let p3 = 11
-p4 = 12
+// function getStuff() {
+//     return new Promise(function (resolve, reject) {
+//         sleep(100).then(function () {
+//             resolve(13)
+//         })
+//     })
+// }
+// 
+// async function foo2() {
+//     var a = await getStuff()
+//     alert(a)
+// }
+// foo2()
+// 
+// return
+async function foo() {
+    log2("what?")
+    if (false) {
+        log2(1)
+        await sleep(200)
+        log2(2)
+    } else if (false) {
+        log2(1.1)
+        await sleep(200)
+        log2(2.1)
+    } else {
+        log2(1.2)
+        await sleep(200)
+        log2(2.2)
+    }
+    for (var i = 0; i < 5; i++) {
+        log2(i)
+        await sleep(100)
+    }
+    log2("=====")
+    var i = 0
+    while (i < 10) {
+        i++
+        log2(i)
+        await sleep(100)
+    }
+    
+    var colors = ["red", "yellow", "blue"]
+    for (let color of colors) {
+        log2(color)
+        await sleep(100)
+    }
+    var stuff = {a: 1, b: 2, c: 3}
+    for (let key in stuff) {
+        log2(key)
+        await sleep(100)
+    }
+    log2("done")
+}
+foo()
+log2("hey")
 
-person.eyes.left.color = 10
-person.eyes.left.color += 100
-person.eyes["right"].color = 300
-person.eyes["right"].color += 3
-person.eyes["right"].color -= 1
-log2(person)
+
+
+// function foo() {
+//     if (true) {
+//         log2("hey")
+//         log2("yo")
+//         return
+//     }
+//     log2("whaaaat???")
+// }
+// log2(foo())
+
+// return
+
+// var person = {
+//     eyes: {
+//         left: {
+//             color: "blue"
+//         },
+//         right: {
+//             color: "green"
+//         },
+//     }
+// }
+// 
+// var p2 = 10
+// let p3 = 11
+// p4 = 12
+// 
+// person.eyes.left.color = 10
+// person.eyes.left.color += 100
+// person.eyes["right"].color = 300
+// person.eyes["right"].color += 3
+// person.eyes["right"].color -= 1
+// log2(person)
 
 // document.body.style.backgroundColor = 'pink'
 // document.body["style"].backgroundColor = 'pink'
@@ -2290,7 +2727,7 @@ log2(person)
 //     }
 // }
 
-log2("hello world")
+// log2("hello world")
 
 // a = 1
 
@@ -2618,8 +3055,55 @@ log2("hello world")
 //
 //     )
 // )
-`
-// log2(JSON.parse('"\\`"'))
-// code = 'yo = `foob${lol}ar\\${ok}\\`r`'
-// code = "yo = `foob${lol}ar\\`r`"
+
+// log2(123)
+*/
+}
+
+// var code = String.raw``
+var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 ijs.run(code)
+
+// alert("weird")
+// ijs.builtins.if_pre_await([], {foo: "bar"})
+// ok([], {foo: "bar"})
+// if_pre_await([], {foo: "bar"})
+
+
+// function ok(args, world) {
+//     alert("ok world")
+//     alert(world)
+// }
+
+
+// async function if_pre_await(args, world2, extra) {
+//     alert("got here0?? ")
+//     alert(world2)
+    // world2 = extra
+    // var world2 = {
+    //     parent: world2,
+    //     // TODO: perf
+    //     state: {},
+    //     cachedLookupWorld: {},
+    //     global: world2.global,
+    //     async: false,
+    //     blockScope: true,
+    //     async: world2.async,
+    // }
+    // alert("got here1?")
+    // var condition = args[0][1][0]
+    // var body = args[1][1] || []
+    // // body.unshift("run")
+    // // body = ["run", ...body]
+    // alert("got here2?")
+    // var condRet = ijs.exec(condition, world2)
+    // if (condRet) {
+    //     // var ret = ijs.exec(body, world2)
+    //     var ret = await ijs.builtins[ijs.getRunFunc(world2.async)](body, world, true)
+    //     // log2("ret from if is: " + JSON.stringify(ret))
+    //     if (ijs.isSpecialReturn(ret)) {
+    //         return ret
+    //     }
+    // }
+    // return condRet // hack so else works
+// }

@@ -467,8 +467,9 @@ thumbscript4.squishFuncs = function(tokens) {
     return newTokens
 }
 
+// alert("woa!")
 thumbscript4.eval = function(code, state) {
-
+    // alert("evaling")
     clearTimeout(window.t99)
     // I tried to pass in the state of the stdlib
     // wasn't working, so just doing this hacky string concat.
@@ -540,12 +541,17 @@ thumbscript4.async = true
 thumbscript4.asyncChunk = 500000
 
 thumbscript4.run = function(world) {
-    if (thumbscript4.async) {
-        thumbscript4.runAsync(world)
+    if (world.global.stopped) {
         return
     }
-    var oldPreventRender = preventRender
-    preventRender = true
+    if (thumbscript4.async) {
+        setTimeout(function () {
+            thumbscript4.runAsync(world)
+        }, 0)
+        return
+    }
+    // var oldPreventRender = preventRender
+    // preventRender = true
     while (true) {
         newWorld = thumbscript4.next(world)
         if (!newWorld) {
@@ -557,13 +563,16 @@ thumbscript4.run = function(world) {
         //     log2("\t".repeat(world.indent) + "+ in world " + world.name + "(" +world.runId+") < " + (world.parent?.name || "") )
         // }
     }
-    preventRender = oldPreventRender
+    // preventRender = oldPreventRender
     render()
 }
 
 thumbscript4.runAsync = function(world) {
+    if (world.global.stopped) {
+        return
+    }
     // TODO: rendering was really slow for rendering with log2
-    var oldPreventRender = preventRender
+    // var oldPreventRender = preventRender
     // preventRender = true
     for (var i = 0; i < thumbscript4.asyncChunk; i++) {
         world = thumbscript4.next(world)
@@ -574,7 +583,7 @@ thumbscript4.runAsync = function(world) {
         // log2("in world " + world.name + "(" +world.runId+") < " + world.parent?.name )
     }
     // preventRender = oldPreventRender
-    render()
+    // render()
     
     if (world) {
         window.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 0)
@@ -621,15 +630,19 @@ thumbscript4.genFunc3 = function(f) {
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
     say: thumbscript4.genFunc1NoReturn(a => { log2(a) }),
+    alert: thumbscript4.genFunc1NoReturn(a => { alert(a) }),
     cc: thumbscript4.genFunc2((a, b) => a + b),
     // nowmillis: thumbscript4.genFunc0(() => Date.now()),
     nowmillis: thumbscript4.genFunc0(() => performance.now()),
     now: thumbscript4.genFunc0(() => (Math.floor(Date.now()/1000))),
+    lf: thumbscript4.genFunc0(() => "\n"),
+    cr: thumbscript4.genFunc0(() => "\r"),
     plus: thumbscript4.genFunc2((a, b) => a + b),
     minus: thumbscript4.genFunc2((a, b) => a - b),
     mod: thumbscript4.genFunc2((a, b) => a % b),
     times: thumbscript4.genFunc2((a, b) => a * b),
     divide: thumbscript4.genFunc2((a, b) => a * b),
+    neg: thumbscript4.genFunc1((a) => -a),
     lt: thumbscript4.genFunc2((a, b) => a < b),
     gt: thumbscript4.genFunc2((a, b) => a > b),
     lte: thumbscript4.genFunc2((a, b) => a <= b),
@@ -660,10 +673,12 @@ thumbscript4.builtIns = {
     split: thumbscript4.genFunc2((a, b) => a.split(b)),
     trim: thumbscript4.genFunc1((a) => a.trim()),
     indexof: thumbscript4.genFunc2((a, b) => a.indexOf(b)),
+    contains: thumbscript4.genFunc2((a, b) => a.indexOf(b) !== -1),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
+    haskey: thumbscript4.genFunc2((a, b) => a.hasOwnProperty(b)),
     copylist: thumbscript4.genFunc1((a) => [...a]),
     jscall: function (world) {
         var funcName = world.stack.pop()
@@ -810,6 +825,8 @@ thumbscript4.builtIns = {
         return world
     },
     jsloopn: function(world) {
+        // for some reason this doesn't work unless you preventRender
+        // see preventRender assignment
         var n = world.stack.pop()
         var f = world.stack.pop()
         var newWorld = {
@@ -900,6 +917,21 @@ thumbscript4.builtIns = {
             world = world.dynParent
         }
     },
+    "break": function(world) {
+        if (world.onEnd) world.onEnd(world)
+        world = world.parent
+        return world
+    },
+    "breakp": function(world) {
+        for (var i=0; i<2; i++) {
+            // i originally had dynParent but it wasn't right
+            // like when I wrapped if
+            if (world.onEnd) world.onEnd(world)
+            world = world.parent
+            // todo: see onend
+        }
+        return world
+    },
     "breakn": function(world) {
         var a = world.stack.pop()
         a = a-0
@@ -932,6 +964,30 @@ thumbscript4.builtIns = {
     },
     "continue": function(world) {
         // same as return, but I like better
+        world.i = world.tokens.length
+        return world
+    },
+    "continuen": function(world) {
+        var a = world.stack.pop()
+        a = a-1
+        for (var i=0; i<a; i++) {
+            // i originally had dynParent but it wasn't right
+            // like when I wrapped if
+            // if (world.onEnd) world.onEnd(world)
+            world = world.parent
+            // todo: see onend
+        }
+        world.i = world.tokens.length
+        return world
+    },
+    "continuep": function(world) {
+        for (var i=0; i<1; i++) {
+            // i originally had dynParent but it wasn't right
+            // like when I wrapped if
+            // if (world.onEnd) world.onEnd(world)
+            world = world.parent
+            // todo: see onend
+        }
         world.i = world.tokens.length
         return world
     },
@@ -1291,6 +1347,8 @@ thumbscript4.stdlib = `
     // bit inlining breaks with conditions because indexes change.
     loopninline: •local { :n :block 0 :i { i •lt n guardb i |block i++ repeat } call }
     loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+    // loopn: •local { :n :block 0 :i { { breakp } i n lt not if i block i++ repeat } call }
+    // loopn: •local { :n :block 0 :i { ~breakp i n lt not if i block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
     ccc: •local { :l "" :r { drop r swap cc :r } l range r }
@@ -1310,6 +1368,26 @@ thumbscript4.stdlib = `
         end •minus start :total
         ["it took" total "milliseconds"] sayn
     }
+    and: •local {
+        :b :a
+        a :firstValue
+        { firstValue 2 continuen } firstValue not if
+        b
+    }
+    or: •local {
+        :b :a
+        a :firstValue
+        { firstValue 2 continuen } firstValue if
+        b
+    }
+    loop: •local {
+       :block
+       {
+           block
+           repeat
+       } call
+    }
+    
 `
 
 // idea macros?
@@ -1333,7 +1411,35 @@ thumbscript4.stdlib = `
 // `; var code2 = `
 window.xyzzy = 0
 var code = `
+"yo" say
 
+// 200 alert
+
+{
+  say 
+} 10 loopn
+
+{ -1 } { 0 } and :a
+"value of a is $a" say
+
+{ 0 } { 100 } or :b
+"value of b is $b" say
+
+// person: [a: 1 friend: [b: 1]]
+
+foo: [bar: [baz: 3]]
+// foo say
+[foo $bar $baz] props say
+
+10 :[foo "bar" "baz"]
+[foo $bar $baz] props say
+
+[foo "bar" "baz"]: 30
+[foo $bar $baz] props say
+
+// person say
+
+// "woa" : [person "a" "friend" "c"]
 
 "Drew" :name
 "the name is $name" say
@@ -1342,7 +1448,6 @@ var code = `
 
 {
     0 :count
-    // { count plus :count } 100000 timeit
     // { count plus :count } 5000000 timeit
     // { count plus :count } 100 timeit
     // { count+= } 100 timeit
@@ -1350,8 +1455,8 @@ var code = `
 
     // with jsloopn 18 ms
     // with loopn inline sub 60ms
-    { count+= } 100000 timeit
-    // { count plus :count } 100000 timeit
+    // { count+= } 100000 timeit
+    { count plus :count } 100000 timeit
     ["count is" count] sayn
 
 
