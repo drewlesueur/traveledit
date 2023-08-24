@@ -1850,7 +1850,6 @@ function renderDarkMode() {
         theBackgroundColor = darkModeFontColor
         // lineNumberColor = veryLightFontColor
         render()
-        renderURL()
         return
     }
     darkModeButton.innerText = "light"
@@ -1871,7 +1870,6 @@ function renderDarkMode() {
     // lineNumberColor = veryLightFontColor
     
     render()
-    renderURL()
 }
 function updateClassForSelector(selector, remove, add) {
     var inputs = document.querySelectorAll(selector)
@@ -2249,7 +2247,6 @@ function cleanUpFiles() {
     
     render()
     renderFileDropdown()
-    renderURL()
     seeFiles()
     seeFiles()
     
@@ -2285,7 +2282,6 @@ function closeFile(theFX) {
             // or maybe don't show unicode in file list?
             render()
             renderFileDropdown()
-            renderURL()
             closeFileServer(fileToClose).then(() => {
                 resolve()
             }).catch(e => {
@@ -2313,7 +2309,6 @@ function closeFile(theFX) {
         }
         render()
         renderFileDropdown()
-        renderURL()
         closeFileServer(theFX).then(() => {
         }).catch(e => alert(e))
     }
@@ -2454,26 +2449,6 @@ function normalizeFullPath(fullPath) {
     return newFullPath
 }
 
-function renderURL() {
-    return // with workspaces we don't render url
-    if (preventRender) {
-        return
-    }
-    // For now we don't get files with shell mode.
-    var filtered = files.filter(f => f.fileMode != "shell")
-    var theNewPath = "/" + filtered.map(function(f) {
-        if (f.fileMode == "terminal") {
-            // TODO: ensure that the terminal is not the first one somewhere?
-            // or at least handle it
-            // TODO: encodeURIComponent? (or does it already do that?)
-            return "__TERMINAL__:" + f.ID
-        }
-        return f.fullPath.slice(1) + ":" + (f.cursorLineIndex + 1)
-
-    }).join(",")
-    theNewPath += "?dark=" + (isDark ? "1" : "0")
-    history.replaceState({}, "", theNewPath)
-}
 
 function doEval() {
     var code = prompt("code")
@@ -4668,7 +4643,6 @@ function saveName(name) {
     .then(r => {})
     .catch(r => {})
     fx.name = name
-    renderURL()
     renderFileDropdown()
 }
 
@@ -6076,11 +6050,10 @@ function sendViewToServer() {
    })
 
 }
-var renderURLTimeout
 var waitingRender = false
 var lastRender = 0
-// var maxFrameRate = 16
-var maxFrameRate = 0
+var maxFrameRate = 10
+// var maxFrameRate = 0
 var waitingServerRender = false
 var lastServerRender = 0
 var maxServerFrameRate = 100
@@ -6096,13 +6069,6 @@ function render() {
     if (preventRender) {
         return
     }
-
-    // Now that file names contain line numbers
-    // let's render the url nore frequently
-    clearTimeout(renderURLTimeout)
-    renderURLTimeout = setTimeout(function () {
-        renderURL()
-    }, 1000)
 
     var timeSinceRender = Date.now() - lastRender
     if (timeSinceRender < maxFrameRate) {
@@ -9844,7 +9810,6 @@ function addFile(fullPath, options, id, name) { // hotpink marker
     if (!options.preventSelect) {
         setCurrentFile(file)
     }
-    renderURL()
     fetchFile(fullPath, file, id).then(() => {
         for (var i=0; i<files.length; i++) {
             if (files[i] != file && files[i].fullPath == file.fullPath) {
@@ -10287,7 +10252,6 @@ function duplicateFile(f, cursorLineIndex, options, id="") {
         fc.offsetY = max(cursorLineIndex - Math.floor(maxLines/2), 0)
         ensureCursorInScreen()
     }
-    renderURL()
     
     return fc
     // TODO: eventually, update cursor position

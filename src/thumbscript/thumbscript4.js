@@ -83,19 +83,23 @@ thumbscript4.tokenize = function(code) {
     // lol
     var addToken2 = function(token) {
         if (typeof token == "string") {
+            var preventCall = false
+            if (token.startsWith("~")) {
+                preventCall = true
+                token = token.slice(1)
+            }
+            
             // not sure if faster
             if (token.charAt(0) == "$") {
                 token = {th_type: stringType, valueString: token.slice(1)}
             } else if (token.charAt(0) == "#") {
                 token = {th_type: anchorType, valueString: token.slice(1)}
             } else if (token in thumbscript4.builtIns) {
-                token = {th_type: builtInType, valueFunc: thumbscript4.builtIns[token], name: token}
-            } else {
-                var preventCall = false
-                if (token.startsWith("~")) {
-                    preventCall = true
-                    token = token.slice(1)
+                token = {th_type: builtInType, valueFunc: thumbscript4.builtIns[token], name: token, preventCall: preventCall}
+                if (preventCall) {
+                    token.nonPreventCallVersion = {th_type: builtInType, valueFunc: token.valueFunc, name: token.name}
                 }
+            } else {
                 token = {th_type: varType, valueString: token, preventCall: preventCall}
             }
         } else if (typeof token == "number") {
@@ -1253,7 +1257,15 @@ thumbscript4.next = function(world) {
                 }
                 break outer
             case builtInType:
-                newWorld = token.valueFunc(world, token)
+                if (!token.preventCall) {
+                    newWorld = token.valueFunc(world, token)
+                } else {
+                    world.stack.push({
+                        th_type: closureType,
+                        tokens: [token.nonPreventCallVersion],
+                        world: world,
+                    })
+                }
                 break outer
             case varType:
                 var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
@@ -1303,8 +1315,8 @@ thumbscript4.stdlib = `
     // that said jsloopn is fastest
     // bit inlining breaks with conditions because indexes change.
     // loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
-    loopn: •local { :n :block 0 :i { { breakp } i n lt not if i block i++ repeat } call }
-    // loopn: •local { :n :block 0 :i { ~breakp i n lt not if i block i++ repeat } call }
+    // loopn: •local { :n :block 0 :i { { breakp } i n lt not if i block i++ repeat } call }
+    loopn: •local { :n :block 0 :i { ~breakp i n lt not if i block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
     ccc: •local { :l "" :r { drop r swap cc :r } l range r }
@@ -1366,7 +1378,22 @@ thumbscript4.stdlib = `
 // `; var code2 = `
 window.xyzzy = 0
 var code = `
+
 "yo" say
+// 0 :i
+// {
+//     // { breakp } i 100 gt if
+//     ~breakp i 100 gt if
+//     i++
+//     "number is $i" say
+// } loop
+
+// exit
+
+// { say } :saything
+// ~saything 20 loopn
+// "all done" say
+// exit
 
 // 200 alert
 
