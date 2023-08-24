@@ -2256,6 +2256,7 @@ function cleanUpFiles() {
     log(seenFiles)
 }
 function closeFile(theFX) {
+    var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
     if (!theFX) {
         theFX = fx
     }
@@ -2283,7 +2284,11 @@ function closeFile(theFX) {
             renderFileDropdown()
             renderURL()
             closeFileServer(fileToClose).then(() => {
-            }).catch(e => alert(e))
+                resolve()
+            }).catch(e => {
+                alert(e)
+                reject()
+            })
         }
         theFX.lines = getLinesForFileList()
     } else {
@@ -2309,6 +2314,7 @@ function closeFile(theFX) {
         closeFileServer(theFX).then(() => {
         }).catch(e => alert(e))
     }
+    return p
 }
 
 var shellHelpers = [
@@ -4912,6 +4918,23 @@ function rerunTerminal() {
         })
     })
 }
+
+// inconsistency with promosies and callbacks would be cool to *resolve* ;)
+function sendTerminalFile(file, payload) {
+    var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
+    var oldFx = fx
+    fx = file
+    sendTerminal(payload, function (err) {
+        if (err) {
+            reject(err)
+            return
+        }
+        resolve()
+    })
+    fx = oldFx
+    return p
+}
+
 var sendingTerminal = false
 var sendTerminalBuffer = ""
 var sendTerminalCallbacks = []
@@ -4949,6 +4972,8 @@ function sendTerminal(payload, cb) {
     })
 }
 function openTerminal() {
+    var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
+    
     if (fx.fileMode != "terminal") {
         return
     }
@@ -4962,9 +4987,13 @@ function openTerminal() {
         return r.json()
     }).then(r => {
         myFx.ID = r.ID
+        resolve()
     }).catch(e => {
         alert("There was an error running the command: " + e)
+        reject()
     })
+    fx.terminalLoadPromise = p
+    
 }
 function closeFileServer(theFile) {
     if (!theFile) {
@@ -9717,6 +9746,11 @@ function selectFileInDirectory(file, selectName) {
                 render()
             }
         }
+    }
+}
+function waitFileTerminalLoad(f) {
+    if (f.terminalLoadPromise) {
+        return f.terminalLoadPromise
     }
 }
 
