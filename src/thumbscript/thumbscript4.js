@@ -92,15 +92,11 @@ thumbscript4.tokenize = function(code) {
                 token = {th_type: builtInType, valueFunc: thumbscript4.builtIns[token], name: token}
             } else {
                 var preventCall = false
-                var inline = false
                 if (token.startsWith("~")) {
                     preventCall = true
                     token = token.slice(1)
-                } else if (token.startsWith("|")) {
-                    inline = true
-                    token = token.slice(1)
                 }
-                token = {th_type: varType, valueString: token, preventCall: preventCall, inline: inline}
+                token = {th_type: varType, valueString: token, preventCall: preventCall}
             }
         } else if (typeof token == "number") {
             token = {th_type: numberType, valueNumber: token}
@@ -1264,45 +1260,7 @@ thumbscript4.next = function(world) {
                 var x = w.state[token.valueString]
                 if (x && x.th_type === closureType && !token.preventCall) {
                     // newWorld = thumbscript4.builtIns.call(world)
-                    if (token.inline) {
-                        // lol modify the tokens at runtime
-                        // log2("before")
-                        // log2(world.tokens.map(thumbscript4.displayToken))
-                        var oldState = world.state
-                        var oldLocal = world.local
-                        // this does not handle dynamic yet, should it?
-                        var start = {
-                            th_type: builtInType,
-                            valueFunc: function(world) {
-                                world.state = x.world.state;
-                                world.local = x.local;
-                                return world
-                            },
-                            name: "updateWorld"
-                        }
-                        var end = {
-                            th_type: builtInType,
-                            valueFunc: function(world) {
-                                if (!world) {
-                                    // because of suspending like sleep.
-                                    return world
-                                }
-                                world.state = oldState;
-                                world.local = oldLocal;
-                                return world
-                            },
-                            name: "revertWorld"
-                        }
-                        world.tokens = [...world.tokens]
-                        spliceArgs = [world.i, 1, start, ...x.tokens, end]
-                        // log2(spliceArgs.slice(1))
-                        world.tokens.splice.apply(world.tokens, spliceArgs)
-                        // log2("after")
-                        // log2(world.tokens.map(thumbscript4.displayToken))
-                        world.i--
-                    } else {
-                        newWorld = thumbscript4.builtIns.call_skipstack(world, x)
-                    }
+                    newWorld = thumbscript4.builtIns.call_skipstack(world, x)
                 } else {
                     if (typeof x === "function") {
                         newWorld = thumbscript4.builtIns.call_js_skipstack(world, x)
@@ -1341,13 +1299,11 @@ thumbscript4.next = function(world) {
 thumbscript4.stdlib = `
     swap: •local { :b :a b a }
     drop: •local { :a }
-    // inlining the block is faster! that pipe means inline.
     // todo: look at what's slow with not inlining (object creation? and fix)
     // that said jsloopn is fastest
     // bit inlining breaks with conditions because indexes change.
-    loopninline: •local { :n :block 0 :i { i •lt n guardb i |block i++ repeat } call }
-    loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
-    // loopn: •local { :n :block 0 :i { { breakp } i n lt not if i block i++ repeat } call }
+    // loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
+    loopn: •local { :n :block 0 :i { { breakp } i n lt not if i block i++ repeat } call }
     // loopn: •local { :n :block 0 :i { ~breakp i n lt not if i block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
     range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
@@ -1362,7 +1318,6 @@ thumbscript4.stdlib = `
     timeit: •local { :n :block
         nowmillis :start
         ~block n loopn
-        // ~block n loopninline
         // ~block n jsloopn
         nowmillis :end
         end •minus start :total
