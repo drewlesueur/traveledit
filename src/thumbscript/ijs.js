@@ -344,7 +344,8 @@ ijs.tokenize = function(code) {
                 var prev = newTokens.pop()
                 newTokens.push(prev) // lol
                 if (prev == "<computedMemberAccess>") {
-                    t = t[0] || []
+                    // t = t[0] || [] // TODO: why this?
+                    t = t[0]
                 }
                 newTokens.push(t)
             }
@@ -353,6 +354,7 @@ ijs.tokenize = function(code) {
         }
     }
     // return tokenStack
+    log2(newTokens)
     return ijs.operatorate(newTokens)
 }
 // var operators = {
@@ -395,39 +397,6 @@ function parseTemplateString (templateString, state) {
 ijs.operatorate = function(tokens) {
     tokens = ijs.infixate(tokens, false, true, -1, 0)
     return tokens
-
-    var newTokens = []
-    var token
-    while (token = tokens.shift()) {
-        if (token == "var") {
-            var name = tokens.shift()
-            var value = tokens.shift()
-            newTokens.push(["var", name, value])
-            continue
-        }
-        if (token == "set") {
-            var name = tokens.shift()
-            var value = tokens.shift()
-            newTokens.push(["set", name, value])
-            continue
-        }
-        if (token == "func") {
-            var nameAndArgs = tokens.shift()
-            var body = tokens.shift()
-            var body = tokens.shift()
-            newTokens.push(["func", nameAndArgs, body])
-            continue
-        }
-        if (token == "return") {
-            var value = tokens.shift()
-            newTokens.push(["return", value])
-            continue
-        }
-
-        newTokens.push(token)
-    }
-
-    return newTokens
 }
 
 ijs.infixes = {
@@ -812,16 +781,115 @@ ijs.postfixes = {
 }
 
 function logIndent(indent, msg, obj) {
+    log2("    ".repeat(indent) + msg + ": " + JSON.stringify(obj))
+}
+function logCurr(indent, msg, obj) {
     // log2("    ".repeat(indent) + msg + ": " + JSON.stringify(obj))
 }
 
-ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
+
+
+
+
+
+
+// pre2 megapre2 2 1 
+
+// - + 3
+// ijs.nextTokenGroup = function (tokens, lastOpDef, lastGroup) {
+//     var group = []
+//     var token = tokens.shift()
+//     if (!lastGroup) { // we're first!
+//         if (ijs.prefixes.hasOwnProperty(token)) {
+//             var opDef = ijs.prefixes[token]
+//             group = [token + "_pre"]
+//             for (var i=0; i<(opDef.arity || 1); i++) {
+//                 var nextTerm = ijs.nextTokenGroup(tokens, null, null)
+//                 group.push(nextTerm)
+//             }
+//             return group
+//         }
+//         return token
+//     } else {
+//         if (ijs.infixes.hasOwnProperty(token)) {
+//             var opDef = ijs.infixes[token]
+//             if (!lastOpDef) {
+//                 var g = [token, lastGroup]
+//                 g.push(ijs.nextTokenGroup(tokens, opDef, g))
+//                 // return g
+//                 return null
+//             } else if (opDef.precedence < lastOpDef.precedence || (opDef.precedence == lastOpDef.precedence && !opDef.associatitivity)) {
+//                 copiedLastGroup = JSON.parse(JSON.stringify(lastGroup))
+//                 lastGroup[0] = token
+//                 lastGroup[1] = copiedLastGroup
+//                 lastGroup[2] = ijs.nextTokenGroup(tokens, opDef, lastGroup)
+//                 // return lastGroup
+//                 // return ijs.nextTokenGroup()
+//                 return null
+//             } else if (opDef.precedence > lastOpDef.precedence || (opDef.precedence == lastOpDef.precedence && opDef.associatitivity)) {
+//                 var lastRight
+//                 if (typof lastGroup == "object") {
+//                     var lastRight = lastGroup[lastGroup.length - 1]
+//                     var newGroup = [token, lastRight, ijs.nextTokenGroup(tokens, opDef, lastGroup)]
+//                     lastGroup[lastGroup.length - 1] = newGroup
+//                 } else {
+//                     lastRight = lastGroup
+//                     var newGroup = [token, lastRight, ijs.nextTokenGroup(tokens, opDef, lastGroup)]
+//                     lastGroup[lastGroup.length - 1] = newGroup
+//                 }
+//                 // return newGroup
+//                 return null
+//             }
+//         }
+//     }
+//     return token
+// }
+
+// ijs.infixate = function (tokens) {
+//     var newTokens = []
+//     var lastGroup = null
+//     while (true) {
+//         if (tokens.length == 0) {
+//             return newTokens
+//         }
+//         var curGroup = ijs.nextTokenGroup(tokens, null, lastGroup)
+//         if (curGroup != null) {
+//             newTokens.push(curGroup)
+//             lastGroup = curGroup
+//         }
+//     }
+// }
+        // if (tokens.length == 0) {
+        //     if (newTokens.length == 0) {
+        //         return (void 0)
+        //     }
+        //     return newTokens
+        // }
+        // var token = tokens.shift()
+
+// var prefixes = ijs.prefixes
+// var infixes = ijs.infixes
+ijs.infixate2 = function(tokens) {
+    
+}
+
+
+
+
+
+
+
+
+
+
+ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forAsync) {
     logIndent(iter, "infixate called", tokens)
     if (iter == 500) {
         alert("oops")
         return
     }
     var newTokens = []
+    logCurr(iter, "start", newTokens)
     var stack = []
     var d = null
     // a b c x + y * 3 ** 4
@@ -880,7 +948,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
             }
             return newTokens
         }
-        token = tokens.shift()
+        var token = tokens.shift()
         // log2("+ token: " + JSON.stringify(token))
         if (!skipInfix && (ijs.infixes.hasOwnProperty(token))) {
         // if (token in ijs.infixes) {
@@ -891,6 +959,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
             if (lastPrecedence == -1) {
                 lastGroup = [token, newTokens.pop(), ijs.infixate(tokens, true, true, currPrecedence, iter+1)]
                 newTokens.push(lastGroup)
+                logCurr(iter, "a", newTokens)
             } else if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
                 // log2("-here")
                 copiedLastGroup = JSON.parse(JSON.stringify(lastGroup))
@@ -898,13 +967,18 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
                 lastGroup[1] = copiedLastGroup
                 lastGroup[2] = ijs.infixate(tokens, true, true, currPrecedence, iter + 1)
                 lastGroup = lastGroup // lol
+                logCurr(iter, "b", newTokens)
             } else if (currPrecedence > lastPrecedence || (currPrecedence == lastPrecedence && currAssociatitivity)) {
                 var lastRight = lastGroup[lastGroup.length - 1]
                 var newGroup = [token, lastRight, ijs.infixate(tokens, true, true, currPrecedence, iter + 1)]
                 lastGroup[lastGroup.length - 1] = newGroup
                 lastGroup = newGroup
+                logCurr(iter, "c", newTokens)
             }
             if (stopAfter) {
+                if (forAsync) {
+                    // alert("stopping1: " + JSON.stringify(lastGroup))
+                }
                 // wait maybe just return lastGroup?
                 logIndent(iter, "infix return", lastGroup)
                 return lastGroup
@@ -917,20 +991,38 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
             len = opDef.len
             lastGroup = [token + "_pre"]
             for (var i=0; i<(opDef.arity || 1); i++) {
-                lastGroup.push(ijs.infixate(tokens, true, true, currPrecedence, iter + 1))
+                // if (token == "async") {
+                //     alert("trying to grab for async: " + JSON.stringify(tokens))
+                //     var grabbed = ijs.infixate(tokens, true, true, currPrecedence, iter + 1, true)
+                // } else {
+                    // alert("trying to grab for " + token + ":"  + JSON.stringify(tokens))
+                    var grabbed = ijs.infixate(tokens, true, true, currPrecedence, iter + 1, false)
+                // }
+                // if (token == "async") {
+                    // alert("for "+token+" i grabbed: " + JSON.stringify(grabbed))
+                // }
+                lastGroup.push(grabbed)
             }
+            logCurr(iter, "d", newTokens)
             lastPrecedence = currPrecedence
             if (stopAfter) {
+                if (forAsync) {
+                    // alert("stopping2: " + JSON.stringify(lastGroup))
+                }
                 // wait maybe just return lastGroup?
                 logIndent(iter, "prefix return", lastGroup)
                 return lastGroup
                 // return newTokens
             }
             newTokens.push(lastGroup)
+            logCurr(iter, "e", newTokens)
         // } else if (token in ijs.postfixes) {
         //     lastGroup = [token + "_postfix", lastGroup]
         } else {
             if (stopAfter) {
+                if (forAsync) {
+                    // alert("got here for async")
+                }
                 var next = ""
                 if (tokens.length) {
                     var next = tokens.shift()
@@ -943,13 +1035,22 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
                     // if (currPrecedence < lastPrecedence) {
                     if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
                         logIndent(iter, "token return a", token)
+                        if (forAsync) {
+                            // alert("stopping3: " + JSON.stringify(token))
+                        }
                         return token
                     }
                 } else if (next in ijs.postfixes) {
                     tokens.shift()
+                    if (forAsync) {
+                        // alert("stopping4: " + JSON.stringify([next + "_post", token]))
+                    }
                     return [next + "_post", token]
                 } else {
                     logIndent(iter, "token return b", token)
+                    if (forAsync) {
+                        // alert("stopping5: " + JSON.stringify(token))
+                    }
                     return token
                 }
             }
@@ -963,8 +1064,10 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter) {
             if (next in ijs.postfixes) {
                 tokens.shift()
                 newTokens.push([next + "_post", token])
+                logCurr(iter, "f", newTokens)
             } else {
                 newTokens.push(token)
+                logCurr(iter, "g", newTokens)
             }
         }
         skipInfix = false // we only want it on the first one
@@ -998,8 +1101,8 @@ ijs.run = function(code, world) {
     // var oldPreventRender = preventRender
     // preventRender = true
     var tokens = ijs.tokenize(code)
-    // log2(tokens)
-    // return
+    log2(tokens)
+    return
     
     if (!world) {
         var globalObject
@@ -1520,7 +1623,7 @@ ijs.builtins = {
         var theClass = ijs.exec(args[0][1], world)
         var theArgs = args[0].slice(2)[0]
         var evaledArgs = []
-        if (typeof theArgs == 'object') {
+        if (typeof theArgs == 'object' && theArgs) {
             var evaledArgs = theArgs.map(function(t) {
                 return ijs.exec(t, world)
             })
@@ -2331,13 +2434,13 @@ ijs.exampleCode = function () {
 
 // return
 
-function sleep(ms) {
-    return new Promise(function (resolve, reject) {
-        setTimeout(function () {
-            resolve()
-        }, ms)
-    })
-}
+// function sleep(ms) {
+//     return new Promise(function (resolve, reject) {
+//         setTimeout(function () {
+//             resolve()
+//         }, ms)
+//     })
+// }
 
 // function getStuff() {
 //     return new Promise(function (resolve, reject) {
@@ -2354,47 +2457,186 @@ function sleep(ms) {
 // foo2()
 // 
 // return
-async function foo() {
-    log2("what?")
-    if (false) {
-        log2(1)
-        await sleep(200)
-        log2(2)
-    } else if (false) {
-        log2(1.1)
-        await sleep(200)
-        log2(2.1)
-    } else {
-        log2(1.2)
-        await sleep(200)
-        log2(2.2)
-    }
-    for (var i = 0; i < 5; i++) {
-        log2(i)
-        await sleep(100)
-    }
-    log2("=====")
-    var i = 0
-    while (i < 10) {
-        i++
-        log2(i)
-        await sleep(100)
-    }
-    
-    var colors = ["red", "yellow", "blue"]
-    for (let color of colors) {
-        log2(color)
-        await sleep(100)
-    }
-    var stuff = {a: 1, b: 2, c: 3}
-    for (let key in stuff) {
-        log2(key)
-        await sleep(100)
-    }
-    log2("done")
-}
-foo()
-log2("hey")
+
+// var progressBasEl = null
+ // if (
+   // progressBasEl &&
+   // progressBasEl.length > 0 &&
+   // progressBasEl[0].innerText === "100%"
+   // progressBasEl[0].innerText === "100%"
+   // progressBasEl[0]
+   // progressBasEl.0
+ // ) {
+
+// red marker
+// +7 * 2
+// +7 || 2
+// -3 + 4 * 2 
+
+// +1 + 2 * 4
+
+
+// a 7 b 2 c 9
+// (a 7) b 2 c 9
+// (((a 7) b 2) c 9)
+// 
+// 
+// 
+// b 7 a 2 c 9
+// (b 7) a 2 c 9
+// (b (7 a 2)) c 9
+// 
+// c 7 b 2 a 9
+// (c 7) b 2 a 9
+// (c (7 b 2)) a 9
+// 
+// 
+// (c (7 b (2 a 9)))
+// 
+// a b c 7 d 8
+// c b a 7 d 8 9
+// c b a (7 d 8) 9
+
+
+ // - + 7 + 8
+ // -7 8 4 + 2 * 3
+// + 7 * 2 + pre3 4 5 a.b
+
+
+// 4 + 2 + 3
+// 2 = 3 = 4
+// 2 + 3 + 4 5
+
+
+// pre3 foo + bar biz * baz + yo scuba
+// pre foo + bar biz * baz + yo scuba
+// 2 = 3 = 4
+
+
+//    [
+//       "=",
+//       2,
+//       [
+//          "=",
+//          3,
+//          4
+//       ]
+//    ],
+//    [
+//       "+",
+//       [
+//          "+",
+//          2,
+//          3
+//       ],
+//       4
+//    ]
+// ]
+// foo = async (b) => z
+// foo = async function (b) z
+// foo = async function (b) z
+// async (b) => z
+// foo = async + b => z
+// foo = async var b => z
+// foo = async b => z
+
+// 1 + 2 + 3
+
+// if (x == 1) {
+// }
+// [
+//    "foo",
+//    "=",
+//    "async",
+//    "<group>",
+//    [
+//       "b"
+//    ],
+//    "=>",
+//    "z"
+// ]
+// infixate called: ["foo","=","async","<group>",["b"],"=>","z"]
+// iterating: ["foo"]
+//     infixate called: ["async","<group>",["b"],"=>","z"]
+//         infixate called: ["<group>",["b"],"=>","z"]
+//             infixate called: [["b"],"=>","z"]
+//             token return a: ["b"]
+//         prefix return: ["<group>_pre",["b"]]
+//     prefix return: ["async_pre",["<group>_pre",["b"]]]
+// iterating: [["=","foo",["async_pre",["<group>_pre",["b"]]]]]
+//     infixate called: ["z"]
+//     token return b: "z"
+// iterating: [["=","foo",["=>",["async_pre",["<group>_pre",["b"]]],"z"]]]
+
+// [
+//    "foo",
+//    "=",
+//    "async",
+//    "b",
+//    "=>",
+//    "z"
+// ]
+// infixate called: ["foo","=","async","b","=>","z"]
+// iterating: ["foo"]
+//     infixate called: ["async","b","=>","z"]
+//         infixate called: ["b","=>","z"]
+//         iterating: ["b"]
+//             infixate called: ["z"]
+//             token return b: "z"
+//         infix return: ["=>","b","z"]
+//     prefix return: ["async_pre",["=>","b","z"]]
+// iterating: [["=","foo",["async_pre",["=>","b","z"]]]]
+
+// +3*4
+// var f = null
+// 
+// if (f && f.wowzuh) {
+//     alert("yay")
+// } else {
+//     alert("nay")
+// }
+
+// async function foo() {
+//     log2("what?")
+//     if (false) {
+//         log2(1)
+//         await sleep(200)
+//         log2(2)
+//     } else if (false) {
+//         log2(1.1)
+//         await sleep(200)
+//         log2(2.1)
+//     } else {
+//         log2(1.2)
+//         await sleep(200)
+//         log2(2.2)
+//     }
+//     for (var i = 0; i < 5; i++) {
+//         log2(i)
+//         await sleep(100)
+//     }
+//     log2("=====")
+//     var i = 0
+//     while (i < 10) {
+//         i++
+//         log2(i)
+//         await sleep(100)
+//     }
+//     
+//     var colors = ["red", "yellow", "blue"]
+//     for (let color of colors) {
+//         log2(color)
+//         await sleep(100)
+//     }
+//     var stuff = {a: 1, b: 2, c: 3}
+//     for (let key in stuff) {
+//         log2(key)
+//         await sleep(100)
+//     }
+//     log2("done")
+// }
+// foo()
+// log2("hey")
 
 
 
