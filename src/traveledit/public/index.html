@@ -24,7 +24,7 @@ document.write(`
 <!-- For now not loading in third party diff library. -->
 <!--<script src="`+proxyPath+`/tepublic/diff.js"></scr`+`ipt>-->
 <script src="`+proxyPath+`/tepublic/md52.js"></scr`+`ipt>
-<script src="`+proxyPath+`/tepublic/thumbscript4.js"></scr`+`ipt>
+<script src="`+proxyPath+`/tepublic/thumbscript4.js?v=8"></scr`+`ipt>
 <!-- For now not loading in grapheme splitter to save pageload. -->
 <!-- it means we can't use emojis, other unicode chars for now -->
 <!-- <script src="`+proxyPath+`/tepublic/grapheme-splitter.js"></scr`+`ipt>
@@ -1850,7 +1850,6 @@ function renderDarkMode() {
         theBackgroundColor = darkModeFontColor
         // lineNumberColor = veryLightFontColor
         render()
-        renderURL()
         return
     }
     darkModeButton.innerText = "light"
@@ -1871,7 +1870,6 @@ function renderDarkMode() {
     // lineNumberColor = veryLightFontColor
     
     render()
-    renderURL()
 }
 function updateClassForSelector(selector, remove, add) {
     var inputs = document.querySelectorAll(selector)
@@ -2249,15 +2247,18 @@ function cleanUpFiles() {
     
     render()
     renderFileDropdown()
-    renderURL()
     seeFiles()
     seeFiles()
     
     log(seenFiles)
 }
 function closeFile(theFX) {
+    var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
     if (!theFX) {
         theFX = fx
+    }
+    if (theFX.thumbscriptWorld) {
+        theFX.thumbscriptWorld.global.stopped = true
     }
     log("closing " + theFX.fullPath)
     if (theFX.fileMode == "fileList") {
@@ -2281,9 +2282,12 @@ function closeFile(theFX) {
             // or maybe don't show unicode in file list?
             render()
             renderFileDropdown()
-            renderURL()
             closeFileServer(fileToClose).then(() => {
-            }).catch(e => alert(e))
+                resolve()
+            }).catch(e => {
+                alert(e)
+                reject()
+            })
         }
         theFX.lines = getLinesForFileList()
     } else {
@@ -2305,10 +2309,10 @@ function closeFile(theFX) {
         }
         render()
         renderFileDropdown()
-        renderURL()
         closeFileServer(theFX).then(() => {
         }).catch(e => alert(e))
     }
+    return p
 }
 
 var shellHelpers = [
@@ -2445,26 +2449,6 @@ function normalizeFullPath(fullPath) {
     return newFullPath
 }
 
-function renderURL() {
-    return // with workspaces we don't render url
-    if (preventRender) {
-        return
-    }
-    // For now we don't get files with shell mode.
-    var filtered = files.filter(f => f.fileMode != "shell")
-    var theNewPath = "/" + filtered.map(function(f) {
-        if (f.fileMode == "terminal") {
-            // TODO: ensure that the terminal is not the first one somewhere?
-            // or at least handle it
-            // TODO: encodeURIComponent? (or does it already do that?)
-            return "__TERMINAL__:" + f.ID
-        }
-        return f.fullPath.slice(1) + ":" + (f.cursorLineIndex + 1)
-
-    }).join(",")
-    theNewPath += "?dark=" + (isDark ? "1" : "0")
-    history.replaceState({}, "", theNewPath)
-}
 
 function doEval() {
     var code = prompt("code")
@@ -3347,10 +3331,10 @@ function log2() {
 function runScript() {
     clearLog2()
     var theScriptLines = getSelectedLines(fx).lines
-    
+    var thumbscriptWorld
     if (theScriptLines[0] == "#thumbscript" || theScriptLines[0] == "#ths") {
             // lol
-            thumbscript4.eval(theScriptLines.join("\n"), window) // lol the window
+            thumbscriptWorld = thumbscript4.eval(theScriptLines.join("\n"), window) // lol the window
             // return w.stack.pop()
     } else {
         // add return to the last non-empty line
@@ -3374,6 +3358,10 @@ function runScript() {
     }
     
     showLog()
+    if (thumbscriptWorld) {
+        // only one at a time for now
+        logFile.thumbscriptWorld = thumbscriptWorld
+    }
 }
 
 
@@ -4655,7 +4643,6 @@ function saveName(name) {
     .then(r => {})
     .catch(r => {})
     fx.name = name
-    renderURL()
     renderFileDropdown()
 }
 
@@ -4912,6 +4899,23 @@ function rerunTerminal() {
         })
     })
 }
+
+// inconsistency with promosies and callbacks would be cool to *resolve* ;)
+function sendTerminalFile(file, payload) {
+    var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
+    var oldFx = fx
+    fx = file
+    sendTerminal(payload, function (err) {
+        if (err) {
+            reject(err)
+            return
+        }
+        resolve()
+    })
+    fx = oldFx
+    return p
+}
+
 var sendingTerminal = false
 var sendTerminalBuffer = ""
 var sendTerminalCallbacks = []
@@ -4949,6 +4953,8 @@ function sendTerminal(payload, cb) {
     })
 }
 function openTerminal() {
+    var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
+    
     if (fx.fileMode != "terminal") {
         return
     }
@@ -4962,9 +4968,13 @@ function openTerminal() {
         return r.json()
     }).then(r => {
         myFx.ID = r.ID
+        resolve()
     }).catch(e => {
         alert("There was an error running the command: " + e)
+        reject()
     })
+    fx.terminalLoadPromise = p
+    
 }
 function closeFileServer(theFile) {
     if (!theFile) {
@@ -6040,11 +6050,10 @@ function sendViewToServer() {
    })
 
 }
-var renderURLTimeout
 var waitingRender = false
 var lastRender = 0
-// var maxFrameRate = 16
-var maxFrameRate = 0
+var maxFrameRate = 10
+// var maxFrameRate = 0
 var waitingServerRender = false
 var lastServerRender = 0
 var maxServerFrameRate = 100
@@ -6060,13 +6069,6 @@ function render() {
     if (preventRender) {
         return
     }
-
-    // Now that file names contain line numbers
-    // let's render the url nore frequently
-    clearTimeout(renderURLTimeout)
-    renderURLTimeout = setTimeout(function () {
-        renderURL()
-    }, 1000)
 
     var timeSinceRender = Date.now() - lastRender
     if (timeSinceRender < maxFrameRate) {
@@ -9719,6 +9721,11 @@ function selectFileInDirectory(file, selectName) {
         }
     }
 }
+function waitFileTerminalLoad(f) {
+    if (f.terminalLoadPromise) {
+        return f.terminalLoadPromise
+    }
+}
 
 function waitFileLoad(f) {
     if (f.loadPromise) {
@@ -9803,7 +9810,6 @@ function addFile(fullPath, options, id, name) { // hotpink marker
     if (!options.preventSelect) {
         setCurrentFile(file)
     }
-    renderURL()
     fetchFile(fullPath, file, id).then(() => {
         for (var i=0; i<files.length; i++) {
             if (files[i] != file && files[i].fullPath == file.fullPath) {
@@ -10246,7 +10252,6 @@ function duplicateFile(f, cursorLineIndex, options, id="") {
         fc.offsetY = max(cursorLineIndex - Math.floor(maxLines/2), 0)
         ensureCursorInScreen()
     }
-    renderURL()
     
     return fc
     // TODO: eventually, update cursor position
