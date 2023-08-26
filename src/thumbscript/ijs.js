@@ -35,7 +35,7 @@
 var ijs = {}
 // TODO: ignore : , ;
 // TOODO: interpolation? (template literals)
-ijs.tokenize = function(code) {
+ijs.tokenize = function (code) {
     var backslash = "\\"
     code = code + "\n"
     var i = 0
@@ -44,7 +44,7 @@ ijs.tokenize = function(code) {
     var quoteType = ""
     var tokens = []
 
-    var pushToken = function(x) {
+    var pushToken = function (x) {
         if (x == ",") {
             return
         }
@@ -72,14 +72,16 @@ ijs.tokenize = function(code) {
             tokens.push(void 0)
             return
         }
-        if (x - 0 == x) {
-            tokens.push(x - 0)
+        
+        var sinUnderscores = x.replaceAll("_", "")
+        if (sinUnderscores - 0 == sinUnderscores) {
+            tokens.push(sinUnderscores - 0)
             return
         }
         tokens.push(x)
     }
 
-    var isVar = function(chr) {
+    var isVar = function (chr) {
         var a = chr.charCodeAt(0)
         return (
             (a >= 65 && a <= 90) ||  // A-Z
@@ -1124,7 +1126,7 @@ ijs.run = function(code, world) {
     // var oldPreventRender = preventRender
     // preventRender = true
     var tokens = ijs.tokenize(code)
-    // log2(tokens)
+    log2(tokens)
     // return
     
     if (!world) {
@@ -1136,13 +1138,13 @@ ijs.run = function(code, world) {
         }
         var globalWorld = {
             state: globalObject,
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             parent: null,
         }
         world = {
             parent: globalWorld,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: globalWorld
         }
     }
@@ -1170,7 +1172,7 @@ ijs.makeAsyncFunc = function(params, body, world) {
     var world = {
         parent: world,
         state: {},
-        cachedLookupWorld: {},
+        // cachedLookupWorld: {},
         global: world.global,
         async: true,
     }
@@ -1215,7 +1217,7 @@ ijs.makeFunc = function(params, body, world) {
     var world = {
         parent: world,
         state: {},
-        cachedLookupWorld: {},
+        // cachedLookupWorld: {},
         global: world.global,
         async: false
     }
@@ -1791,7 +1793,7 @@ ijs.builtins = {
         var wrapperWorld = {
             parent: world,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             blockScope: true,
             async: world.async
@@ -1801,7 +1803,7 @@ ijs.builtins = {
             let loopWorld = {
                 parent: wrapperWorld,
                 state: {...wrapperWorld.state},
-                cachedLookupWorld: {},
+                // cachedLookupWorld: {},
                 global: wrapperWorld.global,
                 blockScope: true,
                 async: wrapperWorld.async
@@ -1834,7 +1836,7 @@ ijs.builtins = {
         var wrapperWorld = {
             parent: world,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             blockScope: true,
             async: world.async
@@ -1844,7 +1846,7 @@ ijs.builtins = {
             let loopWorld = {
                 parent: wrapperWorld,
                 state: {...wrapperWorld.state},
-                cachedLookupWorld: {},
+                // cachedLookupWorld: {},
                 global: wrapperWorld.global,
                 blockScope: true,
                 async: wrapperWorld.async
@@ -1871,7 +1873,7 @@ ijs.builtins = {
         let wrapperWorld = {
             parent: world,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             blockScope: true,
             async: world.async
@@ -1890,7 +1892,7 @@ ijs.builtins = {
                         parent: wrapperWorld,
                         // state: {...wrapperWorld.state},
                         state: {...wrapperWorld.state},
-                        cachedLookupWorld: {},
+                        // cachedLookupWorld: {},
                         global: wrapperWorld.global,
                         blockScope: true,
                         async: wrapperWorld.async
@@ -1918,7 +1920,7 @@ ijs.builtins = {
                         parent: wrapperWorld,
                         // state: {...wrapperWorld.state},
                         state: {...wrapperWorld.state},
-                        cachedLookupWorld: {},
+                        // cachedLookupWorld: {},
                         global: wrapperWorld.global,
                         blockScope: true,
                         async: wrapperWorld.async
@@ -1954,7 +1956,7 @@ ijs.builtins = {
                 parent: wrapperWorld,
                 // state: {...wrapperWorld.state},
                 state: {...wrapperWorld.state},
-                cachedLookupWorld: {},
+                // cachedLookupWorld: {},
                 global: wrapperWorld.global,
                 blockScope: true,
                 async: wrapperWorld.async,
@@ -1976,7 +1978,7 @@ ijs.builtins = {
         let wrapperWorld = {
             parent: world,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             blockScope: true,
             async: world.async
@@ -1995,7 +1997,7 @@ ijs.builtins = {
                         parent: wrapperWorld,
                         // state: {...wrapperWorld.state},
                         state: {...wrapperWorld.state},
-                        cachedLookupWorld: {},
+                        // cachedLookupWorld: {},
                         global: wrapperWorld.global,
                         blockScope: true,
                         async: wrapperWorld.async
@@ -2023,7 +2025,7 @@ ijs.builtins = {
                         parent: wrapperWorld,
                         // state: {...wrapperWorld.state},
                         state: {...wrapperWorld.state},
-                        cachedLookupWorld: {},
+                        // cachedLookupWorld: {},
                         global: wrapperWorld.global,
                         blockScope: true,
                         async: wrapperWorld.async
@@ -2058,7 +2060,7 @@ ijs.builtins = {
                 parent: wrapperWorld,
                 // state: {...wrapperWorld.state},
                 state: {...wrapperWorld.state},
-                cachedLookupWorld: {},
+                // cachedLookupWorld: {},
                 global: wrapperWorld.global,
                 blockScope: true,
                 async: wrapperWorld.async,
@@ -2081,7 +2083,7 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: world.async,
             blockScope: true,
@@ -2090,7 +2092,7 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: world.async,
             blockScope: true,
@@ -2118,7 +2120,7 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: world.async,
             blockScope: true,
@@ -2127,7 +2129,7 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: world.async,
             blockScope: true,
@@ -2155,7 +2157,7 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: false,
             blockScope: true,
@@ -2181,7 +2183,7 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: false,
             blockScope: true,
@@ -2353,7 +2355,7 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
         alert("no func: " + funcAccessor)
     }
     theArgs = theArgs || []
-    var ret = func.apply(null, theArgs.map(function(t) {
+    var ret = func.apply(null, theArgs.map(function (t) {
         return ijs.exec(t, world)
     }))
     return ret
@@ -2429,13 +2431,15 @@ ijs.makeSpecialReturn = function () {
 // p.then(function (x) {
 //     alert("resolved: " + x)
 // })
+
 // var start = Date.now()
 // var total = 0
-// for (let i = 0; i < 100000; i++) {
+// for (let i = 0; i < 1000000; i++) {
 //     total += i
 // }
 // var end = Date.now()
-// log2("this for loop took " + (end - start) + " milliseconds " + total)
+// log2("for loop took " + (end - start) + " milliseconds " + total)
+
 
 // var i = 0
 // while (i < 10) {
@@ -2458,17 +2462,36 @@ ijs.makeSpecialReturn = function () {
 // }
 // alert(lol.toString())
 
-
-
 ijs.exampleCode = function () {
 /*
 
+// alert(1_000)
 
-function foo(...args) {
-    log2(args)
-}
+// laziness works
+// a = x => { alert(x) return true }
+// b = x => { alert(x) return false }
+// if (a(17) || b(23)) {
+//     alert("yay!")
+// }
+// if (b(17) || a(23)) {
+//     alert("yay!")
+// }
+// if (a(17) && b(23)) {
+//     alert("yay!")
+// }
+// if (b(17) && a(23)) {
+//     alert("yay!")
+// }
 
-foo(3, 4, 212)
+
+// f = x == 3 || y == 4 && a == b
+
+// log2(encodeURIComponent("yo=man"))
+// function foo(...args) {
+//     log2(args)
+// }
+// 
+// foo(3, 4, 212)
 
 // alert(a.foo)
 // async function foo(a, b=27 c = [123]) {
@@ -2881,17 +2904,17 @@ foo(3, 4, 212)
 //     alert("yay")
 // }, 1000)
 // async function test10() {
-//     // var sleep = function (ms) {
-//     //     return new Promise(function (resolve, reject) {
-//     //         log2("doing the setTimeout " + ms)
-//     //         setTimeout(function () {
-//     //             resolve()
-//     //         }, ms)
-//     //     })
-//     // }
-//     // alert("hi")
-//     // await sleep(1000)
-//     // alert("bye")
+//     var sleep = function (ms) {
+//         return new Promise(function (resolve, reject) {
+//             log2("doing the setTimeout " + ms)
+//             setTimeout(function () {
+//                 resolve()
+//             }, ms)
+//         })
+//     }
+//     alert("hi")
+//     await sleep(1000)
+//     alert("bye")
 //     
 //     var foo = async function (a) {
 //         // return 200
@@ -2904,13 +2927,13 @@ foo(3, 4, 212)
 // }
 // test10()
 
-// var start = Date.now()
-// var total = 0
-// for (let i = 0; i < 100000; i++) {
-//     total += i
-// }
-// var end = Date.now()
-// log2("for loop took " + (end - start) + " milliseconds " + total)
+var start = Date.now()
+var total = 0
+for (let i = 0; i < 100_000; i++) {
+    total += i
+}
+var end = Date.now()
+log2("for loop took " + (end - start) + " milliseconds " + total)
 
 
 // see difference with var
