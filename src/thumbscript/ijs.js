@@ -1176,6 +1176,23 @@ ijs.makeAsyncFunc = function(params, body, world) {
         global: world.global,
         async: true,
     }
+
+    // Hoist!
+    var hoisted = []
+    var nonHoisted = []
+    for (var i = 0; i < body.length; i++) {
+        if (body[i][0] == "function_pre") {
+            hoisted.push(body[i])
+        } else if (body[i][0] == "async_pre" && body[i][1][0] == "function_pre") {
+            hoisted.push(body[i])
+        } else {
+            nonHoisted.push(body[i])
+        }
+    }
+    if (hoisted.length) {
+        body = [...hoisted, ...nonHoisted]
+    }
+
     var f = async function(...args) {
         if (params) {
             // only handling spread if it's the only argument for bow
@@ -1214,6 +1231,7 @@ ijs.makeFunc = function(params, body, world) {
     body = body || []
     // body = ["run", ...body]
     // body.unshift("run")
+    // alert(JSON.stringify(body, null, "    "))
     var world = {
         parent: world,
         state: {},
@@ -1223,6 +1241,22 @@ ijs.makeFunc = function(params, body, world) {
     }
     // log2("+params are")
     // log2(params)
+    
+    // Hoist!
+    var hoisted = []
+    var nonHoisted = []
+    for (var i = 0; i < body.length; i++) {
+        if (body[i][0] == "function_pre") {
+            hoisted.push(body[i])
+        } else if (body[i][0] == "async_pre" && body[i][1][0] == "function_pre") {
+            hoisted.push(body[i])
+        } else {
+            nonHoisted.push(body[i])
+        }
+    }
+    if (hoisted.length) {
+        body = [...hoisted, ...nonHoisted]
+    }
     var f = function(...args) {
         if (params) {
             // only handling spread if it's the only argument for bow
@@ -2464,6 +2498,16 @@ ijs.makeSpecialReturn = function () {
 
 ijs.exampleCode = function () {
 /*
+
+
+// async function wrapper() {
+//     checkHoist()
+//     async function checkHoist() {
+//         alert("rubbage")
+//     }
+// }
+// wrapper()
+
 
 // function checkIt() {
 //     // if (true) {
