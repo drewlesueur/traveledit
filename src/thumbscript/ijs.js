@@ -1,3 +1,9 @@
+if (typeof log2 === "undefined") {
+   log2 = function (x) {
+       console.log(x)
+   }
+}
+
 // todo: not slicing as much would prob be faster
 // template strings, just the basics
 // rename run function
@@ -1165,18 +1171,8 @@ ijs.run = function(code, world) {
 
 // TODO: numbers
 
-ijs.makeAsyncFunc = function(params, body, world) {
-    body = body || []
-    // body = ["run", ...body]
-    // body.unshift("run")
-    var world = {
-        parent: world,
-        state: {},
-        // cachedLookupWorld: {},
-        global: world.global,
-        async: true,
-    }
 
+ijs.hoist = function (body) {
     // Hoist!
     var hoisted = []
     var nonHoisted = []
@@ -1192,6 +1188,22 @@ ijs.makeAsyncFunc = function(params, body, world) {
     if (hoisted.length) {
         body = [...hoisted, ...nonHoisted]
     }
+    return body
+}
+
+ijs.makeAsyncFunc = function(params, body, world) {
+    body = body || []
+    // body = ["run", ...body]
+    // body.unshift("run")
+    var world = {
+        parent: world,
+        state: {},
+        // cachedLookupWorld: {},
+        global: world.global,
+        async: true,
+    }
+
+    body = ijs.hoist(body)
 
     var f = async function(...args) {
         if (params) {
@@ -1242,21 +1254,7 @@ ijs.makeFunc = function(params, body, world) {
     // log2("+params are")
     // log2(params)
     
-    // Hoist!
-    var hoisted = []
-    var nonHoisted = []
-    for (var i = 0; i < body.length; i++) {
-        if (body[i][0] == "function_pre") {
-            hoisted.push(body[i])
-        } else if (body[i][0] == "async_pre" && body[i][1][0] == "function_pre") {
-            hoisted.push(body[i])
-        } else {
-            nonHoisted.push(body[i])
-        }
-    }
-    if (hoisted.length) {
-        body = [...hoisted, ...nonHoisted]
-    }
+    body = ijs.hoist(body)
     var f = function(...args) {
         if (params) {
             // only handling spread if it's the only argument for bow
@@ -2133,6 +2131,9 @@ ijs.builtins = {
         }
         var tryBody = args[0][1] || []
         var catchBody = args[3][1] || []
+        tryBody = ijs.hoist(tryBody)
+        var catchBody = args[3][1] || []
+        catchBody = ijs.hoist(catchBody)
         
         try {
             var ret = ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
@@ -2169,7 +2170,9 @@ ijs.builtins = {
             blockScope: true,
         }
         var tryBody = args[0][1] || []
+        tryBody = ijs.hoist(tryBody)
         var catchBody = args[3][1] || []
+        catchBody = ijs.hoist(catchBody)
         
         try {
             var ret = await ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
@@ -2201,6 +2204,11 @@ ijs.builtins = {
         var body = args[1][1] || []
         // body.unshift("run")
         // body = ["run", ...body]
+        
+        // todo: there may be a better place to do this, like at compile time?
+        // or a deeper check in makeFunc
+        body = ijs.hoist(body)
+        
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
@@ -2227,6 +2235,11 @@ ijs.builtins = {
         var body = args[1][1] || []
         // body.unshift("run")
         // body = ["run", ...body]
+
+        // todo: there may be a better place to do this, like at compile time?
+        // or a deeper check in makeFunc
+        body = ijs.hoist(body)
+
         var condRet = ijs.exec(condition, ifWorld)
         if (condRet) {
             // var ret = ijs.exec(body, ifWorld)
@@ -2248,6 +2261,7 @@ ijs.builtins = {
                 body = body[1]
                 // body.unshift("run")
                 // body = ["run", ...body]
+                body = ijs.hoist(body)
                 elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             } else {
                 elseRet = ijs.exec(body, world)
@@ -2268,6 +2282,7 @@ ijs.builtins = {
                 body = body[1]
                 // body.unshift("run")
                 // body = ["run", ...body]
+                body = ijs.hoist(body)
                 elseRet = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             } else {
                 // This isn't awaited bug?
@@ -2500,13 +2515,18 @@ ijs.exampleCode = function () {
 /*
 
 
-// async function wrapper() {
-//     checkHoist()
-//     async function checkHoist() {
-//         alert("rubbage")
+// if (true) {
+// try {
+//   garbage.bad
+// } catch (e) {
+//     async function wrapper() {
+//         checkHoist()
+//         async function checkHoist() {
+//             alert("rubbage")
+//         }
 //     }
+//     wrapper()
 // }
-// wrapper()
 
 
 // function checkIt() {
