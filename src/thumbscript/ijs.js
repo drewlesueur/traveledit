@@ -1695,6 +1695,11 @@ ijs.builtins = {
             name = paramsAndName[1]
         } else {
             params = args[0]
+            if (typeof params == "object") {
+                params = params[1]
+            } else {
+                params = [params]
+            }
         }
         var body = args[1][1]
         var f = ijs.makeAsyncFunc(params, body, world)
@@ -2598,56 +2603,69 @@ ijs.exampleCode = function () {
 //     alert("nay")
 // }
 
+// function doIt(fn) {
+//     fn(10, 11)
+// }
+// doIt(async x => {
+//     alert(x)
+// })
+// doIt(async function (x) {
+//     alert(x)
+// })
+// doIt((x, y) => {
+//     alert(x + ", " + y)
+// })
+
 // blue marker
-function sleep(ms) {
-    return new Promise(function (resolve, reject) {
-        setTimeout(function () {
-            resolve()
-        }, ms)
-    })
-}
-// async function foo() {
-var foo = async () => {
-    log2("what?")
-    if (false) {
-        log2(1)
-        await sleep(200)
-        log2(2)
-    } else if (false) {
-        log2(1.1)
-        await sleep(200)
-        log2(2.1)
-    } else {
-        log2(1.2)
-        await sleep(200)
-        log2(2.2)
-    }
-    for (var i = 0; i < 5; i++) {
-        log2(i)
-        await sleep(100)
-    }
-    log2("=====")
-    var i = 0
-    while (i < 10) {
-        i++
-        log2(i)
-        await sleep(100)
-    }
-    
-    var colors = ["red", "yellow", "blue"]
-    for (let color of colors) {
-        log2(color)
-        await sleep(100)
-    }
-    var stuff = {a: 1, b: 2, c: 3}
-    for (let key in stuff) {
-        log2(key)
-        await sleep(100)
-    }
-    log2("done")
-}
-foo()
-log2("hey")
+// function sleep(ms) {
+//     return new Promise(function (resolve, reject) {
+//         setTimeout(function () {
+//             resolve()
+//         }, ms)
+//     })
+// }
+// // async function foo() {
+// var foo = async () => {
+//     log2("what?")
+//     if (false) {
+//         log2(1)
+//         await sleep(200)
+//         log2(2)
+//     } else if (false) {
+//         log2(1.1)
+//         await sleep(200)
+//         log2(2.1)
+//     } else {
+//         log2(1.2)
+//         await sleep(200)
+//         log2(2.2)
+//     }
+//     for (var i = 0; i < 5; i++) {
+//         log2(i)
+//         await sleep(100)
+//     }
+//     log2("=====")
+//     var i = 0
+//     while (i < 10) {
+//         i++
+//         log2(i)
+//         await sleep(100)
+//     }
+//     
+//     var colors = ["red", "yellow", "blue"]
+//     for (let color of colors) {
+//         log2(color)
+//         await sleep(100)
+//     }
+//     var stuff = {a: 1, b: 2, c: 3}
+//     for (let key in stuff) {
+//         log2(key)
+//         await sleep(100)
+//     }
+//     log2("done")
+// }
+// foo("yoyoy")
+// log2("hey")
 
 
 
