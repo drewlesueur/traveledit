@@ -2078,7 +2078,7 @@ ijs.builtins = {
             ijs.exec(next, wrapperWorld)
         }
     },
-    "try_pre": async function (args, world) {
+    "try_pre": function (args, world) {
         var tryWorld = {
             parent: world,
             // TODO: perf
@@ -2102,14 +2102,14 @@ ijs.builtins = {
         
         try {
             var ret = ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
-            // log2("ret from if is: " + JSON.stringify(ret))
+            // log2("ret from try is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
         } catch (e) {
             catchWorld.state[args[2][1][0]] = e
             var ret = ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true)
-            // log2("ret from if is: " + JSON.stringify(ret))
+            // log2("ret from catch is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -2464,6 +2464,18 @@ ijs.makeSpecialReturn = function () {
 
 ijs.exampleCode = function () {
 /*
+
+// function checkIt() {
+//     // if (true) {
+//     //     return "yo!"
+//     // }
+//     try {
+//         return "yay"
+//     } catch (e) {
+//         return "caught"
+//     }
+// }
+// alert(checkIt())
 
 // alert(1_000)
 
@@ -2927,13 +2939,13 @@ ijs.exampleCode = function () {
 // }
 // test10()
 
-var start = Date.now()
-var total = 0
-for (let i = 0; i < 100_000; i++) {
-    total += i
-}
-var end = Date.now()
-log2("for loop took " + (end - start) + " milliseconds " + total)
+// var start = Date.now()
+// var total = 0
+// for (let i = 0; i < 100_000; i++) {
+//     total += i
+// }
+// var end = Date.now()
+// log2("for loop took " + (end - start) + " milliseconds " + total)
 
 
 // see difference with var
