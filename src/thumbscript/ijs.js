@@ -1178,7 +1178,16 @@ ijs.makeAsyncFunc = function(params, body, world) {
         if (params) {
             for (var i=0; i<args.length; i++) {
                 var arg = args[i]
-                world.state[params[i]] = args[i]
+                var paramName = params[i]
+                if (typeof params[i] == "object") {
+                    // for default args
+                    paramName = params[i][1]
+                }
+                world.state[paramName] = args[i]
+            }
+            // default args
+            for (var i=args.length; i<params.length; i++) {
+                world.state[params[i][1]] = ijs.exec(params[i][2], world)
             }
         }
         // var ret = ijs.exec(body, world)
@@ -1211,7 +1220,16 @@ ijs.makeFunc = function(params, body, world) {
         if (params) {
             for (var i=0; i<args.length; i++) {
                 var arg = args[i]
-                world.state[params[i]] = args[i]
+                var paramName = params[i]
+                if (typeof params[i] == "object") {
+                    // for default args
+                    paramName = params[i][1]
+                }
+                world.state[paramName] = args[i]
+            }
+            // default args
+            for (var i=args.length; i<params.length; i++) {
+                world.state[params[i][1]] = ijs.exec(params[i][2], world)
             }
         }
         // var ret = ijs.exec(body, world)
@@ -2435,6 +2453,13 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
+a = {foo: "bar"}
+alert(a.foo)
+async function foo(a, b=27 c = [123]) {
+    alert(a + " " + b + " " + c)
+}
+
+foo(1)
 // var name = "Drew"
 // var x = 20
 // // var greeting = `Hello ${name}, is your number ${x + 1}?`
