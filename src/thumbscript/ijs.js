@@ -1756,12 +1756,19 @@ ijs.builtins = {
         }
         for (var i=0; i<args.length; i++) {
             var kv = args[i]
-            var key = kv[1]
-            var value = kv[2]
-            if (key.charAt(0) == "#") {
-                key = key.slice(1)
+            if (kv.length == 2 && kv[0] == "..._pre") {
+                var otherObj = ijs.exec(kv[1], world)
+                for (var key in otherObj) {
+                    o[key] = otherObj[key]
+                }
+            } else {
+                var key = kv[1]
+                var value = kv[2]
+                if (key.charAt(0) == "#") {
+                    key = key.slice(1)
+                }
+                o[key] = ijs.exec(value, world)
             }
-            o[key] = ijs.exec(value, world)
         }
         return o
     },
@@ -2561,9 +2568,14 @@ ijs.exampleCode = function () {
 // if (true) alert("what")
 // var a
 // alert(typeof a)
-values = [1,2]
-[a, b] = values
-alert(a + " " + b)
+// values = [1,2]
+// [a, b] = values
+// alert(a + " " + b)
+
+
+// var a = {foo: "bar", biz: "baz"}
+// b = {...a, yo: 100}
+// log2(b)
 return
 
 // if (true) {
