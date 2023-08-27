@@ -1844,6 +1844,9 @@ ijs.builtins = {
     },
     "<array>_pre": function(args, world) {
         var computed = []
+        if (!args[0]) {
+            return computed
+        }
         for (var i=0; i<args[0].length; i++) {
             var expr = args[0][i]
             if (expr && expr[0] == "..._pre") {
@@ -2697,6 +2700,11 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
+// chunks = []
+// alert(chunks)
+// 
+// var objj = {}
+// alert(objj)
 // await r.text()
 // a = await r.text()
 // fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js").then(r => r.text()).then(async r => {
