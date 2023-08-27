@@ -680,7 +680,8 @@ ijs.prefixes = {
      },
      "new": {
          "associatitivity": 1,
-         "precedence": 16,
+         // "precedence": 16,
+         "precedence": 17,
          "arity": 1,
          "fix": "pre",
      },
@@ -1823,6 +1824,9 @@ ijs.builtins = {
     "new_pre": function (args, world) {
         // https://stackoverflow.com/questions/3871731/dynamic-object-construction-in-javascript
         // log2("+args for new")
+        
+        // this is now handled as special case of callFunc
+        // i guess it's the way the operator precedence hacking landed 
         var theClass = ijs.exec(args[0][1], world)
         var theArgs = args[0].slice(2)[0]
         var evaledArgs = []
@@ -2558,6 +2562,22 @@ ijs.asyncVersions = {
     // "=": true,
 }
 ijs.callFunc = function(funcAccessor, theArgs, world) {
+    // special case for new
+    
+    if (typeof funcAccessor == "object") {
+        if (funcAccessor[0] == "new_pre") {
+            var theClass = ijs.exec(funcAccessor[1], world)
+            var evaledArgs = []
+            if (typeof theArgs == 'object' && theArgs) {
+                var evaledArgs = theArgs.map(function(t) {
+                    return ijs.exec(t, world)
+                })
+            }
+            var ret = new (Function.prototype.bind.apply(theClass, [null].concat(evaledArgs)))
+            return ret
+        }
+    }
+
     if (funcAccessor in ijs.builtins) {
         if (world.async && (funcAccessor in ijs.asyncVersions)) {
             funcAccessor = funcAccessor + "_await"
@@ -2571,6 +2591,7 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
         alert("no func: " + funcAccessor)
     }
     theArgs = theArgs || []
+    
     var ret = func.apply(null, theArgs.map(function (t) {
         return ijs.exec(t, world)
     }))
@@ -2700,6 +2721,19 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
+// function b() {
+//     return function () {
+//         return 98
+//     }
+// }
+// alert(b()())
+
+// var ab = new Date().getTime()
+// alert(new Date(ab))
+// new Date().getTime()
+// var ab = new Date("2012")
+// var a = "yoo"
+// alert(ab)
 // chunks = []
 // alert(chunks)
 // 
@@ -2733,21 +2767,21 @@ ijs.exampleCode = function () {
 // foo2()
 
 
-async function w2() {
-    // log2("hi")
-    // await sleep(1000)
-    // log2("bye")
-    // await sleep(1000)
-    // log2("again")
-    // for (var i=0; i<10; i++) {
-    //     log2("the " + i)
-    //     await sleep(200)
-    // }
-    var r = await fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js")
-    // var r1 = await r.text()
-    var r1 = await r.text()
-    alert(r1)
-}
+// async function w2() {
+//     // log2("hi")
+//     // await sleep(1000)
+//     // log2("bye")
+//     // await sleep(1000)
+//     // log2("again")
+//     // for (var i=0; i<10; i++) {
+//     //     log2("the " + i)
+//     //     await sleep(200)
+//     // }
+//     var r = await fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js")
+//     // var r1 = await r.text()
+//     var r1 = await r.text()
+//     alert(r1)
+// }
 // w2()
 
 // switch (foo) {
