@@ -988,7 +988,35 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forA
                 // wait maybe just return lastGroup?
                 logIndent(iter, "infix return", lastGroup)
                 // return lastGroup
-                return oldLastGroup
+                // return oldLastGroup
+                lastGroup = oldLastGroup
+                
+                var next = ""
+                if (tokens.length) {
+                    var next = tokens.shift()
+                    tokens.unshift(next)
+                }
+                if (next in ijs.infixes) {
+                    var opDef = ijs.infixes[next]
+                    currPrecedence = opDef.precedence
+                    currAssociatitivity = opDef.associatitivity
+                    if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
+                        return lastGroup
+                    } else {
+                        lastPrecedence = currPrecedence
+                    }
+                } else if (next in ijs.postfixes) {
+                    tokens.shift()
+                    if (forAsync) {
+                        // alert("stopping4: " + JSON.stringify([next + "_post", token]))
+                    }
+                    return [next + "_post", lastGroup]
+                } else {
+                    return lastGroup
+                }
+                
+                
+                
             }
             lastPrecedence = currPrecedence
         } else if (ijs.prefixes.hasOwnProperty(token)) {
@@ -1020,6 +1048,8 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forA
                 logIndent(iter, "prefix return", lastGroup)
                 // return lastGroup
                 
+
+
                 var next = ""
                 if (tokens.length) {
                     var next = tokens.shift()
@@ -1132,7 +1162,7 @@ ijs.run = function(code, world) {
     // var oldPreventRender = preventRender
     // preventRender = true
     var tokens = ijs.tokenize(code)
-    // log2(tokens)
+    log2(tokens)
     // return
     
     if (!world) {
@@ -2666,17 +2696,20 @@ ijs.makeSpecialReturn = function () {
 
 ijs.exampleCode = function () {
 /*
+
+// await r.text()
+// a = await r.text()
 // fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js").then(r => r.text()).then(async r => {
 //     alert(r)
 // })
 
-function sleep(ms) {
-    return new Promise(function (resolve, reject) {
-        setTimeout(function () {
-            resolve()
-        }, ms)
-    })
-}
+// function sleep(ms) {
+//     return new Promise(function (resolve, reject) {
+//         setTimeout(function () {
+//             resolve()
+//         }, ms)
+//     })
+// }
 
 // function getStuff() {
 //     return new Promise(function (resolve, reject) {
@@ -2703,6 +2736,7 @@ async function w2() {
     //     await sleep(200)
     // }
     var r = await fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js")
+    // var r1 = await r.text()
     var r1 = await r.text()
     alert(r1)
 }
