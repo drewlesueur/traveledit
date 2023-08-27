@@ -1199,6 +1199,7 @@ ijs.makeAsyncFunc = function(params, body, world) {
     body = body || []
     // body = ["run", ...body]
     // body.unshift("run")
+    // alert(JSON.stringify(body, null, "    "))
     var world = {
         parent: world,
         state: {},
@@ -1206,9 +1207,10 @@ ijs.makeAsyncFunc = function(params, body, world) {
         global: world.global,
         async: true,
     }
-
+    // log2("+params are")
+    // log2(params)
+    
     body = ijs.hoist(body)
-
     var f = async function(...args) {
         if (params) {
             // only handling spread if it's the only argument for bow
@@ -1220,9 +1222,23 @@ ijs.makeAsyncFunc = function(params, body, world) {
                     var paramName = params[i]
                     if (typeof params[i] == "object") {
                         // for default args
-                        paramName = params[i][1]
+                        if (params[i][0] == "=") {
+                            paramName = params[i][1]
+                            world.state[paramName] = args[i]
+                        } else if (params[i][0] == "<array>_pre") {
+                            for (var j = 0; j < params[i][1].length; j++) {
+                                var paramName = params[i][1][j]
+                                world.state[paramName] = args[i][j]
+                            }
+                        } else if (params[i][0] == "<object>_pre") {
+                            for (var j = 0; j < params[i][1].length; j++) {
+                                var paramName = params[i][1][j]
+                                world.state[paramName] = args[i][paramName]
+                            }
+                        }
+                    } else {
+                        world.state[paramName] = args[i]
                     }
-                    world.state[paramName] = args[i]
                 }
                 // default args
                 for (var i=args.length; i<params.length; i++) {
@@ -1240,7 +1256,6 @@ ijs.makeAsyncFunc = function(params, body, world) {
     }
     f.world = world // lol
     return f
-    // todo default args?
 }
 
 ijs.makeFunc = function(params, body, world) {
@@ -1270,9 +1285,23 @@ ijs.makeFunc = function(params, body, world) {
                     var paramName = params[i]
                     if (typeof params[i] == "object") {
                         // for default args
-                        paramName = params[i][1]
+                        if (params[i][0] == "=") {
+                            paramName = params[i][1]
+                            world.state[paramName] = args[i]
+                        } else if (params[i][0] == "<array>_pre") {
+                            for (var j = 0; j < params[i][1].length; j++) {
+                                var paramName = params[i][1][j]
+                                world.state[paramName] = args[i][j]
+                            }
+                        } else if (params[i][0] == "<object>_pre") {
+                            for (var j = 0; j < params[i][1].length; j++) {
+                                var paramName = params[i][1][j]
+                                world.state[paramName] = args[i][paramName]
+                            }
+                        }
+                    } else {
+                        world.state[paramName] = args[i]
                     }
-                    world.state[paramName] = args[i]
                 }
                 // default args
                 for (var i=args.length; i<params.length; i++) {
@@ -1290,7 +1319,6 @@ ijs.makeFunc = function(params, body, world) {
     }
     f.world = world // lol
     return f
-    // todo default args?
 }
 // ijs.breakMessage = {"break": true}
 // ijs.continueMessage = {"continue":true}
@@ -2603,7 +2631,31 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
+// function foo(...args) {
+//     log2(args)
+// }
+// foo(3, 4, 212)
 
+// async function x([a, b]) {
+//     alert(a + " " + b)
+// }
+// x([1, 2])
+// async function x2({a, b}) {
+//     alert(a + " " + b)
+// }
+// x2({a: 100, b: 200})
+
+// function foo(...args) {
+//     log2(args)
+// }
+// 
+// foo(3, 4, 212)
+
+// alert(a.foo)
+// async function foo(a, b=27 c = [123,45]) {
+//     alert(a + " " + b + " " + c)
+// }
+// foo(1)
 // var a = {foo: "hi foo", bar: "hi bar"}
 // var {foo, bar} = a
 // 
@@ -2718,18 +2770,6 @@ ijs.exampleCode = function () {
 // f = x == 3 || y == 4 && a == b
 
 // log2(encodeURIComponent("yo=man"))
-// function foo(...args) {
-//     log2(args)
-// }
-// 
-// foo(3, 4, 212)
-
-// alert(a.foo)
-// async function foo(a, b=27 c = [123]) {
-//     alert(a + " " + b + " " + c)
-// }
-// 
-// foo(1)
 // var name = "Drew"
 // var x = 20
 // // var greeting = `Hello ${name}, is your number ${x + 1}?`
