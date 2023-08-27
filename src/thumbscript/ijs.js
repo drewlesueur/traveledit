@@ -49,14 +49,13 @@ ijs.tokenize = function (code) {
     var state = "out"
     var currentToken = ""
     var quoteType = ""
-var tokens = []
-
-var pushToken = function (x) {
-    if (x == ",") {
-        return
-    }
-    // if (x == ":") {
-    //     return
+    var tokens = []
+    var pushToken = function (x) {
+        if (x == ",") {
+            return
+        }
+        // if (x == ":") {
+        //     return
         // }
         if (x == ";") {
             return
@@ -1133,7 +1132,7 @@ ijs.run = function(code, world) {
     // var oldPreventRender = preventRender
     // preventRender = true
     var tokens = ijs.tokenize(code)
-    log2(tokens)
+    // log2(tokens)
     // return
     
     if (!world) {
@@ -1371,6 +1370,7 @@ ijs.builtins = {
     // todo: might conflict with a variable named run
     // call it "<run>"
     "<runAsync>": async function (args, world, inBlock) {
+        // alert("running async")
         if (!args) {
             return
         }
@@ -1590,7 +1590,7 @@ ijs.builtins = {
                     }
                 } else {
                     varName = args[0][1]
-                    w.state[varName] = ijs.exec(args[1], world)
+                    w.state[varName] = await ijs.exec(args[1], world)
                 }
             } else if (args[0][0] == ".") {
                 var obj = ijs.exec(args[0][1], world) 
@@ -1617,7 +1617,7 @@ ijs.builtins = {
             }
         } else {
             var w = ijs.getWorldForKey(world, varName) || world.global
-            w.state[varName] = ijs.exec(args[1], world)
+            w.state[varName] = await ijs.exec(args[1], world)
         }
     },
     "+=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["+="]),
@@ -2423,7 +2423,16 @@ ijs.builtins = {
             var value = ijs.run(y, world)
             return value
         });
-    }
+    },
+    "?": function (args, world) {
+        var testingValue = ijs.exec(args[0], world)
+        // alert("testing " + args[0] + " and it's " + testingValue)
+        if (testingValue) {
+            return ijs.exec(args[1][1], world)
+        }
+        return ijs.exec(args[1][2], world)
+        
+    },
 }
 ijs.set = function(key, value, world, setType) {
     var w
@@ -2490,6 +2499,7 @@ ijs.exec = function(tokens, world) {
         var w = ijs.getWorldForKey(world, token)
         if (w == null) {
             alert("can't find: " + token)
+            debugger
             // log2("-can't find world for " + token)
         }
         return w.state[token]
@@ -2636,10 +2646,76 @@ ijs.makeSpecialReturn = function () {
 // alert(lol.toString())
 
 
+// function checkHoist() {
+//     alert(hoisted)
+//     var hoisted = 27
+// }
+// checkHoist()
+// var b = false ? "yay" : false ? "yayy" : "nayy"
+// alert(b)
+
+
+
+// async function w2() {
+//     var r = await fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js")
+//     var r1 = await r.text()
+//     alert(r1)
+// }
+// w2()
+
+
 ijs.exampleCode = function () {
 /*
+// fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js").then(r => r.text()).then(async r => {
+//     alert(r)
+// })
+
+function sleep(ms) {
+    return new Promise(function (resolve, reject) {
+        setTimeout(function () {
+            resolve()
+        }, ms)
+    })
+}
+
+// function getStuff() {
+//     return new Promise(function (resolve, reject) {
+//         sleep(100).then(function () {
+//             resolve(13)
+//         })
+//     })
+// }
+// async function foo2() {
+//     var a = await getStuff()
+//     alert(a)
+// }
+// foo2()
 
 
+async function w2() {
+    // log2("hi")
+    // await sleep(1000)
+    // log2("bye")
+    // await sleep(1000)
+    // log2("again")
+    // for (var i=0; i<10; i++) {
+    //     log2("the " + i)
+    //     await sleep(200)
+    // }
+    var r = await fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js")
+    var r1 = await r.text()
+    alert(r1)
+}
+w2()
+
+// switch (foo) {
+//     case 2+40:
+//         doSomething()
+//         x = 1
+//         break
+// }
+// var b = false ? "yay" : false ? "yayy" : "nayy"
+// alert(b)
 // function foo(...args) {
 //     log2(args)
 // }
@@ -2693,9 +2769,6 @@ ijs.exampleCode = function () {
 //     } else break
 // }
 
-// fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js").then(r => r.text()).then(async r => {
-//     alert(r)
-// })
 
 // values = [1,2]
 // var [a, b] = values
