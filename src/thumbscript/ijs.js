@@ -2740,7 +2740,7 @@ async function w2() {
     var r1 = await r.text()
     alert(r1)
 }
-w2()
+// w2()
 
 // switch (foo) {
 //     case 2+40:
