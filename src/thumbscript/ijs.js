@@ -1175,6 +1175,9 @@ ijs.run = function(code, world) {
 
 ijs.hoist = function (body) {
     // Hoist!
+    if (!body) {
+        return body
+    }
     var hoisted = []
     var nonHoisted = []
     for (var i = 0; i < body.length; i++) {
@@ -1340,6 +1343,9 @@ ijs.builtins = {
     // todo: might conflict with a variable named run
     // call it "<run>"
     "<runAsync>": async function (args, world, inBlock) {
+        if (!args) {
+            return
+        }
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
@@ -1406,6 +1412,9 @@ ijs.builtins = {
     },
     "<run>": function(args, world, inBlock) {
         // var last = void 0;
+        if (!args) {
+            return
+        }
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             // some special cases
@@ -2251,7 +2260,6 @@ ijs.builtins = {
         var condition = args[0][1][0]
         // var body = args[1][1] || []
         
-        var oneLiner = false
         var body = args[1]
         if (body[0] == "<object>_pre") {
             body = body[1]
@@ -2259,17 +2267,13 @@ ijs.builtins = {
             // or a deeper check in makeFunc
             body = ijs.hoist(body)
         } else {
-            oneLiner = true
+            body = [body]
         }
         
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
-            if (oneLiner) {
-                var ret = ijs.exec(body, world)
-            } else {
-                var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
-            }
+            var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -2289,7 +2293,6 @@ ijs.builtins = {
         }
         var condition = args[0][1][0]
         // var body = args[1][1] || []
-        var oneLiner = false
         var body = args[1]
         if (body[0] == "<object>_pre") {
             body = body[1]
@@ -2297,17 +2300,13 @@ ijs.builtins = {
             // or a deeper check in makeFunc
             body = ijs.hoist(body)
         } else {
-            oneLiner = true
+            body = [body]
         }
 
         var condRet = ijs.exec(condition, ifWorld)
         if (condRet) {
             // var ret = ijs.exec(body, ifWorld)
-            if (oneLiner) {
-                var ret = await ijs.exec(body, world)
-            } else {
-                var ret = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
-            }
+            var ret = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -2325,10 +2324,11 @@ ijs.builtins = {
                 // body.unshift("run")
                 // body = ["run", ...body]
                 body = ijs.hoist(body)
-                elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             } else {
-                elseRet = ijs.exec(body, world)
+                // elseRet = ijs.exec(body, world)
+                body = [body]
             }
+            elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             // ijs.exec(body, world)
             if (ijs.isSpecialReturn(elseRet)) {
                 return elseRet
@@ -2582,9 +2582,37 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
-values = [1,2]
-var [a, b] = values
-alert(a + " " + b)
+function w1() {
+    // if (true) return 30
+    
+    if (false) {
+    
+    } else if (false) {
+        return 99
+    } else if (false) { return 100 }
+    else return 988
+}
+
+log2(w1())
+return
+
+for (var i = 0; i < 100; i++) {
+    log2(i)
+    // if (i == 20) { break }
+    if (i < 20) {
+    
+    } else break
+}
+
+// fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js").then(r => r.text()).then(async r => {
+//     alert(r)
+// })
+
+// values = [1,2]
+// var [a, b] = values
+// alert(a + " " + b)
+
+
 
 return
 
