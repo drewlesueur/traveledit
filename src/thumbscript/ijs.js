@@ -49,14 +49,14 @@ ijs.tokenize = function (code) {
     var state = "out"
     var currentToken = ""
     var quoteType = ""
-    var tokens = []
+var tokens = []
 
-    var pushToken = function (x) {
-        if (x == ",") {
-            return
-        }
-        // if (x == ":") {
-        //     return
+var pushToken = function (x) {
+    if (x == ",") {
+        return
+    }
+    // if (x == ":") {
+    //     return
         // }
         if (x == ";") {
             return
@@ -1473,30 +1473,27 @@ ijs.builtins = {
         // gotta figure out let vs if
         var varName = args[0]
         if (typeof args[0] == "object") {
-            if (args[0][0] == "var_pre") {
+            if (args[0][0] == "var_pre" || args[0][0] == "let_pre" || args[0][0] == "const_pre") {
                 var w = world
-                while (w.blockScope) {
-                    w = w.parent
-                }
-                if (typeof args[0][1] == "object") {
-                    var varNames = args[0][1][1]
-                    var valuesArray = ijs.exec(args[1], world)
-                    for (var i=0; i<varNames.length; i++) {
-                        var varName = varNames[i]
-                        w.state[varName] = valuesArray[i]
+                if (args[0][0] == "var_pre") {
+                    while (w.blockScope) {
+                        w = w.parent
                     }
-                } else {
-                    varName = args[0][1]
-                    w.state[varName] = ijs.exec(args[1], world)
                 }
-            } else if (args[0][0] == "let_pre" || args[0][0] == "const_pre") {
-                var w = world
                 if (typeof args[0][1] == "object") {
-                    var varNames = args[0][1][1]
-                    var valuesArray = ijs.exec(args[1], world)
-                    for (var i=0; i<varNames.length; i++) {
-                        var varName = varNames[i]
-                        w.state[varName] = valuesArray[i]
+                    if (args[0][1][0] == "<object>_pre") {
+                        var varNames = args[0][1][1]
+                        var valuesObj = ijs.exec(args[1], world)
+                        for (var varName of varNames) {
+                            w.state[varName] = valuesObj[varName]
+                        }
+                    } else if (args[0][1][0] == "<array>_pre") {
+                        var varNames = args[0][1][1]
+                        var valuesArray = ijs.exec(args[1], world)
+                        for (var i=0; i<varNames.length; i++) {
+                            var varName = varNames[i]
+                            w.state[varName] = valuesArray[i]
+                        }
                     }
                 } else {
                     varName = args[0][1]
@@ -1518,6 +1515,12 @@ ijs.builtins = {
                     var w = ijs.getWorldForKey(world, varName) || world.global
                     w.state[varName] = valuesArray[i]
                 }
+            } else if (args[0][0] == "<object>_pre") {
+                var varNames = args[0][1]
+                var valuesObj = ijs.exec(args[1], world)
+                for (var varName of varNames) {
+                    w.state[varName] = valuesObj[varName]
+                }
             }
         } else {
             var w = ijs.getWorldForKey(world, varName) || world.global
@@ -1525,30 +1528,34 @@ ijs.builtins = {
         }
     },
     "=_await": async function (args, world) {
-        // alert("=_await")
-        // TODO: wrangle these
-        // not doing destructuring yet
-        // lol maybe destructuring can be handled at the parser level?
-        // like it turns it into the more verbose syntax
-        // that way the core is smaller.
-        // gotta figure out let vs if
         var varName = args[0]
         if (typeof args[0] == "object") {
-            if (args[0][0] == "var_pre") {
-                varName = args[0][1]
+            if (args[0][0] == "var_pre" || args[0][0] == "let_pre" || args[0][0] == "const_pre") {
                 var w = world
-                while (w.blockScope) {
-                    w = w.parent
+                if (args[0][0] == "var_pre") {
+                    while (w.blockScope) {
+                        w = w.parent
+                    }
                 }
-                w.state[varName] = await ijs.exec(args[1], world)
-            } else if (args[0][0] == "let_pre") {
-                varName = args[0][1]
-                var w = ijs.getWorldForKey(world, varName) || world
-                w.state[varName] = await ijs.exec(args[1], world)
-            } else if (args[0][0] == "const_pre") {
-                varName = args[0][1]
-                var w = ijs.getWorldForKey(world, varName) || world
-                w.state[varName] = await ijs.exec(args[1], world)
+                if (typeof args[0][1] == "object") {
+                    if (args[0][1][0] == "<object>_pre") {
+                        var varNames = args[0][1][1]
+                        var valuesObj = await ijs.exec(args[1], world)
+                        for (var varName of varNames) {
+                            w.state[varName] = valuesObj[varName]
+                        }
+                    } else if (args[0][1][0] == "<array>_pre") {
+                        var varNames = args[0][1][1]
+                        var valuesArray = await ijs.exec(args[1], world)
+                        for (var i=0; i<varNames.length; i++) {
+                            var varName = varNames[i]
+                            w.state[varName] = valuesArray[i]
+                        }
+                    }
+                } else {
+                    varName = args[0][1]
+                    w.state[varName] = ijs.exec(args[1], world)
+                }
             } else if (args[0][0] == ".") {
                 var obj = ijs.exec(args[0][1], world) 
                 varName = args[0][2]
@@ -1557,10 +1564,24 @@ ijs.builtins = {
                 var obj = ijs.exec(args[0][1], world) 
                 var varName = ijs.exec(args[0][2], world) 
                 obj[varName] = await ijs.exec(args[1], world)
+            } else if (args[0][0] == "<array>_pre") {
+                var varNames = args[0][1]
+                valuesArray = await ijs.exec(args[1], world)
+                for (var i=0; i<varNames.length; i++) {
+                    var varName = varNames[i]
+                    var w = ijs.getWorldForKey(world, varName) || world.global
+                    w.state[varName] = valuesArray[i]
+                }
+            } else if (args[0][0] == "<object>_pre") {
+                var varNames = args[0][1]
+                var valuesObj = await ijs.exec(args[1], world)
+                for (var varName of varNames) {
+                    w.state[varName] = valuesObj[varName]
+                }
             }
         } else {
-            var w = ijs.getWorldForKey(world, varName)
-            world.global.state[varName] = await ijs.exec(args[1], world)
+            var w = ijs.getWorldForKey(world, varName) || world.global
+            w.state[varName] = ijs.exec(args[1], world)
         }
     },
     "+=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["+="]),
@@ -2582,27 +2603,34 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
-function w1() {
-    // if (true) return 30
-    
-    if (false) {
-    
-    } else if (false) {
-        return 99
-    } else if (false) { return 100 }
-    else return 988
-}
 
-log2(w1())
-return
+// var a = {foo: "hi foo", bar: "hi bar"}
+// var {foo, bar} = a
+// 
+// alert(foo + " " + bar)
 
-for (var i = 0; i < 100; i++) {
-    log2(i)
-    // if (i == 20) { break }
-    if (i < 20) {
-    
-    } else break
-}
+
+// function w1() {
+//     // if (true) return 30
+//     
+//     if (false) {
+//     
+//     } else if (false) {
+//         return 99
+//     } else if (false) { return 100 }
+//     else return 988
+// }
+// 
+// log2(w1())
+// return
+// 
+// for (var i = 0; i < 100; i++) {
+//     log2(i)
+//     // if (i == 20) { break }
+//     if (i < 20) {
+//     
+//     } else break
+// }
 
 // fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js").then(r => r.text()).then(async r => {
 //     alert(r)
@@ -2614,7 +2642,6 @@ for (var i = 0; i < 100; i++) {
 
 
 
-return
 
 // var ret = "abcdefghijklmnop".split("g")[0]
 // .split("d")[0]
@@ -3141,14 +3168,14 @@ return
 
 
 // see difference with var
-// var i = 0
-// while (i < 10) {
-//     i++
-//     let i2 = i
-//     setTimeout(() => {
-//         log2("hey " + i2)
-//     }, 100)
-// }
+var i = 0
+while (i < 10) {
+    i++
+    let i2 = i
+    setTimeout(() => {
+        log2("hey " + i2)
+    }, 100)
+}
 
 // var start = Date.now()
 // var i = 0
