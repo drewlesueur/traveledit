@@ -3,6 +3,7 @@ if (typeof log2 === "undefined") {
        console.log(x)
    }
 }
+// handle void 0
 
 // todo: not slicing as much would prob be faster
 // template strings, just the basics
@@ -2201,19 +2202,27 @@ ijs.builtins = {
             async: world.async,
         }
         var condition = args[0][1][0]
-        var body = args[1][1] || []
-        // body.unshift("run")
-        // body = ["run", ...body]
+        // var body = args[1][1] || []
         
-        // todo: there may be a better place to do this, like at compile time?
-        // or a deeper check in makeFunc
-        body = ijs.hoist(body)
+        var oneLiner = false
+        var body = args[1]
+        if (body[0] == "<object>_pre") {
+            body = body[1]
+            // todo: there may be a better place to do this, like at compile time?
+            // or a deeper check in makeFunc
+            body = ijs.hoist(body)
+        } else {
+            oneLiner = true
+        }
         
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
-            // log2("ret from if is: " + JSON.stringify(ret))
+            if (oneLiner) {
+                var ret = ijs.exec(body, world)
+            } else {
+                var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+            }
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -2232,19 +2241,26 @@ ijs.builtins = {
             async: world.async,
         }
         var condition = args[0][1][0]
-        var body = args[1][1] || []
-        // body.unshift("run")
-        // body = ["run", ...body]
-
-        // todo: there may be a better place to do this, like at compile time?
-        // or a deeper check in makeFunc
-        body = ijs.hoist(body)
+        // var body = args[1][1] || []
+        var oneLiner = false
+        var body = args[1]
+        if (body[0] == "<object>_pre") {
+            body = body[1]
+            // todo: there may be a better place to do this, like at compile time?
+            // or a deeper check in makeFunc
+            body = ijs.hoist(body)
+        } else {
+            oneLiner = true
+        }
 
         var condRet = ijs.exec(condition, ifWorld)
         if (condRet) {
             // var ret = ijs.exec(body, ifWorld)
-            var ret = await ijs.builtins[ijs.getRunFunc(ifWorld.async)](body, world, true)
-            // log2("ret from if is: " + JSON.stringify(ret))
+            if (oneLiner) {
+                var ret = await ijs.exec(body, world)
+            } else {
+                var ret = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+            }
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -2344,8 +2360,12 @@ ijs.exec = function(tokens, world) {
     if (typeof tokens == "boolean") {
         return tokens
     }
+    
+    if (typeof tokens == "undefined") {
+        return undefined
+    }
     if (tokens.length == 0) {
-        return void 0;
+        return undefined
     }
     // state = state || {}
     // simplify lexical rules?
@@ -2511,9 +2531,21 @@ ijs.makeSpecialReturn = function () {
 // }
 // alert(lol.toString())
 
+
 ijs.exampleCode = function () {
 /*
 
+// var a = {}
+// a.b = undefined
+// alert("b" in a)
+// alert("c" in a)
+
+
+return
+// if (true) alert("what")
+var a
+[a, b] = [1,2]
+alert(a + " " + b)
 
 // if (true) {
 // try {
