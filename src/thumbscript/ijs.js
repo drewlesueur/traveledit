@@ -1445,6 +1445,15 @@ ijs.builtins = {
             }
         }
     },
+    "var_pre": function (args, world) {
+        varName = args[0]
+        assignType = "var"
+        var w = world
+        while (w.blockScope) {
+            w = w.parent
+        }
+        w.state[varName] = undefined
+    },
     "=": function (args, world) {
         // alert("= " + JSON.stringify(args))
         // TODO: wrangle these
@@ -1483,6 +1492,14 @@ ijs.builtins = {
                 var obj = ijs.exec(args[0][1], world) 
                 var varName = ijs.exec(args[0][2], world) 
                 obj[varName] = ijs.exec(args[1], world)
+            } else if (args[0][0] == "<array>_pre") {
+                var varNames = args[0][1]
+                valuesArray = ijs.exec(args[1], world)
+                for (var i=0; i<varNames.length; i++) {
+                    var varName = varNames[i]
+                    var w = ijs.getWorldForKey(world, varName) || world.global
+                    w.state[varName] = valuesArray[i]
+                }
             }
         } else {
             var w = ijs.getWorldForKey(world, varName) || world.global
@@ -2541,11 +2558,13 @@ ijs.exampleCode = function () {
 // alert("c" in a)
 
 
-return
 // if (true) alert("what")
-var a
-[a, b] = [1,2]
+// var a
+// alert(typeof a)
+values = [1,2]
+[a, b] = values
 alert(a + " " + b)
+return
 
 // if (true) {
 // try {
