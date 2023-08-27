@@ -1743,10 +1743,27 @@ ijs.builtins = {
         return w.state[args[0]]--
     },
     "<array>_pre": function(args, world) {
-        var computed = args[0].map(function(t) {
-            return ijs.exec(t, world)
-        })
+        var computed = []
+        for (var i=0; i<args[0].length; i++) {
+            var expr = args[0][i]
+            if (expr && expr[0] == "..._pre") {
+                var varName = expr[1]
+                var subArray = ijs.exec(varName, world)
+                // alert(JSON.stringify(subArray, null, "    "))
+                for (var j = 0; j < subArray.length; j++) {
+                    computed.push(subArray[j])
+                }
+            } else {
+                var v = ijs.exec(expr, world)
+                computed.push(v)
+            }
+        }
         return computed
+        
+        // var computed = args[0].map(function(t) {
+        //     return ijs.exec(t, world)
+        // })
+        // return computed
     },
     "<object>_pre": function(args, world) {
         var o = {}
@@ -2576,6 +2593,10 @@ ijs.exampleCode = function () {
 // var a = {foo: "bar", biz: "baz"}
 // b = {...a, yo: 100}
 // log2(b)
+
+// var b = ["yo", "world"]
+// var a = [1, ...b, 1, ...b]
+// log2(a)
 return
 
 // if (true) {
