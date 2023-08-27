@@ -1424,16 +1424,20 @@ ijs.builtins = {
                 ret.continueMessage = true
                 return ret
             }
-            var pRet = ijs.exec(arg, world)
-            var ret
-            if (arg[0] in ijs.asyncVersions) {
-                ret = await pRet
+            if (arg == "debugger") {
+                debugger
             } else {
-                ret = pRet
-            }
-            if (ijs.isSpecialReturn(ret)) {
-                if (ret.breakMessage || ret.returnMessage) {
-                    return ret
+                var pRet = ijs.exec(arg, world)
+                var ret
+                if (arg[0] in ijs.asyncVersions) {
+                    ret = await pRet
+                } else {
+                    ret = pRet
+                }
+                if (ijs.isSpecialReturn(ret)) {
+                    if (ret.breakMessage || ret.returnMessage) {
+                        return ret
+                    }
                 }
             }
         }
@@ -1474,10 +1478,14 @@ ijs.builtins = {
                 ret.continueMessage = true
                 return ret
             }
-            var ret = ijs.exec(arg, world)
-            if (ijs.isSpecialReturn(ret)) {
-                if (ret.breakMessage || ret.returnMessage) {
-                    return ret
+            if (arg == "debugger") {
+                debugger
+            } else {
+                var ret = ijs.exec(arg, world)
+                if (ijs.isSpecialReturn(ret)) {
+                    if (ret.breakMessage || ret.returnMessage) {
+                        return ret
+                    }
                 }
             }
         }
@@ -2630,6 +2638,7 @@ ijs.makeSpecialReturn = function () {
 
 ijs.exampleCode = function () {
 /*
+
 
 // function foo(...args) {
 //     log2(args)
