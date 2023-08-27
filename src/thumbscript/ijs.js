@@ -1463,27 +1463,36 @@ ijs.builtins = {
         // that way the core is smaller.
         // gotta figure out let vs if
         var varName = args[0]
-        var assignType = "global"
         if (typeof args[0] == "object") {
             if (args[0][0] == "var_pre") {
-                varName = args[0][1]
-                assignType = "var"
-                // var w = ijs.getWorldForKey(world, varName) || world
                 var w = world
                 while (w.blockScope) {
                     w = w.parent
                 }
-                w.state[varName] = ijs.exec(args[1], world)
-            } else if (args[0][0] == "let_pre") {
-                varName = args[0][1]
-                assignType = "let"
+                if (typeof args[0][1] == "object") {
+                    var varNames = args[0][1][1]
+                    var valuesArray = ijs.exec(args[1], world)
+                    for (var i=0; i<varNames.length; i++) {
+                        var varName = varNames[i]
+                        w.state[varName] = valuesArray[i]
+                    }
+                } else {
+                    varName = args[0][1]
+                    w.state[varName] = ijs.exec(args[1], world)
+                }
+            } else if (args[0][0] == "let_pre" || args[0][0] == "const_pre") {
                 var w = world
-                w.state[varName] = ijs.exec(args[1], world)
-            } else if (args[0][0] == "const_pre") {
-                varName = args[0][1]
-                assignType = "const"
-                var w = world
-                w.state[varName] = ijs.exec(args[1], world)
+                if (typeof args[0][1] == "object") {
+                    var varNames = args[0][1][1]
+                    var valuesArray = ijs.exec(args[1], world)
+                    for (var i=0; i<varNames.length; i++) {
+                        var varName = varNames[i]
+                        w.state[varName] = valuesArray[i]
+                    }
+                } else {
+                    varName = args[0][1]
+                    w.state[varName] = ijs.exec(args[1], world)
+                }
             } else if (args[0][0] == ".") {
                 var obj = ijs.exec(args[0][1], world) 
                 varName = args[0][2]
@@ -1515,12 +1524,9 @@ ijs.builtins = {
         // that way the core is smaller.
         // gotta figure out let vs if
         var varName = args[0]
-        var assignType = "global"
         if (typeof args[0] == "object") {
             if (args[0][0] == "var_pre") {
                 varName = args[0][1]
-                assignType = "var"
-                // var w = ijs.getWorldForKey(world, varName) || world
                 var w = world
                 while (w.blockScope) {
                     w = w.parent
@@ -1528,12 +1534,10 @@ ijs.builtins = {
                 w.state[varName] = await ijs.exec(args[1], world)
             } else if (args[0][0] == "let_pre") {
                 varName = args[0][1]
-                assignType = "let"
                 var w = ijs.getWorldForKey(world, varName) || world
                 w.state[varName] = await ijs.exec(args[1], world)
             } else if (args[0][0] == "const_pre") {
                 varName = args[0][1]
-                assignType = "const"
                 var w = ijs.getWorldForKey(world, varName) || world
                 w.state[varName] = await ijs.exec(args[1], world)
             } else if (args[0][0] == ".") {
@@ -1776,7 +1780,9 @@ ijs.builtins = {
             if (kv.length == 2 && kv[0] == "..._pre") {
                 var otherObj = ijs.exec(kv[1], world)
                 for (var key in otherObj) {
-                    o[key] = otherObj[key]
+                    if (Object.hasOwn(otherObj, key)) {
+                        o[key] = otherObj[key]
+                    }
                 }
             } else {
                 var key = kv[1]
@@ -2576,6 +2582,17 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
+values = [1,2]
+var [a, b] = values
+alert(a + " " + b)
+
+return
+
+// var ret = "abcdefghijklmnop".split("g")[0]
+// .split("d")[0]
+// .split("b")[0]
+// alert(ret)
+
 // var a = {}
 // a.b = undefined
 // alert("b" in a)
@@ -2597,7 +2614,6 @@ ijs.exampleCode = function () {
 // var b = ["yo", "world"]
 // var a = [1, ...b, 1, ...b]
 // log2(a)
-return
 
 // if (true) {
 // try {
