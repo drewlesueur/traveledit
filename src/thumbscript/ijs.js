@@ -9,6 +9,7 @@ if (typeof log2 === "undefined") {
 // template strings, just the basics
 // rename run function
 // destructuring in for of
+// var hoisting isues
 
 
 // how would I write this js without the sugar?
@@ -2765,8 +2766,10 @@ ijs.exec = function(tokens, world) {
 
         var w = ijs.getWorldForKey(world, token)
         if (w == null) {
-            alert("can't find: " + token)
-            debugger
+            // alert("can't find: " + token)
+            return undefined // let's pretend it's hoisted
+            // TODO: if you add var hoisting, you can undo this
+            // debugger
             // log2("-can't find world for " + token)
         }
         return w.state[token]
@@ -2950,10 +2953,34 @@ ijs.makeSpecialReturn = function () {
 
 // alert(new String("yo").toString() == new String("yo").toString())
 
-
+// function w1() {
+//     if (false) {
+//         var d = 1
+//     }
+//     alert(d)
+// }
+// w1(1)
 
 ijs.exampleCode = function () {
 /*
+
+// function w2() {
+//     if (false) {
+//         var d = 1
+//     }
+//     alert(d)
+// }
+// w2(1)
+// 
+
+// var x = (1 != 2
+//    ? "yay"
+//    : "nay")
+// alert(x)
+
+
+
+
 
 // function foo() {
 //     a.b
@@ -3003,55 +3030,55 @@ async function w1() {
     //     log2(2)
     // }
     
-    if (x == 1) {
-        log2(1)
-        log2(2)
-    } else if (false) {
-        log2(1)
-        log2(2)
-    } else {
-        log2(1)
-        log2(2)
-    }
-    
-    var i = 0
-    while (i < 10) {
-        i++
-        let i2 = i
-        setTimeout(() => {
-            log2("hey " + i2)
-        }, 100)
-    }
-    
-    var x = `${i + 1} yo`
-    b = c = d
-    3 + 4 + 5
-    
-    [1,2,3].map(x => x)
-    
-    y = await foo.baz()
-    var t = new Date(x, y, z).getTime()
-    
-    {foo, bar} = yoyo
-    typeof x == "undefined"
-    if (a) doThing()
-    
-    if (b) {
-        break
-        continue
-        return
-        return 27
-        if (b) {
-            break
-            continue
-            return
-            return 27
-        }
-    }
-    
-    for (let x of foobar) {
-        alert(x)
-    }
+    // if (x == 1) {
+    //     log2(1)
+    //     log2(2)
+    // } else if (false) {
+    //     log2(1)
+    //     log2(2)
+    // } else {
+    //     log2(1)
+    //     log2(2)
+    // }
+    // 
+    // var i = 0
+    // while (i < 10) {
+    //     i++
+    //     let i2 = i
+    //     setTimeout(() => {
+    //         log2("hey " + i2)
+    //     }, 100)
+    // }
+    // 
+    // var x = `${i + 1} yo`
+    // b = c = d
+    // 3 + 4 + 5
+    // 
+    // [1,2,3].map(x => x)
+    // 
+    // y = await foo.baz()
+    // var t = new Date(x, y, z).getTime()
+    // 
+    // {foo, bar} = yoyo
+    // typeof x == "undefined"
+    // if (a) doThing()
+    // 
+    // if (b) {
+    //     break
+    //     continue
+    //     return
+    //     return 27
+    //     if (b) {
+    //         break
+    //         continue
+    //         return
+    //         return 27
+    //     }
+    // }
+    // 
+    // for (let x of foobar) {
+    //     alert(x)
+    // }
     
     // let c = 20
     // let d = {a: 100, "b": 300, c: {x: 20}}
