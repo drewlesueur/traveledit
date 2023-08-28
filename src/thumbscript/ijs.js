@@ -1236,7 +1236,7 @@ ijs.hoist = function (body) {
     return body
 }
 
-ijs.makeAsyncFunc = function(params, body, world) {
+ijs.makeAsyncFunc = function(params, body, world, name) {
     body = body || []
     // body = ["run", ...body]
     // body.unshift("run")
@@ -1251,6 +1251,7 @@ ijs.makeAsyncFunc = function(params, body, world) {
     // log2("+params are")
     // log2(params)
     
+    var origBody = body
     body = ijs.hoist(body)
     var f = async function(...args) {
         if (params) {
@@ -1296,10 +1297,13 @@ ijs.makeAsyncFunc = function(params, body, world) {
         return ret
     }
     f.world = world // lol
+    f.toString = function() {
+        return ijs.generateFunctionString(true, name, params, origBody, 0)
+    }
     return f
 }
 
-ijs.makeFunc = function(params, body, world) {
+ijs.makeFunc = function(params, body, world, name) {
     body = body || []
     // body = ["run", ...body]
     // body.unshift("run")
@@ -1360,7 +1364,7 @@ ijs.makeFunc = function(params, body, world) {
     }
     f.world = world // lol
     f.toString = function() {
-        return ijs.generateFunctionString(params, origBody, 0)
+        return ijs.generateFunctionString(false, name, params, origBody, 0)
     }
     return f
 }
@@ -1500,6 +1504,10 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
         return ret.join("")
     }
     
+    if (expr && expr[0] == "<interpolate>") {
+        return "`" + JSON.stringify(expr[1]).slice(1, -1) + "`"
+    }
+    // should not get here?
     return expr[0] + "(" + expr.slice(1).map(x => ijs.exprStringMap[x]) + ")"
     
     // serializer: ijs $exprStringMap at expr 0 at at
@@ -1508,8 +1516,17 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
     //     break
     // }
 }
-ijs.generateFunctionString = function (params, body, indent) {
-    ret = [ijs.tab.repeat(indent) + "function () {"]
+ijs.generateFunctionString = function (isAsync, name, params, body, indent) {
+    ijs.generateExprString(params, indent+1, "<group>")
+    var genedParams = params.map(arg => {
+        return ijs.generateExprString(arg, indent, "")
+    }).join(", ")
+    var asyncText = ""
+    if (isAsync) {
+        asyncText = "async "
+    }
+    
+    ret = [ijs.tab.repeat(indent) + asyncText + "function "+name+"("+genedParams+") {"]
     for (expr of body) {
         ret.push(ijs.tab.repeat(indent+1) + ijs.generateExprString(expr, indent+1, "function"))
     }
@@ -2082,7 +2099,7 @@ ijs.builtins = {
             }
         }
         var body = args[1][1]
-        var f = ijs.makeAsyncFunc(params, body, world)
+        var f = ijs.makeAsyncFunc(params, body, world, name)
         if (name) {
             ijs.set(name, f, world, "var")
         }
@@ -2099,7 +2116,7 @@ ijs.builtins = {
             params = args[0][1]
         }
         var body = args[1][1]
-        var f = ijs.makeFunc(params, body, world)
+        var f = ijs.makeFunc(params, body, world, name)
         if (name) {
             ijs.set(name, f, world, "var")
         }
@@ -2120,7 +2137,7 @@ ijs.builtins = {
         } else {
             body = [["return_pre", body]]
         }
-        var f = ijs.makeFunc(params, body, world)
+        var f = ijs.makeFunc(params, body, world, "")
         return f
     },
     "<group>_pre": function(args, world) {
@@ -2930,6 +2947,7 @@ ijs.makeSpecialReturn = function () {
 // alert(new String("yo").toString() == new String("yo").toString())
 
 
+
 ijs.exampleCode = function () {
 /*
 
@@ -2941,8 +2959,11 @@ ijs.exampleCode = function () {
 
 var x = 1
 
+// var d = x => x
+// alert(d.toString())
 
-function w1() {
+// async function w1(a, [x, y], b = 4, ...z) {
+var w1 = (a, [x, y], b = 4, ...z) => {
     // while (1 > 100) {
     //     log2(i)
     //     log2(10)
@@ -2996,7 +3017,7 @@ function w1() {
         }, 100)
     }
     
-    // var x = `${i + 1}`
+    var x = `${i + 1} yo`
     b = c = d
     3 + 4 + 5
     
@@ -3006,6 +3027,25 @@ function w1() {
     var t = new Date(x, y, z).getTime()
     
     {foo, bar} = yoyo
+    typeof x == "undefined"
+    if (a) doThing()
+    
+    if (b) {
+        break
+        continue
+        return
+        return 27
+        if (b) {
+            break
+            continue
+            return
+            return 27
+        }
+    }
+    
+    for (let x of foobar) {
+        alert(x)
+    }
     
     // let c = 20
     // let d = {a: 100, "b": 300, c: {x: 20}}
@@ -3014,7 +3054,7 @@ function w1() {
     // bar()
 }
 
-log2(w1.toString())
+// log2(w1.toString())
 
 
 // alert(foo.toString())
