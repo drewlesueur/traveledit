@@ -1423,22 +1423,43 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
                 if (parentOperator == "for") {
                     joinChr = "; "
                 }
-                var genedValues = expr[1].map(arg => {
-                    return ijs.generateExprString(arg, indent, operator)
-                }).join(joinChr)
+                if (expr[1]) {
+                    var genedValues = expr[1].map(arg => {
+                        return ijs.generateExprString(arg, indent, operator)
+                    }).join(joinChr)
+                } else {
+                    var genedValues = ""
+                }
                 ret.push("(" + genedValues + ")")
             } else if (operator == "<object>") {
                 var joinChr = ",\n"
-                if (parentOperator == "while" || parentOperator == "function" || parentOperator == "for" || parentOperator == "=>") {
+                if (parentOperator == "while" || parentOperator == "function" || parentOperator == "for" || parentOperator == "if" || parentOperator == "=>" || parentOperator == "try" || parentOperator == "catch" || parentOperator == "else") {
                     joinChr = "\n"
                 }
-                var genedValues = expr[1].map(arg => {
-                    return ijs.tab.repeat(indent+1) + ijs.generateExprString(arg, indent, operator)
-                }).join(joinChr)
-                // ret.push("{\n" + genedValues + "\n}")
+                if (expr[1]) {
+                    var genedValues = expr[1].map(arg => {
+                        return ijs.tab.repeat(indent+1) + ijs.generateExprString(arg, indent+1, operator)
+                    }).join(joinChr)
+                } else {
+                    var genedValues = ""
+                }
+                
                 ret.push("{\n")
                 ret.push(genedValues)
                 ret.push("\n" + ijs.tab.repeat(indent) +"}")
+            } else if (operator == "<array>") {
+                var joinChr = ",\n"
+                if (expr[1]) {
+                    var genedValues = expr[1].map(arg => {
+                        return ijs.tab.repeat(indent+1) + ijs.generateExprString(arg, indent+1, operator)
+                    }).join(joinChr)
+                } else {
+                    var genedValues = ""
+                }
+                
+                ret.push("[\n")
+                ret.push(genedValues)
+                ret.push("\n" + ijs.tab.repeat(indent) +"]")
             } else {
                 ret.push(operator)
                 var spacer = " "
@@ -2918,40 +2939,82 @@ ijs.exampleCode = function () {
 //     true 
 // }
 
+var x = 1
+
 
 function w1() {
-    while (1 > 100) {
-        log2(i)
-        log2(10)
-    }
-
-    for (let i = 0; i < -10; i++) {
-        log2(i)
-        log2(10)
-    }
-
-    var a = function (a, b, c) {
-        log2(a, b, c)
-        log2(10)
-    }
-    var a = (a, b, c) => {
-        log2(a, b, c)
-        log2(10)
+    // while (1 > 100) {
+    //     log2(i)
+    //     log2(10)
+    // }
+// 
+    // for (let i = 0; i < -10; i++) {
+    //     log2(i)
+    //     log2(10)
+    // }
+// 
+    // var a = function (a, b, c) {
+    //     log2(a, b, c)
+    //     log2(10)
+    //     var b = function ([x, y]) {
+    //         log2(1)
+    //         log2(2)
+    //     }
+    // }
+    // var a = (a, b, c) => {
+    //     log2(a, b, c)
+    //     log2(10)
+    // }
+    // 
+    // function foo(x, y, z) {
+    //     alert("yo", bar)
+    //     log2(10)
+    // }
+    // 
+    // if (x == 1) {
+    //     log2(1)
+    //     log2(2)
+    // }
+    
+    if (x == 1) {
+        log2(1)
+        log2(2)
+    } else if (false) {
+        log2(1)
+        log2(2)
+    } else {
+        log2(1)
+        log2(2)
     }
     
-    function foo(x, y, z) {
-        alert("yo", bar)
-        log2(10)
+    var i = 0
+    while (i < 10) {
+        i++
+        let i2 = i
+        setTimeout(() => {
+            log2("hey " + i2)
+        }, 100)
     }
     
-    let c = 20
-    let d = {a: 100, "b": 300, c: {x: 20}}
+    // var x = `${i + 1}`
+    b = c = d
+    3 + 4 + 5
     
-    foo.bar.baz()
-    bar()
+    [1,2,3].map(x => x)
+    
+    y = await foo.baz()
+    var t = new Date(x, y, z).getTime()
+    
+    {foo, bar} = yoyo
+    
+    // let c = 20
+    // let d = {a: 100, "b": 300, c: {x: 20}}
+    // 
+    // foo.bar.baz()
+    // bar()
 }
 
-alert(w1.toString())
+log2(w1.toString())
 
 
 // alert(foo.toString())
