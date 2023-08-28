@@ -599,10 +599,12 @@ ijs.infixes = {
      ".": {
          "associatitivity": 0,
          "precedence": 17,
+         squish: true,
      },
      "?.": {
          "associatitivity": 0,
          "precedence": 17,
+         squish: true,
      },
      "else": {
          "associatitivity": 1,
@@ -617,42 +619,49 @@ ijs.prefixes = {
          "precedence": 17,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "!": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "~": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "+": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "-": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "++": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "--": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "typeof": {
          "associatitivity": 1,
@@ -780,12 +789,14 @@ ijs.postfixes = {
          "precedence": 15,
          "arity": 1,
          "fix": "post",
+         squish: true,
      },
      "--": {
          "associatitivity": 1,
          "precedence": 15,
          "arity": 1,
          "fix": "post",
+         squish: true,
      },
 }
 
@@ -1359,9 +1370,11 @@ ijs.exprStringMap = {
         return ijs.generateExprString(args[0], indent) + "." + ijs.generateExprString(args[1], indent)
     },
     "function_pre": function (args, indent) {
+        return "function " + ijs.generateExprString(args[0], indent)
     }
 }
-ijs.generateExprString = function (expr) {
+ijs.tab = "    "
+ijs.generateExprString = function (expr, indent, parentOperator) {
     // TODO: interpolate 
     
     if (expr === null) {
@@ -1388,10 +1401,84 @@ ijs.generateExprString = function (expr) {
         return token
     }
     
-    var serializer = ijs.exprStringMap[expr[0]]
-    if (serializer) {
-        return serializer(expr.slice(1))
+    
+    var operator = expr[0]
+    if (!operator.endsWith) {
+        alert(JSON.stringify(expr))
     }
+    var oMap = ijs.infixes
+    if (operator.endsWith("_pre")) {
+        oMap = ijs.prefixes
+        operator = operator.slice(0, -4)
+    } else if (operator.endsWith("_post")) {
+        oMap = ijs.postfixes
+        operator = operator.slice(0, -5)
+    }
+    if (Object.hasOwn(oMap, operator)) {
+        var ret = []
+        var opDef = oMap[operator]
+        if (oMap == ijs.prefixes) {
+            if (operator == "<group>") {
+                var joinChr = ", "
+                if (parentOperator == "for") {
+                    joinChr = "; "
+                }
+                var genedValues = expr[1].map(arg => {
+                    return ijs.generateExprString(arg, indent, operator)
+                }).join(joinChr)
+                ret.push("(" + genedValues + ")")
+            } else if (operator == "<object>") {
+                var joinChr = ",\n"
+                if (parentOperator == "while" || parentOperator == "function" || parentOperator == "for" || parentOperator == "=>") {
+                    joinChr = "\n"
+                }
+                var genedValues = expr[1].map(arg => {
+                    return ijs.tab.repeat(indent+1) + ijs.generateExprString(arg, indent, operator)
+                }).join(joinChr)
+                // ret.push("{\n" + genedValues + "\n}")
+                ret.push("{\n")
+                ret.push(genedValues)
+                ret.push("\n" + ijs.tab.repeat(indent) +"}")
+            } else {
+                ret.push(operator)
+                var spacer = " "
+                if (opDef.squish) {
+                    spacer = ""
+                }
+                for (var i = 0; i < opDef.arity; i++) {
+                    ret.push(spacer + ijs.generateExprString(expr[i + 1], indent, operator))
+                }
+            }
+        } else if (oMap == ijs.postfixes) {
+            ret.push(ijs.generateExprString(expr[1], indent, operator) + operator)
+        } else if (oMap == ijs.infixes) {
+            // special cases
+            if (operator == "<callFunc>") {
+                if (expr[2]) {
+                    var genedArgs = expr[2].map(arg => {
+                        return ijs.generateExprString(arg, indent, operator)
+                    }).join(", ")
+                } else {
+                    var genedArgs = ""
+                }
+                ret.push(ijs.generateExprString(expr[1], indent, operator) + "(" + genedArgs + ")")
+            } else if (operator == "<computedMemberAccess>") {
+                ret.push(ijs.generateExprString(expr[1], indent, operator) + "[" + ijs.generateExprString(expr[2], indent, operator) + "]")
+            } else {
+                var spacer = " "
+                if (opDef.squish) {
+                    spacer = ""
+                }
+                ret.push(ijs.generateExprString(expr[1], indent, operator))
+                ret.push(spacer)
+                ret.push(operator)
+                ret.push(spacer)
+                ret.push(ijs.generateExprString(expr[2], indent, operator))
+            }
+        }
+        return ret.join("")
+    }
+    
     return expr[0] + "(" + expr.slice(1).map(x => ijs.exprStringMap[x]) + ")"
     
     // serializer: ijs $exprStringMap at expr 0 at at
@@ -1401,11 +1488,11 @@ ijs.generateExprString = function (expr) {
     // }
 }
 ijs.generateFunctionString = function (params, body, indent) {
-    ret = ["  ".repeat(indent) + "function () {"]
+    ret = [ijs.tab.repeat(indent) + "function () {"]
     for (expr of body) {
-        ret.push("  ".repeat(indent+1) + ijs.generateExprString(expr, indent+1))
+        ret.push(ijs.tab.repeat(indent+1) + ijs.generateExprString(expr, indent+1, "function"))
     }
-    ret.push("  ".repeat(indent) + "}")
+    ret.push(ijs.tab.repeat(indent) + "}")
     return ret.join("\n")
     
 }
@@ -2825,11 +2912,58 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
-function foo() {
-    a.b
+// function foo() {
+//     a.b
+//     1
+//     true 
+// }
+
+
+function w1() {
+    while (1 > 100) {
+        log2(i)
+        log2(10)
+    }
+
+    for (let i = 0; i < -10; i++) {
+        log2(i)
+        log2(10)
+    }
+
+    var a = function (a, b, c) {
+        log2(a, b, c)
+        log2(10)
+    }
+    var a = (a, b, c) => {
+        log2(a, b, c)
+        log2(10)
+    }
+    
+    function foo(x, y, z) {
+        alert("yo", bar)
+        log2(10)
+    }
+    
+    let c = 20
+    let d = {a: 100, "b": 300, c: {x: 20}}
+    
+    foo.bar.baz()
+    bar()
 }
 
-alert(foo.toString())
+alert(w1.toString())
+
+
+// alert(foo.toString())
+
+// 1 + 2 + 3
+// 1 = 2 = 3
+// if (true) {
+//     log2("yay1")
+// } else if (false) {
+//     log2("yay2")
+// }
+// 
 // var people = [["dude", "man"], ["mr", "person"]]
 // for (let p of people) {
 //     log2(p)
