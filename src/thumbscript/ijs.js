@@ -2080,6 +2080,7 @@ ijs.builtins = {
                         blockScope: true,
                         async: wrapperWorld.async
                     }
+                    
                     // not allowing global
                     var worldToSet
                     if (assignType == "var_pre") {
@@ -2090,9 +2091,6 @@ ijs.builtins = {
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
                         worldToSet = loopWorld
                     }
-                    
-                    
-                    // worldToSet.state["what"] = "ok!"
                     if (typeof varName == "object") {
                         if (varName[0] == "<object>_pre") {
                             var varNames = varName[1]
@@ -2109,10 +2107,6 @@ ijs.builtins = {
                     } else {
                         worldToSet.state[varName] = val
                     }
-                    
-                    // alert(JSON.stringify(worldToSet.state, null, "    "))
-                    
-                    
                     
                     var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
@@ -2214,10 +2208,30 @@ ijs.builtins = {
                         async: wrapperWorld.async
                     }
                     // not allowing global
+                    var worldToSet
                     if (assignType == "var_pre") {
-                        world.state[varName] = val
+                        worldToSet = world
+                        while (worldToSet.blockScope) {
+                            worldToSet = worldToSet.parent
+                        }
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
-                        loopWorld.state[varName] = val
+                        worldToSet = loopWorld
+                    }
+                    if (typeof varName == "object") {
+                        if (varName[0] == "<object>_pre") {
+                            var varNames = varName[1]
+                            for (let subVarName of varNames) {
+                                worldToSet.state[subVarName] = val[subVarName]
+                            }
+                        } else if (varName[0] == "<array>_pre") {
+                            var varNames = varName[1]
+                            for (var i=0; i<varNames.length; i++) {
+                                let subVarName = varNames[i]
+                                worldToSet.state[subVarName] = val[i]
+                            }
+                        }
+                    } else {
+                        worldToSet.state[varName] = val
                     }
                     var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
@@ -2762,9 +2776,15 @@ ijs.exampleCode = function () {
 // }
 
 var people = [{name: "D", age: 40}, {name: "C", age: 30}]
-for (let {name, age} of people) {
-    log2(name + ":" + age)
-}
+
+// async function w3() {
+//     for (var {name, age} of people) {
+//         log2(name + ":" + age)
+//         log2(name + ":" + age)
+//     }
+// }
+// w3()
+
 
 // function b() {
 //     return function () {
