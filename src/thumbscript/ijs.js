@@ -1517,10 +1517,13 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
     // }
 }
 ijs.generateFunctionString = function (isAsync, name, params, body, indent) {
-    ijs.generateExprString(params, indent+1, "<group>")
-    var genedParams = params.map(arg => {
-        return ijs.generateExprString(arg, indent, "")
-    }).join(", ")
+    if (params) {
+        var genedParams = params.map(arg => {
+            return ijs.generateExprString(arg, indent, "")
+        }).join(", ")
+    } else {
+        var genedParams = ""
+    }
     var asyncText = ""
     if (isAsync) {
         asyncText = "async "
@@ -2963,7 +2966,8 @@ var x = 1
 // alert(d.toString())
 
 // async function w1(a, [x, y], b = 4, ...z) {
-var w1 = (a, [x, y], b = 4, ...z) => {
+async function w1() {
+// var w1 = (a, [x, y], b = 4, ...z) => {
     // while (1 > 100) {
     //     log2(i)
     //     log2(10)
@@ -3054,7 +3058,7 @@ var w1 = (a, [x, y], b = 4, ...z) => {
     // bar()
 }
 
-// log2(w1.toString())
+log2(w1.toString())
 
 
 // alert(foo.toString())
