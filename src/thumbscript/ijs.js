@@ -2962,7 +2962,7 @@ ijs.exampleCode = function () {
 // }
 
 // var x = 1/2
-var strokeVal = parseInt((466 * progressVal) / totalPercentageVal)
+// var strokeVal = parseInt((466 * progressVal) / totalPercentageVal)
 
 // var d = x => x
 // alert(d.toString())
