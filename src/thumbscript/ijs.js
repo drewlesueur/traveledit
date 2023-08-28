@@ -298,7 +298,8 @@ ijs.tokenize = function (code) {
             if ("/".indexOf(chr) != -1) {
                 state = "comment"
             } else {
-                state = "out"
+                currentToken = "/"
+                state = "in_symbol"
                 i--
             }
         } else if (state == "comment") {
@@ -1615,7 +1616,7 @@ ijs.builtins = {
                 } else if (arg[0] == "await_pre") {
                     await ijs.exec(arg[1], world)
                     continue
-                } else if (arg[0] == "=" && arg[2][0] == "await_pre") {
+                } else if (arg[0] == "=" && arg[2] && (typeof arg[2] == "object") && arg[2][0] == "await_pre") {
                     // special case for var a = await smthbg()
                     await ijs.callFunc("=_await", arg.slice(1), world)
                     continue
@@ -2960,7 +2961,8 @@ ijs.exampleCode = function () {
 //     true 
 // }
 
-var x = 1
+// var x = 1/2
+var strokeVal = parseInt((466 * progressVal) / totalPercentageVal)
 
 // var d = x => x
 // alert(d.toString())
