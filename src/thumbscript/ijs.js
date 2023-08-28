@@ -180,7 +180,7 @@ ijs.tokenize = function (code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r(".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r({[".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<computedMemberAccess>")
                 }
                 tokens.push(chr)
@@ -230,7 +230,7 @@ ijs.tokenize = function (code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r(".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r({[".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<computedMemberAccess>")
                 }
                 tokens.push(chr)
@@ -1302,7 +1302,7 @@ ijs.makeFunc = function(params, body, world) {
     }
     // log2("+params are")
     // log2(params)
-    
+    var origBody = body
     body = ijs.hoist(body)
     var f = function(...args) {
         if (params) {
@@ -1348,7 +1348,66 @@ ijs.makeFunc = function(params, body, world) {
         return ret
     }
     f.world = world // lol
+    f.toString = function() {
+        return ijs.generateFunctionString(params, origBody, 0)
+    }
     return f
+}
+
+ijs.exprStringMap = {
+    ".": function (args, indent) {
+        return ijs.generateExprString(args[0], indent) + "." + ijs.generateExprString(args[1], indent)
+    },
+    "function_pre": function (args, indent) {
+    }
+}
+ijs.generateExprString = function (expr) {
+    // TODO: interpolate 
+    
+    if (expr === null) {
+        return "null"
+    }
+    if (typeof expr == "number") {
+        return expr
+    }
+    if (typeof expr == "boolean") {
+        return expr ? "true" : false
+    }
+    
+    if (typeof expr == "undefined") {
+        return "undefined"
+    }
+
+    if (typeof expr != "object") {
+        // string encoding
+        var token = expr
+        if (token.charAt(0) == "#") {
+            return JSON.stringify(token.slice(1))
+        }
+        
+        return token
+    }
+    
+    var serializer = ijs.exprStringMap[expr[0]]
+    if (serializer) {
+        return serializer(expr.slice(1))
+    }
+    return expr[0] + "(" + expr.slice(1).map(x => ijs.exprStringMap[x]) + ")"
+    
+    // serializer: ijs $exprStringMap at expr 0 at at
+    // if serializer: {
+    //     slice expr 1 se
+    //     break
+    // }
+}
+ijs.generateFunctionString = function (params, body, indent) {
+    ret = ["  ".repeat(indent) + "function () {"]
+    for (expr of body) {
+        ret.push("  ".repeat(indent+1) + ijs.generateExprString(expr, indent+1))
+    }
+    ret.push("  ".repeat(indent) + "}")
+    return ret.join("\n")
+    
 }
 // ijs.breakMessage = {"break": true}
 // ijs.continueMessage = {"continue":true}
@@ -1932,7 +1991,7 @@ ijs.builtins = {
             params = args[0][1]
         }
         var body = args[1][1]
-        var f = ijs.makeFunc(params, body, world, false)
+        var f = ijs.makeFunc(params, body, world)
         if (name) {
             ijs.set(name, f, world, "var")
         }
@@ -1953,7 +2012,7 @@ ijs.builtins = {
         } else {
             body = [["return_pre", body]]
         }
-        var f = ijs.makeFunc(params, body, world, false)
+        var f = ijs.makeFunc(params, body, world)
         return f
     },
     "<group>_pre": function(args, world) {
@@ -2760,13 +2819,17 @@ ijs.makeSpecialReturn = function () {
 // w2()
 
 
-
+// alert(new String("yo").toString() == new String("yo").toString())
 
 
 ijs.exampleCode = function () {
 /*
 
+function foo() {
+    a.b
+}
 
+alert(foo.toString())
 // var people = [["dude", "man"], ["mr", "person"]]
 // for (let p of people) {
 //     log2(p)
@@ -2775,7 +2838,7 @@ ijs.exampleCode = function () {
 //     log2(a + ":" + b)
 // }
 
-var people = [{name: "D", age: 40}, {name: "C", age: 30}]
+// var people = [{name: "D", age: 40}, {name: "C", age: 30}]
 
 // async function w3() {
 //     for (var {name, age} of people) {
