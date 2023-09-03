@@ -1,3 +1,6 @@
+// return await
+
+
 if (typeof log2 === "undefined") {
    log2 = function (x) {
        console.log(x)
@@ -14,18 +17,18 @@ if (typeof log2 === "undefined") {
 
 // how would I write this js without the sugar?
 // [...a]
-// 
+//
 // Without using the ES6 spread syntax `[...a]`, you can use the slice() method of arrays:
 // ```javascript
 // var newArray = a.slice();
 // ```
-// The slice method will create a new array 
-// that is a shallow copy of `a`. 
-// Bear in mind that because it creates a shallow copy, 
-// deep objects will be referenced 
-// and not fully copied. 
-// This means if you modify a deep object 
-// in `newArray`, 
+// The slice method will create a new array
+// that is a shallow copy of `a`.
+// Bear in mind that because it creates a shallow copy,
+// deep objects will be referenced
+// and not fully copied.
+// This means if you modify a deep object
+// in `newArray`,
 // it will also modify `a`.
 
 
@@ -79,7 +82,7 @@ ijs.tokenize = function (code) {
             tokens.push(void 0)
             return
         }
-        
+
         var sinUnderscores = x.replaceAll("_", "")
         if (sinUnderscores - 0 == sinUnderscores) {
             tokens.push(sinUnderscores - 0)
@@ -815,7 +818,7 @@ function logCurr(indent, msg, obj) {
 
 
 
-// pre2 megapre2 2 1 
+// pre2 megapre2 2 1
 
 // - + 3
 // ijs.nextTokenGroup = function (tokens, lastOpDef, lastGroup) {
@@ -889,17 +892,249 @@ function logCurr(indent, msg, obj) {
         // }
         // var token = tokens.shift()
 
-// var prefixes = ijs.prefixes
-// var infixes = ijs.infixes
-ijs.infixate2 = function(tokens) {
+
+ijs.testInfixate = function () {
+    var casesString = `
+        # simple expression
+        a + b
+
+        # expected
+        [
+            [
+                "+",
+                "a",
+                "b"
+            ]
+        ]
+
+        # simple expression
+        a + b + c
+
+        # expected
+        [
+            [
+                "+",
+                [
+                    "+",
+                    "a",
+                    "b"
+                ],
+                "c"
+            ]
+        ]
+
+        # single token
+        a
+        # expected
+        [
+            "a"
+        ]
+
+        # multiple tokens, no operators
+        a b c
+        d
+        # expected
+        [
+            "a",
+            "b",
+            "c",
+            "d"
+        ]
+    `
     
+    var lines = casesString.split("\n")
+    var cases = []
+    var theCase
+    var state = ''
+    for (var line of lines) {
+        var trimmed = line.trim()
+        if (trimmed.startsWith("# expected")) {
+            state = "expected"
+        } else if (trimmed.startsWith("#")) {
+            theCase = {
+                name: trimmed,
+                code: "",
+                expected: ""
+            }
+            cases.push(theCase)
+            state = "code"
+        } else if (state == 'code') {
+            var prefix = "\n"
+            if (theCase.code == "") {
+                prefix = ""
+            }
+            theCase.code = theCase.code + prefix + line.slice(8)
+        } else if (state == 'expected') {
+            var prefix = "\n"
+            if (theCase.expected == "") {
+                prefix = ""
+            }
+            theCase.expected = theCase.expected + prefix + line.slice(8)
+        }
+    }
+    // log2(cases)
+    for (var theCase of cases) {
+        log2("")
+        log2("+running test: " + theCase.name)
+        log2("code:")
+        log2(theCase.code)
+        log2("actual:")
+        var actual = JSON.stringify(ijs.tokenize(theCase.code), null, "    ") + "\n"
+        log2(actual)
+        if (actual != theCase.expected) {
+            log2("-they don't match")
+            log2("-expected:")
+            log2(theCase.expected)
+            log2("-fail")
+        } else {
+            log2("+pass")
+        }
+        log2("----------------------------------------------------")
+    }
+}
+setTimeout(ijs.testInfixate, 1)
+
+
+ijs.infixate = function(tokens) {
+    // after stack of operators
+    // like after you group the prev operator is now the current operator again?
+
+    var newTokens = []
+    var stack = []
+    var state = {
+         name: "before",
+         opDef: null,
+         group: null,
+    }
+
+    while (true) {
+        if (tokens.length == 0) {
+            newTokens.push(state.group)
+            if (newTokens.length == 0) {
+                return (void 0)
+            }
+            return newTokens
+        }
+
+        var token = tokens.shift()
+        if (state.name == "before") {
+            if (Object.hasOwn(ijs.prefixes, token)) {
+                stack.push(state)
+                state = {}
+                state.group = [token + "_pre"]
+                state.opDef = ijs.prefixes[token]
+                state.name = "inPre"
+            } else {
+                stack.push(state)
+                state = {}
+                state.name = "inNonOp"
+                state.group = token
+            }
+        } else if (state.name == "inPre") {
+            if (Object.hasOwn(ijs.prefixes, token)) {
+                stack.push(state)
+                state = { }
+                state.group = [token + "_pre"]
+                state.opDef = ijs.prefixes[token]
+                state.name = "inPre"
+            } else {
+                // state.group.push(token)
+                // should we end here?
+                var next = tokens[0]
+                if (Object.hasOwn(ijs.infixes, next)) {
+                    var nextOpDef = ijs.infixes[next]
+                    if (nextOpDef.precedence > state.opDef.precedence || (nextOpDef.precedence == state.opDef.precedence && nextOpDef.associatitivity)) {
+                        // newTokens.push(state.group)
+                        // state = stack.pop()
+                    }
+                } else {
+                    state.group.push(token)
+                    if ((state.opDef.arity || 1 ) == state.group.length - 1) {
+                        state = stack.pop()
+                    }
+                }
+            }
+        } else if (state.name == "inNonOp") {
+            // todo: postfix
+            if (Object.hasOwn(ijs.infixes, token)) {
+                // var oldState = state
+                // state = {}
+                state.opDef = ijs.infixes[token]
+                state.group = [token, state.group]
+                state.name = "inInfix"
+            } else if (Object.hasOwn(ijs.prefixes, token)) {
+                newTokens.push(group)
+                state = {}
+                state.group = [token + "_pre"]
+                state.opDef = ijs.prefixes[token]
+                state.name = "inPre"
+            } else {
+                newTokens.push(state.group)
+                state = {
+                     name: "inNonOp",
+                     lastTerm: token
+                }
+            }
+        } else if (state.name == "inInfix") {
+            log2("+are we here?")
+            if (Object.hasOwn(ijs.prefixes, token)) {
+                stack.push(state)
+                state = {}
+                state.group = [token + "_pre"]
+                state.opDef = ijs.prefixes[token]
+                state.name = "inPre"
+            } else {
+                var next = tokens[0]
+                log2("+yay here!!! " + next)
+                if (Object.hasOwn(ijs.infixes, next)) {
+                    var nextOpDef = ijs.infixes[next]
+                    if (nextOpDef.precedence > state.opDef.precedence || (nextOpDef.precedence == state.opDef.precedence && nextOpDef.associatitivity)) {
+                        stack.push(state)
+                        state = {
+                             name: "inNonOp",
+                             lastTerm: token
+                        }
+                    } else {
+                        state.group.push(token)
+                        state.name = "inNonOp"
+                    }
+                } else {
+                    // log2("token: " + token + " // deepskyblue marker")
+                    // log2("state: " + JSON.stringify(state) + " // deepskyblue marker")
+                    log2("+++++++" + token)
+                    state.group.push(token)
+                    
+                    
+                    // state.group.push(token)
+                    // lastState = stack.pop()
+                    // if (!lastState.group) {
+                    //     lastState.group = [token, lastState.term, state.group]
+                    // } else {
+                    //     lastState.group.push(state.group)
+                    // }
+                    // state = lastState
+                }
+            }
+        }
+        log2("# token: " + token + " ("+tokens[0]+")")
+        // for (let i=stack.length-1; i>=0; i--) {
+        for (let i=0; i < stack.length; i++) {
+            // log2(" ".repeat(i) + JSON.stringify(stack[i], null, "    ").split("\n").map(x => "#" + x).join("\n"))
+            log2("#" + "  ".repeat(stack.length - i) + JSON.stringify(stack[i]))
+        }
+        log2(JSON.stringify(state, null, "    ").split("\n").map(x => "#" + x).join("\n"))
+        log2(JSON.stringify(newTokens, null, "    ").split("\n").map(x => "#" + x).join("\n"))
+        log2("# ------")
+    }
+    return newTokens
+
 }
 
 
 
 
     // tokens = ijs.infixate(tokens, false, true, -1, 0)
-ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forAsync) {
+ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forAsync) {
     logIndent(iter, "infixate called", tokens)
     if (iter == 500) {
         alert("oops")
@@ -1002,9 +1237,9 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forA
                 // wait maybe just return lastGroup?
                 logIndent(iter, "infix return", lastGroup)
                 // return lastGroup
-                // return oldLastGroup
+                // return oldLastGroup // red marker
                 lastGroup = oldLastGroup
-                
+
                 var next = ""
                 if (tokens.length) {
                     var next = tokens.shift()
@@ -1028,9 +1263,9 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forA
                 } else {
                     return lastGroup
                 }
-                
-                
-                
+
+
+
             }
             lastPrecedence = currPrecedence
         } else if (ijs.prefixes.hasOwnProperty(token)) {
@@ -1060,8 +1295,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forA
                 // alert("returning: " + JSON.stringify(lastGroup))
                 // wait maybe just return lastGroup?
                 logIndent(iter, "prefix return", lastGroup)
-                // return lastGroup
-                
+                // return lastGroup // red marker
 
 
                 var next = ""
@@ -1087,7 +1321,7 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forA
                 } else {
                     return lastGroup
                 }
-                
+
             }
             // lastPrecedence = currPrecedence
             newTokens.push(lastGroup)
@@ -1177,8 +1411,8 @@ ijs.run = function(code, world) {
     // preventRender = true
     var tokens = ijs.tokenize(code)
     log2(tokens)
-    // return
-    
+    return
+
     if (!world) {
         var globalObject
         if (typeof window != "undefined") {
@@ -1252,7 +1486,7 @@ ijs.makeAsyncFunc = function(params, body, world, name) {
     }
     // log2("+params are")
     // log2(params)
-    
+
     var origBody = body
     body = ijs.hoist(body)
     var f = async function(...args) {
@@ -1381,8 +1615,8 @@ ijs.exprStringMap = {
 }
 ijs.tab = "    "
 ijs.generateExprString = function (expr, indent, parentOperator) {
-    // TODO: interpolate 
-    
+    // TODO: interpolate
+
     if (expr === null) {
         return "null"
     }
@@ -1392,7 +1626,7 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
     if (typeof expr == "boolean") {
         return expr ? "true" : false
     }
-    
+
     if (typeof expr == "undefined") {
         return "undefined"
     }
@@ -1403,11 +1637,11 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
         if (token.charAt(0) == "#") {
             return JSON.stringify(token.slice(1))
         }
-        
+
         return token
     }
-    
-    
+
+
     var operator = expr[0]
     if (!operator.endsWith) {
         alert(JSON.stringify(expr))
@@ -1449,7 +1683,7 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
                 } else {
                     var genedValues = ""
                 }
-                
+
                 ret.push("{\n")
                 ret.push(genedValues)
                 ret.push("\n" + ijs.tab.repeat(indent) +"}")
@@ -1462,7 +1696,7 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
                 } else {
                     var genedValues = ""
                 }
-                
+
                 ret.push("[\n")
                 ret.push(genedValues)
                 ret.push("\n" + ijs.tab.repeat(indent) +"]")
@@ -1505,13 +1739,13 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
         }
         return ret.join("")
     }
-    
+
     if (expr && expr[0] == "<interpolate>") {
         return "`" + JSON.stringify(expr[1]).slice(1, -1) + "`"
     }
     // should not get here?
     return expr[0] + "(" + expr.slice(1).map(x => ijs.exprStringMap[x]) + ")"
-    
+
     // serializer: ijs $exprStringMap at expr 0 at at
     // if serializer: {
     //     slice expr 1 se
@@ -1530,14 +1764,14 @@ ijs.generateFunctionString = function (isAsync, name, params, body, indent) {
     if (isAsync) {
         asyncText = "async "
     }
-    
+
     ret = [ijs.tab.repeat(indent) + asyncText + "function "+name+"("+genedParams+") {"]
     for (expr of body) {
         ret.push(ijs.tab.repeat(indent+1) + ijs.generateExprString(expr, indent+1, "function"))
     }
     ret.push(ijs.tab.repeat(indent) + "}")
     return ret.join("\n")
-    
+
 }
 // ijs.breakMessage = {"break": true}
 // ijs.continueMessage = {"continue":true}
@@ -1563,13 +1797,13 @@ ijs.makeAssignmentBuiltin = function (opFunc) {
     return function (args, world) {
         if (typeof args[0] === "object") {
             if (args[0][0] == ".") {
-                var obj = ijs.exec(args[0][1], world) 
+                var obj = ijs.exec(args[0][1], world)
                 varName = args[0][2]
                 // obj[varName] += ijs.exec(args[1], world)
                 opFunc(obj, varName, ijs.exec(args[1], world))
             } else if (args[0][0] == "<computedMemberAccess>") {
-                var obj = ijs.exec(args[0][1], world) 
-                var varName = ijs.exec(args[0][2], world) 
+                var obj = ijs.exec(args[0][1], world)
+                var varName = ijs.exec(args[0][2], world)
                 // obj[varName] += ijs.exec(args[1], world)
                 opFunc(obj, varName, ijs.exec(args[1], world))
             }
@@ -1756,12 +1990,12 @@ ijs.builtins = {
                     w.state[varName] = ijs.exec(args[1], world)
                 }
             } else if (args[0][0] == ".") {
-                var obj = ijs.exec(args[0][1], world) 
+                var obj = ijs.exec(args[0][1], world)
                 varName = args[0][2]
                 obj[varName] = ijs.exec(args[1], world)
             } else if (args[0][0] == "<computedMemberAccess>") {
-                var obj = ijs.exec(args[0][1], world) 
-                var varName = ijs.exec(args[0][2], world) 
+                var obj = ijs.exec(args[0][1], world)
+                var varName = ijs.exec(args[0][2], world)
                 obj[varName] = ijs.exec(args[1], world)
             } else if (args[0][0] == "<array>_pre") {
                 var varNames = args[0][1]
@@ -1813,12 +2047,12 @@ ijs.builtins = {
                     w.state[varName] = await ijs.exec(args[1], world)
                 }
             } else if (args[0][0] == ".") {
-                var obj = ijs.exec(args[0][1], world) 
+                var obj = ijs.exec(args[0][1], world)
                 varName = args[0][2]
                 obj[varName] = await ijs.exec(args[1], world)
             } else if (args[0][0] == "<computedMemberAccess>") {
-                var obj = ijs.exec(args[0][1], world) 
-                var varName = ijs.exec(args[0][2], world) 
+                var obj = ijs.exec(args[0][1], world)
+                var varName = ijs.exec(args[0][2], world)
                 obj[varName] = await ijs.exec(args[1], world)
             } else if (args[0][0] == "<array>_pre") {
                 var varNames = args[0][1]
@@ -2013,9 +2247,9 @@ ijs.builtins = {
     "new_pre": function (args, world) {
         // https://stackoverflow.com/questions/3871731/dynamic-object-construction-in-javascript
         // log2("+args for new")
-        
+
         // this is now handled as special case of callFunc
-        // i guess it's the way the operator precedence hacking landed 
+        // i guess it's the way the operator precedence hacking landed
         var theClass = ijs.exec(args[0][1], world)
         var theArgs = args[0].slice(2)[0]
         var evaledArgs = []
@@ -2055,7 +2289,7 @@ ijs.builtins = {
             }
         }
         return computed
-        
+
         // var computed = args[0].map(function(t) {
         //     return ijs.exec(t, world)
         // })
@@ -2269,7 +2503,7 @@ ijs.builtins = {
                         blockScope: true,
                         async: wrapperWorld.async
                     }
-                    
+
                     // not allowing global
                     var worldToSet
                     if (assignType == "var_pre") {
@@ -2296,7 +2530,7 @@ ijs.builtins = {
                     } else {
                         worldToSet.state[varName] = val
                     }
-                    
+
                     var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
@@ -2516,7 +2750,7 @@ ijs.builtins = {
         tryBody = ijs.hoist(tryBody)
         var catchBody = args[3][1] || []
         catchBody = ijs.hoist(catchBody)
-        
+
         try {
             var ret = ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
             // log2("ret from try is: " + JSON.stringify(ret))
@@ -2555,7 +2789,7 @@ ijs.builtins = {
         tryBody = ijs.hoist(tryBody)
         var catchBody = args[3][1] || []
         catchBody = ijs.hoist(catchBody)
-        
+
         try {
             var ret = await ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
             // log2("ret from if is: " + JSON.stringify(ret))
@@ -2584,7 +2818,7 @@ ijs.builtins = {
         }
         var condition = args[0][1][0]
         // var body = args[1][1] || []
-        
+
         var body = args[1]
         if (body[0] == "<object>_pre") {
             body = body[1]
@@ -2594,7 +2828,7 @@ ijs.builtins = {
         } else {
             body = [body]
         }
-        
+
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
@@ -2699,7 +2933,7 @@ ijs.builtins = {
             return ijs.exec(args[1][1], world)
         }
         return ijs.exec(args[1][2], world)
-        
+
     },
 }
 ijs.set = function(key, value, world, setType) {
@@ -2718,7 +2952,7 @@ ijs.getWorldForKey = function(world, key) {
     // if (world.local && forSetting) {
     //     return world
     // }
-    
+
     // not sure why exactly, but this causes problems with async
     // if (world.cachedLookupWorld[key]) {
     //     return world.cachedLookupWorld[key]
@@ -2741,7 +2975,7 @@ ijs.exec = function(tokens, world) {
     if (typeof tokens == "boolean") {
         return tokens
     }
-    
+
     if (typeof tokens == "undefined") {
         return undefined
     }
@@ -2790,13 +3024,13 @@ ijs.asyncVersions = {
     "for_pre": true,
     "while_pre": true,
     "try_pre": true,
-    
+
     // not doing this because of initialization assignments in for loops?
     // "=": true,
 }
 ijs.callFunc = function(funcAccessor, theArgs, world) {
     // special case for new
-    
+
     if (typeof funcAccessor == "object") {
         if (funcAccessor[0] == "new_pre") {
             var theClass = ijs.exec(funcAccessor[1], world)
@@ -2824,7 +3058,7 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
         alert("no func: " + funcAccessor)
     }
     theArgs = theArgs || []
-    
+
     var ret = func.apply(null, theArgs.map(function (t) {
         return ijs.exec(t, world)
     }))
@@ -2878,7 +3112,7 @@ ijs.makeSpecialReturn = function () {
 //             }, ms)
 //         })
 //     }
-// 
+//
 //     alert("hi")
 //     await sleep(1000)
 //     alert("bye")
@@ -2961,6 +3195,9 @@ ijs.makeSpecialReturn = function () {
 // }
 // w1(1)
 
+
+
+
 ijs.exampleCode = function () {
 /*
 
@@ -2971,12 +3208,35 @@ ijs.exampleCode = function () {
 //     alert(d)
 // }
 // w2(1)
-// 
+//
 
 // var x = (1 != 2
 //    ? "yay"
 //    : "nay")
 // alert(x)
+
+
+// 3 + 4 * 2
+// a b c + 7
+
+// a b 3 4 + 5
+//
+// x = 1 != 2 ? "yay" : false ? "yay2" : "nay"
+// foo = async (b) => z
+// foo = async function (b) z
+// foo = async function (b) z
+// async (b) => z
+// foo = async + b => z
+// foo = async var b => z
+// foo = async b => z
+//
+// await r.text()
+// a = await r.text()
+// var r1 = await r.text()
+//
+// new Date().getTime()
+// x = new Date().getTime()
+
 
 
 
@@ -2985,7 +3245,7 @@ ijs.exampleCode = function () {
 // function foo() {
 //     a.b
 //     1
-//     true 
+//     true
 // }
 
 // var x = 1/2
@@ -2995,18 +3255,18 @@ ijs.exampleCode = function () {
 // alert(d.toString())
 
 // async function w1(a, [x, y], b = 4, ...z) {
-async function w1() {
+// async function w1() {
 // var w1 = (a, [x, y], b = 4, ...z) => {
     // while (1 > 100) {
     //     log2(i)
     //     log2(10)
     // }
-// 
+//
     // for (let i = 0; i < -10; i++) {
     //     log2(i)
     //     log2(10)
     // }
-// 
+//
     // var a = function (a, b, c) {
     //     log2(a, b, c)
     //     log2(10)
@@ -3019,17 +3279,17 @@ async function w1() {
     //     log2(a, b, c)
     //     log2(10)
     // }
-    // 
+    //
     // function foo(x, y, z) {
     //     alert("yo", bar)
     //     log2(10)
     // }
-    // 
+    //
     // if (x == 1) {
     //     log2(1)
     //     log2(2)
     // }
-    
+
     // if (x == 1) {
     //     log2(1)
     //     log2(2)
@@ -3040,7 +3300,7 @@ async function w1() {
     //     log2(1)
     //     log2(2)
     // }
-    // 
+    //
     // var i = 0
     // while (i < 10) {
     //     i++
@@ -3049,20 +3309,20 @@ async function w1() {
     //         log2("hey " + i2)
     //     }, 100)
     // }
-    // 
+    //
     // var x = `${i + 1} yo`
     // b = c = d
     // 3 + 4 + 5
-    // 
+    //
     // [1,2,3].map(x => x)
-    // 
+    //
     // y = await foo.baz()
     // var t = new Date(x, y, z).getTime()
-    // 
+    //
     // {foo, bar} = yoyo
     // typeof x == "undefined"
     // if (a) doThing()
-    // 
+    //
     // if (b) {
     //     break
     //     continue
@@ -3075,19 +3335,19 @@ async function w1() {
     //         return 27
     //     }
     // }
-    // 
+    //
     // for (let x of foobar) {
     //     alert(x)
     // }
-    
+
     // let c = 20
     // let d = {a: 100, "b": 300, c: {x: 20}}
-    // 
+    //
     // foo.bar.baz()
     // bar()
-}
-
-log2(w1.toString())
+// }
+//
+// log2(w1.toString())
 
 
 // alert(foo.toString())
@@ -3099,7 +3359,7 @@ log2(w1.toString())
 // } else if (false) {
 //     log2("yay2")
 // }
-// 
+//
 // var people = [["dude", "man"], ["mr", "person"]]
 // for (let p of people) {
 //     log2(p)
@@ -3134,7 +3394,7 @@ log2(w1.toString())
 // alert(ab)
 // chunks = []
 // alert(chunks)
-// 
+//
 // var objj = {}
 // alert(objj)
 // await r.text()
@@ -3207,7 +3467,7 @@ log2(w1.toString())
 // function foo(...args) {
 //     log2(args)
 // }
-// 
+//
 // foo(3, 4, 212)
 
 // alert(a.foo)
@@ -3217,29 +3477,29 @@ log2(w1.toString())
 // foo(1)
 // var a = {foo: "hi foo", bar: "hi bar"}
 // var {foo, bar} = a
-// 
+//
 // alert(foo + " " + bar)
 
 
 // function w1() {
 //     // if (true) return 30
-//     
+//
 //     if (false) {
-//     
+//
 //     } else if (false) {
 //         return 99
 //     } else if (false) { return 100 }
 //     else return 988
 // }
-// 
+//
 // log2(w1())
 // return
-// 
+//
 // for (var i = 0; i < 100; i++) {
 //     log2(i)
 //     // if (i == 20) { break }
 //     if (i < 20) {
-//     
+//
 //     } else break
 // }
 
@@ -3339,7 +3599,7 @@ log2(w1.toString())
 // alert(b)
 // return
 
-// 
+//
 // if (false) {
 //     log2(0)
 // } else if (1 == 1) {
@@ -3368,13 +3628,13 @@ log2(w1.toString())
 //         })
 //     })
 // }
-// 
+//
 // async function foo2() {
 //     var a = await getStuff()
 //     alert(a)
 // }
 // foo2()
-// 
+//
 // return
 
 // var progressBasEl = null
@@ -3390,7 +3650,7 @@ log2(w1.toString())
 // red marker
 // +7 * 2
 // +7 || 2
-// -3 + 4 * 2 
+// -3 + 4 * 2
 
 // +1 + 2 * 4
 // alert(+1 + 2 * 4)
@@ -3399,20 +3659,20 @@ log2(w1.toString())
 // a 7 b 2 c 9
 // (a 7) b 2 c 9
 // (((a 7) b 2) c 9)
-// 
-// 
-// 
+//
+//
+//
 // b 7 a 2 c 9
 // (b 7) a 2 c 9
 // (b (7 a 2)) c 9
-// 
+//
 // c 7 b 2 a 9
 // (c 7) b 2 a 9
 // (c (7 b 2)) a 9
-// 
-// 
+//
+//
 // (c (7 b (2 a 9)))
-// 
+//
 // a b c 7 d 8
 // c b a 7 d 8 9
 // c b a (7 d 8) 9
@@ -3487,7 +3747,7 @@ log2(w1.toString())
 
 // +3*4
 // var f = null
-// 
+//
 // if (f && f.wowzuh) {
 //     alert("yay")
 // } else {
@@ -3542,7 +3802,7 @@ log2(w1.toString())
 //         log2(i)
 //         await sleep(100)
 //     }
-//     
+//
 //     var colors = ["red", "yellow", "blue"]
 //     for (let color of colors) {
 //         log2(color)
@@ -3582,11 +3842,11 @@ log2(w1.toString())
 //         },
 //     }
 // }
-// 
+//
 // var p2 = 10
 // let p3 = 11
 // p4 = 12
-// 
+//
 // person.eyes.left.color = 10
 // person.eyes.left.color += 100
 // person.eyes["right"].color = 300
@@ -3600,7 +3860,7 @@ log2(w1.toString())
 
 // alert(window.sss)
 // x = 7
-// 
+//
 // y = x ? "yay" : "nay"
 // y = x ? (true ? "yay1" : "yay2") : "nay"
 
@@ -3613,7 +3873,7 @@ log2(w1.toString())
 //         log2("x is " + x)
 //     }, 10)
 // }
-// 
+//
 // var someObj = {z:99, a: 1, b:2 , c:3}
 // for (let key in someObj) {
 //     // log2("the number is " + x)
@@ -3644,8 +3904,8 @@ log2(w1.toString())
 // var c = (x) => { return x + 1 }
 // var d = (x, y) => { return x + y }
 // var e = () => 200
-// 
-// 
+//
+//
 // log2([
 //     a(2)
 //     b(2)
@@ -3689,7 +3949,7 @@ log2(w1.toString())
 //         return x
 //     }
 // }
-// 
+//
 // var incr = increr(10)
 // for (let i = 0; i < 20; i++) {
 //     log2("incremented " + incr())
@@ -3742,7 +4002,7 @@ log2(w1.toString())
 //     alert("hi")
 //     await sleep(1000)
 //     alert("bye")
-//     
+//
 //     var foo = async function (a) {
 //         // return 200
 //         return new Promise(function (resolve, reject) {
@@ -3764,14 +4024,15 @@ log2(w1.toString())
 
 
 // see difference with var
-var i = 0
-while (i < 10) {
-    i++
-    let i2 = i
-    setTimeout(() => {
-        log2("hey " + i2)
-    }, 100)
-}
+// deeppink marker
+// var i = 0
+// while (i < 10) {
+//     i++
+//     let i2 = i
+//     setTimeout(() => {
+//         log2("hey " + i2)
+//     }, 100)
+// }
 
 // var start = Date.now()
 // var i = 0
@@ -4224,7 +4485,7 @@ while (i < 10) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-ijs.run(code)
+// ijs.run(code)
 
 // alert("weird")
 // ijs.builtins.if_pre_await([], {foo: "bar"})
