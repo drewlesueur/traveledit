@@ -895,6 +895,38 @@ function logCurr(indent, msg, obj) {
 
 ijs.testInfixate = function () {
     var casesString = `
+        # op
+        a + b * d
+
+        # expected
+        [
+            [
+                "+",
+                "a",
+                [
+                    "*",
+                    "b",
+                    "d"
+                ]
+            ]
+        ]
+        
+        # right to left
+        a = b = d
+
+        # expected
+        [
+            [
+                "=",
+                "a",
+                [
+                    "=",
+                    "b",
+                    "d"
+                ]
+            ]
+        ]
+        
         # simple expression
         a + b
 
@@ -1009,6 +1041,11 @@ ijs.infixate = function(tokens) {
 
     while (true) {
         if (tokens.length == 0) {
+            var prevState
+            while (prevState = stack.pop()) {
+                prevState.group.push(state.group)
+                state = prevState
+            }
             newTokens.push(state.group)
             if (newTokens.length == 0) {
                 return (void 0)
@@ -1019,20 +1056,20 @@ ijs.infixate = function(tokens) {
         var token = tokens.shift()
         if (state.name == "before") {
             if (Object.hasOwn(ijs.prefixes, token)) {
-                stack.push(state)
+                // stack.push(state)
                 state = {}
                 state.group = [token + "_pre"]
                 state.opDef = ijs.prefixes[token]
                 state.name = "inPre"
             } else {
-                stack.push(state)
+                // stack.push(state)
                 state = {}
                 state.name = "inNonOp"
                 state.group = token
             }
         } else if (state.name == "inPre") {
             if (Object.hasOwn(ijs.prefixes, token)) {
-                stack.push(state)
+                // stack.push(state)
                 state = { }
                 state.group = [token + "_pre"]
                 state.opDef = ijs.prefixes[token]
@@ -1072,7 +1109,7 @@ ijs.infixate = function(tokens) {
                 newTokens.push(state.group)
                 state = {
                      name: "inNonOp",
-                     lastTerm: token
+                     group: token
                 }
             }
         } else if (state.name == "inInfix") {
@@ -1092,27 +1129,15 @@ ijs.infixate = function(tokens) {
                         stack.push(state)
                         state = {
                              name: "inNonOp",
-                             lastTerm: token
+                             group: token
                         }
                     } else {
                         state.group.push(token)
                         state.name = "inNonOp"
                     }
                 } else {
-                    // log2("token: " + token + " // deepskyblue marker")
-                    // log2("state: " + JSON.stringify(state) + " // deepskyblue marker")
-                    log2("+++++++" + token)
                     state.group.push(token)
-                    
-                    
-                    // state.group.push(token)
-                    // lastState = stack.pop()
-                    // if (!lastState.group) {
-                    //     lastState.group = [token, lastState.term, state.group]
-                    // } else {
-                    //     lastState.group.push(state.group)
-                    // }
-                    // state = lastState
+                    state.name = "inNonOp"
                 }
             }
         }
@@ -1120,11 +1145,11 @@ ijs.infixate = function(tokens) {
         // for (let i=stack.length-1; i>=0; i--) {
         for (let i=0; i < stack.length; i++) {
             // log2(" ".repeat(i) + JSON.stringify(stack[i], null, "    ").split("\n").map(x => "#" + x).join("\n"))
-            log2("#" + "  ".repeat(stack.length - i) + JSON.stringify(stack[i]))
+            log2("    #" + "  ".repeat(stack.length - i) + JSON.stringify(stack[i]))
         }
-        log2(JSON.stringify(state, null, "    ").split("\n").map(x => "#" + x).join("\n"))
-        log2(JSON.stringify(newTokens, null, "    ").split("\n").map(x => "#" + x).join("\n"))
-        log2("# ------")
+        log2(JSON.stringify(state, null, "    ").split("\n").map(x => "    #" + x).join("\n"))
+        log2(JSON.stringify(newTokens, null, "    ").split("\n").map(x => "    #" + x).join("\n"))
+        log2("    # ------")
     }
     return newTokens
 
