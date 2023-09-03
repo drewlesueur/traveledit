@@ -46,7 +46,7 @@ if (typeof log2 === "undefined") {
 var ijs = {}
 // TODO: ignore : , ;
 // TOODO: interpolation? (template literals)
-ijs.tokenize = function (code) {
+ijs.tokenize = function (code, debug) {
     var backslash = "\\"
     code = code + "\n"
     var i = 0
@@ -345,7 +345,7 @@ ijs.tokenize = function (code) {
             var list = newTokens
             // log2("+closing")
             // log2(newTokens)
-            var operated = ijs.operatorate(list)
+            var operated = ijs.operatorate(list, debug)
             // log2("+operated")
             // log2(operated)
             newTokens = tokenStack.pop()
@@ -368,7 +368,7 @@ ijs.tokenize = function (code) {
     }
     // return tokenStack
     // log2(newTokens)
-    return ijs.operatorate(newTokens)
+    return ijs.operatorate(newTokens, debug)
 }
 // var operators = {
 //      "var": {
@@ -407,8 +407,9 @@ function parseTemplateString (templateString, state) {
 
 
 
-ijs.operatorate = function(tokens) {
-    tokens = ijs.infixate(tokens, false, true, -1, 0)
+ijs.operatorate = function(tokens, debug) {
+    // tokens = ijs.infixate(tokens, false, true, -1, 0)
+    tokens = ijs.infixate(tokens, debug)
     return tokens
 }
 
@@ -906,8 +907,9 @@ ijs.testInfixate = function () {
         log2("code:")
         log2(theCase.code)
         log2("actual:")
+        var debug = theCase.name.indexOf("debug") != -1
         // var actual = JSON.stringify(ijs.tokenize(theCase.code), null, "    ") + "\n"
-        var actual = JSON.stringify(ijs.tokenize(theCase.code)) + "\n"
+        var actual = JSON.stringify(ijs.tokenize(theCase.code, debug)) + "\n"
         log2(actual)
         if (actual != theCase.expected) {
             log2("-they don't match")
@@ -923,7 +925,7 @@ ijs.testInfixate = function () {
 setTimeout(ijs.testInfixate, 1)
 
 
-ijs.infixate = function(tokens) {
+ijs.infixate = function(tokens, debug) {
     // after stack of operators
     // like after you group the prev operator is now the current operator again?
 
@@ -1009,7 +1011,6 @@ ijs.infixate = function(tokens) {
                 }
             }
         } else if (state.name == "inInfix") {
-            log2("+are we here?")
             if (Object.hasOwn(ijs.prefixes, token)) {
                 stack.push(state)
                 state = {}
@@ -1018,7 +1019,6 @@ ijs.infixate = function(tokens) {
                 state.name = "inPre"
             } else {
                 var next = tokens[0]
-                log2("+yay here!!! " + next)
                 if (Object.hasOwn(ijs.infixes, next)) {
                     var nextOpDef = ijs.infixes[next]
                     if (nextOpDef.precedence > state.opDef.precedence || (nextOpDef.precedence == state.opDef.precedence && nextOpDef.associatitivity)) {
@@ -1037,15 +1037,18 @@ ijs.infixate = function(tokens) {
                 }
             }
         }
-        log2("# token: " + token + " ("+tokens[0]+")")
-        // for (let i=stack.length-1; i>=0; i--) {
-        for (let i=0; i < stack.length; i++) {
-            // log2(" ".repeat(i) + JSON.stringify(stack[i], null, "    ").split("\n").map(x => "#" + x).join("\n"))
-            log2("    #" + "  ".repeat(stack.length - i) + JSON.stringify(stack[i]))
+
+        if (debug) {
+            log2("# token: " + token + " ("+tokens[0]+")")
+            // for (let i=stack.length-1; i>=0; i--) {
+            for (let i=0; i < stack.length; i++) {
+                // log2(" ".repeat(i) + JSON.stringify(stack[i], null, "    ").split("\n").map(x => "#" + x).join("\n"))
+                log2("    #" + "  ".repeat(stack.length - i) + JSON.stringify(stack[i]))
+            }
+            log2(JSON.stringify(state, null, "    ").split("\n").map(x => "    #" + x).join("\n"))
+            log2(JSON.stringify(newTokens, null, "    ").split("\n").map(x => "    #" + x).join("\n"))
+            log2("    # ------")
         }
-        log2(JSON.stringify(state, null, "    ").split("\n").map(x => "    #" + x).join("\n"))
-        log2(JSON.stringify(newTokens, null, "    ").split("\n").map(x => "    #" + x).join("\n"))
-        log2("    # ------")
     }
     return newTokens
 
