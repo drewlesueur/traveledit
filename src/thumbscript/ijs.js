@@ -818,162 +818,57 @@ function logCurr(indent, msg, obj) {
 
 
 
-// pre2 megapre2 2 1
-
-// - + 3
-// ijs.nextTokenGroup = function (tokens, lastOpDef, lastGroup) {
-//     var group = []
-//     var token = tokens.shift()
-//     if (!lastGroup) { // we're first!
-//         if (ijs.prefixes.hasOwnProperty(token)) {
-//             var opDef = ijs.prefixes[token]
-//             group = [token + "_pre"]
-//             for (var i=0; i<(opDef.arity || 1); i++) {
-//                 var nextTerm = ijs.nextTokenGroup(tokens, null, null)
-//                 group.push(nextTerm)
-//             }
-//             return group
-//         }
-//         return token
-//     } else {
-//         if (ijs.infixes.hasOwnProperty(token)) {
-//             var opDef = ijs.infixes[token]
-//             if (!lastOpDef) {
-//                 var g = [token, lastGroup]
-//                 g.push(ijs.nextTokenGroup(tokens, opDef, g))
-//                 // return g
-//                 return null
-//             } else if (opDef.precedence < lastOpDef.precedence || (opDef.precedence == lastOpDef.precedence && !opDef.associatitivity)) {
-//                 copiedLastGroup = JSON.parse(JSON.stringify(lastGroup))
-//                 lastGroup[0] = token
-//                 lastGroup[1] = copiedLastGroup
-//                 lastGroup[2] = ijs.nextTokenGroup(tokens, opDef, lastGroup)
-//                 // return lastGroup
-//                 // return ijs.nextTokenGroup()
-//                 return null
-//             } else if (opDef.precedence > lastOpDef.precedence || (opDef.precedence == lastOpDef.precedence && opDef.associatitivity)) {
-//                 var lastRight
-//                 if (typof lastGroup == "object") {
-//                     var lastRight = lastGroup[lastGroup.length - 1]
-//                     var newGroup = [token, lastRight, ijs.nextTokenGroup(tokens, opDef, lastGroup)]
-//                     lastGroup[lastGroup.length - 1] = newGroup
-//                 } else {
-//                     lastRight = lastGroup
-//                     var newGroup = [token, lastRight, ijs.nextTokenGroup(tokens, opDef, lastGroup)]
-//                     lastGroup[lastGroup.length - 1] = newGroup
-//                 }
-//                 // return newGroup
-//                 return null
-//             }
-//         }
-//     }
-//     return token
-// }
-
-// ijs.infixate = function (tokens) {
-//     var newTokens = []
-//     var lastGroup = null
-//     while (true) {
-//         if (tokens.length == 0) {
-//             return newTokens
-//         }
-//         var curGroup = ijs.nextTokenGroup(tokens, null, lastGroup)
-//         if (curGroup != null) {
-//             newTokens.push(curGroup)
-//             lastGroup = curGroup
-//         }
-//     }
-// }
-        // if (tokens.length == 0) {
-        //     if (newTokens.length == 0) {
-        //         return (void 0)
-        //     }
-        //     return newTokens
-        // }
-        // var token = tokens.shift()
 
 
 ijs.testInfixate = function () {
     var casesString = `
-        # op
-        a + b * d
-
+        # simple expression
+        c = d = 4 * 3 + 2
         # expected
-        [
-            [
-                "+",
-                "a",
-                [
-                    "*",
-                    "b",
-                    "d"
-                ]
-            ]
-        ]
-        
-        # right to left
-        a = b = d
-
-        # expected
-        [
-            [
-                "=",
-                "a",
-                [
-                    "=",
-                    "b",
-                    "d"
-                ]
-            ]
-        ]
+        [["=","c",["=","d",["+",["*",4,3],2]]]]
         
         # simple expression
-        a + b
-
+        a + b c d
         # expected
-        [
-            [
-                "+",
-                "a",
-                "b"
-            ]
-        ]
+        [["+","a","b"],"c","d"]
+
+        # simple expression
+        a + b c d * 2
+        # expected
+        [["+","a","b"],"c",["*","d",2]]
+
+        # op
+        a + b * d
+        # expected
+        [["+","a",["*","b","d"]]]
+
+        # right to left
+        a = b = d
+        # expected
+        [["=","a",["=","b","d"]]]
+
+        # simple expression
+        a + b
+        # expected
+        [["+","a","b"]]
 
         # simple expression
         a + b + c
-
         # expected
-        [
-            [
-                "+",
-                [
-                    "+",
-                    "a",
-                    "b"
-                ],
-                "c"
-            ]
-        ]
+        [["+",["+","a","b"],"c"]]
 
         # single token
         a
         # expected
-        [
-            "a"
-        ]
+        ["a"]
 
         # multiple tokens, no operators
         a b c
         d
         # expected
-        [
-            "a",
-            "b",
-            "c",
-            "d"
-        ]
+        ["a","b","c","d"]
     `
-    
+
     var lines = casesString.split("\n")
     var cases = []
     var theCase
@@ -1011,7 +906,8 @@ ijs.testInfixate = function () {
         log2("code:")
         log2(theCase.code)
         log2("actual:")
-        var actual = JSON.stringify(ijs.tokenize(theCase.code), null, "    ") + "\n"
+        // var actual = JSON.stringify(ijs.tokenize(theCase.code), null, "    ") + "\n"
+        var actual = JSON.stringify(ijs.tokenize(theCase.code)) + "\n"
         log2(actual)
         if (actual != theCase.expected) {
             log2("-they don't match")
