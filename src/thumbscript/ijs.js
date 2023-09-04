@@ -1,4 +1,7 @@
+// TODO:
 // return await
+// [5, -2] ambiguity
+
 
 
 if (typeof log2 === "undefined") {
@@ -818,16 +821,42 @@ function logCurr(indent, msg, obj) {
 
 
 
+        // # simple expression
+        // 2 + 3 * 4 ** 5 + 5 2
+        // # expected
+        // [["+",2,["*",3,["+",["**",4,5],5]]]]
 
 
+        // # prefix debug
+        // +2
+        // # expected
+        // []
+        // 2 + 3 * 4 ** 5 + 5 2
+        // 3 * 4 ** 5 + 5 2
+        // 3 * 4 ** 5 + 2
 
 ijs.testInfixate = function () {
     var casesString = `
         # simple expression
+        3 * 4 ** 5 + 2 ** 3
+        # expected
+        [["+",["*",3,["**",4,5]],["**",2,3]]]
+
+        # simple expression
+        3 * 4 ** 5 + 2
+        # expected
+        [["+",["*",3,["**",4,5]],2]]
+
+        # simple expression
+        5 ** 2 * 1 + 3
+        # expected
+        [["+",["*",["**",5,2],1],3]]
+
+        # simple expression
         c = d = 4 * 3 + 2
         # expected
         [["=","c",["=","d",["+",["*",4,3],2]]]]
-        
+
         # simple expression
         a + b c d
         # expected
@@ -936,8 +965,9 @@ ijs.infixate = function(tokens, debug) {
          opDef: null,
          group: null,
     }
-
+    var oldStateName
     while (true) {
+        var oldStateName = state.name
         if (tokens.length == 0) {
             var prevState
             while (prevState = stack.pop()) {
@@ -967,8 +997,8 @@ ijs.infixate = function(tokens, debug) {
             }
         } else if (state.name == "inPre") {
             if (Object.hasOwn(ijs.prefixes, token)) {
-                // stack.push(state)
-                state = { }
+                stack.push(state)
+                state = {}
                 state.group = [token + "_pre"]
                 state.opDef = ijs.prefixes[token]
                 state.name = "inPre"
@@ -979,11 +1009,21 @@ ijs.infixate = function(tokens, debug) {
                 if (Object.hasOwn(ijs.infixes, next)) {
                     var nextOpDef = ijs.infixes[next]
                     if (nextOpDef.precedence > state.opDef.precedence || (nextOpDef.precedence == state.opDef.precedence && nextOpDef.associatitivity)) {
-                        // newTokens.push(state.group)
-                        // state = stack.pop()
+                        stack.push(state)
+                        state = {
+                             name: "inNonOp",
+                             group: token
+                        }
+                    } else {
+                        state.group.push(token)
+                        state.name = "inNonOp"
+                        if ((state.opDef.arity || 1 ) == state.group.length - 1) {
+                            state = stack.pop()
+                        }
                     }
                 } else {
                     state.group.push(token)
+                    state.name = "inNonOp"
                     if ((state.opDef.arity || 1 ) == state.group.length - 1) {
                         state = stack.pop()
                     }
@@ -992,10 +1032,16 @@ ijs.infixate = function(tokens, debug) {
         } else if (state.name == "inNonOp") {
             // todo: postfix
             if (Object.hasOwn(ijs.infixes, token)) {
-                // var oldState = state
-                // state = {}
+                var parentState = stack[stack.length-1]
+                if (parentState && parentState.opDef && (parentState.opDef.precedence > ijs.infixes[token].precedence || (parentState.opDef.precedence == ijs.infixes[token].precedence && !parentState.opDef.associatitivity))) {
+                    stack.pop()
+                    parentState.group.push(state.group)
+                    state.group = [token, parentState.group]
+                } else {
+                    state.opDef = ijs.infixes[token]
+                    state.group = [token, state.group]
+                }
                 state.opDef = ijs.infixes[token]
-                state.group = [token, state.group]
                 state.name = "inInfix"
             } else if (Object.hasOwn(ijs.prefixes, token)) {
                 newTokens.push(group)
@@ -1039,6 +1085,7 @@ ijs.infixate = function(tokens, debug) {
         }
 
         if (debug) {
+            log2("# from: " + oldStateName)
             log2("# token: " + token + " ("+tokens[0]+")")
             // for (let i=stack.length-1; i>=0; i--) {
             for (let i=0; i < stack.length; i++) {
