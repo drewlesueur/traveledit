@@ -416,7 +416,7 @@ function parseTemplateString (templateString, state) {
 
 
 ijs.operatorate = function(tokens, debug) {
-    // tokens = ijs.infixate(tokens, false, true, -1, 0)
+    // tokens = ijs.infixateOld(tokens, false, true, -1, 0)
     tokens = ijs.infixate(tokens, debug)
     return tokens
 }
@@ -744,6 +744,13 @@ ijs.prefixes = {
          "arity": 4,
          "fix": "pre",
      },
+     // stronger than of and in, and also =
+     // "var": {
+     //     "associatitivity": 1,
+     //     "precedence": 9.5,
+     //     "arity": 1,
+     //     "fix": "pre",
+     // },
      "var": {
          "associatitivity": 1,
          "precedence": 9,
@@ -752,13 +759,13 @@ ijs.prefixes = {
      },
      "let": {
          "associatitivity": 1,
-         "precedence": 9,
+         "precedence": 9.5,
          "arity": 1,
          "fix": "pre",
      },
      "const": {
          "associatitivity": 1,
-         "precedence": 9,
+         "precedence": 9.5,
          "arity": 1,
          "fix": "pre",
      },
@@ -898,12 +905,22 @@ ijs.testInfixate = function () {
     // note some of these tests don't work as actual javascript
     // some are just testing arity and precedence
     var casesString = `
-        # check debug
+        # check  when var was 9, it was ambiguous!
+        var x of y
+        // let x in stuff
+        # expected
+        
+        # check
+        var {a, b} of y
+        // let x in stuff
+        # expected
+        
+        # check
         function w3() { }
         # expected
         [["function_pre",["<callFunc>","w3",null],["<object>_pre",null]]]
 
-        # check debug
+        # check
         async function y x // works
         async function w3(y z) xyzzy
         async function w3(y z) xyzzy
@@ -1416,269 +1433,6 @@ ijs.infixate = function(tokens, debug) {
     return newTokens
 }
 
-ijs.infixate2 = function(tokens, debug) {
-    if (debug) {
-        log2("raw tokens: " + JSON.stringify(tokens))
-    }
-    // after stack of operators
-    // like after you group the prev operator is now the current operator again?
-
-    var newTokens = []
-    var stack = []
-    var state = {
-         name: "before",
-         opDef: null,
-         group: null,
-    }
-    var oldStateName
-    while (true) {
-        var oldStateName = state.name
-        if (tokens.length == 0) {
-            var prevState
-            while (prevState = stack.pop()) {
-                prevState.group.push(state.group)
-                state = prevState
-            }
-            if (state.name != "before") { // ?? red marker
-                newTokens.push(state.group)
-            }
-            if (newTokens.length == 0) {
-                return (void 0)
-            }
-            return newTokens
-        }
-
-        var token = tokens.shift()
-        if (state.name == "before") {
-            if (Object.hasOwn(ijs.prefixes, token)) {
-                // stack.push(state)
-                state = {}
-                state.group = [token + "_pre"]
-                state.opDef = ijs.prefixes[token]
-                state.name = "inPre"
-            } else if (token == ",") {
-                // lol
-            } else {
-                // stack.push(state)
-                state = {}
-                state.name = "inNonOp"
-                state.group = token
-            }
-        } else if (state.name == "inPre") {
-            if (Object.hasOwn(ijs.prefixes, token)) {
-                stack.push(state)
-                state = {}
-                state.group = [token + "_pre"]
-                state.opDef = ijs.prefixes[token]
-                state.name = "inPre"
-            } else {
-                // state.group.push(token)
-                // should we end here?
-                var next = tokens[0]
-                if (Object.hasOwn(ijs.infixes, next)) {
-                    var nextOpDef = ijs.infixes[next]
-                    if (nextOpDef.precedence > state.opDef.precedence || (nextOpDef.precedence == state.opDef.precedence && nextOpDef.associatitivity)) {
-                        stack.push(state)
-                        state = {
-                             name: "inNonOp",
-                             group: token
-                        }
-                    } else {
-                        state.group.push(token)
-                        state.name = "inNonOp"
-                    }
-                } else {
-                    state.group.push(token)
-                    state.name = "inNonOp"
-                    while (true) {
-                        if ((state.opDef.arity || 1 ) == state.group.length - 1) {
-                            // state = stack.pop()
-                            var parentState = stack[stack.length - 1]
-                            if (parentState) {
-                                stack.pop()
-                                parentState.group.push(state.group)
-                                state = parentState
-                                //??
-                            } else {
-                                newTokens.push(state.group)
-                                state = {
-                                     name: "before",
-                                     opDef: null,
-                                     group: null,
-                                }
-                                break
-                            }
-                        } else {
-                            break
-                        }
-                    }
-                }
-            }
-        } else if (state.name == "inNonOp") {
-            // todo: postfix
-            if (Object.hasOwn(ijs.postfixes, token)) {
-                // these are hacked in
-                state.group = [token + "_post", state.group]
-            } else if (token == ",") {
-                var parentState = stack.pop()
-                if (parentState) {
-                    parentState.group.push(state.group)
-                    state = parentState
-                } else {
-                   newTokens.push(state.group)
-                    state = {
-                         name: "before",
-                         opDef: null,
-                         group: null,
-                    }
-                }
-            } else if (Object.hasOwn(ijs.infixes, token)) {
-                var parentState = stack[stack.length-1]
-                if (parentState && parentState.opDef && (parentState.opDef.precedence > ijs.infixes[token].precedence || (parentState.opDef.precedence == ijs.infixes[token].precedence && !parentState.opDef.associatitivity))) {
-                    stack.pop()
-                    parentState.group.push(state.group)
-                    state.group = [token, parentState.group]
-                } else {
-                    state.opDef = ijs.infixes[token]
-                    state.group = [token, state.group]
-                }
-                state.opDef = ijs.infixes[token]
-                state.name = "inInfix"
-            } else if (Object.hasOwn(ijs.prefixes, token)) {
-                if (state.opDef && state.opDef.arity) {
-                    stack.push(state)
-                } else {
-                    newTokens.push(state.group)
-                }
-
-                state = {}
-                state.group = [token + "_pre"]
-                state.opDef = ijs.prefixes[token]
-                state.name = "inPre"
-            } else {
-
-                var keepGoing = true
-                var pushed = false
-
-                // if (token == "xyzzy") {
-                //     alert(JSON.stringify(state.opDef))
-                // }
-                if (state.opDef && state.opDef.arity > 1) {
-                    var next = tokens[0]
-                    if (Object.hasOwn(ijs.infixes, next)) {
-                        var nextOpDef = ijs.infixes[next]
-                        if (nextOpDef.precedence > state.opDef.precedence || (nextOpDef.precedence == state.opDef.precedence && nextOpDef.associatitivity)) {
-                            stack.push(state)
-                            state = {
-                                 name: "inNonOp",
-                                 group: token
-                            }
-                        } else {
-                            state.group.push(token)
-                            // commenting this doesn't fail the tests
-                            pushed = true // green marker
-                            state.name = "inNonOp"
-                        }
-                        keepGoing = false
-                    } else {
-                        state.group.push(token)
-                        state.name = "inNonOp"
-                        pushed = true
-                    }
-                }
-
-                if (keepGoing) {
-                    while (true) {
-                        if (!state.opDef || !state.opDef.arity || (state.opDef.arity || 1 ) == state.group.length - 1) {
-                            var parentState = stack[stack.length - 1]
-                            if (parentState) {
-                                stack.pop()
-                                parentState.group.push(state.group)
-                                state = parentState
-                                // if (token == "xyzzy") {
-                                //     alert(JSON.stringify(state.group))
-                                // }
-                                // wild stuff
-                                if (!pushed && state.opDef && state.opDef.arity > state.group.length - 1) {
-                                    state.group.push(token)
-                                    pushed = true
-                                }
-                                //??
-                            } else {
-                                newTokens.push(state.group)
-                                if (!pushed) {
-                                    state = {
-                                         name: "inNonOp",
-                                         group: token
-                                    }
-                                    pushed = true
-                                } else {
-                                    state = {
-                                         name: "before",
-                                         opDef: null,
-                                         group: null,
-                                    }
-                                }
-                                break
-                            }
-                        } else {
-                            break
-                        }
-
-                    }
-
-
-                }
-
-            }
-        } else if (state.name == "inInfix") {
-            if (Object.hasOwn(ijs.prefixes, token)) {
-                stack.push(state)
-                state = {}
-                state.group = [token + "_pre"]
-                state.opDef = ijs.prefixes[token]
-                state.name = "inPre"
-            } else {
-                var next = tokens[0]
-                if (Object.hasOwn(ijs.infixes, next)) {
-                    var nextOpDef = ijs.infixes[next]
-                    if (nextOpDef.precedence > state.opDef.precedence || (nextOpDef.precedence == state.opDef.precedence && nextOpDef.associatitivity)) {
-                        stack.push(state)
-                        state = {
-                             name: "inNonOp",
-                             group: token
-                        }
-                    } else {
-                        state.group.push(token)
-                        state.name = "inNonOp"
-                    }
-                } else {
-                    state.group.push(token)
-                    state.name = "inNonOp"
-
-
-                }
-            }
-        }
-
-        if (debug) {
-            // alert("state is ")
-            // alert(state)
-            log2("# from: " + oldStateName)
-            log2("# token: " + token + " ("+tokens[0]+")")
-            // for (let i=stack.length-1; i>=0; i--) {
-            for (let i=0; i < stack.length; i++) {
-                // log2(" ".repeat(i) + JSON.stringify(stack[i], null, "    ").split("\n").map(x => "#" + x).join("\n"))
-                log2("    #" + "  ".repeat(stack.length - i) + JSON.stringify(stack[i]))
-            }
-            log2(JSON.stringify(state, null, "    ").split("\n").map(x => "    #" + x).join("\n"))
-            log2("    # newTokens: ")
-            log2(JSON.stringify(newTokens, null, "    ").split("\n").map(x => "    #" + x).join("\n"))
-            log2("    # ------")
-        }
-    }
-    return newTokens
-}
 
 
 
@@ -1750,6 +1504,9 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
             return newTokens
         }
         var token = tokens.shift()
+        if (token == ",") {
+            continue
+        }
         // log2("+ token: " + JSON.stringify(token))
         if (!skipInfix && (ijs.infixes.hasOwnProperty(token))) {
         // if (token in ijs.infixes) {
@@ -1759,8 +1516,8 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
             // log2(JSON.stringify([token, currPrecedence, lastPrecedence]))
             var oldLastGroup = lastGroup
             if (lastPrecedence == -1) {
-                lastGroup = [token, newTokens.pop(), ijs.infixate(tokens, true, true, currPrecedence, iter+1)]
-                // lastGroup = [token, newTokens.pop(), ijs.infixate(tokens, true, false, currPrecedence, iter+1)]
+                lastGroup = [token, newTokens.pop(), ijs.infixateOld(tokens, true, true, currPrecedence, iter+1)]
+                // lastGroup = [token, newTokens.pop(), ijs.infixateOld(tokens, true, false, currPrecedence, iter+1)]
                 newTokens.push(lastGroup)
                 logCurr(iter, "a", newTokens)
                 oldLastGroup = lastGroup
@@ -1769,12 +1526,12 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
                 copiedLastGroup = JSON.parse(JSON.stringify(lastGroup))
                 lastGroup[0] = token
                 lastGroup[1] = copiedLastGroup
-                lastGroup[2] = ijs.infixate(tokens, true, true, currPrecedence, iter + 1)
+                lastGroup[2] = ijs.infixateOld(tokens, true, true, currPrecedence, iter + 1)
                 lastGroup = lastGroup // lol
                 logCurr(iter, "b", newTokens)
             } else if (currPrecedence > lastPrecedence || (currPrecedence == lastPrecedence && currAssociatitivity)) {
                 var lastRight = lastGroup[lastGroup.length - 1]
-                var newGroup = [token, lastRight, ijs.infixate(tokens, true, true, currPrecedence, iter + 1)]
+                var newGroup = [token, lastRight, ijs.infixateOld(tokens, true, true, currPrecedence, iter + 1)]
                 lastGroup[lastGroup.length - 1] = newGroup
                 lastGroup = newGroup
                 logCurr(iter, "c", newTokens)
@@ -1825,10 +1582,10 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
             for (var i=0; i<(opDef.arity || 1); i++) {
                 if (token == "async") {
                     // alert("trying to grab for async: " + JSON.stringify(tokens))
-                    var grabbed = ijs.infixate(tokens, true, true, currPrecedence, iter + 1, true)
+                    var grabbed = ijs.infixateOld(tokens, true, true, currPrecedence, iter + 1, true)
                 } else {
                     // alert("trying to grab for " + token + ":"  + JSON.stringify(tokens))
-                    var grabbed = ijs.infixate(tokens, true, true, currPrecedence, iter + 1, false)
+                    var grabbed = ijs.infixateOld(tokens, true, true, currPrecedence, iter + 1, false)
                 }
                 if (token == "async") {
                     // alert("for "+token+" i grabbed: " + JSON.stringify(grabbed))
@@ -3916,14 +3673,19 @@ ijs.exampleCode = function () {
 // }
 
 // var people = [{name: "D", age: 40}, {name: "C", age: 30}]
-
-// async function w3() {
+// async function xy() {
+//     alert("foo")
+// }
+// xy()
+// red marker
+// function w399() {
 //     for (var {name, age} of people) {
-//         log2(name + ":" + age)
-//         log2(name + ":" + age)
+//         alert(name + ":" + age)
+//         alert(name + ":" + age)
 //     }
 // }
-// w3()
+// w399()
+// alert(w399.toString())
 
 
 // function b() {
@@ -5032,4 +4794,4 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-// ijs.run(code)
+ijs.run(code)
