@@ -1,7 +1,8 @@
 // TODO:
 // return await
 // [5, -2] ambiguity
-
+// !(foo) should not have <callFunc> token
+// !!
 
 
 if (typeof log2 === "undefined") {
@@ -116,7 +117,7 @@ ijs.tokenize = function (code, debug) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n\r\(\[".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\r\(\[\-\!\+".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -174,7 +175,7 @@ ijs.tokenize = function (code, debug) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n\r\(\[".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\r\(\[\-\!\+".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -224,7 +225,7 @@ ijs.tokenize = function (code, debug) {
                 //     tokens.push("<callFunc>")
                 // }
                 if ("(".indexOf(chr) != -1) {
-                    if (i != 0 && " \t\n\r\(\[".indexOf(code.charAt(i-1)) == -1) {
+                    if (i != 0 && " \t\n\r\(\[\-\!\+".indexOf(code.charAt(i-1)) == -1) {
                         tokens.push("<callFunc>")
                     } else {
                         tokens.push("<group>")
@@ -819,10 +820,6 @@ function logCurr(indent, msg, obj) {
 }
 
 
-
-
-
-
         // # simple expression
         // 2 + 3 * 4 ** 5 + 5 2
         // # expected
@@ -848,8 +845,130 @@ function logCurr(indent, msg, obj) {
         // # expected
         // []
 
+        // x + ! 3
+        // x + - - 3
+
+        // x = 1 != 2 ? "yay" : false ? "yay2" : "nay"
+        // foo = async (b) => z
+        // foo = async function (b) z
+        // foo = async function (b) z
+        // async (b) => z
+        // foo = async + b => z
+        // foo = async var b => z
+        // foo = async b => z
+        // await r.text()
+        // a = await r.text()
+        // var r1 = await r.text()
+        // new Date().getTime()
+        // x = new Date().getTime()
+        
+        
+        // # check
+        // do x if a do aa bb cc y z 1 2 3
+        // # expected
+        // []
+        
+        // try nested infix
+        
+        
+        // if ! (x) y
+        // yo
+        // if (x == 3) {
+        //     return 27
+        // }
 ijs.testInfixate = function () {
     var casesString = `
+        # check
+        if ! !x y
+        yo
+        # expected
+        [["do_pre","x","y",["if_pre","a",["do_pre","aa","bb","cc"]]],1,2,3]
+        
+        # check
+        do x y if a do aa bb cc 1 2 3
+        # expected
+        [["do_pre","x","y",["if_pre","a",["do_pre","aa","bb","cc"]]],1,2,3]
+
+        # check
+        do x y if a b 1 2 3
+        # expected
+        [["do_pre","x","y",["if_pre","a","b"]],1,2,3]
+
+        # check
+        x = 1 != 2 ? "yay" : false ? "yay2" : "nay"
+        # expected
+        [["=","x",["?",["!=",1,2],[":","#yay",["?",false,[":","#yay2","#nay"]]]]]]
+
+        # check
+        1 != 2 ? "yay" : false ? "yay2" : "nay"
+        # expected
+        [["?",["!=",1,2],[":","#yay",["?",false,[":","#yay2","#nay"]]]]]
+
+        # new operator
+        x = new Date().getTime()
+        # expected
+        [["=","x",["<callFunc>",[".",["<callFunc>",["new_pre","Date"],null],"getTime"],null]]]
+    
+        # new operator
+        x = new Date().getTime()
+        # expected
+        [["=","x",["<callFunc>",[".",["<callFunc>",["new_pre","Date"],null],"getTime"],null]]]
+    
+        # new operator
+        new Date().getTime()
+        # expected
+        [["<callFunc>",[".",["<callFunc>",["new_pre","Date"],null],"getTime"],null]]
+    
+        # stuff
+        await r.text()
+        # expected
+        [["await_pre",["<callFunc>",[".","r","text"],null]]]
+        
+        # stuff
+        a = await r.text()
+        # expected
+        [["=","a",["await_pre",["<callFunc>",[".","r","text"],null]]]]
+        
+        # double prefix
+        foo = async (b) => z
+        # expected
+        [["=","foo",["async_pre",["=>",["<group>_pre",["b"]],"z"]]]]
+
+        # double prefix
+        foo = async b => z
+        # expected
+        [["=","foo",["async_pre",["=>","b","z"]]]]
+
+        # double prefix
+        x + - - - - 3
+        # expected
+        [["+","x",["-_pre",["-_pre",["-_pre",["-_pre",3]]]]]]
+
+        # double prefix
+        x + - - 3
+        # expected
+        [["+","x",["-_pre",["-_pre",3]]]]
+
+        # double prefix
+        x + - 3
+        # expected
+        [["+","x",["-_pre",3]]]
+
+        # prefix
+        x + if x y z
+        # expected
+        [["+","x",["if_pre","x","y"]],"z"]
+
+        # prefix
+        if x y * 2 ** 3 + 4 z x
+        # expected
+        [["if_pre","x",["+",["*","y",["**",2,3]],4]],"z","x"]
+
+        # prefix
+        if x y * 2 ** 3 z x
+        # expected
+        [["if_pre","x",["*","y",["**",2,3]]],"z","x"]
+
         # prefix
         if x y z
         # expected
@@ -993,9 +1112,12 @@ ijs.testInfixate = function () {
         var debug = theCase.name.indexOf("debug") != -1
         // var actual = JSON.stringify(ijs.tokenize(theCase.code), null, "    ") + "\n"
 
-        var actual = JSON.stringify(ijs.tokenize(theCase.code, debug)) + "\n"
+        var actualRaw = ijs.tokenize(theCase.code, debug)
+        var actual = JSON.stringify(actualRaw) + "\n"
         log2(actual)
         if (actual != theCase.expected) {
+            log2("actual indented:")
+            log2(JSON.stringify(actualRaw, null, "    "))
             log2("-they don't match")
             log2("-expected:")
             log2(theCase.expected)
@@ -1092,7 +1214,8 @@ ijs.infixate = function(tokens, debug) {
                         var parentState = stack[stack.length - 1]
                         if (parentState) {
                             stack.pop()
-                            parentState.push(state.group)
+                            parentState.group.push(state.group)
+                            state = parentState
                             //??
                         } else {
                             // the ending takes care of it? // red marker
@@ -1124,7 +1247,12 @@ ijs.infixate = function(tokens, debug) {
                 state.opDef = ijs.infixes[token]
                 state.name = "inInfix"
             } else if (Object.hasOwn(ijs.prefixes, token)) {
-                newTokens.push(state.group)
+                if (state.opDef && state.opDef.arity) {
+                    stack.push(state)
+                } else {
+                    newTokens.push(state.group)
+                }
+                
                 state = {}
                 state.group = [token + "_pre"]
                 state.opDef = ijs.prefixes[token]
@@ -1133,15 +1261,32 @@ ijs.infixate = function(tokens, debug) {
                 // newTokens.push(state.group)
                 // unravel
 
+                var keepGoing = true
                 var pushed = false
                 if (state.opDef && state.opDef.arity > 1) {
-                    state.group.push(token)
-                    //  check next token tho! blue marker
-                    pushed = true
+                    var next = tokens[0]
+                    if (Object.hasOwn(ijs.infixes, next)) {
+                        var nextOpDef = ijs.infixes[next]
+                        if (nextOpDef.precedence > state.opDef.precedence || (nextOpDef.precedence == state.opDef.precedence && nextOpDef.associatitivity)) {
+                            stack.push(state)
+                            state = {
+                                 name: "inNonOp",
+                                 group: token
+                            }
+                        } else {
+                            state.group.push(token)
+                            state.name = "inNonOp"
+                        }
+                        keepGoing = false
+                    } else {
+                        state.group.push(token)
+                        state.name = "inNonOp"
+                        pushed = true
+                    }
                 }
-                
-                
-                if (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1) {
+
+
+                if (keepGoing && (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1)) {
                     // only if arity matches tho!!!  red marker
                     while (prevState = stack.pop()) {
                         prevState.group.push(state.group)
@@ -3312,11 +3457,9 @@ ijs.exampleCode = function () {
 // foo = async + b => z
 // foo = async var b => z
 // foo = async b => z
-//
 // await r.text()
 // a = await r.text()
 // var r1 = await r.text()
-//
 // new Date().getTime()
 // x = new Date().getTime()
 
