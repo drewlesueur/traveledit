@@ -51,10 +51,10 @@ var ijs = {}
 // TODO: ignore : , ;
 // TOODO: interpolation? (template literals)
 ijs.tokenize = function (code, debug) {
-    var backslash = "\\"
-    code = code + "\n"
-    var i = 0
-    var state = "out"
+var backslash = "\\"
+code = code + "\n"
+var i = 0
+var state = "out"
     var currentToken = ""
     var quoteType = ""
     var tokens = []
@@ -269,6 +269,10 @@ ijs.tokenize = function (code, debug) {
                 pushToken(currentToken)
                 currentToken = chr
                 state = "in"
+            } else if ("!".indexOf(chr) != -1) {
+                // special case for !!
+                pushToken(currentToken)
+                currentToken = chr
             } else {
                 currentToken += chr
             }
@@ -876,13 +880,26 @@ function logCurr(indent, msg, obj) {
         // if (x == 3) {
         //     return 27
         // }
+        // do x if a do aa bb cc y 1 2 3
+        
+        // do x else
 ijs.testInfixate = function () {
+    
+    // note some of these tests don't work as actual javascript
+    // some are just testing arity and precedence
     var casesString = `
+        # check debug
+        // do x if a do aa bb cc y 1 2 3
+        // do x if a b y
+        do if a b x y z
+        # expected
+        []
+        
         # check
-        if ! !x y
+        if !!x y
         yo
         # expected
-        [["do_pre","x","y",["if_pre","a",["do_pre","aa","bb","cc"]]],1,2,3]
+        [["if_pre",["!_pre",["!_pre","x"]],"y"],"yo"]
         
         # check
         do x y if a do aa bb cc 1 2 3
@@ -1209,25 +1226,27 @@ ijs.infixate = function(tokens, debug) {
                 } else {
                     state.group.push(token)
                     state.name = "inNonOp"
-                    if ((state.opDef.arity || 1 ) == state.group.length - 1) {
-                        // state = stack.pop()
-                        var parentState = stack[stack.length - 1]
-                        if (parentState) {
-                            stack.pop()
-                            parentState.group.push(state.group)
-                            state = parentState
-                            //??
-                        } else {
-                            // the ending takes care of it? // red marker
-
-                            // var
-                            newTokens.push(state.group)
-                            // ?? or state is inNonOp
-                            state = {
-                                 name: "before",
-                                 opDef: null,
-                                 group: null,
+                    while (true) {
+                        if ((state.opDef.arity || 1 ) == state.group.length - 1) {
+                            // state = stack.pop()
+                            var parentState = stack[stack.length - 1]
+                            if (parentState) {
+                                stack.pop()
+                                parentState.group.push(state.group)
+                                state = parentState
+                                //??
+                            } else {
+                                newTokens.push(state.group)
+                                // TODO or state is inNonOp
+                                state = {
+                                     name: "before",
+                                     opDef: null,
+                                     group: null,
+                                }
+                                break
                             }
+                        } else {
+                            break
                         }
                     }
                 }
@@ -1258,8 +1277,6 @@ ijs.infixate = function(tokens, debug) {
                 state.opDef = ijs.prefixes[token]
                 state.name = "inPre"
             } else {
-                // newTokens.push(state.group)
-                // unravel
 
                 var keepGoing = true
                 var pushed = false
@@ -1275,6 +1292,7 @@ ijs.infixate = function(tokens, debug) {
                             }
                         } else {
                             state.group.push(token)
+                            // pushed = true // green marker
                             state.name = "inNonOp"
                         }
                         keepGoing = false
@@ -1285,27 +1303,76 @@ ijs.infixate = function(tokens, debug) {
                     }
                 }
 
-
-                if (keepGoing && (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1)) {
-                    // only if arity matches tho!!!  red marker
-                    while (prevState = stack.pop()) {
-                        prevState.group.push(state.group)
-                        state = prevState
-                    }
-                    // if (state.name != "before") { // ?? red marker
-                        newTokens.push(state.group)
+                // if (keepGoing && (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1)) {
+                if (keepGoing) {
+                
+                    // while (true) {
+                    //     if ((state.opDef.arity || 1 ) == state.group.length - 1) {
+                    //         var parentState = stack[stack.length - 1]
+                    //         if (parentState) {
+                    //             stack.pop()
+                    //             parentState.group.push(state.group)
+                    //             state = parentState
+                    //             //??
+                    //         } else {
+                    //             newTokens.push(state.group)
+                    //             // TODO or state is inNonOp
+                    //             state = {
+                    //                  name: "before",
+                    //                  opDef: null,
+                    //                  group: null,
+                    //             }
+                    //             break
+                    //         }
+                    //     } else {
+                    //         break
+                    //     }
                     // }
-
-                    if (!pushed) {
-                        state = {
-                             name: "inNonOp",
-                             group: token
+                
+                
+                    // while (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1) {
+                    //     var parentState = stack.pop()
+                    //     if (!parentState) {
+                    //         break
+                    //     }
+                    //     parentState.group.push(state.group)
+                    //     state = parentState
+                    // }
+                    // if (!stack.length) {
+                    //     newTokens.push(state.group)
+                    // }
+                    // 
+                    // if (!pushed) {
+                    //     state = {
+                    //          name: "inNonOp",
+                    //          group: token
+                    //     }
+                    // } else {
+                    //     state = {
+                    //          name: "before",
+                    //          opDef: null,
+                    //          group: null,
+                    //     }
+                    // }
+                    
+                    if (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1) {
+                        // only if arity matches tho!!!  red marker
+                        while (prevState = stack.pop()) {
+                            prevState.group.push(state.group)
+                            state = prevState
                         }
-                    } else {
-                        state = {
-                             name: "before",
-                             opDef: null,
-                             group: null,
+                        newTokens.push(state.group)
+                        if (!pushed) {
+                            state = {
+                                 name: "inNonOp",
+                                 group: token
+                            }
+                        } else {
+                            state = {
+                                 name: "before",
+                                 opDef: null,
+                                 group: null,
+                            }
                         }
                     }
                 }
