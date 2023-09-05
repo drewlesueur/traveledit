@@ -51,17 +51,17 @@ var ijs = {}
 // TODO: ignore : , ;
 // TOODO: interpolation? (template literals)
 ijs.tokenize = function (code, debug) {
-var backslash = "\\"
-code = code + "\n"
-var i = 0
-var state = "out"
+    var backslash = "\\"
+    code = code + "\n"
+    var i = 0
+    var state = "out"
     var currentToken = ""
     var quoteType = ""
     var tokens = []
     var pushToken = function (x) {
-        if (x == ",") {
-            return
-        }
+        // if (x == ",") {
+        //     return
+        // }
         // if (x == ":") {
         //     return
         // }
@@ -324,7 +324,7 @@ var state = "out"
     // return tokens
 
     // logging pre tokens
-    // log2(tokens)
+    // log2(tokens) // deeppink marker
     var newTokens = []
     var tokenStack = []
     // squish funcs
@@ -883,11 +883,50 @@ function logCurr(indent, msg, obj) {
         // do x if a do aa bb cc y 1 2 3
 
         // do x else
+        // # check
+        // a = [5, -2]
+        // # expected
+        // async function w3() {
+        //     for (var {name, age} of people) {
+        //         log2(name + ":" + age)
+        //         log2(name + ":" + age)
+        //     }
+        // }
+        // w3()
 ijs.testInfixate = function () {
 
     // note some of these tests don't work as actual javascript
     // some are just testing arity and precedence
     var casesString = `
+        # check debug
+        // async function y x // works
+        async function w3(y z) xyzzy
+        async function w3(y z) xyzzy
+        // async function w3() { }
+        # expected
+
+        # check
+        a = [5, ++i, 27]
+        # expected
+        [["=","a",["<array>_pre",[5,["++_pre","i"],27]]]]
+
+        # check
+        a = [5, -2]
+        # expected
+        [["=","a",["<array>_pre",[5,["-_pre",2]]]]]
+
+        # postfix
+        for (var i = 0; i < 100; i++) {
+        
+        }
+        # expected
+        [["for_pre",["<group>_pre",[["=",["var_pre","i"],0],["<","i",100],["++_post","i"]]],["<object>_pre",null]]]
+
+        # postfix
+        i++
+        # expected
+        [["++_post","i"]]
+
         # check
         if (x == 3) {
             yo()
@@ -1164,8 +1203,11 @@ ijs.testInfixate = function () {
 }
 setTimeout(ijs.testInfixate, 1)
 
-
+// hacked but tested 
 ijs.infixate = function(tokens, debug) {
+    if (debug) {
+        log2("raw tokens: " + JSON.stringify(tokens))
+    }
     // after stack of operators
     // like after you group the prev operator is now the current operator again?
 
@@ -1202,6 +1244,8 @@ ijs.infixate = function(tokens, debug) {
                 state.group = [token + "_pre"]
                 state.opDef = ijs.prefixes[token]
                 state.name = "inPre"
+            } else if (token == ",") {
+                // lol
             } else {
                 // stack.push(state)
                 state = {}
@@ -1230,9 +1274,6 @@ ijs.infixate = function(tokens, debug) {
                     } else {
                         state.group.push(token)
                         state.name = "inNonOp"
-                        if ((state.opDef.arity || 1 ) == state.group.length - 1) {
-                            // state = stack.pop()
-                        }
                     }
                 } else {
                     state.group.push(token)
@@ -1248,7 +1289,6 @@ ijs.infixate = function(tokens, debug) {
                                 //??
                             } else {
                                 newTokens.push(state.group)
-                                // TODO or state is inNonOp
                                 state = {
                                      name: "before",
                                      opDef: null,
@@ -1264,7 +1304,23 @@ ijs.infixate = function(tokens, debug) {
             }
         } else if (state.name == "inNonOp") {
             // todo: postfix
-            if (Object.hasOwn(ijs.infixes, token)) {
+            if (Object.hasOwn(ijs.postfixes, token)) {
+                // these are hacked in
+                state.group = [token + "_post", state.group]
+            } else if (token == ",") {
+                var parentState = stack.pop()
+                if (parentState) {
+                    parentState.group.push(state.group)
+                    state = parentState
+                } else {
+                   newTokens.push(state.group)
+                    state = {
+                         name: "before",
+                         opDef: null,
+                         group: null,
+                    }
+                }
+            } else if (Object.hasOwn(ijs.infixes, token)) {
                 var parentState = stack[stack.length-1]
                 if (parentState && parentState.opDef && (parentState.opDef.precedence > ijs.infixes[token].precedence || (parentState.opDef.precedence == ijs.infixes[token].precedence && !parentState.opDef.associatitivity))) {
                     stack.pop()
@@ -1291,6 +1347,10 @@ ijs.infixate = function(tokens, debug) {
 
                 var keepGoing = true
                 var pushed = false
+                
+                // if (token == "xyzzy") {
+                //     alert(JSON.stringify(state.opDef))
+                // }
                 if (state.opDef && state.opDef.arity > 1) {
                     var next = tokens[0]
                     if (Object.hasOwn(ijs.infixes, next)) {
@@ -1314,11 +1374,13 @@ ijs.infixate = function(tokens, debug) {
                         pushed = true
                     }
                 }
-
+                
                 if (keepGoing) {
                     while (true) {
                         if (!state.opDef || !state.opDef.arity || (state.opDef.arity || 1 ) == state.group.length - 1) {
-                            // state = stack.pop()
+                            // if (token == "xyzzy") {
+                            //     alert(JSON.stringify(state.group))
+                            // }
                             var parentState = stack[stack.length - 1]
                             if (parentState) {
                                 stack.pop()
@@ -1332,6 +1394,7 @@ ijs.infixate = function(tokens, debug) {
                                          name: "inNonOp",
                                          group: token
                                     }
+                                    pushed = true
                                 } else {
                                     state = {
                                          name: "before",
@@ -1344,7 +1407,15 @@ ijs.infixate = function(tokens, debug) {
                         } else {
                             break
                         }
+                        
+                        // wild stuff
+                        // if (!pushed) {
+                        //     state.group.push(token)
+                        //     pushed = true
+                        // }
                     }
+                    
+                    
                 }
 
             }
@@ -1372,6 +1443,8 @@ ijs.infixate = function(tokens, debug) {
                 } else {
                     state.group.push(token)
                     state.name = "inNonOp"
+                    
+                    
                 }
             }
         }
@@ -1676,7 +1749,7 @@ ijs.run = function(code, world) {
     // preventRender = true
     var tokens = ijs.tokenize(code)
     log2(tokens)
-    return
+    // return
 
     if (!world) {
         var globalObject
@@ -4145,11 +4218,11 @@ ijs.exampleCode = function () {
 //     }, 10)
 // }
 
-// for (let i = 0; i < 10; i++) {
-//     setTimeout(() => {
-//         log2("i is " + i)
-//     })
-// }
+for (let i = 0; i < 10; i++) {
+    setTimeout(() => {
+        log2("i is " + i)
+    })
+}
 
 // var foo = {}
 // alert(foo.a.b)
@@ -4749,47 +4822,3 @@ ijs.exampleCode = function () {
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 // ijs.run(code)
-
-// alert("weird")
-// ijs.builtins.if_pre_await([], {foo: "bar"})
-// ok([], {foo: "bar"})
-// if_pre_await([], {foo: "bar"})
-
-
-// function ok(args, world) {
-//     alert("ok world")
-//     alert(world)
-// }
-
-
-// async function if_pre_await(args, world2, extra) {
-//     alert("got here0?? ")
-//     alert(world2)
-    // world2 = extra
-    // var world2 = {
-    //     parent: world2,
-    //     // TODO: perf
-    //     state: {},
-    //     cachedLookupWorld: {},
-    //     global: world2.global,
-    //     async: false,
-    //     blockScope: true,
-    //     async: world2.async,
-    // }
-    // alert("got here1?")
-    // var condition = args[0][1][0]
-    // var body = args[1][1] || []
-    // // body.unshift("run")
-    // // body = ["run", ...body]
-    // alert("got here2?")
-    // var condRet = ijs.exec(condition, world2)
-    // if (condRet) {
-    //     // var ret = ijs.exec(body, world2)
-    //     var ret = await ijs.builtins[ijs.getRunFunc(world2.async)](body, world, true)
-    //     // log2("ret from if is: " + JSON.stringify(ret))
-    //     if (ijs.isSpecialReturn(ret)) {
-    //         return ret
-    //     }
-    // }
-    // return condRet // hack so else works
-// }
