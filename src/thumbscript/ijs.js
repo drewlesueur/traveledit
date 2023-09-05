@@ -901,7 +901,7 @@ ijs.testInfixate = function () {
         # check debug
         function w3() { }
         # expected
-        []
+        [["function_pre",["<callFunc>","w3",null],["<object>_pre",null]]]
 
         # check debug
         async function y x // works
@@ -1312,7 +1312,10 @@ ijs.infixate = function(tokens, debug) {
                 newTokens.push(state.group)
             }
             
-            return newTokens || void 0
+            if (newTokens.length == 0) {
+                return (void 0)
+            }
+            return newTokens
         }
 
         token = tokens.shift()
@@ -1372,9 +1375,9 @@ ijs.infixate = function(tokens, debug) {
                 state.opDef = ijs.infixes[token]
                 state.name = "inInfix"
             } else if (Object.hasOwn(ijs.prefixes, token)) {
-                if (state.opDef && state.opDef.arity) {
+                // if (state.opDef && state.opDef.arity) {
                     stack.push(state)
-                }
+                // }
                 state = {}
                 state.group = [token + "_pre"]
                 state.opDef = ijs.prefixes[token]
