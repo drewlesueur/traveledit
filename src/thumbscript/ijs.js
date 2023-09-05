@@ -865,26 +865,26 @@ function logCurr(indent, msg, obj) {
         // var r1 = await r.text()
         // new Date().getTime()
         // x = new Date().getTime()
-        
-        
+
+
         // # check
         // do x if a do aa bb cc y z 1 2 3
         // # expected
         // []
-        
+
         // try nested infix
-        
-        
+
+
         // if ! (x) y
         // yo
         // if (x == 3) {
         //     return 27
         // }
         // do x if a do aa bb cc y 1 2 3
-        
+
         // do x else
 ijs.testInfixate = function () {
-    
+
     // note some of these tests don't work as actual javascript
     // some are just testing arity and precedence
     var casesString = `
@@ -893,14 +893,14 @@ ijs.testInfixate = function () {
         // do x if a b y
         do if a b x y z
         # expected
-        []
-        
+        [["do_pre",["if_pre","a","b"],"x","y"],"z"]
+
         # check
         if !!x y
         yo
         # expected
         [["if_pre",["!_pre",["!_pre","x"]],"y"],"yo"]
-        
+
         # check
         do x y if a do aa bb cc 1 2 3
         # expected
@@ -925,27 +925,27 @@ ijs.testInfixate = function () {
         x = new Date().getTime()
         # expected
         [["=","x",["<callFunc>",[".",["<callFunc>",["new_pre","Date"],null],"getTime"],null]]]
-    
+
         # new operator
         x = new Date().getTime()
         # expected
         [["=","x",["<callFunc>",[".",["<callFunc>",["new_pre","Date"],null],"getTime"],null]]]
-    
+
         # new operator
         new Date().getTime()
         # expected
         [["<callFunc>",[".",["<callFunc>",["new_pre","Date"],null],"getTime"],null]]
-    
+
         # stuff
         await r.text()
         # expected
         [["await_pre",["<callFunc>",[".","r","text"],null]]]
-        
+
         # stuff
         a = await r.text()
         # expected
         [["=","a",["await_pre",["<callFunc>",[".","r","text"],null]]]]
-        
+
         # double prefix
         foo = async (b) => z
         # expected
@@ -1271,7 +1271,7 @@ ijs.infixate = function(tokens, debug) {
                 } else {
                     newTokens.push(state.group)
                 }
-                
+
                 state = {}
                 state.group = [token + "_pre"]
                 state.opDef = ijs.prefixes[token]
@@ -1292,7 +1292,8 @@ ijs.infixate = function(tokens, debug) {
                             }
                         } else {
                             state.group.push(token)
-                            // pushed = true // green marker
+                            // commenting this doesn't fail the tests
+                            pushed = true // green marker
                             state.name = "inNonOp"
                         }
                         keepGoing = false
@@ -1303,79 +1304,38 @@ ijs.infixate = function(tokens, debug) {
                     }
                 }
 
-                // if (keepGoing && (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1)) {
                 if (keepGoing) {
-                
-                    // while (true) {
-                    //     if ((state.opDef.arity || 1 ) == state.group.length - 1) {
-                    //         var parentState = stack[stack.length - 1]
-                    //         if (parentState) {
-                    //             stack.pop()
-                    //             parentState.group.push(state.group)
-                    //             state = parentState
-                    //             //??
-                    //         } else {
-                    //             newTokens.push(state.group)
-                    //             // TODO or state is inNonOp
-                    //             state = {
-                    //                  name: "before",
-                    //                  opDef: null,
-                    //                  group: null,
-                    //             }
-                    //             break
-                    //         }
-                    //     } else {
-                    //         break
-                    //     }
-                    // }
-                
-                
-                    // while (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1) {
-                    //     var parentState = stack.pop()
-                    //     if (!parentState) {
-                    //         break
-                    //     }
-                    //     parentState.group.push(state.group)
-                    //     state = parentState
-                    // }
-                    // if (!stack.length) {
-                    //     newTokens.push(state.group)
-                    // }
-                    // 
-                    // if (!pushed) {
-                    //     state = {
-                    //          name: "inNonOp",
-                    //          group: token
-                    //     }
-                    // } else {
-                    //     state = {
-                    //          name: "before",
-                    //          opDef: null,
-                    //          group: null,
-                    //     }
-                    // }
-                    
-                    if (!state.opDef || !state.opDef.arity || state.opDef.arity == state.group.length - 1) {
-                        // only if arity matches tho!!!  red marker
-                        while (prevState = stack.pop()) {
-                            prevState.group.push(state.group)
-                            state = prevState
-                        }
-                        newTokens.push(state.group)
-                        if (!pushed) {
-                            state = {
-                                 name: "inNonOp",
-                                 group: token
+                    while (true) {
+                        if (!state.opDef || !state.opDef.arity || (state.opDef.arity || 1 ) == state.group.length - 1) {
+                            // state = stack.pop()
+                            var parentState = stack[stack.length - 1]
+                            if (parentState) {
+                                stack.pop()
+                                parentState.group.push(state.group)
+                                state = parentState
+                                //??
+                            } else {
+                                newTokens.push(state.group)
+                                if (!pushed) {
+                                    state = {
+                                         name: "inNonOp",
+                                         group: token
+                                    }
+                                } else {
+                                    state = {
+                                         name: "before",
+                                         opDef: null,
+                                         group: null,
+                                    }
+                                }
+                                break
                             }
                         } else {
-                            state = {
-                                 name: "before",
-                                 opDef: null,
-                                 group: null,
-                            }
+                            break
                         }
                     }
                 }
+
             }
         } else if (state.name == "inInfix") {
             if (Object.hasOwn(ijs.prefixes, token)) {
