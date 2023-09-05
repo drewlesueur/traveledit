@@ -888,9 +888,20 @@ ijs.testInfixate = function () {
     // note some of these tests don't work as actual javascript
     // some are just testing arity and precedence
     var casesString = `
-        # check debug
-        // do x if a do aa bb cc y 1 2 3
-        // do x if a b y
+        # check
+        if (x == 3) {
+            yo()
+            return 27
+        }
+        # expected
+        [["if_pre",["<group>_pre",[["==","x",3]]],["<object>_pre",[["<callFunc>","yo",null],["return_pre",27]]]]]
+
+        # check
+        do x if do aa bb cc a y 1 2 3
+        # expected
+        [["do_pre","x",["if_pre",["do_pre","aa","bb","cc"],"a"],"y"],1,2,3]
+
+        # check
         do if a b x y z
         # expected
         [["do_pre",["if_pre","a","b"],"x","y"],"z"]
@@ -1382,7 +1393,6 @@ ijs.infixate = function(tokens, debug) {
         }
     }
     return newTokens
-
 }
 
 
