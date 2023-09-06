@@ -900,21 +900,52 @@ function logCurr(indent, msg, obj) {
         //     }
         // }
         // w3()
+
+        // # check
+        // var {a, b} of y
+        // // let x in stuff
+        // # expected
+
 ijs.testInfixate = function () {
 
     // note some of these tests don't work as actual javascript
     // some are just testing arity and precedence
     var casesString = `
-        # check  when var was 9, it was ambiguous!
-        var x of y
-        // let x in stuff
-        # expected
-        
         # check
-        var {a, b} of y
-        // let x in stuff
+        x + (y) + z
         # expected
-        
+        [["+",["+","x",["<group>_pre",["y"]]],"z"]]
+
+        # check
+        !x+bar
+        # expected
+        [["+",["!_pre","x"],"bar"]]
+
+        # check
+        !(x)+bar
+        # expected
+        [["+",["!_pre",["<group>_pre",["x"]]],"bar"]]
+
+        # check
+        !x+bar
+        # expected
+        [["+",["!_pre","x"],"bar"]]
+
+        # check
+        a = b = c
+        # expected
+        [["=","a",["=","b","c"]]]
+
+        # check  #debug #onl
+        var x of y
+        # expected
+        [["of",["var_pre","x"],"y"]]
+
+        # check #debug #onl
+        var {a, b} of y
+        # expected
+        [["of",["var_pre",["<object>_pre",["a","b"]]],"y"]]
+
         # check
         function w3() { }
         # expected
@@ -1008,7 +1039,7 @@ ijs.testInfixate = function () {
         # expected
         [["<callFunc>",[".",["<callFunc>",["new_pre","Date"],null],"getTime"],null]]
 
-        # stuff
+        # stuff #onl #debug #group1
         await r.text()
         # expected
         [["await_pre",["<callFunc>",[".","r","text"],null]]]
@@ -1073,7 +1104,7 @@ ijs.testInfixate = function () {
         # expected
         [["-_pre",[".","foo","bar"]],"baz"]
 
-        # prefix
+        # prefix #onl #debug #group1
         -foo.bar + 1
         # expected
         [["+",["-_pre",[".","foo","bar"]],1]]
@@ -1192,7 +1223,7 @@ ijs.testInfixate = function () {
     }
     var failureCount = 0
     // log2(cases)
-    
+
     var limitedCases = []
     for (var theCase of cases) {
         var only = theCase.name.indexOf("#only") != -1
@@ -1200,13 +1231,13 @@ ijs.testInfixate = function () {
             limitedCases.push(theCase)
         }
     }
-    
+
     if (limitedCases.length) {
         log2("-cases are filtered")
         cases = limitedCases
     }
-    
-    
+
+
     for (var theCase of cases) {
         log2("")
         log2("+running test: " + theCase.name)
@@ -1243,6 +1274,10 @@ setTimeout(ijs.testInfixate, 1)
 // hacked but tested
 // if I were to redo, I'd pop the stack as soon as you csn after push to group
 // it eaits until the next inNonOp to do so sometimes?
+
+function s(x) {
+    return JSON.stringify(x)
+}
 ijs.infixate = function(tokens, debug) {
     if (debug) {
         log2("raw tokens: " + JSON.stringify(tokens))
@@ -1260,17 +1295,44 @@ ijs.infixate = function(tokens, debug) {
     var token
     var unwind = function() {
         while (true) {
+            // blue marker
+            // we are here because the next operator doesn't compete
+            // with state.opDef, but what about the parent?
+            var next = tokens[0]
+            // var nextOpDef = null
+            var nextOpDef = {precedence: 0}
+            if (Object.hasOwn(ijs.infixes, next)) {
+                nextOpDef = ijs.infixes[next]
+            }
+            // var parentOpdef = null
+            var parentOpdef = {precedence: 0}
+            var parentState = stack[stack.length - 1]
+            if (parentState && parentState.opDef) {
+                parentOpdef = parentState.opDef
+            }
+            
+            if (parentOpdef && nextOpDef) {
+                if (nextOpDef.precedence > parentOpdef.precedence || (nextOpDef.precedence == parentOpdef.precedence && nextOpDef.associatitivity)) {
+                    state.name = "inNonOp"
+                    break
+                }
+            }
             if (state.opDef && (state.opDef.arity || 2 ) == state.group.length - 1) {
                 // state = stack.pop()
                 var parentState = stack[stack.length - 1]
                 if (parentState) {
                     stack.pop()
+
                     if (typeof parentState.group != "object") {
+                        // alert("yay")
                         newTokens.push(parentState.group)
                         // state.group = token
                     } else {
+                        // alert(next)
+                        // alert(parentState.group)
                         parentState.group.push(state.group)
                         state = parentState
+
                     }
                 } else {
                     newTokens.push(state.group)
@@ -1292,6 +1354,7 @@ ijs.infixate = function(tokens, debug) {
         if (Object.hasOwn(ijs.infixes, next)) {
             var opDef = state.opDef || {precedence: 0}
             var nextOpDef = ijs.infixes[next]
+            // alert(nextOpDef.precedence + " >? " + opDef.precedence)
             if (nextOpDef.precedence > opDef.precedence || (nextOpDef.precedence == opDef.precedence && nextOpDef.associatitivity)) {
                 stack.push(state)
                 state = {
@@ -1299,9 +1362,10 @@ ijs.infixate = function(tokens, debug) {
                      group: token
                 }
             } else {
+                // alert("pushing " + token)
                 state.group.push(token)
                 state.name = "inNonOp"
-                // unwind()
+                unwind() // blue marker
             }
         } else {
             if (typeof state.group != "object") {
@@ -1328,7 +1392,7 @@ ijs.infixate = function(tokens, debug) {
             if (state.name != "before") { // ?? red marker
                 newTokens.push(state.group)
             }
-            
+
             if (newTokens.length == 0) {
                 return (void 0)
             }
@@ -1381,15 +1445,8 @@ ijs.infixate = function(tokens, debug) {
                 }
             } else if (Object.hasOwn(ijs.infixes, token)) {
                 var parentState = stack[stack.length-1]
-                if (parentState && parentState.opDef && (parentState.opDef.precedence > ijs.infixes[token].precedence || (parentState.opDef.precedence == ijs.infixes[token].precedence && !parentState.opDef.associatitivity))) {
-                    stack.pop()
-                    parentState.group.push(state.group)
-                    state.group = [token, parentState.group]
-                } else {
-                    state.opDef = ijs.infixes[token]
-                    state.group = [token, state.group]
-                }
                 state.opDef = ijs.infixes[token]
+                state.group = [token, state.group]
                 state.name = "inInfix"
             } else if (Object.hasOwn(ijs.prefixes, token)) {
                 // if (state.opDef && state.opDef.arity) {
@@ -3672,17 +3729,16 @@ ijs.exampleCode = function () {
 //     log2(a + ":" + b)
 // }
 
-// var people = [{name: "D", age: 40}, {name: "C", age: 30}]
 // async function xy() {
 //     alert("foo")
 // }
 // xy()
+var people = [{name: "D", age: 40}, {name: "C", age: 30}]
 // red marker
 // function w399() {
-//     for (var {name, age} of people) {
-//         alert(name + ":" + age)
-//         alert(name + ":" + age)
-//     }
+    for (let {name, age} of people) {
+        alert(name + ":" + age)
+    }
 // }
 // w399()
 // alert(w399.toString())
@@ -4794,4 +4850,4 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-ijs.run(code)
+// ijs.run(code)
