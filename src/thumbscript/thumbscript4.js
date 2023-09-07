@@ -88,7 +88,7 @@ thumbscript4.tokenize = function(code) {
                 preventCall = true
                 token = token.slice(1)
             }
-            
+
             // not sure if faster
             if (token.charAt(0) == "$") {
                 token = {th_type: stringType, valueString: token.slice(1)}
@@ -494,7 +494,7 @@ thumbscript4.eval = function(code, state) {
         log: [], // for concenience
     }
     world.global = world
-    
+
     thumbscript4.run(world)
     return world
 
@@ -584,7 +584,7 @@ thumbscript4.runAsync = function(world) {
     }
     // preventRender = oldPreventRender
     // render()
-    
+
     if (world) {
         window.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 0)
     }
@@ -607,6 +607,14 @@ thumbscript4.genFunc1NoReturn = function(f) {
     return function(world) {
         var a = world.stack.pop()
         f(a)
+        return world
+    }
+}
+thumbscript4.genFunc2NoReturn = function(f) {
+    return function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        f(a, b)
         return world
     }
 }
@@ -654,7 +662,7 @@ thumbscript4.builtIns = {
     chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
     ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
     prop: thumbscript4.genFunc2((a, b) => a[b]),
-    at: thumbscript4.genFunc2((a, b) => a[b]),
+    at: thumbscript4.genFunc2((b, a) => a[b]),
     props: thumbscript4.genFunc1((a) => {
         var v = a[0]
         for (var i = 1; i < a.length; i++) { v = v[a[i]] }
@@ -664,21 +672,22 @@ thumbscript4.builtIns = {
     "check": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
     "?": thumbscript4.genFunc3((b, c, a) => (a ? b : c) ),
     length: thumbscript4.genFunc1((a) => a.length),
-    push: thumbscript4.genFunc2((a, b) => a.push(b)),
+    push: thumbscript4.genFunc2NoReturn((b, a) => a.push(b)),
     pop: thumbscript4.genFunc1((a) => a.pop()),
-    unshift: thumbscript4.genFunc2((a, b) => a.unshift(b)),
+    unshift: thumbscript4.genFunc2NoReturn((b, a) => a.unshift(b)),
     shift: thumbscript4.genFunc1((a) => a.shift()),
-    join: thumbscript4.genFunc2((a, b) => a.join(b)),
-    slice: thumbscript4.genFunc3((a, b, c) => a.slice(b, c)),
-    split: thumbscript4.genFunc2((a, b) => a.split(b)),
+    join: thumbscript4.genFunc2((b, a) => a.join(b)),
+    slice: thumbscript4.genFunc3((b, c, a) => a.slice(b, c)),
+    split: thumbscript4.genFunc2((b, a) => a.split(b)),
     trim: thumbscript4.genFunc1((a) => a.trim()),
-    indexof: thumbscript4.genFunc2((a, b) => a.indexOf(b)),
-    contains: thumbscript4.genFunc2((a, b) => a.indexOf(b) !== -1),
+    indexof: thumbscript4.genFunc2((b, a) => a.indexOf(b)),
+    contains: thumbscript4.genFunc2((b, a) => a.indexOf(b) !== -1),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
-    haskey: thumbscript4.genFunc2((a, b) => a.hasOwnProperty(b)),
+    haskey: thumbscript4.genFunc2((b, a) => Object.hasOwn(a, b)),
+    keys: thumbscript4.genFunc1((a) => Object.keys(a)),
     copylist: thumbscript4.genFunc1((a) => [...a]),
     jscall: function (world) {
         var funcName = world.stack.pop()
@@ -687,6 +696,19 @@ thumbscript4.builtIns = {
         world.stack.push(ret)
         return world
     },
+    typename: thumbscript4.genFunc1((a) => {
+        // there's a lot more to do.
+        if (typeof a == "object") {
+            if (Array.isArray(a)) {
+                return "array"
+            }
+            if (a == null) {
+                return "null"
+            }
+            return "object"
+        }
+        return typeof a
+    }),
     jscallcb: function (world) {
         var funcName = world.stack.pop()
         var args = world.stack.pop()
@@ -855,7 +877,7 @@ thumbscript4.builtIns = {
     },
     call_skipstack: function(world, f) {
         var oldWorld = world
-        
+
         if (!f.callWorld) {
             world = {
                 parent: f.world,
@@ -886,7 +908,7 @@ thumbscript4.builtIns = {
             // world.cachedLookupWorld = {}
             // world.global = f.world.global
             // world.local = f.local
-            
+
         }
 
         if (f.dynamic) {
@@ -1308,9 +1330,12 @@ thumbscript4.next = function(world) {
     return world
 }
 
+
+// c b a 
 thumbscript4.stdlib = `
     swap: •local { :b :a b a }
     drop: •local { :a }
+    dup: •local { :a a a }
     // todo: look at what's slow with not inlining (object creation? and fix)
     // that said jsloopn is fastest
     // bit inlining breaks with conditions because indexes change.
@@ -1318,15 +1343,35 @@ thumbscript4.stdlib = `
     // loopn: •local { :n :block 0 :i { { breakp } i n lt not if i block i++ repeat } call }
     loopn: •local { :n :block 0 :i { ~breakp i n lt not if i block i++ repeat } call }
     loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
-    range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
+    range: •local {
+        :list :block
+
+        list typename "object" is {
+            list :obj
+            obj keys :theKeys
+            theKeys length :theMax
+            {
+                theKeys at :key
+                key obj at :value
+                value key block
+            } theMax loopn
+            continuep
+        } swap if
+
+        list length :theMax
+        {
+            :i i list at i block
+            // dup list at swap block
+        } theMax loopn
+    }
     ccc: •local { :l "" :r { drop r swap cc :r } l range r }
     guard: •local •dyn { not { 3 breakn } checkthen }
     loopmax: •local { :theMax :block 0 :i { i theMax lt guardb block i++ repeat } call }
-    range2: •local { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
+    range2: •local { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 i list at i i2 list at i2 block } }
     checkthen: •local { {} check call }
-    sayn: •local { " " join say }
-    take: •local { :n [] :a { drop a swap unshift drop } n loopn a }
-    checkn: •local { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
+    sayn: •local { " " swap join say }
+    take: •local { :n [] :a { drop a unshift} n loopn a }
+    checkn: •local { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 (m 1 minus) c at  call }
     timeit: •local { :n :block
         nowmillis :start
         ~block n loopn
@@ -1354,7 +1399,6 @@ thumbscript4.stdlib = `
            repeat
        } call
     }
-    
 `
 
 // idea macros?
@@ -1379,6 +1423,28 @@ thumbscript4.stdlib = `
 window.xyzzy = 0
 var code = `
 
+$yo say
+
+// [100 200 300 400] {
+//     :i :v
+//     "the i is $i" say
+//     "the v is $v" say
+// } swap range
+
+
+{
+    :i :v
+    "$i: $v" say
+} [100 200 300 400]  range
+"" say
+{
+    :k :v
+    "$k: $v" say
+} [100 :a 200 :b 300 :c 400 :d] range
+
+exit
+
+
 "yo" say
 // 0 :i
 // {
@@ -1398,7 +1464,7 @@ var code = `
 // 200 alert
 
 {
-  say 
+  say
 } 10 loopn
 
 { -1 } { 0 } and :a
@@ -1480,8 +1546,9 @@ foo: [bar: [baz: 3]]
 #yoman
 "after goto" say
 
+if x lt 3 {
 
-
+}
 
 // {
 //     99 :x
@@ -1499,9 +1566,9 @@ foo: [bar: [baz: 3]]
 "----" say
 3 :x
 •if •("checking 1" say x •is 1) { "one" say }
-•elseif •("checking 2" say x •is 2) { "two" say }  
-•elseif •("checking 3" say x •is 3) { "three" say }  
-•else •("running else" say) { "other" say } 
+•elseif •("checking 2" say x •is 2) { "two" say }
+•elseif •("checking 3" say x •is 3) { "three" say }
+•else •("running else" say) { "other" say }
 
 "that was cool2" say
 
@@ -1651,7 +1718,6 @@ person say
 7 :x
 someConds checkn "the color is " swap cc say
 
-
 "what's going on?" say
 
 20000 say
@@ -1670,7 +1736,7 @@ someConds checkn :color
 
 400 500 600 3 take say
 
-"every day is a new day" " " split :mylist
+" " "every day is a new day" split :mylist
 
 {
     4 take say
@@ -1678,7 +1744,7 @@ someConds checkn :color
 
 
 [] :mylist
-•loopn •20 { mylist swap push drop }
+// •loopn •20 { mylist push drop }
 mylist sayn
 
 
@@ -1752,7 +1818,7 @@ mylist sayn
 
 "🥶" say
 [1 2 "ten"] ccc say
-"one two three four" " " split ccc say
+"one two three four" " " swap split ccc say
 
 {
     "the number is " swap cc say
@@ -1915,6 +1981,9 @@ something1
 } :something2
 something2
 say
+
+
+
 `
 
 
