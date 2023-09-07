@@ -1,7 +1,15 @@
+if (typeof log2 === "undefined") {
+   log2 = function (x) {
+       console.log(x)
+   }
+}
+// handle void 0
+
 // todo: not slicing as much would prob be faster
 // template strings, just the basics
 // rename run function
-
+// destructuring in for of
+// var hoisting isues
 
 
 // how would I write this js without the sugar?
@@ -35,7 +43,7 @@
 var ijs = {}
 // TODO: ignore : , ;
 // TOODO: interpolation? (template literals)
-ijs.tokenize = function(code) {
+ijs.tokenize = function (code) {
     var backslash = "\\"
     code = code + "\n"
     var i = 0
@@ -43,8 +51,7 @@ ijs.tokenize = function(code) {
     var currentToken = ""
     var quoteType = ""
     var tokens = []
-
-    var pushToken = function(x) {
+    var pushToken = function (x) {
         if (x == ",") {
             return
         }
@@ -72,14 +79,16 @@ ijs.tokenize = function(code) {
             tokens.push(void 0)
             return
         }
-        if (x - 0 == x) {
-            tokens.push(x - 0)
+        
+        var sinUnderscores = x.replaceAll("_", "")
+        if (sinUnderscores - 0 == sinUnderscores) {
+            tokens.push(sinUnderscores - 0)
             return
         }
         tokens.push(x)
     }
 
-    var isVar = function(chr) {
+    var isVar = function (chr) {
         var a = chr.charCodeAt(0)
         return (
             (a >= 65 && a <= 90) ||  // A-Z
@@ -110,7 +119,7 @@ ijs.tokenize = function(code) {
                 tokens.push(chr)
             } else if ("[]".indexOf(chr) != -1) {
                 if (i != 0 && "[".indexOf(chr) != -1) {
-                    if (" \t\n\r(".indexOf(code.charAt(i-1)) == -1 ) {
+                    if (" \t\n\r({[".indexOf(code.charAt(i-1)) == -1 ) {
                         tokens.push("<computedMemberAccess>")
                     } else {
                         tokens.push("<array>")
@@ -172,7 +181,7 @@ ijs.tokenize = function(code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r(".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r({[".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<computedMemberAccess>")
                 }
                 tokens.push(chr)
@@ -222,7 +231,7 @@ ijs.tokenize = function(code) {
                     pushToken(currentToken)
                     currentToken = ""
                 }
-                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r(".indexOf(code.charAt(i-1)) == -1 ) {
+                if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r({[".indexOf(code.charAt(i-1)) == -1 ) {
                     tokens.push("<computedMemberAccess>")
                 }
                 tokens.push(chr)
@@ -290,7 +299,8 @@ ijs.tokenize = function(code) {
             if ("/".indexOf(chr) != -1) {
                 state = "comment"
             } else {
-                state = "out"
+                currentToken = "/"
+                state = "in_symbol"
                 i--
             }
         } else if (state == "comment") {
@@ -591,10 +601,12 @@ ijs.infixes = {
      ".": {
          "associatitivity": 0,
          "precedence": 17,
+         squish: true,
      },
      "?.": {
          "associatitivity": 0,
          "precedence": 17,
+         squish: true,
      },
      "else": {
          "associatitivity": 1,
@@ -609,42 +621,49 @@ ijs.prefixes = {
          "precedence": 17,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "!": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "~": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "+": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "-": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "++": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "--": {
          "associatitivity": 1,
          "precedence": 14,
          "arity": 1,
          "fix": "pre",
+         squish: true,
      },
      "typeof": {
          "associatitivity": 1,
@@ -672,7 +691,8 @@ ijs.prefixes = {
      },
      "new": {
          "associatitivity": 1,
-         "precedence": 16,
+         // "precedence": 16,
+         "precedence": 17,
          "arity": 1,
          "fix": "pre",
      },
@@ -771,12 +791,14 @@ ijs.postfixes = {
          "precedence": 15,
          "arity": 1,
          "fix": "post",
+         squish: true,
      },
      "--": {
          "associatitivity": 1,
          "precedence": 15,
          "arity": 1,
          "fix": "post",
+         squish: true,
      },
 }
 
@@ -980,7 +1002,35 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forA
                 // wait maybe just return lastGroup?
                 logIndent(iter, "infix return", lastGroup)
                 // return lastGroup
-                return oldLastGroup
+                // return oldLastGroup
+                lastGroup = oldLastGroup
+                
+                var next = ""
+                if (tokens.length) {
+                    var next = tokens.shift()
+                    tokens.unshift(next)
+                }
+                if (next in ijs.infixes) {
+                    var opDef = ijs.infixes[next]
+                    currPrecedence = opDef.precedence
+                    currAssociatitivity = opDef.associatitivity
+                    if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
+                        return lastGroup
+                    } else {
+                        lastPrecedence = currPrecedence
+                    }
+                } else if (next in ijs.postfixes) {
+                    tokens.shift()
+                    if (forAsync) {
+                        // alert("stopping4: " + JSON.stringify([next + "_post", token]))
+                    }
+                    return [next + "_post", lastGroup]
+                } else {
+                    return lastGroup
+                }
+                
+                
+                
             }
             lastPrecedence = currPrecedence
         } else if (ijs.prefixes.hasOwnProperty(token)) {
@@ -1012,6 +1062,8 @@ ijs.infixate = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, forA
                 logIndent(iter, "prefix return", lastGroup)
                 // return lastGroup
                 
+
+
                 var next = ""
                 if (tokens.length) {
                     var next = tokens.shift()
@@ -1124,7 +1176,7 @@ ijs.run = function(code, world) {
     // var oldPreventRender = preventRender
     // preventRender = true
     var tokens = ijs.tokenize(code)
-    // log2(tokens)
+    log2(tokens)
     // return
     
     if (!world) {
@@ -1136,13 +1188,13 @@ ijs.run = function(code, world) {
         }
         var globalWorld = {
             state: globalObject,
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             parent: null,
         }
         world = {
             parent: globalWorld,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: globalWorld
         }
     }
@@ -1163,31 +1215,79 @@ ijs.run = function(code, world) {
 
 // TODO: numbers
 
-ijs.makeAsyncFunc = function(params, body, world) {
+
+ijs.hoist = function (body) {
+    // Hoist!
+    if (!body) {
+        return body
+    }
+    var hoisted = []
+    var nonHoisted = []
+    for (var i = 0; i < body.length; i++) {
+        if (body[i][0] == "function_pre") {
+            hoisted.push(body[i])
+        } else if (body[i][0] == "async_pre" && body[i][1][0] == "function_pre") {
+            hoisted.push(body[i])
+        } else {
+            nonHoisted.push(body[i])
+        }
+    }
+    if (hoisted.length) {
+        body = [...hoisted, ...nonHoisted]
+    }
+    return body
+}
+
+ijs.makeAsyncFunc = function(params, body, world, name) {
     body = body || []
     // body = ["run", ...body]
     // body.unshift("run")
+    // alert(JSON.stringify(body, null, "    "))
     var world = {
         parent: world,
         state: {},
-        cachedLookupWorld: {},
+        // cachedLookupWorld: {},
         global: world.global,
         async: true,
     }
+    // log2("+params are")
+    // log2(params)
+    
+    var origBody = body
+    body = ijs.hoist(body)
     var f = async function(...args) {
         if (params) {
-            for (var i=0; i<args.length; i++) {
-                var arg = args[i]
-                var paramName = params[i]
-                if (typeof params[i] == "object") {
-                    // for default args
-                    paramName = params[i][1]
+            // only handling spread if it's the only argument for bow
+            if (params.length == 1 && params[0][0] == "..._pre") {
+                world.state[params[0][1]] = args
+            } else {
+                for (var i=0; i<args.length; i++) {
+                    var arg = args[i]
+                    var paramName = params[i]
+                    if (typeof params[i] == "object") {
+                        // for default args
+                        if (params[i][0] == "=") {
+                            paramName = params[i][1]
+                            world.state[paramName] = args[i]
+                        } else if (params[i][0] == "<array>_pre") {
+                            for (var j = 0; j < params[i][1].length; j++) {
+                                var paramName = params[i][1][j]
+                                world.state[paramName] = args[i][j]
+                            }
+                        } else if (params[i][0] == "<object>_pre") {
+                            for (var j = 0; j < params[i][1].length; j++) {
+                                var paramName = params[i][1][j]
+                                world.state[paramName] = args[i][paramName]
+                            }
+                        }
+                    } else {
+                        world.state[paramName] = args[i]
+                    }
                 }
-                world.state[paramName] = args[i]
-            }
-            // default args
-            for (var i=args.length; i<params.length; i++) {
-                world.state[params[i][1]] = ijs.exec(params[i][2], world)
+                // default args
+                for (var i=args.length; i<params.length; i++) {
+                    world.state[params[i][1]] = ijs.exec(params[i][2], world)
+                }
             }
         }
         // var ret = ijs.exec(body, world)
@@ -1199,37 +1299,61 @@ ijs.makeAsyncFunc = function(params, body, world) {
         return ret
     }
     f.world = world // lol
+    f.toString = function() {
+        return ijs.generateFunctionString(true, name, params, origBody, 0)
+    }
     return f
-    // todo default args?
 }
 
-ijs.makeFunc = function(params, body, world) {
+ijs.makeFunc = function(params, body, world, name) {
     body = body || []
     // body = ["run", ...body]
     // body.unshift("run")
+    // alert(JSON.stringify(body, null, "    "))
     var world = {
         parent: world,
         state: {},
-        cachedLookupWorld: {},
+        // cachedLookupWorld: {},
         global: world.global,
         async: false
     }
     // log2("+params are")
     // log2(params)
+    var origBody = body
+    body = ijs.hoist(body)
     var f = function(...args) {
         if (params) {
-            for (var i=0; i<args.length; i++) {
-                var arg = args[i]
-                var paramName = params[i]
-                if (typeof params[i] == "object") {
-                    // for default args
-                    paramName = params[i][1]
+            // only handling spread if it's the only argument for bow
+            if (params.length == 1 && params[0][0] == "..._pre") {
+                world.state[params[0][1]] = args
+            } else {
+                for (var i=0; i<args.length; i++) {
+                    var arg = args[i]
+                    var paramName = params[i]
+                    if (typeof params[i] == "object") {
+                        // for default args
+                        if (params[i][0] == "=") {
+                            paramName = params[i][1]
+                            world.state[paramName] = args[i]
+                        } else if (params[i][0] == "<array>_pre") {
+                            for (var j = 0; j < params[i][1].length; j++) {
+                                var paramName = params[i][1][j]
+                                world.state[paramName] = args[i][j]
+                            }
+                        } else if (params[i][0] == "<object>_pre") {
+                            for (var j = 0; j < params[i][1].length; j++) {
+                                var paramName = params[i][1][j]
+                                world.state[paramName] = args[i][paramName]
+                            }
+                        }
+                    } else {
+                        world.state[paramName] = args[i]
+                    }
                 }
-                world.state[paramName] = args[i]
-            }
-            // default args
-            for (var i=args.length; i<params.length; i++) {
-                world.state[params[i][1]] = ijs.exec(params[i][2], world)
+                // default args
+                for (var i=args.length; i<params.length; i++) {
+                    world.state[params[i][1]] = ijs.exec(params[i][2], world)
+                }
             }
         }
         // var ret = ijs.exec(body, world)
@@ -1241,8 +1365,179 @@ ijs.makeFunc = function(params, body, world) {
         return ret
     }
     f.world = world // lol
+    f.toString = function() {
+        return ijs.generateFunctionString(false, name, params, origBody, 0)
+    }
     return f
-    // todo default args?
+}
+
+ijs.exprStringMap = {
+    ".": function (args, indent) {
+        return ijs.generateExprString(args[0], indent) + "." + ijs.generateExprString(args[1], indent)
+    },
+    "function_pre": function (args, indent) {
+        return "function " + ijs.generateExprString(args[0], indent)
+    }
+}
+ijs.tab = "    "
+ijs.generateExprString = function (expr, indent, parentOperator) {
+    // TODO: interpolate 
+    
+    if (expr === null) {
+        return "null"
+    }
+    if (typeof expr == "number") {
+        return expr
+    }
+    if (typeof expr == "boolean") {
+        return expr ? "true" : false
+    }
+    
+    if (typeof expr == "undefined") {
+        return "undefined"
+    }
+
+    if (typeof expr != "object") {
+        // string encoding
+        var token = expr
+        if (token.charAt(0) == "#") {
+            return JSON.stringify(token.slice(1))
+        }
+        
+        return token
+    }
+    
+    
+    var operator = expr[0]
+    if (!operator.endsWith) {
+        alert(JSON.stringify(expr))
+    }
+    var oMap = ijs.infixes
+    if (operator.endsWith("_pre")) {
+        oMap = ijs.prefixes
+        operator = operator.slice(0, -4)
+    } else if (operator.endsWith("_post")) {
+        oMap = ijs.postfixes
+        operator = operator.slice(0, -5)
+    }
+    if (Object.hasOwn(oMap, operator)) {
+        var ret = []
+        var opDef = oMap[operator]
+        if (oMap == ijs.prefixes) {
+            if (operator == "<group>") {
+                var joinChr = ", "
+                if (parentOperator == "for") {
+                    joinChr = "; "
+                }
+                if (expr[1]) {
+                    var genedValues = expr[1].map(arg => {
+                        return ijs.generateExprString(arg, indent, operator)
+                    }).join(joinChr)
+                } else {
+                    var genedValues = ""
+                }
+                ret.push("(" + genedValues + ")")
+            } else if (operator == "<object>") {
+                var joinChr = ",\n"
+                if (parentOperator == "while" || parentOperator == "function" || parentOperator == "for" || parentOperator == "if" || parentOperator == "=>" || parentOperator == "try" || parentOperator == "catch" || parentOperator == "else") {
+                    joinChr = "\n"
+                }
+                if (expr[1]) {
+                    var genedValues = expr[1].map(arg => {
+                        return ijs.tab.repeat(indent+1) + ijs.generateExprString(arg, indent+1, operator)
+                    }).join(joinChr)
+                } else {
+                    var genedValues = ""
+                }
+                
+                ret.push("{\n")
+                ret.push(genedValues)
+                ret.push("\n" + ijs.tab.repeat(indent) +"}")
+            } else if (operator == "<array>") {
+                var joinChr = ",\n"
+                if (expr[1]) {
+                    var genedValues = expr[1].map(arg => {
+                        return ijs.tab.repeat(indent+1) + ijs.generateExprString(arg, indent+1, operator)
+                    }).join(joinChr)
+                } else {
+                    var genedValues = ""
+                }
+                
+                ret.push("[\n")
+                ret.push(genedValues)
+                ret.push("\n" + ijs.tab.repeat(indent) +"]")
+            } else {
+                ret.push(operator)
+                var spacer = " "
+                if (opDef.squish) {
+                    spacer = ""
+                }
+                for (var i = 0; i < opDef.arity; i++) {
+                    ret.push(spacer + ijs.generateExprString(expr[i + 1], indent, operator))
+                }
+            }
+        } else if (oMap == ijs.postfixes) {
+            ret.push(ijs.generateExprString(expr[1], indent, operator) + operator)
+        } else if (oMap == ijs.infixes) {
+            // special cases
+            if (operator == "<callFunc>") {
+                if (expr[2]) {
+                    var genedArgs = expr[2].map(arg => {
+                        return ijs.generateExprString(arg, indent, operator)
+                    }).join(", ")
+                } else {
+                    var genedArgs = ""
+                }
+                ret.push(ijs.generateExprString(expr[1], indent, operator) + "(" + genedArgs + ")")
+            } else if (operator == "<computedMemberAccess>") {
+                ret.push(ijs.generateExprString(expr[1], indent, operator) + "[" + ijs.generateExprString(expr[2], indent, operator) + "]")
+            } else {
+                var spacer = " "
+                if (opDef.squish) {
+                    spacer = ""
+                }
+                ret.push(ijs.generateExprString(expr[1], indent, operator))
+                ret.push(spacer)
+                ret.push(operator)
+                ret.push(spacer)
+                ret.push(ijs.generateExprString(expr[2], indent, operator))
+            }
+        }
+        return ret.join("")
+    }
+    
+    if (expr && expr[0] == "<interpolate>") {
+        return "`" + JSON.stringify(expr[1]).slice(1, -1) + "`"
+    }
+    // should not get here?
+    return expr[0] + "(" + expr.slice(1).map(x => ijs.exprStringMap[x]) + ")"
+    
+    // serializer: ijs $exprStringMap at expr 0 at at
+    // if serializer: {
+    //     slice expr 1 se
+    //     break
+    // }
+}
+ijs.generateFunctionString = function (isAsync, name, params, body, indent) {
+    if (params) {
+        var genedParams = params.map(arg => {
+            return ijs.generateExprString(arg, indent, "")
+        }).join(", ")
+    } else {
+        var genedParams = ""
+    }
+    var asyncText = ""
+    if (isAsync) {
+        asyncText = "async "
+    }
+    
+    ret = [ijs.tab.repeat(indent) + asyncText + "function "+name+"("+genedParams+") {"]
+    for (expr of body) {
+        ret.push(ijs.tab.repeat(indent+1) + ijs.generateExprString(expr, indent+1, "function"))
+    }
+    ret.push(ijs.tab.repeat(indent) + "}")
+    return ret.join("\n")
+    
 }
 // ijs.breakMessage = {"break": true}
 // ijs.continueMessage = {"continue":true}
@@ -1295,6 +1590,10 @@ ijs.builtins = {
     // todo: might conflict with a variable named run
     // call it "<run>"
     "<runAsync>": async function (args, world, inBlock) {
+        // alert("running async")
+        if (!args) {
+            return
+        }
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
@@ -1318,7 +1617,7 @@ ijs.builtins = {
                 } else if (arg[0] == "await_pre") {
                     await ijs.exec(arg[1], world)
                     continue
-                } else if (arg[0] == "=" && arg[2][0] == "await_pre") {
+                } else if (arg[0] == "=" && arg[2] && (typeof arg[2] == "object") && arg[2][0] == "await_pre") {
                     // special case for var a = await smthbg()
                     await ijs.callFunc("=_await", arg.slice(1), world)
                     continue
@@ -1345,22 +1644,29 @@ ijs.builtins = {
                 ret.continueMessage = true
                 return ret
             }
-            var pRet = ijs.exec(arg, world)
-            var ret
-            if (arg[0] in ijs.asyncVersions) {
-                ret = await pRet
+            if (arg == "debugger") {
+                debugger
             } else {
-                ret = pRet
-            }
-            if (ijs.isSpecialReturn(ret)) {
-                if (ret.breakMessage || ret.returnMessage) {
-                    return ret
+                var pRet = ijs.exec(arg, world)
+                var ret
+                if (arg[0] in ijs.asyncVersions) {
+                    ret = await pRet
+                } else {
+                    ret = pRet
+                }
+                if (ijs.isSpecialReturn(ret)) {
+                    if (ret.breakMessage || ret.returnMessage) {
+                        return ret
+                    }
                 }
             }
         }
     },
     "<run>": function(args, world, inBlock) {
         // var last = void 0;
+        if (!args) {
+            return
+        }
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             // some special cases
@@ -1392,13 +1698,26 @@ ijs.builtins = {
                 ret.continueMessage = true
                 return ret
             }
-            var ret = ijs.exec(arg, world)
-            if (ijs.isSpecialReturn(ret)) {
-                if (ret.breakMessage || ret.returnMessage) {
-                    return ret
+            if (arg == "debugger") {
+                debugger
+            } else {
+                var ret = ijs.exec(arg, world)
+                if (ijs.isSpecialReturn(ret)) {
+                    if (ret.breakMessage || ret.returnMessage) {
+                        return ret
+                    }
                 }
             }
         }
+    },
+    "var_pre": function (args, world) {
+        varName = args[0]
+        assignType = "var"
+        var w = world
+        while (w.blockScope) {
+            w = w.parent
+        }
+        w.state[varName] = undefined
     },
     "=": function (args, world) {
         // alert("= " + JSON.stringify(args))
@@ -1409,27 +1728,33 @@ ijs.builtins = {
         // that way the core is smaller.
         // gotta figure out let vs if
         var varName = args[0]
-        var assignType = "global"
         if (typeof args[0] == "object") {
-            if (args[0][0] == "var_pre") {
-                varName = args[0][1]
-                assignType = "var"
-                // var w = ijs.getWorldForKey(world, varName) || world
+            if (args[0][0] == "var_pre" || args[0][0] == "let_pre" || args[0][0] == "const_pre") {
                 var w = world
-                while (w.blockScope) {
-                    w = w.parent
+                if (args[0][0] == "var_pre") {
+                    while (w.blockScope) {
+                        w = w.parent
+                    }
                 }
-                w.state[varName] = ijs.exec(args[1], world)
-            } else if (args[0][0] == "let_pre") {
-                varName = args[0][1]
-                assignType = "let"
-                var w = world
-                w.state[varName] = ijs.exec(args[1], world)
-            } else if (args[0][0] == "const_pre") {
-                varName = args[0][1]
-                assignType = "const"
-                var w = world
-                w.state[varName] = ijs.exec(args[1], world)
+                if (typeof args[0][1] == "object") {
+                    if (args[0][1][0] == "<object>_pre") {
+                        var varNames = args[0][1][1]
+                        var valuesObj = ijs.exec(args[1], world)
+                        for (var varName of varNames) {
+                            w.state[varName] = valuesObj[varName]
+                        }
+                    } else if (args[0][1][0] == "<array>_pre") {
+                        var varNames = args[0][1][1]
+                        var valuesArray = ijs.exec(args[1], world)
+                        for (var i=0; i<varNames.length; i++) {
+                            var varName = varNames[i]
+                            w.state[varName] = valuesArray[i]
+                        }
+                    }
+                } else {
+                    varName = args[0][1]
+                    w.state[varName] = ijs.exec(args[1], world)
+                }
             } else if (args[0][0] == ".") {
                 var obj = ijs.exec(args[0][1], world) 
                 varName = args[0][2]
@@ -1438,6 +1763,20 @@ ijs.builtins = {
                 var obj = ijs.exec(args[0][1], world) 
                 var varName = ijs.exec(args[0][2], world) 
                 obj[varName] = ijs.exec(args[1], world)
+            } else if (args[0][0] == "<array>_pre") {
+                var varNames = args[0][1]
+                valuesArray = ijs.exec(args[1], world)
+                for (var i=0; i<varNames.length; i++) {
+                    var varName = varNames[i]
+                    var w = ijs.getWorldForKey(world, varName) || world.global
+                    w.state[varName] = valuesArray[i]
+                }
+            } else if (args[0][0] == "<object>_pre") {
+                var varNames = args[0][1]
+                var valuesObj = ijs.exec(args[1], world)
+                for (var varName of varNames) {
+                    w.state[varName] = valuesObj[varName]
+                }
             }
         } else {
             var w = ijs.getWorldForKey(world, varName) || world.global
@@ -1445,35 +1784,34 @@ ijs.builtins = {
         }
     },
     "=_await": async function (args, world) {
-        // alert("=_await")
-        // TODO: wrangle these
-        // not doing destructuring yet
-        // lol maybe destructuring can be handled at the parser level?
-        // like it turns it into the more verbose syntax
-        // that way the core is smaller.
-        // gotta figure out let vs if
         var varName = args[0]
-        var assignType = "global"
         if (typeof args[0] == "object") {
-            if (args[0][0] == "var_pre") {
-                varName = args[0][1]
-                assignType = "var"
-                // var w = ijs.getWorldForKey(world, varName) || world
+            if (args[0][0] == "var_pre" || args[0][0] == "let_pre" || args[0][0] == "const_pre") {
                 var w = world
-                while (w.blockScope) {
-                    w = w.parent
+                if (args[0][0] == "var_pre") {
+                    while (w.blockScope) {
+                        w = w.parent
+                    }
                 }
-                w.state[varName] = await ijs.exec(args[1], world)
-            } else if (args[0][0] == "let_pre") {
-                varName = args[0][1]
-                assignType = "let"
-                var w = ijs.getWorldForKey(world, varName) || world
-                w.state[varName] = await ijs.exec(args[1], world)
-            } else if (args[0][0] == "const_pre") {
-                varName = args[0][1]
-                assignType = "const"
-                var w = ijs.getWorldForKey(world, varName) || world
-                w.state[varName] = await ijs.exec(args[1], world)
+                if (typeof args[0][1] == "object") {
+                    if (args[0][1][0] == "<object>_pre") {
+                        var varNames = args[0][1][1]
+                        var valuesObj = await ijs.exec(args[1], world)
+                        for (var varName of varNames) {
+                            w.state[varName] = valuesObj[varName]
+                        }
+                    } else if (args[0][1][0] == "<array>_pre") {
+                        var varNames = args[0][1][1]
+                        var valuesArray = await ijs.exec(args[1], world)
+                        for (var i=0; i<varNames.length; i++) {
+                            var varName = varNames[i]
+                            w.state[varName] = valuesArray[i]
+                        }
+                    }
+                } else {
+                    varName = args[0][1]
+                    w.state[varName] = await ijs.exec(args[1], world)
+                }
             } else if (args[0][0] == ".") {
                 var obj = ijs.exec(args[0][1], world) 
                 varName = args[0][2]
@@ -1482,10 +1820,24 @@ ijs.builtins = {
                 var obj = ijs.exec(args[0][1], world) 
                 var varName = ijs.exec(args[0][2], world) 
                 obj[varName] = await ijs.exec(args[1], world)
+            } else if (args[0][0] == "<array>_pre") {
+                var varNames = args[0][1]
+                valuesArray = await ijs.exec(args[1], world)
+                for (var i=0; i<varNames.length; i++) {
+                    var varName = varNames[i]
+                    var w = ijs.getWorldForKey(world, varName) || world.global
+                    w.state[varName] = valuesArray[i]
+                }
+            } else if (args[0][0] == "<object>_pre") {
+                var varNames = args[0][1]
+                var valuesObj = await ijs.exec(args[1], world)
+                for (var varName of varNames) {
+                    w.state[varName] = valuesObj[varName]
+                }
             }
         } else {
-            var w = ijs.getWorldForKey(world, varName)
-            world.global.state[varName] = await ijs.exec(args[1], world)
+            var w = ijs.getWorldForKey(world, varName) || world.global
+            w.state[varName] = await ijs.exec(args[1], world)
         }
     },
     "+=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["+="]),
@@ -1661,6 +2013,9 @@ ijs.builtins = {
     "new_pre": function (args, world) {
         // https://stackoverflow.com/questions/3871731/dynamic-object-construction-in-javascript
         // log2("+args for new")
+        
+        // this is now handled as special case of callFunc
+        // i guess it's the way the operator precedence hacking landed 
         var theClass = ijs.exec(args[0][1], world)
         var theArgs = args[0].slice(2)[0]
         var evaledArgs = []
@@ -1681,10 +2036,30 @@ ijs.builtins = {
         return w.state[args[0]]--
     },
     "<array>_pre": function(args, world) {
-        var computed = args[0].map(function(t) {
-            return ijs.exec(t, world)
-        })
+        var computed = []
+        if (!args[0]) {
+            return computed
+        }
+        for (var i=0; i<args[0].length; i++) {
+            var expr = args[0][i]
+            if (expr && expr[0] == "..._pre") {
+                var varName = expr[1]
+                var subArray = ijs.exec(varName, world)
+                // alert(JSON.stringify(subArray, null, "    "))
+                for (var j = 0; j < subArray.length; j++) {
+                    computed.push(subArray[j])
+                }
+            } else {
+                var v = ijs.exec(expr, world)
+                computed.push(v)
+            }
+        }
         return computed
+        
+        // var computed = args[0].map(function(t) {
+        //     return ijs.exec(t, world)
+        // })
+        // return computed
     },
     "<object>_pre": function(args, world) {
         var o = {}
@@ -1694,12 +2069,21 @@ ijs.builtins = {
         }
         for (var i=0; i<args.length; i++) {
             var kv = args[i]
-            var key = kv[1]
-            var value = kv[2]
-            if (key.charAt(0) == "#") {
-                key = key.slice(1)
+            if (kv.length == 2 && kv[0] == "..._pre") {
+                var otherObj = ijs.exec(kv[1], world)
+                for (var key in otherObj) {
+                    if (Object.hasOwn(otherObj, key)) {
+                        o[key] = otherObj[key]
+                    }
+                }
+            } else {
+                var key = kv[1]
+                var value = kv[2]
+                if (key.charAt(0) == "#") {
+                    key = key.slice(1)
+                }
+                o[key] = ijs.exec(value, world)
             }
-            o[key] = ijs.exec(value, world)
         }
         return o
     },
@@ -1720,7 +2104,7 @@ ijs.builtins = {
             }
         }
         var body = args[1][1]
-        var f = ijs.makeAsyncFunc(params, body, world)
+        var f = ijs.makeAsyncFunc(params, body, world, name)
         if (name) {
             ijs.set(name, f, world, "var")
         }
@@ -1737,7 +2121,7 @@ ijs.builtins = {
             params = args[0][1]
         }
         var body = args[1][1]
-        var f = ijs.makeFunc(params, body, world, false)
+        var f = ijs.makeFunc(params, body, world, name)
         if (name) {
             ijs.set(name, f, world, "var")
         }
@@ -1758,7 +2142,7 @@ ijs.builtins = {
         } else {
             body = [["return_pre", body]]
         }
-        var f = ijs.makeFunc(params, body, world, false)
+        var f = ijs.makeFunc(params, body, world, "")
         return f
     },
     "<group>_pre": function(args, world) {
@@ -1781,7 +2165,7 @@ ijs.builtins = {
         var wrapperWorld = {
             parent: world,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             blockScope: true,
             async: world.async
@@ -1791,7 +2175,7 @@ ijs.builtins = {
             let loopWorld = {
                 parent: wrapperWorld,
                 state: {...wrapperWorld.state},
-                cachedLookupWorld: {},
+                // cachedLookupWorld: {},
                 global: wrapperWorld.global,
                 blockScope: true,
                 async: wrapperWorld.async
@@ -1824,7 +2208,7 @@ ijs.builtins = {
         var wrapperWorld = {
             parent: world,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             blockScope: true,
             async: world.async
@@ -1834,7 +2218,7 @@ ijs.builtins = {
             let loopWorld = {
                 parent: wrapperWorld,
                 state: {...wrapperWorld.state},
-                cachedLookupWorld: {},
+                // cachedLookupWorld: {},
                 global: wrapperWorld.global,
                 blockScope: true,
                 async: wrapperWorld.async
@@ -1861,7 +2245,7 @@ ijs.builtins = {
         let wrapperWorld = {
             parent: world,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             blockScope: true,
             async: world.async
@@ -1880,17 +2264,39 @@ ijs.builtins = {
                         parent: wrapperWorld,
                         // state: {...wrapperWorld.state},
                         state: {...wrapperWorld.state},
-                        cachedLookupWorld: {},
+                        // cachedLookupWorld: {},
                         global: wrapperWorld.global,
                         blockScope: true,
                         async: wrapperWorld.async
                     }
+                    
                     // not allowing global
+                    var worldToSet
                     if (assignType == "var_pre") {
-                        world.state[varName] = val
+                        worldToSet = world
+                        while (worldToSet.blockScope) {
+                            worldToSet = worldToSet.parent
+                        }
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
-                        loopWorld.state[varName] = val
+                        worldToSet = loopWorld
                     }
+                    if (typeof varName == "object") {
+                        if (varName[0] == "<object>_pre") {
+                            var varNames = varName[1]
+                            for (let subVarName of varNames) {
+                                worldToSet.state[subVarName] = val[subVarName]
+                            }
+                        } else if (varName[0] == "<array>_pre") {
+                            var varNames = varName[1]
+                            for (var i=0; i<varNames.length; i++) {
+                                let subVarName = varNames[i]
+                                worldToSet.state[subVarName] = val[i]
+                            }
+                        }
+                    } else {
+                        worldToSet.state[varName] = val
+                    }
+                    
                     var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
@@ -1908,7 +2314,7 @@ ijs.builtins = {
                         parent: wrapperWorld,
                         // state: {...wrapperWorld.state},
                         state: {...wrapperWorld.state},
-                        cachedLookupWorld: {},
+                        // cachedLookupWorld: {},
                         global: wrapperWorld.global,
                         blockScope: true,
                         async: wrapperWorld.async
@@ -1944,7 +2350,7 @@ ijs.builtins = {
                 parent: wrapperWorld,
                 // state: {...wrapperWorld.state},
                 state: {...wrapperWorld.state},
-                cachedLookupWorld: {},
+                // cachedLookupWorld: {},
                 global: wrapperWorld.global,
                 blockScope: true,
                 async: wrapperWorld.async,
@@ -1966,7 +2372,7 @@ ijs.builtins = {
         let wrapperWorld = {
             parent: world,
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             blockScope: true,
             async: world.async
@@ -1985,16 +2391,36 @@ ijs.builtins = {
                         parent: wrapperWorld,
                         // state: {...wrapperWorld.state},
                         state: {...wrapperWorld.state},
-                        cachedLookupWorld: {},
+                        // cachedLookupWorld: {},
                         global: wrapperWorld.global,
                         blockScope: true,
                         async: wrapperWorld.async
                     }
                     // not allowing global
+                    var worldToSet
                     if (assignType == "var_pre") {
-                        world.state[varName] = val
+                        worldToSet = world
+                        while (worldToSet.blockScope) {
+                            worldToSet = worldToSet.parent
+                        }
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
-                        loopWorld.state[varName] = val
+                        worldToSet = loopWorld
+                    }
+                    if (typeof varName == "object") {
+                        if (varName[0] == "<object>_pre") {
+                            var varNames = varName[1]
+                            for (let subVarName of varNames) {
+                                worldToSet.state[subVarName] = val[subVarName]
+                            }
+                        } else if (varName[0] == "<array>_pre") {
+                            var varNames = varName[1]
+                            for (var i=0; i<varNames.length; i++) {
+                                let subVarName = varNames[i]
+                                worldToSet.state[subVarName] = val[i]
+                            }
+                        }
+                    } else {
+                        worldToSet.state[varName] = val
                     }
                     var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
                     if (ijs.isSpecialReturn(ret)) {
@@ -2013,7 +2439,7 @@ ijs.builtins = {
                         parent: wrapperWorld,
                         // state: {...wrapperWorld.state},
                         state: {...wrapperWorld.state},
-                        cachedLookupWorld: {},
+                        // cachedLookupWorld: {},
                         global: wrapperWorld.global,
                         blockScope: true,
                         async: wrapperWorld.async
@@ -2048,7 +2474,7 @@ ijs.builtins = {
                 parent: wrapperWorld,
                 // state: {...wrapperWorld.state},
                 state: {...wrapperWorld.state},
-                cachedLookupWorld: {},
+                // cachedLookupWorld: {},
                 global: wrapperWorld.global,
                 blockScope: true,
                 async: wrapperWorld.async,
@@ -2066,12 +2492,12 @@ ijs.builtins = {
             ijs.exec(next, wrapperWorld)
         }
     },
-    "try_pre": async function (args, world) {
+    "try_pre": function (args, world) {
         var tryWorld = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: world.async,
             blockScope: true,
@@ -2080,24 +2506,27 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: world.async,
             blockScope: true,
         }
         var tryBody = args[0][1] || []
         var catchBody = args[3][1] || []
+        tryBody = ijs.hoist(tryBody)
+        var catchBody = args[3][1] || []
+        catchBody = ijs.hoist(catchBody)
         
         try {
             var ret = ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
-            // log2("ret from if is: " + JSON.stringify(ret))
+            // log2("ret from try is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
         } catch (e) {
             catchWorld.state[args[2][1][0]] = e
             var ret = ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true)
-            // log2("ret from if is: " + JSON.stringify(ret))
+            // log2("ret from catch is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -2108,7 +2537,7 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: world.async,
             blockScope: true,
@@ -2117,13 +2546,15 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: world.async,
             blockScope: true,
         }
         var tryBody = args[0][1] || []
+        tryBody = ijs.hoist(tryBody)
         var catchBody = args[3][1] || []
+        catchBody = ijs.hoist(catchBody)
         
         try {
             var ret = await ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
@@ -2145,21 +2576,29 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: false,
             blockScope: true,
             async: world.async,
         }
         var condition = args[0][1][0]
-        var body = args[1][1] || []
-        // body.unshift("run")
-        // body = ["run", ...body]
+        // var body = args[1][1] || []
+        
+        var body = args[1]
+        if (body[0] == "<object>_pre") {
+            body = body[1]
+            // todo: there may be a better place to do this, like at compile time?
+            // or a deeper check in makeFunc
+            body = ijs.hoist(body)
+        } else {
+            body = [body]
+        }
+        
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
             var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
-            // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -2171,21 +2610,28 @@ ijs.builtins = {
             parent: world,
             // TODO: perf
             state: {},
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: world.global,
             async: false,
             blockScope: true,
             async: world.async,
         }
         var condition = args[0][1][0]
-        var body = args[1][1] || []
-        // body.unshift("run")
-        // body = ["run", ...body]
+        // var body = args[1][1] || []
+        var body = args[1]
+        if (body[0] == "<object>_pre") {
+            body = body[1]
+            // todo: there may be a better place to do this, like at compile time?
+            // or a deeper check in makeFunc
+            body = ijs.hoist(body)
+        } else {
+            body = [body]
+        }
+
         var condRet = ijs.exec(condition, ifWorld)
         if (condRet) {
             // var ret = ijs.exec(body, ifWorld)
-            var ret = await ijs.builtins[ijs.getRunFunc(ifWorld.async)](body, world, true)
-            // log2("ret from if is: " + JSON.stringify(ret))
+            var ret = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -2202,10 +2648,12 @@ ijs.builtins = {
                 body = body[1]
                 // body.unshift("run")
                 // body = ["run", ...body]
-                elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+                body = ijs.hoist(body)
             } else {
-                elseRet = ijs.exec(body, world)
+                // elseRet = ijs.exec(body, world)
+                body = [body]
             }
+            elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             // ijs.exec(body, world)
             if (ijs.isSpecialReturn(elseRet)) {
                 return elseRet
@@ -2222,6 +2670,7 @@ ijs.builtins = {
                 body = body[1]
                 // body.unshift("run")
                 // body = ["run", ...body]
+                body = ijs.hoist(body)
                 elseRet = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
             } else {
                 // This isn't awaited bug?
@@ -2242,7 +2691,16 @@ ijs.builtins = {
             var value = ijs.run(y, world)
             return value
         });
-    }
+    },
+    "?": function (args, world) {
+        var testingValue = ijs.exec(args[0], world)
+        // alert("testing " + args[0] + " and it's " + testingValue)
+        if (testingValue) {
+            return ijs.exec(args[1][1], world)
+        }
+        return ijs.exec(args[1][2], world)
+        
+    },
 }
 ijs.set = function(key, value, world, setType) {
     var w
@@ -2283,8 +2741,12 @@ ijs.exec = function(tokens, world) {
     if (typeof tokens == "boolean") {
         return tokens
     }
+    
+    if (typeof tokens == "undefined") {
+        return undefined
+    }
     if (tokens.length == 0) {
-        return void 0;
+        return undefined
     }
     // state = state || {}
     // simplify lexical rules?
@@ -2304,7 +2766,10 @@ ijs.exec = function(tokens, world) {
 
         var w = ijs.getWorldForKey(world, token)
         if (w == null) {
-            alert("can't find: " + token)
+            // alert("can't find: " + token)
+            return undefined // let's pretend it's hoisted
+            // TODO: if you add var hoisting, you can undo this
+            // debugger
             // log2("-can't find world for " + token)
         }
         return w.state[token]
@@ -2330,6 +2795,22 @@ ijs.asyncVersions = {
     // "=": true,
 }
 ijs.callFunc = function(funcAccessor, theArgs, world) {
+    // special case for new
+    
+    if (typeof funcAccessor == "object") {
+        if (funcAccessor[0] == "new_pre") {
+            var theClass = ijs.exec(funcAccessor[1], world)
+            var evaledArgs = []
+            if (typeof theArgs == 'object' && theArgs) {
+                var evaledArgs = theArgs.map(function(t) {
+                    return ijs.exec(t, world)
+                })
+            }
+            var ret = new (Function.prototype.bind.apply(theClass, [null].concat(evaledArgs)))
+            return ret
+        }
+    }
+
     if (funcAccessor in ijs.builtins) {
         if (world.async && (funcAccessor in ijs.asyncVersions)) {
             funcAccessor = funcAccessor + "_await"
@@ -2343,7 +2824,8 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
         alert("no func: " + funcAccessor)
     }
     theArgs = theArgs || []
-    var ret = func.apply(null, theArgs.map(function(t) {
+    
+    var ret = func.apply(null, theArgs.map(function (t) {
         return ijs.exec(t, world)
     }))
     return ret
@@ -2419,13 +2901,15 @@ ijs.makeSpecialReturn = function () {
 // p.then(function (x) {
 //     alert("resolved: " + x)
 // })
+
 // var start = Date.now()
 // var total = 0
-// for (let i = 0; i < 100000; i++) {
+// for (let i = 0; i < 1000000; i++) {
 //     total += i
 // }
 // var end = Date.now()
-// log2("this for loop took " + (end - start) + " milliseconds " + total)
+// log2("for loop took " + (end - start) + " milliseconds " + total)
+
 
 // var i = 0
 // while (i < 10) {
@@ -2449,17 +2933,399 @@ ijs.makeSpecialReturn = function () {
 // alert(lol.toString())
 
 
+// function checkHoist() {
+//     alert(hoisted)
+//     var hoisted = 27
+// }
+// checkHoist()
+// var b = false ? "yay" : false ? "yayy" : "nayy"
+// alert(b)
+
+
+
+// async function w2() {
+//     var r = await fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js")
+//     var r1 = await r.text()
+//     alert(r1)
+// }
+// w2()
+
+
+// alert(new String("yo").toString() == new String("yo").toString())
+
+// function w1() {
+//     if (false) {
+//         var d = 1
+//     }
+//     alert(d)
+// }
+// w1(1)
 
 ijs.exampleCode = function () {
 /*
 
-a = {foo: "bar"}
-alert(a.foo)
-async function foo(a, b=27 c = [123]) {
-    alert(a + " " + b + " " + c)
+// function w2() {
+//     if (false) {
+//         var d = 1
+//     }
+//     alert(d)
+// }
+// w2(1)
+// 
+
+// var x = (1 != 2
+//    ? "yay"
+//    : "nay")
+// alert(x)
+
+
+
+
+
+// function foo() {
+//     a.b
+//     1
+//     true 
+// }
+
+// var x = 1/2
+// var strokeVal = parseInt((466 * progressVal) / totalPercentageVal)
+
+// var d = x => x
+// alert(d.toString())
+
+// async function w1(a, [x, y], b = 4, ...z) {
+async function w1() {
+// var w1 = (a, [x, y], b = 4, ...z) => {
+    // while (1 > 100) {
+    //     log2(i)
+    //     log2(10)
+    // }
+// 
+    // for (let i = 0; i < -10; i++) {
+    //     log2(i)
+    //     log2(10)
+    // }
+// 
+    // var a = function (a, b, c) {
+    //     log2(a, b, c)
+    //     log2(10)
+    //     var b = function ([x, y]) {
+    //         log2(1)
+    //         log2(2)
+    //     }
+    // }
+    // var a = (a, b, c) => {
+    //     log2(a, b, c)
+    //     log2(10)
+    // }
+    // 
+    // function foo(x, y, z) {
+    //     alert("yo", bar)
+    //     log2(10)
+    // }
+    // 
+    // if (x == 1) {
+    //     log2(1)
+    //     log2(2)
+    // }
+    
+    // if (x == 1) {
+    //     log2(1)
+    //     log2(2)
+    // } else if (false) {
+    //     log2(1)
+    //     log2(2)
+    // } else {
+    //     log2(1)
+    //     log2(2)
+    // }
+    // 
+    // var i = 0
+    // while (i < 10) {
+    //     i++
+    //     let i2 = i
+    //     setTimeout(() => {
+    //         log2("hey " + i2)
+    //     }, 100)
+    // }
+    // 
+    // var x = `${i + 1} yo`
+    // b = c = d
+    // 3 + 4 + 5
+    // 
+    // [1,2,3].map(x => x)
+    // 
+    // y = await foo.baz()
+    // var t = new Date(x, y, z).getTime()
+    // 
+    // {foo, bar} = yoyo
+    // typeof x == "undefined"
+    // if (a) doThing()
+    // 
+    // if (b) {
+    //     break
+    //     continue
+    //     return
+    //     return 27
+    //     if (b) {
+    //         break
+    //         continue
+    //         return
+    //         return 27
+    //     }
+    // }
+    // 
+    // for (let x of foobar) {
+    //     alert(x)
+    // }
+    
+    // let c = 20
+    // let d = {a: 100, "b": 300, c: {x: 20}}
+    // 
+    // foo.bar.baz()
+    // bar()
 }
 
-foo(1)
+log2(w1.toString())
+
+
+// alert(foo.toString())
+
+// 1 + 2 + 3
+// 1 = 2 = 3
+// if (true) {
+//     log2("yay1")
+// } else if (false) {
+//     log2("yay2")
+// }
+// 
+// var people = [["dude", "man"], ["mr", "person"]]
+// for (let p of people) {
+//     log2(p)
+// }
+// for (let [a, b] of people) {
+//     log2(a + ":" + b)
+// }
+
+// var people = [{name: "D", age: 40}, {name: "C", age: 30}]
+
+// async function w3() {
+//     for (var {name, age} of people) {
+//         log2(name + ":" + age)
+//         log2(name + ":" + age)
+//     }
+// }
+// w3()
+
+
+// function b() {
+//     return function () {
+//         return 98
+//     }
+// }
+// alert(b()())
+
+// var ab = new Date().getTime()
+// alert(new Date(ab))
+// new Date().getTime()
+// var ab = new Date("2012")
+// var a = "yoo"
+// alert(ab)
+// chunks = []
+// alert(chunks)
+// 
+// var objj = {}
+// alert(objj)
+// await r.text()
+// a = await r.text()
+// fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js").then(r => r.text()).then(async r => {
+//     alert(r)
+// })
+
+// function sleep(ms) {
+//     return new Promise(function (resolve, reject) {
+//         setTimeout(function () {
+//             resolve()
+//         }, ms)
+//     })
+// }
+
+// function getStuff() {
+//     return new Promise(function (resolve, reject) {
+//         sleep(100).then(function () {
+//             resolve(13)
+//         })
+//     })
+// }
+// async function foo2() {
+//     var a = await getStuff()
+//     alert(a)
+// }
+// foo2()
+
+
+// async function w2() {
+//     // log2("hi")
+//     // await sleep(1000)
+//     // log2("bye")
+//     // await sleep(1000)
+//     // log2("again")
+//     // for (var i=0; i<10; i++) {
+//     //     log2("the " + i)
+//     //     await sleep(200)
+//     // }
+//     var r = await fetch("https://taptosign.com:9000/teproxydev/tepublic/thumbscript4.js")
+//     // var r1 = await r.text()
+//     var r1 = await r.text()
+//     alert(r1)
+// }
+// w2()
+
+// switch (foo) {
+//     case 2+40:
+//         doSomething()
+//         x = 1
+//         break
+// }
+// var b = false ? "yay" : false ? "yayy" : "nayy"
+// alert(b)
+// function foo(...args) {
+//     log2(args)
+// }
+// foo(3, 4, 212)
+
+// async function x([a, b]) {
+//     alert(a + " " + b)
+// }
+// x([1, 2])
+// async function x2({a, b}) {
+//     alert(a + " " + b)
+// }
+// x2({a: 100, b: 200})
+
+// function foo(...args) {
+//     log2(args)
+// }
+// 
+// foo(3, 4, 212)
+
+// alert(a.foo)
+// async function foo(a, b=27 c = [123,45]) {
+//     alert(a + " " + b + " " + c)
+// }
+// foo(1)
+// var a = {foo: "hi foo", bar: "hi bar"}
+// var {foo, bar} = a
+// 
+// alert(foo + " " + bar)
+
+
+// function w1() {
+//     // if (true) return 30
+//     
+//     if (false) {
+//     
+//     } else if (false) {
+//         return 99
+//     } else if (false) { return 100 }
+//     else return 988
+// }
+// 
+// log2(w1())
+// return
+// 
+// for (var i = 0; i < 100; i++) {
+//     log2(i)
+//     // if (i == 20) { break }
+//     if (i < 20) {
+//     
+//     } else break
+// }
+
+
+// values = [1,2]
+// var [a, b] = values
+// alert(a + " " + b)
+
+
+
+
+// var ret = "abcdefghijklmnop".split("g")[0]
+// .split("d")[0]
+// .split("b")[0]
+// alert(ret)
+
+// var a = {}
+// a.b = undefined
+// alert("b" in a)
+// alert("c" in a)
+
+
+// if (true) alert("what")
+// var a
+// alert(typeof a)
+// values = [1,2]
+// [a, b] = values
+// alert(a + " " + b)
+
+
+// var a = {foo: "bar", biz: "baz"}
+// b = {...a, yo: 100}
+// log2(b)
+
+// var b = ["yo", "world"]
+// var a = [1, ...b, 1, ...b]
+// log2(a)
+
+// if (true) {
+// try {
+//   garbage.bad
+// } catch (e) {
+//     async function wrapper() {
+//         checkHoist()
+//         async function checkHoist() {
+//             alert("rubbage")
+//         }
+//     }
+//     wrapper()
+// }
+
+
+// function checkIt() {
+//     // if (true) {
+//     //     return "yo!"
+//     // }
+//     try {
+//         return "yay"
+//     } catch (e) {
+//         return "caught"
+//     }
+// }
+// alert(checkIt())
+
+// alert(1_000)
+
+// laziness works
+// a = x => { alert(x) return true }
+// b = x => { alert(x) return false }
+// if (a(17) || b(23)) {
+//     alert("yay!")
+// }
+// if (b(17) || a(23)) {
+//     alert("yay!")
+// }
+// if (a(17) && b(23)) {
+//     alert("yay!")
+// }
+// if (b(17) && a(23)) {
+//     alert("yay!")
+// }
+
+
+// f = x == 3 || y == 4 && a == b
+
+// log2(encodeURIComponent("yo=man"))
 // var name = "Drew"
 // var x = 20
 // // var greeting = `Hello ${name}, is your number ${x + 1}?`
@@ -2865,17 +3731,17 @@ foo(1)
 //     alert("yay")
 // }, 1000)
 // async function test10() {
-//     // var sleep = function (ms) {
-//     //     return new Promise(function (resolve, reject) {
-//     //         log2("doing the setTimeout " + ms)
-//     //         setTimeout(function () {
-//     //             resolve()
-//     //         }, ms)
-//     //     })
-//     // }
-//     // alert("hi")
-//     // await sleep(1000)
-//     // alert("bye")
+//     var sleep = function (ms) {
+//         return new Promise(function (resolve, reject) {
+//             log2("doing the setTimeout " + ms)
+//             setTimeout(function () {
+//                 resolve()
+//             }, ms)
+//         })
+//     }
+//     alert("hi")
+//     await sleep(1000)
+//     alert("bye")
 //     
 //     var foo = async function (a) {
 //         // return 200
@@ -2890,7 +3756,7 @@ foo(1)
 
 // var start = Date.now()
 // var total = 0
-// for (let i = 0; i < 100000; i++) {
+// for (let i = 0; i < 100_000; i++) {
 //     total += i
 // }
 // var end = Date.now()
@@ -2898,14 +3764,14 @@ foo(1)
 
 
 // see difference with var
-// var i = 0
-// while (i < 10) {
-//     i++
-//     let i2 = i
-//     setTimeout(() => {
-//         log2("hey " + i2)
-//     }, 100)
-// }
+var i = 0
+while (i < 10) {
+    i++
+    let i2 = i
+    setTimeout(() => {
+        log2("hey " + i2)
+    }, 100)
+}
 
 // var start = Date.now()
 // var i = 0
