@@ -24,7 +24,7 @@ document.write(`
 <!-- For now not loading in third party diff library. -->
 <!--<script src="`+proxyPath+`/tepublic/diff.js"></scr`+`ipt>-->
 <script src="`+proxyPath+`/tepublic/md52.js"></scr`+`ipt>
-<script src="`+proxyPath+`/tepublic/thumbscript4.js?v=9"></scr`+`ipt>
+<script src="`+proxyPath+`/tepublic/thumbscript4.js?v=14"></scr`+`ipt>
 <!-- For now not loading in grapheme splitter to save pageload. -->
 <!-- it means we can't use emojis, other unicode chars for now -->
 <!-- <script src="`+proxyPath+`/tepublic/grapheme-splitter.js"></scr`+`ipt>
@@ -1723,7 +1723,7 @@ function getAtCursor() {
 function openAtCursor() {
     var path = getAtCursor()
     if (fx.fileMode == "shell") {
-        var fileName = trimPrefix(fx.shellCWD, rootLocation) + "/" + path
+        var fileName = doTrimPrefix(fx.shellCWD, rootLocation) + "/" + path
     } else if (fx.fileMode == "terminal") {
         // TODO: how do we know what the cwd is?
         // isn't there a way to get the cwd of a running process?
@@ -2364,11 +2364,11 @@ function getDefaultCWDInner(f) {
     }
 
     if (f.fileMode == "directory") {
-        return rootLocation + trimPrefix(f.fullPath, proxyPath)
+        return rootLocation + doTrimPrefix(f.fullPath, proxyPath)
     }
 
     if (f.fileMode == "file") {
-        var parts = trimPrefix(f.fullPath, proxyPath).split("/")
+        var parts = doTrimPrefix(f.fullPath, proxyPath).split("/")
         parts = parts.slice(0, parts.length - 1)
         return rootLocation + parts.join("/")
     }
@@ -4571,7 +4571,7 @@ function runShellCommand(line) {
             fx.cursorColIndex = 0
             ensureCursorInScreen()
             // TODO: get rid of rootLocation stuff. I am pretty sure it's not used at least on front end
-            addFile(trimPrefix(fx.shellCWD, rootLocation) + "/" + fileToLoad)
+            addFile(doTrimPrefix(fx.shellCWD, rootLocation) + "/" + fileToLoad)
             break
         }
 
@@ -4997,7 +4997,7 @@ function stopServer() {
    })
 }
 
-function trimPrefix(str, prefix) {
+function doTrimPrefix(str, prefix) {
     if (str.startsWith(prefix)) {
         return str.slice(prefix.length)
     }
@@ -6903,8 +6903,8 @@ function renderInternal() {
                 // do a fill rect of the color that comes after
                 // Not using save and restore because my mock canvas doesn't support it
                 var oldFillStyle = t.fillStyle
-                // var theFillStyle = trimPrefix(theLine.trim(), "// mar"+"ker ").split(" ")[0]
-                // var theFillStyle = trimPrefix(trimPrefix(trim(), "// mar"+"ker "), "# mar"+"ker ").split(" ")[0]
+                // var theFillStyle = doTrimPrefix(theLine.trim(), "// mar"+"ker ").split(" ")[0]
+                // var theFillStyle = doTrimPrefix(doTrimPrefix(trim(), "// mar"+"ker "), "# mar"+"ker ").split(" ")[0]
                 // TODO: faster snagging of the color
                 var theParts = trim().split(" ")
                 theFillStyle = theParts[theParts.length - 2]
@@ -9268,7 +9268,7 @@ function acWordToggle(recursive) {
             // here we have found a word
 
             if (acWord.autocompleteLine || !fuzzyAutocomplete) {
-                acPlop([trimPrefix(found, acWord.prefix)])
+                acPlop([doTrimPrefix(found, acWord.prefix)])
             } else {
                 // don't trim prefix with fuzzy match
                 acPlop([found])
