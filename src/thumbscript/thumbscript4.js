@@ -88,7 +88,7 @@ thumbscript4.tokenize = function(code) {
                 preventCall = true
                 token = token.slice(1)
             }
-            
+
             // not sure if faster
             if (token.charAt(0) == "$") {
                 token = {th_type: stringType, valueString: token.slice(1)}
@@ -286,20 +286,20 @@ thumbscript4.someIfMagic = function(tokens) {
     while (i < tokens.length) {
         var token = tokens[i]
         if (token.th_type == builtInType) {
-            if (token.name == "if") {
+            if (token.name == "?" || token.name == "if") {
                 // hmm if I used a linked list for tokens,
                 // then it moght be easier to point to thr end node, instead of end index
                 // that might make inlining easier.
                 token.endOfIfChainI = -1
                 currentIfs = []
                 currentIfs.push(token)
-            } else if (token.name == "elseif") {
+            } else if (token.name == "??" || token.name == "elseif") {
                 token.endOfIfChainI = -1
                 for (var j=0; j < currentIfs.length; j++) {
                     currentIfs[j].endOfIfChainI = i
                 }
                 currentIfs.push(token)
-            } else if (token.name == "else") {
+            } else if (token.name == "?." || token.name == "else") {
                 for (var j=0; j < currentIfs.length; j++) {
                     currentIfs[j].endOfIfChainI = i
                 }
@@ -308,7 +308,6 @@ thumbscript4.someIfMagic = function(tokens) {
             if (!tokens.anchors) {
                 tokens.anchors = {}
             }
-            // TODO: inlining with anchors
             tokens.anchors[token.valueString] = i
         }
         i++
@@ -490,11 +489,11 @@ thumbscript4.eval = function(code, state) {
         indent: 0,
         runId: 0,
         name: "main",
-        cachedLookupWorld: {},
+        // cachedLookupWorld: {},
         log: [], // for concenience
     }
     world.global = world
-    
+
     thumbscript4.run(world)
     return world
 
@@ -584,7 +583,7 @@ thumbscript4.runAsync = function(world) {
     }
     // preventRender = oldPreventRender
     // render()
-    
+
     if (world) {
         window.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 0)
     }
@@ -610,6 +609,14 @@ thumbscript4.genFunc1NoReturn = function(f) {
         return world
     }
 }
+thumbscript4.genFunc2NoReturn = function(f) {
+    return function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        f(a, b)
+        return world
+    }
+}
 thumbscript4.genFunc2 = function(f) {
     return function(world) {
         var b = world.stack.pop()
@@ -627,6 +634,21 @@ thumbscript4.genFunc3 = function(f) {
         return world
     }
 }
+
+// not faster
+thumbscript4.recycledWorlds = []
+thumbscript4.recycle = function (world) {
+    return
+    if (thumbscript4.recycledWorlds.length < 10000) {
+        thumbscript4.recycledWorlds.push(world)
+    }
+}
+thumbscript4.getRecycledWorld = function () {
+    return {}
+    var world = thumbscript4.recycledWorlds.pop() || {}
+    return world
+}
+
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
     say: thumbscript4.genFunc1NoReturn(a => { log2(a) }),
@@ -653,7 +675,6 @@ thumbscript4.builtIns = {
     ne: thumbscript4.genFunc2((a, b) => a !== b),
     chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
     ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
-    prop: thumbscript4.genFunc2((a, b) => a[b]),
     at: thumbscript4.genFunc2((a, b) => a[b]),
     props: thumbscript4.genFunc1((a) => {
         var v = a[0]
@@ -661,12 +682,12 @@ thumbscript4.builtIns = {
         return v
     }),
     not: thumbscript4.genFunc1((a) => !!!a),
-    "check": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
-    "?": thumbscript4.genFunc3((b, c, a) => (a ? b : c) ),
+    "cond": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
     length: thumbscript4.genFunc1((a) => a.length),
-    push: thumbscript4.genFunc2((a, b) => a.push(b)),
+    len: thumbscript4.genFunc1((a) => a.length),
+    push: thumbscript4.genFunc2NoReturn((b, a) => a.push(b)),
     pop: thumbscript4.genFunc1((a) => a.pop()),
-    unshift: thumbscript4.genFunc2((a, b) => a.unshift(b)),
+    unshift: thumbscript4.genFunc2NoReturn((b, a) => a.unshift(b)),
     shift: thumbscript4.genFunc1((a) => a.shift()),
     join: thumbscript4.genFunc2((a, b) => a.join(b)),
     slice: thumbscript4.genFunc3((a, b, c) => a.slice(b, c)),
@@ -678,18 +699,32 @@ thumbscript4.builtIns = {
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
-    haskey: thumbscript4.genFunc2((a, b) => a.hasOwnProperty(b)),
+    haskey: thumbscript4.genFunc2((a, b) => Object.hasOwn(a, b)),
+    keys: thumbscript4.genFunc1((a) => Object.keys(a)),
     copylist: thumbscript4.genFunc1((a) => [...a]),
+    typename: thumbscript4.genFunc1((a) => {
+        // there's a lot more to do.
+        if (typeof a == "object") {
+            if (Array.isArray(a)) {
+                return "array"
+            }
+            if (a == null) {
+                return "null"
+            }
+            return "object"
+        }
+        return typeof a
+    }),
     jscall: function (world) {
-        var funcName = world.stack.pop()
         var args = world.stack.pop()
+        var funcName = world.stack.pop()
         var ret = window[funcName](...args)
         world.stack.push(ret)
         return world
     },
     jscallcb: function (world) {
-        var funcName = world.stack.pop()
         var args = world.stack.pop()
+        var funcName = world.stack.pop()
         args.push(function (err, ret) {
             thumbscript4.outstandingCallbacks--
             world.stack.push(ret)
@@ -701,8 +736,8 @@ thumbscript4.builtIns = {
         return null // this suspends the execution
     },
     jscallpromise: function (world) {
-        var funcName = world.stack.pop()
         var args = world.stack.pop()
+        var funcName = world.stack.pop()
         try {
             var p = window[funcName](...args)
         } catch (e) {
@@ -789,7 +824,6 @@ thumbscript4.builtIns = {
         return world
     },
     setc: function(world) {
-        // TODO: implement in thumbscript itself
         var a = world.stack.pop()
         var b = world.stack.pop()
         world.stack.push(a.slice(0,-1))
@@ -799,7 +833,6 @@ thumbscript4.builtIns = {
         return world
     },
     setcb: function(world) {
-        // TODO: implement in thumbscript itself
         var b = world.stack.pop()
         var a = world.stack.pop()
         // try {
@@ -827,8 +860,8 @@ thumbscript4.builtIns = {
     jsloopn: function(world) {
         // for some reason this doesn't work unless you preventRender
         // see preventRender assignment
-        var n = world.stack.pop()
         var f = world.stack.pop()
+        var n = world.stack.pop()
         var newWorld = {
             parent: f.world,
             state: {},
@@ -838,7 +871,7 @@ thumbscript4.builtIns = {
             dynParent: null,
             runId: ++thumbscript4.runId,
             indent: world.indent + 1,
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: f.world.global,
             local: f.local,
         }
@@ -856,42 +889,42 @@ thumbscript4.builtIns = {
     call_skipstack: function(world, f) {
         var oldWorld = world
         
-        if (!f.callWorld) {
-            world = {
-                parent: f.world,
-                state: {},
-                stack: oldWorld.stack,
-                tokens: f.tokens,
-                i: 0,
-                dynParent: oldWorld,
-                runId: ++thumbscript4.runId,
-                indent: oldWorld.indent + 1,
-                cachedLookupWorld: {},
-                global: f.world.global,
-                local: f.local,
-            }
-            f.callWorld = world
-        } else {
-            // this bridges the gap with inlining I think
-            // caveat using uninitialized vars next tome works
-            world = f.callWorld
-            // world.parent = f.world
-            // world.state = {} // saves allocation.
-            world.stack = oldWorld.stack
-            // world.tokens = f.tokens
-            world.i = 0
-            world.dynParent = oldWorld
-            world.runId = ++thumbscript4.runId
-            world.indent = oldWorld.indent + 1
-            // world.cachedLookupWorld = {}
-            // world.global = f.world.global
-            // world.local = f.local
-            
+        // used fo have f.callWorld hack here
+        // world = thumbscript4.getRecycledWorld()
+        // world.parent = f.world
+        // world.state = {}
+        // world.stack = oldWorld.stack
+        // world.tokens = f.tokens
+        // world.i = 0
+        // world.dynParent = oldWorld
+        // world.runId = thumbscript4.runId
+        // world.indent = oldWorld.indent + 1
+        // // world.cachedLookupWorld = {}
+        // world.global = f.world.global
+        // world.local = f.local
+        // 
+        // world.log = null
+        // world.name = null
+        // world.repeatCount = 0
+        // world.onEnd = null
+        
+        world = {
+            parent: f.world,
+            state: {},
+            stack: oldWorld.stack,
+            tokens: f.tokens,
+            i: 0,
+            dynParent: oldWorld,
+            runId: ++thumbscript4.runId,
+            indent: oldWorld.indent + 1,
+            // cachedLookupWorld: {},
+            global: f.world.global,
+            local: f.local,
         }
 
         if (f.dynamic) {
             world.parent = oldWorld
-            world.cachedLookupWorld = {}
+            // world.cachedLookupWorld = {}
         }
         return world
     },
@@ -914,12 +947,16 @@ thumbscript4.builtIns = {
             }
             log2(JSON.stringify(printWorld, null, "   "))
             log2("----")
+            var rWorld = world
             world = world.dynParent
+            thumbscript4.recycle(rWorld)
         }
     },
     "break": function(world) {
         if (world.onEnd) world.onEnd(world)
+        var rWorld = world
         world = world.parent
+        thumbscript4.recycle(rWorld)
         return world
     },
     "breakp": function(world) {
@@ -927,7 +964,9 @@ thumbscript4.builtIns = {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
             if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
             // todo: see onend
         }
         return world
@@ -939,7 +978,9 @@ thumbscript4.builtIns = {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
             if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
             // todo: see onend
         }
         return world
@@ -947,18 +988,21 @@ thumbscript4.builtIns = {
     "goto": function(world) {
         var loc = world.stack.pop()
         var w = world
-        while (!w.tokens.anchors.hasOwnProperty(loc)) {
+        while (!w.tokens.anchors || !w.tokens.anchors.hasOwnProperty(loc)) {
             w = w.parent
         }
         w.i = w.tokens.anchors[loc]
         return w
     },
     "return": function(world) {
+        // basically same as continue?
         // you could just go to end of tokens ?
         // world = world.dynParent
         if (world.onEnd) world.onEnd(world)
         // TODO: other places need onend too
+        var rWorld = world
         world = world.dynParent
+        thumbscript4.recycle(rWorld)
         // todo: see onend
         return world
     },
@@ -974,7 +1018,9 @@ thumbscript4.builtIns = {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
             // if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
             // todo: see onend
         }
         world.i = world.tokens.length
@@ -985,7 +1031,9 @@ thumbscript4.builtIns = {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
             // if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
             // todo: see onend
         }
         world.i = world.tokens.length
@@ -1003,7 +1051,9 @@ thumbscript4.builtIns = {
         var a = world.stack.pop()
         if (!a) {
             if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
         }
         return world
     },
@@ -1013,12 +1063,15 @@ thumbscript4.builtIns = {
         var a = world.stack.pop()
         if (!(a<b)) {
             if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
         }
         return world
     },
     // "break": function(world) {
     //     for (var i=0; i<2; i++) {
+    //         thumbscript4.recycle(world)
     //         world = world.parent
     //     }
     //     return world
@@ -1029,6 +1082,7 @@ thumbscript4.builtIns = {
     //         if (world.runId == a) {
     //             break
     //         }
+    //         thumbscript4.recycle(world)
     //         world = world.dynParent
     //     }
     //     return world
@@ -1048,33 +1102,32 @@ thumbscript4.builtIns = {
         world.i = -1 // because same world and will increment
         return world
     },
-    "if": function(world, token) {
-        var cond = world.stack.pop()
+    // if
+    "?": function(world, token) {
         var block = world.stack.pop()
+        var cond = world.stack.pop()
         if (cond) {
             if (token.endOfIfChainI != -1) {
-                // TODO: this will break if inlining happens in an if chain
-                // you should either handle it or prevent it
                 world.i = token.endOfIfChainI
             }
             world = thumbscript4.builtIns.call_skipstack(world, block)
         }
         return world
     },
-    "elseif": function(world, token) {
-        var cond = world.stack.pop()
+    // elseif (same as if, but token name needs to be different, see someIfMagic)
+    "??": function(world, token) {
         var block = world.stack.pop()
+        var cond = world.stack.pop()
         if (cond) {
             if (token.endOfIfChainI != -1) {
-                // TODO: this will break if inlining happens in an if chain
-                // you should either handle it or prevent it
                 world.i = token.endOfIfChainI
             }
             world = thumbscript4.builtIns.call_skipstack(world, block)
         }
         return world
     },
-    "else": function(world, token) {
+    // else
+    "?.": function(world, token) {
         var block = world.stack.pop()
         world = thumbscript4.builtIns.call_skipstack(world, block)
         return world
@@ -1120,6 +1173,9 @@ thumbscript4.builtIns = {
         return null // lol
     },
 }
+thumbscript4.builtIns["if"] = thumbscript4.builtIns["?"]
+thumbscript4.builtIns["elseif"] = thumbscript4.builtIns["??"]
+thumbscript4.builtIns["else"] = thumbscript4.builtIns["?."]
 
 thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     // the cachedLookupWorld seems noticeably faster when running jsloopn
@@ -1128,15 +1184,13 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     if (world.local && forSetting) {
         return world
     }
-    if (world.cachedLookupWorld[key]) {
-        return world.cachedLookupWorld[key]
-    }
+    // if (world.cachedLookupWorld[key]) {
+    //     return world.cachedLookupWorld[key]
+    // }
     for (var w = world; w != null; w = w.parent) {
         // perf doesn't seem to matter here
-        // if (key in w.state) {
-        if (w.state.hasOwnProperty(key)) {
-        // if (typeof w.state[key] !== "undefined") {
-            world.cachedLookupWorld[key] = w
+        if (Object.hasOwn(w.state, key)) {
+            // world.cachedLookupWorld[key] = w
             break
         }
     }
@@ -1171,7 +1225,9 @@ thumbscript4.next = function(world) {
                 if (world.onEnd) {
                     world.onEnd(world)
                 }
+                var rWorld = world
                 world = world.dynParent
+                thumbscript4.recycle(rWorld)
                 // the stacks should point to same thing
                 return world
             }
@@ -1308,43 +1364,109 @@ thumbscript4.next = function(world) {
     return world
 }
 
+
+// c b a 
 thumbscript4.stdlib = `
-    swap: •local { :b :a b a }
+    swap: •local { :b :a ~b ~a }
     drop: •local { :a }
+    dup: •local { :a ~a ~a }
     // todo: look at what's slow with not inlining (object creation? and fix)
     // that said jsloopn is fastest
-    // bit inlining breaks with conditions because indexes change.
-    // loopn: •local { :n :block 0 :i { i •lt n guardb i block i++ repeat } call }
-    // loopn: •local { :n :block 0 :i { { breakp } i n lt not if i block i++ repeat } call }
-    loopn: •local { :n :block 0 :i { ~breakp i n lt not if i block i++ repeat } call }
-    loopn2: •local { :n :block 0 :i { i •lt (n •minus 1) guardb i block i •plus 2 :i repeat } call }
-    range: •local { :list :block 0 :i list length :theMax •loopn •theMax { :i list •at i i block } }
-    ccc: •local { :l "" :r { drop r swap cc :r } l range r }
-    guard: •local •dyn { not { 3 breakn } checkthen }
-    loopmax: •local { :theMax :block 0 :i { i theMax lt guardb block i++ repeat } call }
-    range2: •local { :list :block 0 :i list length :theMax •loopn2 •theMax { :i i •plus 1 :i2 list •at i i list •at i2 i2 block } }
-    checkthen: •local { {} check call }
+    loopn: •local { 
+        :block :n 0 :i
+        {
+            i •lt n not ~breakp ?
+            i block
+            i++
+            repeat
+        } call
+    }
+    loopn2: •local {
+        :block :n 0 :i
+        {
+            i •lt (n •minus 1) guard
+            i block
+            i •plus 2 :i
+            repeat
+        } call
+    }
+    range: •local {
+        :block :list
+
+        list typename "object" is {
+            list :obj
+            obj keys :theKeys
+            theKeys length :theMax
+            theMax {
+                theKeys swap at :key
+                obj key at :value
+                value key block
+            } loopn
+            continuep
+        } ?
+
+        list length :theMax
+        theMax {
+            :i list •at i i block
+        } loopn
+    }
+    guard: •local •dyn { not { 3 breakn } ? }
+    loopmax: •local {
+        :theMax :block 0 :i
+        {
+            i theMax lt guard
+            block
+            i++
+            repeat
+        } call
+    }
+    range2: •local {
+        :block :list 0 :i
+        list len :theMax
+        theMax {
+            :i
+            i •plus 1 :i2
+            list •at i i list •at i2 i2 block
+        } loopn2
+    }
     sayn: •local { " " join say }
-    take: •local { :n [] :a { drop a swap unshift drop } n loopn a }
-    checkn: •local { :c c length :m { drop :v2 drop :v1 v1 { v2 3 breakn } checkthen } c range2 c •at (m •minus 1) call }
-    timeit: •local { :n :block
+    take: •local {
+        :n9 [] :a9
+        n9 {
+            :i 
+            a9 unshift
+        } loopn
+        a9
+    }
+    cases: •local {
+        :c
+        c length :m
+        c {
+            "looping" say
+            drop :v2 drop :v1
+            v1 { v2 3 breakn } ?
+        } range2
+        c •at (m •minus 1) call
+    }
+    timeit: •local {
+        :block :n
         nowmillis :start
-        ~block n loopn
-        // ~block n jsloopn
+        n ~block loopn
+        // n ~block jsloopn
         nowmillis :end
         end •minus start :total
-        ["it took" total "milliseconds"] sayn
+        "it took $total ms" say
     }
     and: •local {
         :b :a
         a :firstValue
-        { firstValue 2 continuen } firstValue not if
+        firstValue not { firstValue 2 continuen } ?
         b
     }
     or: •local {
         :b :a
         a :firstValue
-        { firstValue 2 continuen } firstValue if
+        firstValue { firstValue 2 continuen } ?
         b
     }
     loop: •local {
@@ -1354,8 +1476,35 @@ thumbscript4.stdlib = `
            repeat
        } call
     }
-    
+    filter: •local {
+        :func :list 
+        [] :ret
+        list {
+            drop :v
+            v func {
+                v ret push
+            } ?
+        } range
+        ret
+    }
+    map: •local {
+        :func :list 
+        [] :output
+        list {
+            drop func output push
+        } range
+        output
+    }
+    trimPrefix: •local {
+        :prefix :str
+        str 0 prefix len slice prefix is {
+            prefix len undefined str slice
+            continuep
+        } ?
+        str
+    }
 `
+
 
 // idea macros?
 // todo closure leakage issue?
@@ -1379,6 +1528,49 @@ thumbscript4.stdlib = `
 window.xyzzy = 0
 var code = `
 
+$yo say
+
+    
+3 { :i
+    5 { :j
+        "$i: $j" say
+        1 sleepms
+    } loopn
+} loopn
+
+
+
+// 10 {
+//     drop
+//     400 600 2 take say
+// } loopn
+
+// {
+//     now say
+//     1 sleep
+// } loop
+ 
+
+
+// [100 200 300 400] {
+//     :i :v
+//     "the i is $i" say
+//     "the v is $v" say
+// } swap range
+
+
+[100 200 300 400] {
+    :i :v
+    "$i: $v" say
+} range
+"" say
+[100 :a 200 :b 300 :c 400 :d] {
+    :k :v
+    "$k: $v" say
+}  range
+
+
+
 "yo" say
 // 0 :i
 // {
@@ -1397,9 +1589,9 @@ var code = `
 
 // 200 alert
 
-{
-  say 
-} 10 loopn
+10 {
+  say
+} loopn
 
 { -1 } { 0 } and :a
 "value of a is $a" say
@@ -1438,8 +1630,10 @@ foo: [bar: [baz: 3]]
     // with jsloopn 18 ms
     // with loopn inline sub 60ms
     // { count+= } 100000 timeit
-    { count plus :count } 100000 timeit
-    ["count is" count] sayn
+    
+    // 100000 { count plus :count } timeit
+    100000 { count+= } timeit
+    "count is $count" say
 
 
     // 70 :count2
@@ -1449,6 +1643,22 @@ foo: [bar: [baz: 3]]
     // h say
 } call
 
+{
+    0 :count
+    0 :i
+    nowmillis :start
+    {
+        i 100000 guardlt
+        i count+=
+        i++
+        repeat
+    } call
+    nowmillis :end
+    end •minus start :total
+    "+it took $total ms" say
+    "+count is $count" say
+
+} call
 
 
 // {
@@ -1481,8 +1691,6 @@ foo: [bar: [baz: 3]]
 "after goto" say
 
 
-
-
 // {
 //     99 :x
 //     { "one" say } "checking 1" say x •is 1 if
@@ -1497,12 +1705,30 @@ foo: [bar: [baz: 3]]
 "that was cool" say
 
 "----" say
-3 :x
-•if •("checking 1" say x •is 1) { "one" say }
-•elseif •("checking 2" say x •is 2) { "two" say }  
-•elseif •("checking 3" say x •is 3) { "three" say }  
-•else •("running else" say) { "other" say } 
 
+5 {
+    :x
+    "+value is $x" say
+    ("checking 0" say x •is 0) { "zero" say } ?
+    ("checking 1" say x •is 1) { "one" say } ??
+    ("checking 2" say x •is 2) { "two" say } ??
+    ("checking 3" say x •is 3) { "three" say } ??
+    ("running else" say) { "other" say } ?.
+    "--------" say
+} loopn
+"++++that was cool1" say
+"" say
+"" say
+5 {
+    :x
+    "+value is $x" say
+    ("checking 0" say x •is 0) { "zero" say } if
+    ("checking 1" say x •is 1) { "one" say } elseif
+    ("checking 2" say x •is 2) { "two" say } elseif
+    ("checking 3" say x •is 3) { "three" say } elseif
+    ("running else" say) { "other" say } else
+    "--------" say
+} loopn
 "that was cool2" say
 
 
@@ -1541,6 +1767,8 @@ n 1 plus
 say
 
 
+
+
 // {
 //     "Hi Hi Hi Hi Hi Hi Hi Hi Hi" say
 //     100 sleepms
@@ -1557,15 +1785,14 @@ say
 // "I waited" say
 
 
-{
-   :j ["number is" j] sayn
+10 {
+   :j
+   "j number is $j" say
    25 sleepms
-} local 10 loopn
+} local loopn
 
 
-
-
-window $xyzzy prop "xyzzy is " swap cc say
+window $xyzzy at "xyzzy is " swap cc say
 
 100 :count
 count say
@@ -1615,29 +1842,15 @@ person say
 [$hi $my •$is $name $drew] sayn
 [$hi $my •"is" $name $drew] sayn
 
-{
+10 {
     "hello! " swap cc say
-} 10 loopn
-// {
-//     "foobar" (1) drop drop
-//     dump exit
-// } call
-// {
-//     // "foobar" [1] drop drop
-//     // "foobar" 1 drop drop
-//     "foobar" (1) drop drop
-//     dump exit
-// } call
-// return
+} loopn
 
-// [ { "hidy hodly" say } { "neighbor" say} ] :mylist
-// { :v ~v say } :somefunc
-// mylist •at 0 somefunc
-
-
-// [{ "wohoo" say}] :mylist
-// mylist •at 0 call
-
+[100 200 300 400 500] {
+    :i2 :v2 :i1 :v1
+    "range: $i1: $v1" say
+    "range: $i2: $v2" say
+} range2
 
 [
     {x 1 match}
@@ -1649,38 +1862,39 @@ person say
     {"pink"}
 ] :someConds
 7 :x
-someConds checkn "the color is " swap cc say
 
+someConds cases "the color is " swap cc say
+"yo!!!!" say
 
 "what's going on?" say
 
 20000 say
 
 
-someConds checkn :color
+someConds cases :color
 "the color is " color cc say
 
 "foooooooo" say
-2 :x someConds checkn :color
+2 :x someConds cases :color
 "foooooooo2" say
 "the color is " color cc say
 
-1 :x someConds checkn :color
+1 :x someConds cases :color
 "the new color is " color cc say
 
 400 500 600 3 take say
+" " "every day is a new day" split :mylist
 
-"every day is a new day" " " split :mylist
-
-{
+mylist {
     4 take say
-} mylist range2
+} range2
 
 
 [] :mylist
-•loopn •20 { mylist swap push drop }
+// •loopn •20 { mylist push drop }
 mylist sayn
 
+// yellow marker
 
 // •loopn •7 {
 //     "the number is " swap cc say
@@ -1723,7 +1937,7 @@ mylist sayn
     {
         #testwrapper
         "hello everyone" say
-        1 1 match { callingbreak nameworld break } { } check call
+        1 1 match { callingbreak nameworld break } { } cond call
         repeat
     } call
     oook say
@@ -1741,8 +1955,8 @@ mylist sayn
     "after calling incr1, foo is " foo cc say
 } call
 
-10 { "yay truthy!" say } checkthen
-1 0 match { "should not het here" say } checkthen
+10 { "yay truthy!" say } ?
+1 0 match { "should not het here" say } ?
 
 "foobar " say
 
@@ -1751,8 +1965,6 @@ mylist sayn
 
 
 "🥶" say
-[1 2 "ten"] ccc say
-"one two three four" " " split ccc say
 
 {
     "the number is " swap cc say
@@ -1761,7 +1973,7 @@ mylist sayn
 {
     :i
     // i •lt 5 guard // that works too
-    i •is 6 { 2 breakn } checkthen
+    i •is 6 { 2 breakn } ?
     "ok number is " i cc say
 } 10 loopn
 
@@ -1796,20 +2008,19 @@ $Drew :name
 name say
 [999 2 3 4] :mylist
 
-"the first item is " mylist 0 prop cc say
+"the first item is " mylist 0 at cc say
 [$blue :eyes $brown :hair] :info
 
 info say
-info .eyes say
 
-info $eyes prop say
+info $eyes at say
 
-info $hair prop say
+info $hair at say
 
-info $ha $ir cc prop say
+info $ha $ir cc at say
 
 $ha $ir cc :key
-info key prop
+info key at
 say
 
 [
@@ -1837,8 +2048,7 @@ person say
 "how on earth??? 🌍" say
 2011 [person $work $secondary $b] setc
 "The selected b is " [person $work $secondary $b] props cc say
-"The selected b is " [person $work x 1 match $main $secondary check $b] props cc say
-
+"The selected b is " [person $work x 1 match $main $secondary cond $b] props cc say
 
 "hello world" :message
 
@@ -1909,12 +2119,16 @@ something1
     x 10 match {
         200
         2 breakn
-    } { 300 } check call
+    } { 300 } cond call
 
     500
 } :something2
 something2
 say
+
+
+
+
 `
 
 
