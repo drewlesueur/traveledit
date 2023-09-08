@@ -873,38 +873,20 @@ thumbscript4.builtIns = {
     },
     call_skipstack: function(world, f) {
         var oldWorld = world
-
-        if (!f.callWorld) {
-            world = {
-                parent: f.world,
-                state: {},
-                stack: oldWorld.stack,
-                tokens: f.tokens,
-                i: 0,
-                dynParent: oldWorld,
-                runId: ++thumbscript4.runId,
-                indent: oldWorld.indent + 1,
-                cachedLookupWorld: {},
-                global: f.world.global,
-                local: f.local,
-            }
-            f.callWorld = world
-        } else {
-            // this bridges the gap with inlining I think
-            // caveat using uninitialized vars next tome works
-            world = f.callWorld
-            // world.parent = f.world
-            // world.state = {} // saves allocation.
-            world.stack = oldWorld.stack
-            // world.tokens = f.tokens
-            world.i = 0
-            world.dynParent = oldWorld
-            world.runId = ++thumbscript4.runId
-            world.indent = oldWorld.indent + 1
-            // world.cachedLookupWorld = {}
-            // world.global = f.world.global
-            // world.local = f.local
-
+        
+        // used fo have f.callWorld hack here
+        world = {
+            parent: f.world,
+            state: {},
+            stack: oldWorld.stack,
+            tokens: f.tokens,
+            i: 0,
+            dynParent: oldWorld,
+            runId: ++thumbscript4.runId,
+            indent: oldWorld.indent + 1,
+            // cachedLookupWorld: {},
+            global: f.world.global,
+            local: f.local,
         }
 
         if (f.dynamic) {
@@ -965,13 +947,14 @@ thumbscript4.builtIns = {
     "goto": function(world) {
         var loc = world.stack.pop()
         var w = world
-        while (!w.tokens.anchors.hasOwnProperty(loc)) {
+        while (!w.tokens.anchors || !w.tokens.anchors.hasOwnProperty(loc)) {
             w = w.parent
         }
         w.i = w.tokens.anchors[loc]
         return w
     },
     "return": function(world) {
+        // basically same as continue?
         // you could just go to end of tokens ?
         // world = world.dynParent
         if (world.onEnd) world.onEnd(world)
@@ -1148,15 +1131,13 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     if (world.local && forSetting) {
         return world
     }
-    if (world.cachedLookupWorld[key]) {
-        return world.cachedLookupWorld[key]
-    }
+    // if (world.cachedLookupWorld[key]) {
+    //     return world.cachedLookupWorld[key]
+    // }
     for (var w = world; w != null; w = w.parent) {
         // perf doesn't seem to matter here
-        // if (key in w.state) {
-        if (w.state.hasOwnProperty(key)) {
-        // if (typeof w.state[key] !== "undefined") {
-            world.cachedLookupWorld[key] = w
+        if (Object.hasOwn(w.state, key)) {
+            // world.cachedLookupWorld[key] = w
             break
         }
     }
@@ -1339,7 +1320,6 @@ thumbscript4.stdlib = `
     loopn: •local { 
         :block :n 0 :i
         {
-            // i •lt n not ~breakp ?
             i •lt n not ~breakp ?
             i block
             i++
@@ -1396,11 +1376,12 @@ thumbscript4.stdlib = `
     }
     sayn: •local { " " join say }
     take: •local {
-        :n [] :a
-        n {
-            drop a unshift
+        :n9 [] :a9
+        n9 {
+            :i 
+            a9 unshift
         } loopn
-        a
+        a9
     }
     cases: •local {
         :c
@@ -1408,8 +1389,6 @@ thumbscript4.stdlib = `
         c {
             "looping" say
             drop :v2 drop :v1
-            // ~v1 tojson say
-            // ~v1 tojson say
             v1 { v2 3 breakn } ?
         } range2
         c •at (m •minus 1) call
@@ -1495,6 +1474,28 @@ window.xyzzy = 0
 var code = `
 
 $yo say
+
+    
+3 { :i
+    5 { :j
+        "$i: $j" say
+        1 sleepms
+    } loopn
+} loopn
+
+
+
+// 10 {
+//     drop
+//     400 600 2 take say
+// } loopn
+
+// {
+//     now say
+//     1 sleep
+// } loop
+ 
+
 
 // [100 200 300 400] {
 //     :i :v
@@ -2050,6 +2051,7 @@ something1
 } :something2
 something2
 say
+
 
 
 
