@@ -273,6 +273,10 @@ ijs.tokenize = function (code, debug) {
                 // special case for !!
                 pushToken(currentToken)
                 currentToken = chr
+            } else if (",".indexOf(chr) != -1) {
+                // special case for ,
+                pushToken(currentToken)
+                currentToken = chr
             } else {
                 currentToken += chr
             }
@@ -911,6 +915,11 @@ ijs.testInfixate = function () {
     // note some of these tests don't work as actual javascript
     // some are just testing arity and precedence
     var casesString = `
+        # check #debug
+        a = [3++, 4, ++5]
+        # expected
+        [["=","a",["<array>_pre",[["++_post",3],4,["++_pre",5]]]]]
+
         # check
         x + (y) + z
         # expected
@@ -936,12 +945,12 @@ ijs.testInfixate = function () {
         # expected
         [["=","a",["=","b","c"]]]
 
-        # check  #debug #onl
+        # check #onl
         var x of y
         # expected
         [["of",["var_pre","x"],"y"]]
 
-        # check #debug #onl
+        # check #onl
         var {a, b} of y
         # expected
         [["of",["var_pre",["<object>_pre",["a","b"]]],"y"]]
@@ -1039,7 +1048,7 @@ ijs.testInfixate = function () {
         # expected
         [["<callFunc>",[".",["<callFunc>",["new_pre","Date"],null],"getTime"],null]]
 
-        # stuff #onl #debug #group1
+        # stuff #onl #group1
         await r.text()
         # expected
         [["await_pre",["<callFunc>",[".","r","text"],null]]]
@@ -1104,7 +1113,7 @@ ijs.testInfixate = function () {
         # expected
         [["-_pre",[".","foo","bar"]],"baz"]
 
-        # prefix #onl #debug #group1
+        # prefix #onl #group1
         -foo.bar + 1
         # expected
         [["+",["-_pre",[".","foo","bar"]],1]]
@@ -3617,98 +3626,98 @@ ijs.exampleCode = function () {
 
 // async function w1(a, [x, y], b = 4, ...z) {
 // async function w1() {
-// var w1 = (a, [x, y], b = 4, ...z) => {
-    // while (1 > 100) {
-    //     log2(i)
-    //     log2(10)
-    // }
-//
-    // for (let i = 0; i < -10; i++) {
-    //     log2(i)
-    //     log2(10)
-    // }
-//
-    // var a = function (a, b, c) {
-    //     log2(a, b, c)
-    //     log2(10)
-    //     var b = function ([x, y]) {
-    //         log2(1)
-    //         log2(2)
-    //     }
-    // }
-    // var a = (a, b, c) => {
-    //     log2(a, b, c)
-    //     log2(10)
-    // }
-    //
-    // function foo(x, y, z) {
-    //     alert("yo", bar)
-    //     log2(10)
-    // }
-    //
-    // if (x == 1) {
-    //     log2(1)
-    //     log2(2)
-    // }
+var w1 = (a, [x, y], b = 4, ...z) => {
+    while (1 > 100) {
+        log2(i)
+        log2(10)
+    }
 
-    // if (x == 1) {
-    //     log2(1)
-    //     log2(2)
-    // } else if (false) {
-    //     log2(1)
-    //     log2(2)
-    // } else {
-    //     log2(1)
-    //     log2(2)
-    // }
-    //
-    // var i = 0
-    // while (i < 10) {
-    //     i++
-    //     let i2 = i
-    //     setTimeout(() => {
-    //         log2("hey " + i2)
-    //     }, 100)
-    // }
-    //
-    // var x = `${i + 1} yo`
-    // b = c = d
-    // 3 + 4 + 5
-    //
-    // [1,2,3].map(x => x)
-    //
-    // y = await foo.baz()
-    // var t = new Date(x, y, z).getTime()
-    //
-    // {foo, bar} = yoyo
-    // typeof x == "undefined"
-    // if (a) doThing()
-    //
-    // if (b) {
-    //     break
-    //     continue
-    //     return
-    //     return 27
-    //     if (b) {
-    //         break
-    //         continue
-    //         return
-    //         return 27
-    //     }
-    // }
-    //
-    // for (let x of foobar) {
-    //     alert(x)
-    // }
+    for (let i = 0; i < -10; i++) {
+        log2(i)
+        log2(10)
+    }
 
-    // let c = 20
-    // let d = {a: 100, "b": 300, c: {x: 20}}
-    //
-    // foo.bar.baz()
-    // bar()
-// }
-//
-// log2(w1.toString())
+    var a = function (a, b, c) {
+        log2(a, b, c)
+        log2(10)
+        var b = function ([x, y]) {
+            log2(1)
+            log2(2)
+        }
+    }
+    var a = (a, b, c) => {
+        log2(a, b, c)
+        log2(10)
+    }
+    
+    function foo(x, y, z) {
+        alert("yo", bar)
+        log2(10)
+    }
+    
+    if (x == 1) {
+        log2(1)
+        log2(2)
+    }
+
+    if (x == 1) {
+        log2(1)
+        log2(2)
+    } else if (false) {
+        log2(1)
+        log2(2)
+    } else {
+        log2(1)
+        log2(2)
+    }
+    
+    var i = 0
+    while (i < 10) {
+        i++
+        let i2 = i
+        setTimeout(() => {
+            log2("hey " + i2)
+        }, 100)
+    }
+    
+    var x = `${i + 1} yo`
+    b = c = d
+    3 + 4 + 5
+    
+    [1,2,3].map(x => x)
+    
+    y = await foo.baz()
+    var t = new Date(x, y, z).getTime()
+    
+    {foo, bar} = yoyo
+    typeof x == "undefined"
+    if (a) doThing()
+    
+    if (b) {
+        break
+        continue
+        return
+        return 27
+        if (b) {
+            break
+            continue
+            return
+            return 27
+        }
+    }
+    
+    for (let x of foobar) {
+        alert(x)
+    }
+
+    let c = 20
+    let d = {a: 100, "b": 300, c: {x: 20}}
+    
+    foo.bar.baz()
+    bar()
+}
+
+log2(w1.toString())
 
 
 // alert(foo.toString())
@@ -3733,12 +3742,12 @@ ijs.exampleCode = function () {
 //     alert("foo")
 // }
 // xy()
-var people = [{name: "D", age: 40}, {name: "C", age: 30}]
-// red marker
+// var people = [{name: "D", age: 40}, {name: "C", age: 30}]
+// // red marker
 // function w399() {
-    for (let {name, age} of people) {
-        alert(name + ":" + age)
-    }
+//     for (let {name, age} of people) {
+//         alert(name + ":" + age)
+//     }
 // }
 // w399()
 // alert(w399.toString())
@@ -4012,7 +4021,6 @@ var people = [{name: "D", age: 40}, {name: "C", age: 30}]
    // progressBasEl.0
  // ) {
 
-// red marker
 // +7 * 2
 // +7 || 2
 // -3 + 4 * 2
@@ -4850,4 +4858,4 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-// ijs.run(code)
+ijs.run(code)
