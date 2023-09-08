@@ -489,7 +489,7 @@ thumbscript4.eval = function(code, state) {
         indent: 0,
         runId: 0,
         name: "main",
-        cachedLookupWorld: {},
+        // cachedLookupWorld: {},
         log: [], // for concenience
     }
     world.global = world
@@ -634,6 +634,21 @@ thumbscript4.genFunc3 = function(f) {
         return world
     }
 }
+
+// not faster
+thumbscript4.recycledWorlds = []
+thumbscript4.recycle = function (world) {
+    return
+    if (thumbscript4.recycledWorlds.length < 10000) {
+        thumbscript4.recycledWorlds.push(world)
+    }
+}
+thumbscript4.getRecycledWorld = function () {
+    return {}
+    var world = thumbscript4.recycledWorlds.pop() || {}
+    return world
+}
+
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
     say: thumbscript4.genFunc1NoReturn(a => { log2(a) }),
@@ -856,7 +871,7 @@ thumbscript4.builtIns = {
             dynParent: null,
             runId: ++thumbscript4.runId,
             indent: world.indent + 1,
-            cachedLookupWorld: {},
+            // cachedLookupWorld: {},
             global: f.world.global,
             local: f.local,
         }
@@ -875,6 +890,24 @@ thumbscript4.builtIns = {
         var oldWorld = world
         
         // used fo have f.callWorld hack here
+        // world = thumbscript4.getRecycledWorld()
+        // world.parent = f.world
+        // world.state = {}
+        // world.stack = oldWorld.stack
+        // world.tokens = f.tokens
+        // world.i = 0
+        // world.dynParent = oldWorld
+        // world.runId = thumbscript4.runId
+        // world.indent = oldWorld.indent + 1
+        // // world.cachedLookupWorld = {}
+        // world.global = f.world.global
+        // world.local = f.local
+        // 
+        // world.log = null
+        // world.name = null
+        // world.repeatCount = 0
+        // world.onEnd = null
+        
         world = {
             parent: f.world,
             state: {},
@@ -891,7 +924,7 @@ thumbscript4.builtIns = {
 
         if (f.dynamic) {
             world.parent = oldWorld
-            world.cachedLookupWorld = {}
+            // world.cachedLookupWorld = {}
         }
         return world
     },
@@ -914,12 +947,16 @@ thumbscript4.builtIns = {
             }
             log2(JSON.stringify(printWorld, null, "   "))
             log2("----")
+            var rWorld = world
             world = world.dynParent
+            thumbscript4.recycle(rWorld)
         }
     },
     "break": function(world) {
         if (world.onEnd) world.onEnd(world)
+        var rWorld = world
         world = world.parent
+        thumbscript4.recycle(rWorld)
         return world
     },
     "breakp": function(world) {
@@ -927,7 +964,9 @@ thumbscript4.builtIns = {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
             if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
             // todo: see onend
         }
         return world
@@ -939,7 +978,9 @@ thumbscript4.builtIns = {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
             if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
             // todo: see onend
         }
         return world
@@ -959,7 +1000,9 @@ thumbscript4.builtIns = {
         // world = world.dynParent
         if (world.onEnd) world.onEnd(world)
         // TODO: other places need onend too
+        var rWorld = world
         world = world.dynParent
+        thumbscript4.recycle(rWorld)
         // todo: see onend
         return world
     },
@@ -975,7 +1018,9 @@ thumbscript4.builtIns = {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
             // if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
             // todo: see onend
         }
         world.i = world.tokens.length
@@ -986,7 +1031,9 @@ thumbscript4.builtIns = {
             // i originally had dynParent but it wasn't right
             // like when I wrapped if
             // if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
             // todo: see onend
         }
         world.i = world.tokens.length
@@ -1004,7 +1051,9 @@ thumbscript4.builtIns = {
         var a = world.stack.pop()
         if (!a) {
             if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
         }
         return world
     },
@@ -1014,12 +1063,15 @@ thumbscript4.builtIns = {
         var a = world.stack.pop()
         if (!(a<b)) {
             if (world.onEnd) world.onEnd(world)
+            var rWorld = world
             world = world.parent
+            thumbscript4.recycle(rWorld)
         }
         return world
     },
     // "break": function(world) {
     //     for (var i=0; i<2; i++) {
+    //         thumbscript4.recycle(world)
     //         world = world.parent
     //     }
     //     return world
@@ -1030,6 +1082,7 @@ thumbscript4.builtIns = {
     //         if (world.runId == a) {
     //             break
     //         }
+    //         thumbscript4.recycle(world)
     //         world = world.dynParent
     //     }
     //     return world
@@ -1172,7 +1225,9 @@ thumbscript4.next = function(world) {
                 if (world.onEnd) {
                     world.onEnd(world)
                 }
+                var rWorld = world
                 world = world.dynParent
+                thumbscript4.recycle(rWorld)
                 // the stacks should point to same thing
                 return world
             }
@@ -1575,7 +1630,9 @@ foo: [bar: [baz: 3]]
     // with jsloopn 18 ms
     // with loopn inline sub 60ms
     // { count+= } 100000 timeit
-    100000 { count plus :count } timeit
+    
+    // 100000 { count plus :count } timeit
+    100000 { count+= } timeit
     "count is $count" say
 
 
@@ -1584,6 +1641,23 @@ foo: [bar: [baz: 3]]
     //
     // ["count2 is" count2] sayn
     // h say
+} call
+
+{
+    0 :count
+    0 :i
+    nowmillis :start
+    {
+        i 100000 guardlt
+        i count+=
+        i++
+        repeat
+    } call
+    nowmillis :end
+    end •minus start :total
+    "+it took $total ms" say
+    "+count is $count" say
+
 } call
 
 
