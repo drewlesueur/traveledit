@@ -1,6 +1,10 @@
-
 var thumbscript4 = {}
 
+if (typeof log2 == "undefined"){
+    log2 = function (x) {
+        console.log(x)
+    }
+}
 const stringType = 0;
 const numberType = 1;
 const squareType = 2;
@@ -16,12 +20,16 @@ const interpolateType = 11;
 
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code) {
+    var leftAssignSugar = true
+    var freshLine = true
+    var currentTokenOnFreshLine = false
     var state = "out"
     var currentToken = ""
     var tokens = []
     string2OpenCount = 0
     var quoteNext = false
-
+    var addClosingParensOnNewLine = false
+    var closingParensHold = 0
     code += "\n" // to simplify last token
     var addToken = function(token) {
         if (quoteNext) {
@@ -78,6 +86,10 @@ thumbscript4.tokenize = function(code) {
         //     return
         // }
         addToken2(token)
+        if (currentTokenOnFreshLine) {
+            tokens[tokens.length - 1].onFreshLine = true
+            currentTokenOnFreshLine = false
+        }
     }
 
     // lol
@@ -118,6 +130,13 @@ thumbscript4.tokenize = function(code) {
         if (state == "out") {
             if ("()[]{}".indexOf(chr) != -1) {
                 addToken(chr)
+                if (leftAssignSugar && addClosingParensOnNewLine) {
+                    if ("([{".indexOf(chr) != -1) {
+                        closingParensHold++
+                    } else if (")]}".indexOf(chr) != -1) {
+                        closingParensHold--
+                    }
+                }
             } else if (":".indexOf(chr) != -1) {
                 // some fancy desugaring here and below
                 // x: y means x 1<- y
@@ -130,6 +149,11 @@ thumbscript4.tokenize = function(code) {
                 if (" \n\t".indexOf(nextChar) != -1) {
                     // [foo bar]: 100
                     addToken("<-")
+                    if (leftAssignSugar && tokens[tokens.length - 1]?.onFreshLine) {
+                        addToken("(")
+                        addClosingParensOnNewLine = true
+                        closingParensHold = 0
+                    }
                 } else if ("[".indexOf(nextChar) != -1) {
                      // 500 :[foo bar]
                      addToken("->")
@@ -142,6 +166,13 @@ thumbscript4.tokenize = function(code) {
                 currentToken = ""
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
+                if (leftAssignSugar && addClosingParensOnNewLine && closingParensHold == 0 && "\n".indexOf(chr) != -1) {
+                    addToken(")")
+                    addClosingParensOnNewLine = false
+                }
+                if (leftAssignSugar && "\n".indexOf(chr) != -1) {
+                    freshLine = true
+                }
             } else if ("/".indexOf(chr) != -1) {
                 state = "slash" // for comments
             } else if ('"'.indexOf(chr) != -1) {
@@ -155,6 +186,8 @@ thumbscript4.tokenize = function(code) {
             } else {
                 state = "in"
                 currentToken = chr
+                freshLine = false
+                currentTokenOnFreshLine = true
             }
         } else if (state == "in") {
             if ("()[]{}".indexOf(chr) != -1) {
@@ -162,15 +195,35 @@ thumbscript4.tokenize = function(code) {
                 addToken(chr)
                 currentToken = ""
                 state = "out"
+                if (leftAssignSugar && addClosingParensOnNewLine) {
+                    if ("([{".indexOf(chr) != -1) {
+                        closingParensHold++
+                    } else if (")]}".indexOf(chr) != -1) {
+                        closingParensHold--
+                    }
+                }
             } else if (":".indexOf(chr) != -1) {
                 addToken("$" + currentToken)
                 addToken("1<-")
+                if (leftAssignSugar && tokens[tokens.length - 1]?.onFreshLine) {
+                    addToken("(")
+                    addClosingParensOnNewLine = true
+                    closingParensHold = 0
+                }
                 currentToken = ""
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
                 addToken(currentToken)
                 currentToken = ""
                 state = "out"
+                
+                if (leftAssignSugar && addClosingParensOnNewLine && closingParensHold == 0 && "\n".indexOf(chr) != -1) {
+                    addToken(")")
+                    addClosingParensOnNewLine = false
+                }
+                if (leftAssignSugar && "\n".indexOf(chr) != -1) {
+                    freshLine = true
+                }
             } else {
                 currentToken += chr
             }
@@ -261,7 +314,7 @@ thumbscript4.tokenize = function(code) {
         }
     }
     // showLog()
-    // log2(tokens)
+    // log2(tokens) // red marker
     tokens = thumbscript4.squishFuncs(tokens)
     // log2(tokens)
     tokens = thumbscript4.desugar(tokens)
@@ -467,6 +520,7 @@ thumbscript4.squishFuncs = function(tokens) {
 }
 
 // alert("woa!")
+
 thumbscript4.eval = function(code, state) {
     // alert("evaling")
     clearTimeout(window.t99)
@@ -475,7 +529,7 @@ thumbscript4.eval = function(code, state) {
     // would be nice to grab the state of the stdlib
     // problem might be some function scope?
     // look later
-    code = thumbscript4.stdlib + code
+    code = thumbscript4.stdlib + code // red marker
 
     var tokens = thumbscript4.tokenize(code)
     // log2(tokens)
@@ -651,6 +705,7 @@ thumbscript4.getRecycledWorld = function () {
 
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
+    rand: thumbscript4.genFunc1((a) => Math.floor(Math.random() * a)),
     say: thumbscript4.genFunc1NoReturn(a => { log2(a) }),
     alert: thumbscript4.genFunc1NoReturn(a => { alert(a) }),
     cc: thumbscript4.genFunc2((a, b) => a + b),
@@ -675,7 +730,15 @@ thumbscript4.builtIns = {
     ne: thumbscript4.genFunc2((a, b) => a !== b),
     chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
     ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
-    at: thumbscript4.genFunc2((a, b) => a[b]),
+    // at: thumbscript4.genFunc2((a, b) => a[b]),
+    at: thumbscript4.genFunc2((a, b) => {
+        var ret = a[b]
+        // js hack.
+        if (typeof ret == "function") {
+            ret = ret.bind(a)
+        }
+        return ret
+    }),
     props: thumbscript4.genFunc1((a) => {
         var v = a[0]
         for (var i = 1; i < a.length; i++) { v = v[a[i]] }
@@ -862,6 +925,7 @@ thumbscript4.builtIns = {
         // see preventRender assignment
         var f = world.stack.pop()
         var n = world.stack.pop()
+        log2(`---the value of n is ${n}`)
         var newWorld = {
             parent: f.world,
             state: {},
@@ -1530,6 +1594,27 @@ var code = `
 
 $yo say
 
+v: 1 2 plus
+"v is $v" say
+3 4 plus
+
+
+
+// . is no op!
+// if first on new line
+// if (x is 3)
+// if 
+// if x is 1 {
+// }
+// 
+// loopn 3 {
+// 
+// }
+
+
+
+
+    
     
 3 { :i
     5 { :j
@@ -1537,7 +1622,6 @@ $yo say
         1 sleepms
     } loopn
 } loopn
-
 
 
 // 10 {
@@ -1602,14 +1686,22 @@ $yo say
 // person: [a: 1 friend: [b: 1]]
 
 foo: [bar: [baz: 3]]
-// foo say
+foo say
 [foo $bar $baz] props say
 
 10 :[foo "bar" "baz"]
+
+foo $bar at "baz" 10 set
+
 [foo $bar $baz] props say
 
 [foo "bar" "baz"]: 30
 [foo $bar $baz] props say
+
+foo $bar at $bat at say
+
+
+exit
 
 // person say
 
@@ -1657,7 +1749,6 @@ foo: [bar: [baz: 3]]
     end •minus start :total
     "+it took $total ms" say
     "+count is $count" say
-
 } call
 
 
