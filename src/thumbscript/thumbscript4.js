@@ -157,6 +157,9 @@ thumbscript4.tokenize = function(code) {
                 } else if ("[".indexOf(nextChar) != -1) {
                      // 500 :[foo bar]
                      addToken("->")
+                } else if (":".indexOf(nextChar) != -1) {
+                    i++
+                    addToken("->>")
                 } else {
                      // 500 :baz
                     addToken("->1")
@@ -186,8 +189,10 @@ thumbscript4.tokenize = function(code) {
             } else {
                 state = "in"
                 currentToken = chr
-                freshLine = false
-                currentTokenOnFreshLine = true
+                if (freshLine) {
+                    freshLine = false
+                    currentTokenOnFreshLine = true
+                }
             }
         } else if (state == "in") {
             if ("()[]{}".indexOf(chr) != -1) {
@@ -203,12 +208,24 @@ thumbscript4.tokenize = function(code) {
                     }
                 }
             } else if (":".indexOf(chr) != -1) {
-                addToken("$" + currentToken)
-                addToken("1<-")
-                if (leftAssignSugar && tokens[tokens.length - 1]?.onFreshLine) {
-                    addToken("(")
-                    addClosingParensOnNewLine = true
-                    closingParensHold = 0
+                var nextChar = code.charAt(i+1)
+                if (":".indexOf(nextChar) != -1) {
+                    addToken(currentToken)
+                    i++
+                    addToken("<<-")
+                    if (leftAssignSugar) {
+                        addToken("(")
+                        addClosingParensOnNewLine = true
+                        closingParensHold = 0
+                    }
+                } else {
+                    addToken("$" + currentToken)
+                    addToken("1<-")
+                    if (leftAssignSugar && tokens[tokens.length - 1]?.onFreshLine) {
+                        addToken("(")
+                        addClosingParensOnNewLine = true
+                        closingParensHold = 0
+                    }
                 }
                 currentToken = ""
                 state = "out"
@@ -374,7 +391,10 @@ thumbscript4.desugarArrows = function(tokens) {
     var i = 0
 
     var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+    var dot2Token = {th_type: varType, valueString: "••", preventCall: false}
     var setToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.set, name: "set"}
+    var setPropToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setprop, name: "setprop"}
+    var setProp2Token = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setprop2, name: "setprop2"}
     var setcToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setc, name: "setc"}
 
     while (i < tokens.length) {
@@ -388,6 +408,12 @@ thumbscript4.desugarArrows = function(tokens) {
                     // 100 [a $b] setc
                     newTokens.push(dotToken)
                     newTokens.push(setcToken)
+                    break
+                case "->>":
+                    // 100 ->> a $b
+                    // 100 a $b setprop2
+                    newTokens.push(dot2Token)
+                    newTokens.push(setProp2Token)
                     break
                 case "->1":
                     // 100 -> a
@@ -404,8 +430,14 @@ thumbscript4.desugarArrows = function(tokens) {
                     newTokens.push(dotToken)
                     newTokens.push(lastToken)
                     break
+                case "<<-":
+                    // t $fillStyle <<- $red
+                    // t $fillStyle $red setprop
+                    newTokens.push(dotToken)
+                    newTokens.push(setPropToken)
+                    break
                 case "1<-":
-                    // a <- 100
+                    // a 1<- 100
                     // 100 a set
                     var lastToken = newTokens.pop()
                     newTokens.push(dotToken)
@@ -880,6 +912,13 @@ thumbscript4.builtIns = {
         return world
     },
     setprop: function(world) {
+        var v = world.stack.pop()
+        var k = world.stack.pop()
+        var o = world.stack.pop()
+        o[k] = v
+        return world
+    },
+    setprop2: function(world) {
         var k = world.stack.pop()
         var o = world.stack.pop()
         var v = world.stack.pop()
@@ -890,22 +929,6 @@ thumbscript4.builtIns = {
         var a = world.stack.pop()
         var b = world.stack.pop()
         world.stack.push(a.slice(0,-1))
-        thumbscript4.builtIns.props(world)
-        obj = world.stack.pop()
-        obj[a[a.length-1]] = b
-        return world
-    },
-    setcb: function(world) {
-        var b = world.stack.pop()
-        var a = world.stack.pop()
-        // try {
-            world.stack.push(a.slice(0,-1))
-        // } catch (err) {
-        //     log2("error on slice: " + JSON.stringify(a))
-        //     log2(world.tokens.slice(0, world.i+1))
-        //     // log2(world)
-        //     return null
-        // }
         thumbscript4.builtIns.props(world)
         obj = world.stack.pop()
         obj[a[a.length-1]] = b
@@ -1589,8 +1612,24 @@ thumbscript4.stdlib = `
 //     log2("count is " + count)
 // })()
 // `; var code2 = `
+
+
+// log2(thumbscript4.tokenize(`person $friend1 at $name: "Peter2"`))
+// log2(thumbscript4.tokenize(`foo: [bar:1]`))
+// log2(thumbscript4.tokenize(`t $fillstyle:: $red `))
+// log2(thumbscript4.tokenize(`t $fillstyle:: •upper $red `))
+// log2(thumbscript4.tokenize(`t $fillstyle:: $red upper`))
+// log2(thumbscript4.tokenize(`$red upper ::t $fillstyle`))
 window.xyzzy = 0
 var code = `
+
+person: [friend1: [name: $pete] friend2: [name: $tom]]
+person say
+// person $friend1 at $name "Peter" setprop
+person $friend1 at $name:: "Peter" 
+"Tom" ::(person $friend2 at) $name
+person say
+// exit
 
 $yo say
 
@@ -1701,7 +1740,6 @@ foo $bar at "baz" 10 set
 foo $bar at $bat at say
 
 
-exit
 
 // person say
 
@@ -1922,7 +1960,6 @@ person say
 // }
 
 // ["drew" :name] :person
-// "Drew" person "name" setprop
 // "Drew2" [person "name"] setc
 // "Drew2" : [person "name"]
 //
