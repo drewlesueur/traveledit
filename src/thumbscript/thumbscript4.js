@@ -158,8 +158,20 @@ thumbscript4.tokenize = function(code) {
                      // 500 :[foo bar]
                      addToken("->")
                 } else if (":".indexOf(nextChar) != -1) {
-                    i++
-                    addToken("->>")
+                    var nextNextChar = code.charAt(i+2)
+                    if (" \n\t".indexOf(nextNextChar) != -1) {
+                        // t ("fill" "Style" cc):: "red"
+                        i++
+                        addToken("<<-")
+                        if (leftAssignSugar) {
+                            addToken("(")
+                            addClosingParensOnNewLine = true
+                            closingParensHold = 0
+                        }
+                    } else {
+                        i++
+                        addToken("->>")
+                    }
                 } else {
                      // 500 :baz
                     addToken("->1")
@@ -1620,6 +1632,7 @@ thumbscript4.stdlib = `
 // log2(thumbscript4.tokenize(`t $fillstyle:: •upper $red `))
 // log2(thumbscript4.tokenize(`t $fillstyle:: $red upper`))
 // log2(thumbscript4.tokenize(`$red upper ::t $fillstyle`))
+// log2(thumbscript4.tokenize(`t (10 1 plus):: "was here"`))
 window.xyzzy = 0
 var code = `
 
@@ -1628,7 +1641,24 @@ person say
 // person $friend1 at $name "Peter" setprop
 person $friend1 at $name:: "Peter" 
 "Tom" ::(person $friend2 at) $name
+
+prop: $age
+"38" ::(person $friend2 at) prop
 person say
+
+document $getElementById
+
+addProp: {
+    (10 1 plus):: "was here"
+}
+
+p: [name: "drew"]
+p addProp
+p say
+
+If x 3 is
+
+
 // exit
 
 $yo say
