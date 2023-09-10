@@ -18,18 +18,23 @@ const noOpType = 9;
 const anchorType = 10;
 const interpolateType = 11;
 
+function j(x) {
+    return JSON.stringify(x, null, "    ")
+}
 // thumbscript2 parser was cool with optional significant indenting
-thumbscript4.tokenize = function(code) {
+thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true
+    // var capitalReverseSugar = true
+    var capitalReverseSugar = true
     var freshLine = true
-    var currentTokenOnFreshLine = false
+    var currentTokenOnFreshLine = true
     var state = "out"
     var currentToken = ""
     var tokens = []
-    string2OpenCount = 0
+    var string2OpenCount = 0
     var quoteNext = false
+    var addClosingParensStack = []
     var addClosingParensOnNewLine = false
-    var closingParensHold = 0
     code += "\n" // to simplify last token
     var addToken = function(token) {
         if (quoteNext) {
@@ -88,6 +93,7 @@ thumbscript4.tokenize = function(code) {
         addToken2(token)
         if (currentTokenOnFreshLine) {
             tokens[tokens.length - 1].onFreshLine = true
+            // alert(j(tokens[tokens.length - 1]))
             currentTokenOnFreshLine = false
         }
     }
@@ -130,11 +136,12 @@ thumbscript4.tokenize = function(code) {
         if (state == "out") {
             if ("()[]{}".indexOf(chr) != -1) {
                 addToken(chr)
-                if (leftAssignSugar && addClosingParensOnNewLine) {
+                if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
-                        closingParensHold++
+                        addClosingParensStack.push(addClosingParensOnNewLine)
+                        addClosingParensOnNewLine = false
                     } else if (")]}".indexOf(chr) != -1) {
-                        closingParensHold--
+                        addClosingParensOnNewLine = addClosingParensStack.pop()
                     }
                 }
             } else if (":".indexOf(chr) != -1) {
@@ -149,10 +156,10 @@ thumbscript4.tokenize = function(code) {
                 if (" \n\t".indexOf(nextChar) != -1) {
                     // [foo bar]: 100
                     addToken("<-")
-                    if (leftAssignSugar && tokens[tokens.length - 1]?.onFreshLine) {
-                        addToken("(")
+                    // not checking fresh line
+                    if (leftAssignSugar) {
+                        addToken("(") // addLeftParen
                         addClosingParensOnNewLine = true
-                        closingParensHold = 0
                     }
                 } else if ("[".indexOf(nextChar) != -1) {
                      // 500 :[foo bar]
@@ -166,7 +173,6 @@ thumbscript4.tokenize = function(code) {
                         if (leftAssignSugar) {
                             addToken("(")
                             addClosingParensOnNewLine = true
-                            closingParensHold = 0
                         }
                     } else {
                         i++
@@ -181,7 +187,7 @@ thumbscript4.tokenize = function(code) {
                 currentToken = ""
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
-                if (leftAssignSugar && addClosingParensOnNewLine && closingParensHold == 0 && "\n".indexOf(chr) != -1) {
+                if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
                     addToken(")")
                     addClosingParensOnNewLine = false
                 }
@@ -212,11 +218,12 @@ thumbscript4.tokenize = function(code) {
                 addToken(chr)
                 currentToken = ""
                 state = "out"
-                if (leftAssignSugar && addClosingParensOnNewLine) {
+                if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
-                        closingParensHold++
+                        addClosingParensStack.push(addClosingParensOnNewLine)
+                        addClosingParensOnNewLine = false
                     } else if (")]}".indexOf(chr) != -1) {
-                        closingParensHold--
+                        addClosingParensOnNewLine = addClosingParensStack.pop()
                     }
                 }
             } else if (":".indexOf(chr) != -1) {
@@ -226,27 +233,38 @@ thumbscript4.tokenize = function(code) {
                     i++
                     addToken("<<-")
                     if (leftAssignSugar) {
-                        addToken("(")
+                        addToken("(") // addLeftParen
                         addClosingParensOnNewLine = true
-                        closingParensHold = 0
                     }
                 } else {
                     addToken("$" + currentToken)
                     addToken("1<-")
-                    if (leftAssignSugar && tokens[tokens.length - 1]?.onFreshLine) {
-                        addToken("(")
+                    if (leftAssignSugar && tokens[tokens.length - 2]?.onFreshLine) {
+                        addToken("(") // addLeftParen
                         addClosingParensOnNewLine = true
-                        closingParensHold = 0
                     }
                 }
                 currentToken = ""
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
+                let addedToken = currentToken
                 addToken(currentToken)
                 currentToken = ""
                 state = "out"
                 
-                if (leftAssignSugar && addClosingParensOnNewLine && closingParensHold == 0 && "\n".indexOf(chr) != -1) {
+                if (capitalReverseSugar && tokens[tokens.length-1]?.onFreshLine && " ".indexOf(chr) != -1 && addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0]) { // red marker
+                    let tokenName = addedToken[0].toLowerCase() + addedToken.slice(1)
+                    tokens.pop()
+                    addToken(tokenName)
+                    addToken("<>")
+                    addToken("(")
+                    addClosingParensOnNewLine = true
+                } else if (capitalReverseSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                    addToken(")")
+                    addClosingParensOnNewLine = false
+                }
+
+                if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
                     addToken(")")
                     addClosingParensOnNewLine = false
                 }
@@ -268,7 +286,7 @@ thumbscript4.tokenize = function(code) {
                 // auto interpolate unless prefixed with "raw"
                 // raw is a compiler directive, not function
                 var prevToken = tokens.pop()
-                if (prevToken.th_type == varType && prevToken.valueString == "raw") {
+                if (prevToken?.th_type == varType && prevToken.valueString == "raw") {
                     addToken("$" + currentToken)
                 } else {
                     tokens.push(prevToken)
@@ -343,11 +361,20 @@ thumbscript4.tokenize = function(code) {
         }
     }
     // showLog()
-    // log2(tokens) // red marker
+    if (debug) {
+        log2("+first pass tokens")
+        log2(tokens) // red marker
+    }
     tokens = thumbscript4.squishFuncs(tokens)
-    // log2(tokens)
+    if (debug) {
+        log2("+squished funcs")
+        log2(tokens) // red marker
+    }
     tokens = thumbscript4.desugar(tokens)
-    // log2(tokens)
+    if (debug) {
+        log2("+desugared")
+        log2(tokens) // red marker
+    }
     return tokens
 }
 thumbscript4.desugar = function(tokens) {
@@ -415,6 +442,13 @@ thumbscript4.desugarArrows = function(tokens) {
         if (token.th_type === varType) {
             // log2("yay: " + token.valueString)
             switch (token.valueString) {
+                case "<>":
+                    // if <> (stuff here)
+                    // (stuff here) if
+                    var lastToken = newTokens.pop()
+                    newTokens.push(dotToken)
+                    newTokens.push(lastToken)
+                    break
                 case "->":
                     // 100 -> [a $b]
                     // 100 [a $b] setc
@@ -987,7 +1021,7 @@ thumbscript4.builtIns = {
     },
     call_skipstack: function(world, f) {
         var oldWorld = world
-        
+
         // used fo have f.callWorld hack here
         // world = thumbscript4.getRecycledWorld()
         // world.parent = f.world
@@ -1001,12 +1035,12 @@ thumbscript4.builtIns = {
         // // world.cachedLookupWorld = {}
         // world.global = f.world.global
         // world.local = f.local
-        // 
+        //
         // world.log = null
         // world.name = null
         // world.repeatCount = 0
         // world.onEnd = null
-        
+
         world = {
             parent: f.world,
             state: {},
@@ -1464,14 +1498,14 @@ thumbscript4.next = function(world) {
 }
 
 
-// c b a 
+// c b a
 thumbscript4.stdlib = `
     swap: •local { :b :a ~b ~a }
     drop: •local { :a }
     dup: •local { :a ~a ~a }
     // todo: look at what's slow with not inlining (object creation? and fix)
     // that said jsloopn is fastest
-    loopn: •local { 
+    loopn: •local {
         :block :n 0 :i
         {
             i •lt n not ~breakp ?
@@ -1532,7 +1566,7 @@ thumbscript4.stdlib = `
     take: •local {
         :n9 [] :a9
         n9 {
-            :i 
+            :i
             a9 unshift
         } loopn
         a9
@@ -1576,7 +1610,7 @@ thumbscript4.stdlib = `
        } call
     }
     filter: •local {
-        :func :list 
+        :func :list
         [] :ret
         list {
             drop :v
@@ -1587,7 +1621,7 @@ thumbscript4.stdlib = `
         ret
     }
     map: •local {
-        :func :list 
+        :func :list
         [] :output
         list {
             drop func output push
@@ -1600,6 +1634,11 @@ thumbscript4.stdlib = `
             prefix len undefined str slice
             continuep
         } ?
+        
+        // ^if 0 prefix len slice prefix is {
+        //     prefix len undefined str slice
+        //     continuep
+        // }
         str
     }
 `
@@ -1624,6 +1663,10 @@ thumbscript4.stdlib = `
 //     log2("count is " + count)
 // })()
 // `; var code2 = `
+// `; var code2 = `
+// `; var code2 = `
+// `; var code2 = `
+// `; var code2 = `
 
 
 // log2(thumbscript4.tokenize(`person $friend1 at $name: "Peter2"`))
@@ -1633,13 +1676,73 @@ thumbscript4.stdlib = `
 // log2(thumbscript4.tokenize(`t $fillstyle:: $red upper`))
 // log2(thumbscript4.tokenize(`$red upper ::t $fillstyle`))
 // log2(thumbscript4.tokenize(`t (10 1 plus):: "was here"`))
-window.xyzzy = 0
-var code = `
+// log2(thumbscript4.tokenize(`If x y
+// hi say
+// `))
+// log2(thumbscript4.tokenize(`Say hi`, true))
+// log2(thumbscript4.tokenize(`If 1 1 is {
+//     Alert "it's 1"
+// }`, true))
 
+// log2(thumbscript4.tokenize(`
+// name: 1 1 plus
+// `, true))
+
+log2(thumbscript4.tokenize(`
+    c: [
+        name: 1 1 plus
+    ] addProp
+    
+    
+`, true))
+
+window.xyzzy = 0
+var code = ` // lime marker
+
+// a: 1 1 plus
+// "a is $a" say
+// b: [ name: 1 1 plus ]
+// "b is " say
+// b say
+
+addProp: {
+    dup
+    (10 1 plus):: "was here"
+    
+    // alternatively
+    // :obj
+    // obj $someProp:: "was here"
+    // obj
+    // obj.someProp: "was here"
+}
+
+{
+    c: [
+        name: 1 1 plus
+    ] addProp
+    "c is " say
+    c say
+} local call
+
+`; var code2 = `
+// If 1 1 is {
+//     "it's 1" alert
+// }
+
+"yo" say
+Say "yo"
+Say ""
+
+If 1 1 is {
+    "it's 1" alert
+    // Alert "it's 1"
+}
+
+$hi say
 person: [friend1: [name: $pete] friend2: [name: $tom]]
 person say
 // person $friend1 at $name "Peter" setprop
-person $friend1 at $name:: "Peter" 
+person $friend1 at $name:: "Peter"
 "Tom" ::(person $friend2 at) $name
 
 prop: $age
@@ -1656,7 +1759,6 @@ p: [name: "drew"]
 p addProp
 p say
 
-If x 3 is
 
 
 // exit
@@ -1672,19 +1774,19 @@ v: 1 2 plus
 // . is no op!
 // if first on new line
 // if (x is 3)
-// if 
+// if
 // if x is 1 {
 // }
-// 
+//
 // loopn 3 {
-// 
+//
 // }
 
 
 
 
-    
-    
+
+
 3 { :i
     5 { :j
         "$i: $j" say
@@ -1702,7 +1804,7 @@ v: 1 2 plus
 //     now say
 //     1 sleep
 // } loop
- 
+
 
 
 // [100 200 300 400] {
@@ -1790,7 +1892,7 @@ foo $bar at $bat at say
     // with jsloopn 18 ms
     // with loopn inline sub 60ms
     // { count+= } 100000 timeit
-    
+
     // 100000 { count plus :count } timeit
     100000 { count+= } timeit
     "count is $count" say
@@ -2300,7 +2402,7 @@ say
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-thumbscript4.eval(code, window)
+thumbscript4.eval(code, window) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
