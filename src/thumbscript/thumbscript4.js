@@ -21,6 +21,8 @@ const interpolateType = 11;
 function j(x) {
     return JSON.stringify(x, null, "    ")
 }
+J = j
+
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true
@@ -949,6 +951,29 @@ thumbscript4.builtIns = {
     set: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
+
+        // foo.bar.baz: "yo!"
+        
+        if (a && a.indexOf && a.indexOf(".") != -1) {
+            var parts = a.split(".")
+            var w = thumbscript4.getWorldForKey(world, parts[0], true, true)
+            var v = w.state[parts[0]]
+            for (var i = 1; i < parts.length; i++) {
+                // kinda feels backwards
+                var prop = parts[i]
+                if (prop.startsWith("$")) {
+                    prop = prop.slice(1)
+                    let w = thumbscript4.getWorldForKey(world, prop, false, false)
+                    prop = w.state[prop]
+                }
+                if (i < parts.length - 1) {
+                    v = v[prop]
+                } else {
+                    v[prop] = b
+                }
+            }
+            return world
+        }
         var w = thumbscript4.getWorldForKey(world, a, false, true)
         w.state[a] = b
         return world
@@ -1723,10 +1748,13 @@ thumbscript4.stdlib = `
 // `, true))
 
 log2(thumbscript4.tokenize(`
+// yo.man: 10
+// 10 :yo.man
 // person: [friend1: [name: $pete] friend2: [name: $tom]]
 // person: [
 //     [score: 10]
 // ]
+// person.friend1.name: "Peterio"
 // `, true))
 
 window.xyzzy = 0
@@ -1737,11 +1765,25 @@ window.xyzzy = 0
 // `; var code2 = `
 var code = ` // lime marker
 
+person: [friend1: [name: $pete] friend2: [name: $tom]]
+person.friend1.name: "Peterio"
+key: $friend2
+person.$key.name: "Tomio"
+person say
+
+"Repeter" :person.friend1.name
+key: $friend2
+"Retom" :person.$key.name
+person say
+
 // a: 1 1 plus
 // "a is $a" say
 // b: [ name: 1 1 plus ]
 // "b is " say
 // b say
+
+
+
 addProp: {
     dup
     (10 1 plus):: "was here"
@@ -1824,6 +1866,9 @@ person $friend1 at $name:: "Peter"
 
 prop: $age
 "38" ::(person $friend2 at) prop
+person say
+
+person.friend1.name: "Peterio"
 person say
 
 document $getElementById
