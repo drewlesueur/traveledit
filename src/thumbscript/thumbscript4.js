@@ -188,7 +188,7 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
                 if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
-                    addToken(")")
+                    addToken(")") // addedClosingParen pink marker
                     addClosingParensOnNewLine = false
                 }
                 if (leftAssignSugar && "\n".indexOf(chr) != -1) {
@@ -256,17 +256,25 @@ thumbscript4.tokenize = function(code, debug) {
                 if (classicCallSugar && " ".indexOf(chr) != -1 && addedToken[addedToken.length-1] == ".") { // red marker
                     let tokenName = addedToken.slice(0, -1)
                     tokens.pop()
+                    
+                    // for if else chain?
+                    if (addClosingParensOnNewLine) {
+                        // close out the previous one if you start a new one
+                        addToken(")") // addedClosingParen pink marker
+                        addClosingParensOnNewLine = false
+                    }
+                    
                     addToken(tokenName)
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine = true
                 } else if (classicCallSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
-                    addToken(")")
+                    addToken(")") // addedClosingParen pink marker
                     addClosingParensOnNewLine = false
                 }
 
                 if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
-                    addToken(")")
+                    addToken(")") // addedClosingParen pink marker
                     addClosingParensOnNewLine = false
                 }
                 if (leftAssignSugar && "\n".indexOf(chr) != -1) {
@@ -409,7 +417,7 @@ thumbscript4.someIfMagic = function(tokens) {
                     currentIfs[j].endOfIfChainI = i
                 }
                 currentIfs.push(token)
-            } else if (token.name == "?." || token.name == "else") {
+            } else if (token.name == "?;" || token.name == "else") {
                 for (var j=0; j < currentIfs.length; j++) {
                     currentIfs[j].endOfIfChainI = i
                 }
@@ -1276,7 +1284,7 @@ thumbscript4.builtIns = {
         return world
     },
     // else
-    "?.": function(world, token) {
+    "?;": function(world, token) {
         var block = world.stack.pop()
         world = thumbscript4.builtIns.call_skipstack(world, block)
         return world
@@ -1324,7 +1332,7 @@ thumbscript4.builtIns = {
 }
 thumbscript4.builtIns["if"] = thumbscript4.builtIns["?"]
 thumbscript4.builtIns["elseif"] = thumbscript4.builtIns["??"]
-thumbscript4.builtIns["else"] = thumbscript4.builtIns["?."]
+thumbscript4.builtIns["else"] = thumbscript4.builtIns["?;"]
 
 thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     // the cachedLookupWorld seems noticeably faster when running jsloopn
@@ -1769,6 +1777,14 @@ x 20 lt $end1 jumpelse
 
 // x: 201
 x: 10
+if. "yo1" say x 10 is {
+    say. "x is 10"
+} elseif. "yo2" say x 20 is {
+    say. "x is 20"
+} else. {
+    say. "x is something else"
+}
+
 if. x 10 is {
     say. "x is 10"
 }
@@ -1778,6 +1794,16 @@ elseif. x 20 is {
 else. {
     say. "x is something else"
 }
+
+
+// ifelse. {
+// 
+// } 
+// 
+// cases. [
+// 
+// ]
+// x
 
 
 
@@ -2024,7 +2050,7 @@ foo $bar at $bat at say
     ("checking 1" say x •is 1) { "one" say } ??
     ("checking 2" say x •is 2) { "two" say } ??
     ("checking 3" say x •is 3) { "three" say } ??
-    ("running else" say) { "other" say } ?.
+    ("running else" say) { "other" say } ?;
     "--------" say
 } loopn
 "++++that was cool1" say
