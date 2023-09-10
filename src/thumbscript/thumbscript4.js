@@ -24,8 +24,7 @@ function j(x) {
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true
-    // var capitalReverseSugar = true
-    var capitalReverseSugar = true
+    var classicCallSugar = true
     var freshLine = true
     var currentTokenOnFreshLine = true
     var state = "out"
@@ -138,6 +137,7 @@ thumbscript4.tokenize = function(code, debug) {
                 addToken(chr)
                 if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
+                        freshLine = false // orange marker
                         addClosingParensStack.push(addClosingParensOnNewLine)
                         addClosingParensOnNewLine = false
                     } else if (")]}".indexOf(chr) != -1) {
@@ -220,6 +220,7 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "out"
                 if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
+                        freshLine = false // orange marker
                         addClosingParensStack.push(addClosingParensOnNewLine)
                         addClosingParensOnNewLine = false
                     } else if (")]}".indexOf(chr) != -1) {
@@ -252,14 +253,14 @@ thumbscript4.tokenize = function(code, debug) {
                 currentToken = ""
                 state = "out"
                 
-                if (capitalReverseSugar && tokens[tokens.length-1]?.onFreshLine && " ".indexOf(chr) != -1 && addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0]) { // red marker
-                    let tokenName = addedToken[0].toLowerCase() + addedToken.slice(1)
+                if (classicCallSugar && " ".indexOf(chr) != -1 && addedToken[addedToken.length-1] == ".") { // red marker
+                    let tokenName = addedToken.slice(0, -1)
                     tokens.pop()
                     addToken(tokenName)
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine = true
-                } else if (capitalReverseSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                } else if (classicCallSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
                     addToken(")")
                     addClosingParensOnNewLine = false
                 }
@@ -389,7 +390,7 @@ thumbscript4.desugar = function(tokens) {
 thumbscript4.someIfMagic = function(tokens) {
     // when if is false, we need to jump to end of the chain
     // makes syntax a little cleaner
-    // can accomplish same thing woth wrapper func or array (checkn) but not as pretty
+    // can accomplish same thing woth wrapper func or array (cases) but not as pretty
     var i = 0
     var currentIfs = []
     while (i < tokens.length) {
@@ -1235,6 +1236,21 @@ thumbscript4.builtIns = {
         world.i = -1 // because same world and will increment
         return world
     },
+    jumpelse: function (world) {
+        var loc = world.stack.pop()
+        var what = world.stack.pop()
+        if (!what) {
+            var w = world
+            while (!w.tokens.anchors || !w.tokens.anchors.hasOwnProperty(loc)) {
+                w = w.parent
+            }
+            w.i = w.tokens.anchors[loc]
+            return w
+            // world.stack.push(b)
+            // return thumbscript4.builtIns["goto"](world)
+        }
+        return world
+    },
     // if
     "?": function(world, token) {
         var block = world.stack.pop()
@@ -1635,12 +1651,19 @@ thumbscript4.stdlib = `
             continuep
         } ?
         
-        // ^if 0 prefix len slice prefix is {
+        // if. str 0 prefix len slice prefix is {
         //     prefix len undefined str slice
         //     continuep
         // }
         str
     }
+    // jumpelse: {
+    //     :loc
+    //     :what
+    //     what {
+    //         loc goto
+    //     } ?
+    // } dyn local
 `
 
 
@@ -1662,11 +1685,6 @@ thumbscript4.stdlib = `
 //     })
 //     log2("count is " + count)
 // })()
-// `; var code2 = `
-// `; var code2 = `
-// `; var code2 = `
-// `; var code2 = `
-// `; var code2 = `
 
 
 // log2(thumbscript4.tokenize(`person $friend1 at $name: "Peter2"`))
@@ -1688,15 +1706,27 @@ thumbscript4.stdlib = `
 // name: 1 1 plus
 // `, true))
 
+// log2(thumbscript4.tokenize(`
+//     c: [
+//         name: 1 1 plus
+//     ] addProp
+//     
+//     
+// `, true))
+
 log2(thumbscript4.tokenize(`
-    c: [
-        name: 1 1 plus
-    ] addProp
-    
-    
-`, true))
+// person: [friend1: [name: $pete] friend2: [name: $tom]]
+// person: [
+//     [score: 10]
+// ]
+// `, true))
 
 window.xyzzy = 0
+// `; var code2 = `
+// `; var code2 = `
+// `; var code2 = `
+// `; var code2 = `
+// `; var code2 = `
 var code = ` // lime marker
 
 // a: 1 1 plus
@@ -1704,7 +1734,6 @@ var code = ` // lime marker
 // b: [ name: 1 1 plus ]
 // "b is " say
 // b say
-
 addProp: {
     dup
     (10 1 plus):: "was here"
@@ -1713,6 +1742,8 @@ addProp: {
     // :obj
     // obj $someProp:: "was here"
     // obj
+    
+    // one day?
     // obj.someProp: "was here"
 }
 
@@ -1724,19 +1755,39 @@ addProp: {
     c say
 } local call
 
-`; var code2 = `
+
+say. "yo world"
+
+
+x: 1
+x 20 lt $end1 jumpelse
+"WOW" say
+#end1
+
+
+
+
+// x: 201
+x: 10
+if. x 10 is {
+    say. "x is 10"
+}
+elseif. x 20 is {
+    say. "x is 20"
+}
+else. {
+    say. "x is something else"
+}
+
+
+
+
+
+
 // If 1 1 is {
 //     "it's 1" alert
 // }
 
-"yo" say
-Say "yo"
-Say ""
-
-If 1 1 is {
-    "it's 1" alert
-    // Alert "it's 1"
-}
 
 $hi say
 person: [friend1: [name: $pete] friend2: [name: $tom]]
@@ -1823,7 +1874,6 @@ v: 1 2 plus
     :k :v
     "$k: $v" say
 }  range
-
 
 
 "yo" say
@@ -2059,6 +2109,8 @@ window $xyzzy at "xyzzy is " swap cc say
 count say
 count: 100
 count say
+
+// 
 person: [
     [score: 10]
 ]
