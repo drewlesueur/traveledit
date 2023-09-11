@@ -867,60 +867,112 @@ thumbscript4.builtIns = {
         }
         return typeof a
     }),
-    jscall: function (world) {
-        var args = world.stack.pop()
-        var funcName = world.stack.pop()
-        var ret = window[funcName](...args)
+    "new": function (world) {
+        var theClass = world.stack.pop()
+        var theArgs = world.stack.pop()
+        var ret = new (Function.prototype.bind.apply(theClass, [null].concat(theArgs)))
         world.stack.push(ret)
         return world
     },
-    jscallcb: function (world) {
+    jsapply: function(world) {
+        var f = world.stack.pop()
         var args = world.stack.pop()
-        var funcName = world.stack.pop()
-        args.push(function (err, ret) {
-            thumbscript4.outstandingCallbacks--
-            world.stack.push(ret)
-            world.stack.push(err)
-            thumbscript4.run(world)
-        })
-        window[funcName](...args)
-        thumbscript4.outstandingCallbacks++
-        return null // this suspends the execution
+        return thumbscript4.builtIns.call_js_func_args(world, f, args)
     },
-    jscallpromise: function (world) {
-        var args = world.stack.pop()
-        var funcName = world.stack.pop()
-        try {
-            var p = window[funcName](...args)
-        } catch (e) {
-            alert(funcName)
-            alert(args)
-            alert(e)
+    call_js_skipstack: function(world, f) {
+        // can't always do this because some (many) javascript functions have variable lengths
+        // see call_js_func_args
+        var args = []
+        for (var i=0; i < f.length; i++) {
+            args.unshift(world.stack.pop())
         }
-        var returned = false
-        p.then(function (r) {
-            if (!returned) {
-                try {
+        return thumbscript4.builtIns.call_js_func_args(world, f, args)
+    },
+    call_js_func_args: function(world, f, args) {
+        // var ret = f.apply(null, args)
+        var ret = f(...args)
+        if (ret && ret?.constructor == Promise) {
+            var returned = false
+            ret.then(function (r) {
+                if (!returned) {
+                    try {
+                        returned = true
+                        thumbscript4.outstandingCallbacks--
+                        world.stack.push(r)
+                        world.state.lastError = null
+                        thumbscript4.run(world)
+                    } catch (e) {
+                        alert(e)
+                    }
+                }
+            }).catch(function (err) {
+                if (!returned) {
                     returned = true
                     thumbscript4.outstandingCallbacks--
-                    world.stack.push(r)
                     world.stack.push(null)
+                    world.state.lastError = err
                     thumbscript4.run(world)
-                } catch (e) {
-                    alert(e)
                 }
-            }
-        }).catch(function (err) {
-            if (!returned) {
-                returned = true
-                thumbscript4.outstandingCallbacks--
-                world.stack.push(null)
-                world.stack.push(err)
-                thumbscript4.run(world)
-            }
-        })
-        return null // this suspends the execution
+            })
+            return null // this suspends the execution
+        }
+        world.stack.push(ret)
+        return world
     },
+    // jscall: function (world) {
+    //     var args = world.stack.pop()
+    //     var funcName = world.stack.pop()
+    //     var ret = window[funcName](...args)
+    //     world.stack.push(ret)
+    //     return world
+    // },
+    // jscallcb: function (world) {
+    //     var args = world.stack.pop()
+    //     var funcName = world.stack.pop()
+    //     args.push(function (err, ret) {
+    //         thumbscript4.outstandingCallbacks--
+    //         world.stack.push(ret)
+    //         world.stack.push(err)
+    //         thumbscript4.run(world)
+    //     })
+    //     window[funcName](...args)
+    //     thumbscript4.outstandingCallbacks++
+    //     return null // this suspends the execution
+    // },
+    // jscallpromise: function (world) {
+    //     var args = world.stack.pop()
+    //     var funcName = world.stack.pop()
+    //     try {
+    //         var p = window[funcName](...args)
+    //     } catch (e) {
+    //         alert(funcName)
+    //         alert(args)
+    //         alert(e)
+    //     }
+    //     var returned = false
+    //     p.then(function (r) {
+    //         if (!returned) {
+    //             try {
+    //                 returned = true
+    //                 thumbscript4.outstandingCallbacks--
+    //                 world.stack.push(r)
+    //                 world.stack.push(null)
+    //                 thumbscript4.run(world)
+    //             } catch (e) {
+    //                 alert(e)
+    //             }
+    //         }
+    //     }).catch(function (err) {
+    //         if (!returned) {
+    //             returned = true
+    //             thumbscript4.outstandingCallbacks--
+    //             world.stack.push(null)
+    //             world.stack.push(err)
+    //             thumbscript4.run(world)
+    //         }
+    //     })
+    //     return null // this suspends the execution
+    // },
     dyn: function(world) {
         var a = world.stack.pop()
         a.dynamic = true
@@ -1093,14 +1145,6 @@ thumbscript4.builtIns = {
             world.parent = oldWorld
             // world.cachedLookupWorld = {}
         }
-        return world
-    },
-    call_js_skipstack: function(world, f) {
-        var args = []
-        for (var i=0; i < f.length; i++) {
-            args.unshift(world.stack.pop())
-        }
-        world.stack.push(f.apply(null, args))
         return world
     },
     "dump": function(world) {
@@ -1506,13 +1550,38 @@ thumbscript4.next = function(world) {
                 }
                 break outer
             case varType:
-                var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
-                var x = w.state[token.valueString]
+                // see also set
+                var x
+                if (token.valueString.indexOf(".") != -1) {
+                    // see also the "set" builtin
+                    var parts = token.valueString.split(".")
+                    var w = thumbscript4.getWorldForKey(world, parts[0], true, false)
+                    var x = w.state[parts[0]]
+                    for (var i = 1; i < parts.length; i++) {
+                        // kinda feels backwards
+                        var prop = parts[i]
+                        if (prop.startsWith("$")) {
+                            prop = prop.slice(1)
+                            let w2 = thumbscript4.getWorldForKey(world, prop, false, false)
+                            prop = w2.state[prop]
+                        }
+                        var v = x[prop]
+                        if (typeof v == "function") {
+                            v = v.bind(x)
+                        }
+                        x = v
+                    }
+                } else {
+                    var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
+                    x = w.state[token.valueString]
+                }
+                
                 if (x && x.th_type === closureType && !token.preventCall) {
                     // newWorld = thumbscript4.builtIns.call(world)
                     newWorld = thumbscript4.builtIns.call_skipstack(world, x)
                 } else {
-                    if (typeof x === "function") {
+                    if (typeof x === "function" && !token.preventCall) {
+                        // for calling js, used
                         newWorld = thumbscript4.builtIns.call_js_skipstack(world, x)
                     } else {
                         world.stack.push(x)
@@ -1755,7 +1824,21 @@ log2(thumbscript4.tokenize(`
 //     [score: 10]
 // ]
 // person.friend1.name: "Peterio"
-// `, true))
+// alert. str.length
+`, true))
+
+function promiseCheck(name) {
+    return new Promise(function (res, rej) {
+        setTimeout(function () {
+            if (name == "Drew") {
+                rej("rejected")
+            } else {
+                res("hello " + name)
+            }
+        }, 10)
+    })
+}
+window.promiseCheck = promiseCheck
 
 window.xyzzy = 0
 // `; var code2 = `
@@ -1764,6 +1847,15 @@ window.xyzzy = 0
 // `; var code2 = `
 // `; var code2 = `
 var code = ` // lime marker
+
+str: "some random string"
+// alert. str.length
+// alert. [0 5] str.slice
+// ["2020-01-02"] ~Date new say
+["2020-01-02"] ~Date new say
+"Drew" promiseCheck :v
+say. lastError
+say. v
 
 person: [friend1: [name: $pete] friend2: [name: $tom]]
 person.friend1.name: "Peterio"
@@ -1775,6 +1867,17 @@ person say
 key: $friend2
 "Retom" :person.$key.name
 person say
+
+
+funcs: [
+    sayHi: {
+        say. "Hi!"
+    }
+]
+
+funcs.sayHi
+
+
 
 // a: 1 1 plus
 // "a is $a" say
