@@ -254,18 +254,18 @@ thumbscript4.tokenize = function(code, debug) {
                 addToken(currentToken)
                 currentToken = ""
                 state = "out"
-                
+
                 if (classicCallSugar && " ".indexOf(chr) != -1 && addedToken[addedToken.length-1] == ".") { // red marker
                     let tokenName = addedToken.slice(0, -1)
                     tokens.pop()
-                    
+
                     // for if else chain?
                     if (addClosingParensOnNewLine) {
                         // close out the previous one if you start a new one
                         addToken(")") // addedClosingParen pink marker
                         addClosingParensOnNewLine = false
                     }
-                    
+
                     addToken(tokenName)
                     addToken("<>")
                     addToken("(")
@@ -636,6 +636,7 @@ thumbscript4.eval = function(code, state) {
         log: [], // for concenience
     }
     world.global = world
+    world.asyncGlobal = world
 
     thumbscript4.run(world)
     return world
@@ -686,12 +687,21 @@ thumbscript4.run = function(world) {
     if (world.global.stopped) {
         return
     }
+
+    // for async
+    for (let w = world; w != null; w = w.dynParent) {
+        if (w.stopped) {
+            return
+        }
+    }
+
     if (thumbscript4.async) {
         setTimeout(function () {
             thumbscript4.runAsync(world)
         }, 0)
         return
     }
+
     // var oldPreventRender = preventRender
     // preventRender = true
     while (true) {
@@ -713,6 +723,13 @@ thumbscript4.runAsync = function(world) {
     if (world.global.stopped) {
         return
     }
+    // for async
+    for (let w = world; w != null; w = w.dynParent) {
+        if (w.stopped) {
+            return
+        }
+    }
+
     // TODO: rendering was really slow for rendering with log2
     // var oldPreventRender = preventRender
     // preventRender = true
@@ -1005,7 +1022,7 @@ thumbscript4.builtIns = {
         var b = world.stack.pop()
 
         // foo.bar.baz: "yo!"
-        
+
         if (a && a.indexOf && a.indexOf(".") != -1) {
             var parts = a.split(".")
             var w = thumbscript4.getWorldForKey(world, parts[0], true, true)
@@ -1092,6 +1109,7 @@ thumbscript4.builtIns = {
             indent: world.indent + 1,
             // cachedLookupWorld: {},
             global: f.world.global,
+            asyncGlobal: f.world.asyncGlobal,
             local: f.local,
         }
         for (var i=0; i<n; i++) {
@@ -1099,6 +1117,60 @@ thumbscript4.builtIns = {
             thumbscript4.run(newWorld)
             newWorld.i = 0
         }
+        return world
+    },
+    wait: function (world) {
+        var asyncWorld = world.stack.pop()
+        // alert(asyncWorld.i + " " + asyncWorld.tokens.length)
+        asyncWorld.onEnd = function () {
+            for (let item of asyncWorld.stack) {
+                world.stack.push(item)
+            }
+            thumbscript4.run(world)
+        }
+        return null
+    },
+    cancel: function (world) {
+        var asyncWorld = world.stack.pop()
+        log2("    js: canceling " + asyncWorld.runId)
+        if (!asyncWorld.stopped) {
+            asyncWorld.stopped = true
+            // if we don't call now we'd have to wait for next callback
+            if (asyncWorld.onEnd) {
+                asyncWorld.onEnd(asyncWorld)
+            }
+        }
+        return world
+    },
+    go: function (world) {
+        var f = world.stack.pop()
+        // see call_skipstack
+        var asyncWorld = {
+            parent: f.world,
+            state: {},
+            // stack: [], // brand new stack
+            stack: [...world.stack], // copied stack
+            tokens: f.tokens,
+            i: 0,
+            dynParent: null,
+            asyncParent: world,
+            runId: ++thumbscript4.runId,
+            indent: world.indent + 1,
+            // cachedLookupWorld: {},
+            global: f.world.global,
+            asyncGlobal: f.world.asyncGlobal,
+            local: f.local,
+        }
+
+        if (f.dynamic) {
+            asyncWorld.parent = world
+            // asyncWorld.cachedLookupWorld = {}
+        }
+        setTimeout(function () {
+            thumbscript4.run(asyncWorld)
+        }, 1)
+        world.stack.push(asyncWorld)
+        // returning the original world
         return world
     },
     call: function(world) {
@@ -1120,6 +1192,7 @@ thumbscript4.builtIns = {
         // world.indent = oldWorld.indent + 1
         // // world.cachedLookupWorld = {}
         // world.global = f.world.global
+        // world.asyncGlobal: f.world.asyncGlobal,
         // world.local = f.local
         //
         // world.log = null
@@ -1138,6 +1211,7 @@ thumbscript4.builtIns = {
             indent: oldWorld.indent + 1,
             // cachedLookupWorld: {},
             global: f.world.global,
+            asyncGlobal: f.world.asyncGlobal,
             local: f.local,
         }
 
@@ -1447,10 +1521,10 @@ thumbscript4.next = function(world) {
             return false
         }
         if (world.i >= world.tokens.length) {
+            if (world.onEnd) {
+                world.onEnd(world)
+            }
             if (world.dynParent) {
-                if (world.onEnd) {
-                    world.onEnd(world)
-                }
                 var rWorld = world
                 world = world.dynParent
                 thumbscript4.recycle(rWorld)
@@ -1496,6 +1570,7 @@ thumbscript4.next = function(world) {
                     cachedLookupWorld: {},
                     local: true,
                     global: world.global,
+                    asyncGlobal: world.asyncGlobal,
                 }
                 break outer
             case curlyType:
@@ -1536,6 +1611,7 @@ thumbscript4.next = function(world) {
                     runId: ++thumbscript4.runId,
                     cachedLookupWorld: {},
                     global: world.global,
+                    asyncGlobal: world.asyncGlobal,
                 }
                 break outer
             case builtInType:
@@ -1575,7 +1651,7 @@ thumbscript4.next = function(world) {
                     var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
                     x = w.state[token.valueString]
                 }
-                
+
                 if (x && x.th_type === closureType && !token.preventCall) {
                     // newWorld = thumbscript4.builtIns.call(world)
                     newWorld = thumbscript4.builtIns.call_skipstack(world, x)
@@ -1640,6 +1716,27 @@ thumbscript4.stdlib = `
             i •plus 2 :i
             repeat
         } call
+    }
+    // like range but just value
+    each: •local {
+        :block :list
+
+        list typename "object" is {
+            list :obj
+            obj keys :theKeys
+            theKeys length :theMax
+            theMax {
+                theKeys swap at :key
+                obj key at :value
+                value block
+            } loopn
+            continuep
+        } ?
+
+        list length :theMax
+        theMax {
+            :i list •at i block
+        } loopn
     }
     range: •local {
         :block :list
@@ -1752,7 +1849,7 @@ thumbscript4.stdlib = `
             prefix len undefined str slice
             continuep
         } ?
-        
+
         // if. str 0 prefix len slice prefix is {
         //     prefix len undefined str slice
         //     continuep
@@ -1812,8 +1909,8 @@ thumbscript4.stdlib = `
 //     c: [
 //         name: 1 1 plus
 //     ] addProp
-//     
-//     
+//
+//
 // `, true))
 
 log2(thumbscript4.tokenize(`
@@ -1848,6 +1945,44 @@ window.xyzzy = 0
 // `; var code2 = `
 var code = ` // lime marker
 
+`; var code2 = `
+// 
+
+10 {
+    :i
+    // "the i is $i" say
+    1 sleep
+    
+    i2: i
+    {
+         "the i is $i2" say
+    } go
+} loopn
+
+
+{
+    f: {
+        500 sleepms
+        "we slept" say
+    } go
+    "Waiting" say
+    
+    {
+        100 sleepms
+        "canceling" say
+        f cancel
+    } go
+
+    f wait
+    "waited!" say
+} call
+
+"hmm..." say
+
+
+
+
+
 str: "some random string"
 // alert. str.length
 // alert. [0 5] str.slice
@@ -1867,6 +2002,12 @@ person say
 key: $friend2
 "Retom" :person.$key.name
 person say
+
+
+
+
+
+
 
 
 funcs: [
@@ -1890,12 +2031,12 @@ funcs.sayHi
 addProp: {
     dup
     (10 1 plus):: "was here"
-    
+
     // alternatively
     // :obj
     // obj $someProp:: "was here"
     // obj
-    
+
     // one day?
     // obj.someProp: "was here"
 }
@@ -1942,11 +2083,11 @@ else. {
 
 
 // ifelse. {
-// 
-// } 
-// 
+//
+// }
+//
 // cases. [
-// 
+//
 // ]
 // x
 
@@ -2284,7 +2425,7 @@ count say
 count: 100
 count say
 
-// 
+//
 person: [
     [score: 10]
 ]
