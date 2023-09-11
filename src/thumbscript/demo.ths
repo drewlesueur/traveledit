@@ -16,57 +16,39 @@
 //     "waited!" say
 // } call
 
-
 waitn: {
     :futures
     gotOne: 0
     futures {
         :i99 :w
-        // continue
         {
-            // w $tokens at tojsonpretty say
+            // :i99 :w
+            // w00: w
+            // w00 $runId at "looping runid: " swap cc say
+            // w00 wait
+            
+            
             w $runId at "looping runid: " swap cc say
             w wait
-            // w $stopped at :stopped
-            // "yay we waited for $i99 and $stopped" say
-
-            gotOne { breakp } ?
             
+            // gotOne { breakp } ?
+            gotOne { continuep } ?
             1 :gotOne
             futures {
-                // {
-                    // dup
-                    // $runId at "    canceling run id: " swap cc say
-                    // cancel
-                    
-                    :w99
-                    w99 $runId at "    cancelling run id: " swap cc say
-                    w99 cancel
-                // } go drop // this makes it work! but why?
-                // } call
+                // dup
+                // $runId at "    canceling run id: " swap cc say
+                // cancel
+                :w99
+                w99 $runId at "    cancelling run id: " swap cc say
+                w99 cancel
             } local each
-
-            // if. stopped 1 is {
-            //     breakp
-            // }
-            // "we waited for $i" say
-            // futures { :w2
-            //     w3: w2
-            //     w3 $runId at say
-            //     w3 cancel
-            // } local each
-            // futures { cancel } each
+        // } local go drop
         } go drop
     } local range
-    // {
-    //     futures {
-    //         $runId at "run id: " swap cc say
-    //     } local each
-    // } go drop
 } local
 
 futures: []
-10 {
+3 {
     // :i i :i2
     // "the i is $i" say
     :i
@@ -77,50 +59,3 @@ futures: []
     } go futures push
 } local loopn
 futures waitn
-
-// futures {
-//     $tokens at tojsonpretty say
-// } each
-
-
-test1: {
-    :list
-    list {
-        {
-            "value is " swap cc say
-            list {
-                "yea, the value was " swap cc say
-            } each
-        } go drop
-    } each
-}
-
-test2: {
-    :list
-    list {
-        :v 
-        {
-            v "value is " swap cc say
-            list {
-                :v2
-                v2 "    yea, the value was " swap cc say
-            } each
-        } go drop
-    } each
-}
-test3: {
-    :futures
-    futures {
-        :i99 :w
-        {
-            w "value is " swap cc say
-            futures {
-                :w99
-                w99 "    yea, " swap cc say
-            } local each
-        } go drop
-    } local range
-} local
-
-// [$drew $cristina $marley $preston] test2
-// [$drew $cristina $marley $preston] test3

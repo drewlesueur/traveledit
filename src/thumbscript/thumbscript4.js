@@ -838,7 +838,12 @@ thumbscript4.builtIns = {
     ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
     // at: thumbscript4.genFunc2((a, b) => a[b]),
     at: thumbscript4.genFunc2((a, b) => {
-        var ret = a[b]
+        // try {
+            var ret = a[b]
+        // } catch (e) {
+        //     alert(a)
+        //     return
+        // }
         // js hack.
         if (typeof ret == "function") {
             ret = ret.bind(a)
@@ -1132,7 +1137,6 @@ thumbscript4.builtIns = {
     },
     cancel: function (world) {
         var asyncWorld = world.stack.pop()
-        log2("    js: canceling " + asyncWorld.runId)
         if (!asyncWorld.stopped) {
             asyncWorld.stopped = true
             // if we don't call now we'd have to wait for next callback
