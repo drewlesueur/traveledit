@@ -22,15 +22,8 @@ waitn: {
     futures {
         :i99 :w
         {
-            // :i99 :w
-            // w00: w
-            // w00 $runId at "looping runid: " swap cc say
-            // w00 wait
-            
-            
             w $runId at "looping runid: " swap cc say
             w wait
-            
             // gotOne { breakp } ?
             gotOne { continuep } ?
             1 :gotOne
@@ -42,7 +35,6 @@ waitn: {
                 w99 $runId at "    cancelling run id: " swap cc say
                 w99 cancel
             } local each
-        // } local go drop
         } go drop
     } local range
 } local
@@ -59,3 +51,15 @@ futures: []
     } go futures push
 } local loopn
 futures waitn
+
+
+xyz: plus. 3 minus. 10 2
+say. xyz
+
+say. plus. 2 3
+say. ""
+say. ""
+
+
+
+

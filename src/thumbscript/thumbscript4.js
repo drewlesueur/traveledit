@@ -25,8 +25,9 @@ J = j
 
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code, debug) {
-    var leftAssignSugar = true
-    var classicCallSugar = true
+    var leftAssignSugar = true // count: count 1 plus
+    var classicCallSugar = true // say. "hello world"
+    var parensCallSugar = true // str slice(2 3)
     var freshLine = true
     var currentTokenOnFreshLine = true
     var state = "out"
@@ -35,7 +36,7 @@ thumbscript4.tokenize = function(code, debug) {
     var string2OpenCount = 0
     var quoteNext = false
     var addClosingParensStack = []
-    var addClosingParensOnNewLine = false
+    var addClosingParensOnNewLine = 0
     code += "\n" // to simplify last token
     var addToken = function(token) {
         if (quoteNext) {
@@ -141,7 +142,7 @@ thumbscript4.tokenize = function(code, debug) {
                     if ("([{".indexOf(chr) != -1) {
                         freshLine = false // orange marker
                         addClosingParensStack.push(addClosingParensOnNewLine)
-                        addClosingParensOnNewLine = false
+                        addClosingParensOnNewLine = 0
                     } else if (")]}".indexOf(chr) != -1) {
                         addClosingParensOnNewLine = addClosingParensStack.pop()
                     }
@@ -161,7 +162,7 @@ thumbscript4.tokenize = function(code, debug) {
                     // not checking fresh line
                     if (leftAssignSugar) {
                         addToken("(") // addLeftParen
-                        addClosingParensOnNewLine = true
+                        addClosingParensOnNewLine++
                     }
                 } else if ("[".indexOf(nextChar) != -1) {
                      // 500 :[foo bar]
@@ -174,7 +175,7 @@ thumbscript4.tokenize = function(code, debug) {
                         addToken("<<-")
                         if (leftAssignSugar) {
                             addToken("(")
-                            addClosingParensOnNewLine = true
+                            addClosingParensOnNewLine++
                         }
                     } else {
                         i++
@@ -190,8 +191,10 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
                 if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
-                    addToken(")") // addedClosingParen pink marker
-                    addClosingParensOnNewLine = false
+                    for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                        addToken(")") // addedClosingParen pink marker
+                    }
+                    addClosingParensOnNewLine = 0
                 }
                 if (leftAssignSugar && "\n".indexOf(chr) != -1) {
                     freshLine = true
@@ -224,7 +227,7 @@ thumbscript4.tokenize = function(code, debug) {
                     if ("([{".indexOf(chr) != -1) {
                         freshLine = false // orange marker
                         addClosingParensStack.push(addClosingParensOnNewLine)
-                        addClosingParensOnNewLine = false
+                        addClosingParensOnNewLine = 0
                     } else if (")]}".indexOf(chr) != -1) {
                         addClosingParensOnNewLine = addClosingParensStack.pop()
                     }
@@ -237,14 +240,14 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("<<-")
                     if (leftAssignSugar) {
                         addToken("(") // addLeftParen
-                        addClosingParensOnNewLine = true
+                        addClosingParensOnNewLine++
                     }
                 } else {
                     addToken("$" + currentToken)
                     addToken("1<-")
                     if (leftAssignSugar && tokens[tokens.length - 2]?.onFreshLine) {
                         addToken("(") // addLeftParen
-                        addClosingParensOnNewLine = true
+                        addClosingParensOnNewLine++
                     }
                 }
                 currentToken = ""
@@ -260,24 +263,28 @@ thumbscript4.tokenize = function(code, debug) {
                     tokens.pop()
 
                     // for if else chain?
-                    if (addClosingParensOnNewLine) {
-                        // close out the previous one if you start a new one
-                        addToken(")") // addedClosingParen pink marker
-                        addClosingParensOnNewLine = false
-                    }
+                    // if (addClosingParensOnNewLine) {
+                    //     // close out the previous one if you start a new one
+                    //     addToken(")") // addedClosingParen pink marker
+                    //     addClosingParensOnNewLine = false
+                    // }
 
                     addToken(tokenName)
                     addToken("<>")
                     addToken("(")
-                    addClosingParensOnNewLine = true
+                    addClosingParensOnNewLine++
                 } else if (classicCallSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
-                    addToken(")") // addedClosingParen pink marker
-                    addClosingParensOnNewLine = false
+                    for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                        addToken(")") // addedClosingParen pink marker
+                    }
+                    addClosingParensOnNewLine = 0
                 }
 
                 if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
-                    addToken(")") // addedClosingParen pink marker
-                    addClosingParensOnNewLine = false
+                    for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                        addToken(")") // addedClosingParen pink marker
+                    }
+                    addClosingParensOnNewLine = 0
                 }
                 if (leftAssignSugar && "\n".indexOf(chr) != -1) {
                     freshLine = true
@@ -583,6 +590,7 @@ thumbscript4.squishFuncs = function(tokens) {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
+                name: "{block}",
                 th_type: curlyType,
                 valueArr: thumbscript4.desugar(r),
             })
@@ -590,6 +598,7 @@ thumbscript4.squishFuncs = function(tokens) {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
+                name: "[obj]",
                 th_type: squareType,
                 valueArr: thumbscript4.desugar(r),
             })
@@ -597,6 +606,7 @@ thumbscript4.squishFuncs = function(tokens) {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
+                name: "(parens)",
                 th_type: parenType,
                 valueArr: thumbscript4.desugar(r),
             })
@@ -710,6 +720,7 @@ thumbscript4.run = function(world) {
             return world
         }
         world = newWorld
+        
         // log2("\t".repeat(world.indent) + "// stack: " + JSON.stringify(world.stack))
         // if (world.name) {
         //     log2("\t".repeat(world.indent) + "+ in world " + world.name + "(" +world.runId+") < " + (world.parent?.name || "") )
@@ -869,11 +880,15 @@ thumbscript4.builtIns = {
     trim: thumbscript4.genFunc1((a) => a.trim()),
     indexof: thumbscript4.genFunc2((a, b) => a.indexOf(b)),
     contains: thumbscript4.genFunc2((a, b) => a.indexOf(b) !== -1),
+    replace: thumbscript4.genFunc3((a, b, c) => a.replaceAll(b, c)),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
     haskey: thumbscript4.genFunc2((a, b) => Object.hasOwn(a, b)),
+    newobj: thumbscript4.genFunc0(() => {
+        return {}
+    }),
     keys: thumbscript4.genFunc1((a) => Object.keys(a)),
     copylist: thumbscript4.genFunc1((a) => [...a]),
     typename: thumbscript4.genFunc1((a) => {
@@ -1539,6 +1554,7 @@ thumbscript4.next = function(world) {
         }
         var token = world.tokens[world.i]
         // logging token to debug
+        // log2("+" + (token.valueString || token.name || token.valueNumber + "" || "???").replaceAll("\n", "-")?.substr(0, 50))
         // log2("\t".repeat(world.indent) + "// token: " + thumbscript4.displayToken(token)) // lime marker
         // log2("\t".repeat(world.indent) + "// stack length: " + world.stack.length)
 
@@ -1860,6 +1876,12 @@ thumbscript4.stdlib = `
         // }
         str
     }
+    ifelse: •local {
+        :theElse
+        :theThen
+        :toCheck
+        toCheck ~theThen ~theElse cond call
+    }
     // jumpelse: {
     //     :loc
     //     :what
@@ -1926,6 +1948,8 @@ log2(thumbscript4.tokenize(`
 // ]
 // person.friend1.name: "Peterio"
 // alert. str.length
+// alert. trim. " yo "
+x plus(2) 
 `, true))
 
 function promiseCheck(name) {
@@ -1949,6 +1973,7 @@ window.xyzzy = 0
 // `; var code2 = `
 var code = ` // lime marker
 
+// alert. plus. 2 3
 `; var code2 = `
 // 
 
@@ -2009,8 +2034,11 @@ person say
 
 
 
+// x plus(2) 
+// "why hello" slice(0 3) say
 
 
+// if. x @lt 20
 
 
 
