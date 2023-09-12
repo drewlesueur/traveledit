@@ -232,6 +232,15 @@ thumbscript4.tokenize = function(code, debug) {
                         addClosingParensOnNewLine = addClosingParensStack.pop()
                     }
                 }
+                if (parensCallSugar && "(".indexOf(chr) != -1) {
+                    let leftParen = tokens.pop()
+                    let t = tokens.pop()
+                    // TODO: make constant
+                    var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                    tokens.push(dotToken)
+                    tokens.push(t)
+                    tokens.push(leftParen)
+                }
             } else if (":".indexOf(chr) != -1) {
                 var nextChar = code.charAt(i+1)
                 if (":".indexOf(nextChar) != -1) {
@@ -1949,7 +1958,13 @@ log2(thumbscript4.tokenize(`
 // person.friend1.name: "Peterio"
 // alert. str.length
 // alert. trim. " yo "
-x plus(2) 
+// x plus(2) 
+
+// cases [
+// ]
+
+
+
 `, true))
 
 function promiseCheck(name) {
@@ -1974,42 +1989,21 @@ window.xyzzy = 0
 var code = ` // lime marker
 
 // alert. plus. 2 3
-`; var code2 = `
 // 
 
-10 {
-    :i
-    // "the i is $i" say
-    1 sleep
-    
-    i2: i
-    {
-         "the i is $i2" say
-    } go
-} loopn
 
+say. plus. 1 2
+abc: plus. 100 1
+say. "abc is $abc"
 
-{
-    f: {
-        500 sleepms
-        "we slept" say
-    } go
-    "Waiting" say
-    
-    {
-        100 sleepms
-        "canceling" say
-        f cancel
-    } go
+"abcdefg" slice(0 3) "sliced: " swap cc say
 
-    f wait
-    "waited!" say
-} call
+say. cc. "sliced: " "abcdefg" slice(0 3) 
 
-"hmm..." say
-
-
-
+x: 3
+if. x is(3) {
+    say. "wow x is 3"
+}
 
 
 str: "some random string"
@@ -2094,14 +2088,19 @@ x 20 lt $end1 jumpelse
 
 
 // x: 201
-x: 10
-if. "yo1" say x 10 is {
-    say. "x is 10"
-} elseif. "yo2" say x 20 is {
-    say. "x is 20"
-} else. {
-    say. "x is something else"
-}
+// x: 10
+// if. "yo1" say x 10 is {
+//     say. "x is 10"
+// } elseif. "yo2" say x 20 is {
+//     say. "x is 20"
+// } else. {
+//     say. "x is something else"
+// }
+
+// if. x is(1) {
+// 
+// } else. 
+
 
 if. x 10 is {
     say. "x is 10"
