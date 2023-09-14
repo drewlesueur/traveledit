@@ -22,15 +22,8 @@ waitn: {
     futures {
         :i99 :w
         {
-            // :i99 :w
-            // w00: w
-            // w00 $runId at "looping runid: " swap cc say
-            // w00 wait
-            
-            
             w $runId at "looping runid: " swap cc say
             w wait
-            
             // TODO: need to fix break for async
             // you shouldn't break out of async functions, it should stop at the async function
             // gotOne { breakp } ?
@@ -44,7 +37,6 @@ waitn: {
                 w99 $runId at "    cancelling run id: " swap cc say
                 w99 cancel
             } local each
-        // } local go drop
         } go drop
     } local range
 } local
@@ -94,8 +86,21 @@ testFutures test1
 
 test2: {
     {
-        "async" say
-    } go drop
-}
+         //  rand sleepms
+         500 rand sleepms
+         "the i is $i" say
+    } go futures push
+} local loopn
+futures waitn
 
-// test2
+
+xyz: plus. 3 minus. 10 2
+say. xyz
+
+say. plus. 2 3
+say. ""
+say. ""
+
+
+
+
