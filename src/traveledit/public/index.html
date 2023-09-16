@@ -2885,6 +2885,7 @@ function prevHighlightText() {
     searchText.value = prevSearchText
 }
 
+var lastFindWasHighlightText = false
 function findDown(searchDir, wrap, startTop) {
     lastAction = "move"
     shouldAutocompleteLine = false
@@ -2904,7 +2905,7 @@ function findDown(searchDir, wrap, startTop) {
         if (fx.selectedRegions.length) {
             searchText.value = getSelectedLines(fx, false, true).lines[0]
             return
-        } else if (searchText.value == "") {
+        } else if (searchText.value == "" && !lastFindWasHighlightText) {
             searchText.value = getWordAtCursor().word
             if (searchText.value) {
                 return
@@ -2915,6 +2916,7 @@ function findDown(searchDir, wrap, startTop) {
             // return
             // navForward()
             nextHighlightText()
+            lastFindWasHighlightText = true
             return
             // searchText.value = " mar"+"ker"
         }
@@ -3012,19 +3014,20 @@ function findUp() {
         searchText.value = getSelectedLines(fx, false, true).lines[0]
         return
     }
-    if (searchText.value == "") {
+    if (searchText.value == "" && !lastFindWasHighlightText) {
         searchText.value = getWordAtCursor().word
         if (searchText.value) {
             return
         }
-        if (searchText.value == "") {
-            // prevHighlightRange()
-            // return
-            // navBack()
-            prevHighlightText()
-            return
-            // searchText.value = " mar"+"ker"
-        }
+    }
+    if (searchText.value == "") {
+        // prevHighlightRange()
+        // return
+        // navBack()
+        prevHighlightText()
+        lastFindWasHighlightText = true
+        return
+        // searchText.value = " mar"+"ker"
     }
     for (var i=fx.cursorLineIndex; i>=0; i--) {
         var lineToSearch = fx.lines[i]
@@ -3079,6 +3082,7 @@ function findUp() {
     return false
 }
 function clearSearch() {
+    lastFindWasHighlightText = false
     searchText.value = ""
     render()
 }

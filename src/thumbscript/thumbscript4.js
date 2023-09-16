@@ -1308,15 +1308,8 @@ thumbscript4.builtIns = {
         return w
     },
     "return": function(world) {
-        // basically same as continue?
-        // you could just go to end of tokens ?
-        // world = world.dynParent
-        if (world.onEnd) world.onEnd(world)
-        // TODO: other places need onend too
-        var rWorld = world
-        world = world.dynParent
-        thumbscript4.recycle(rWorld)
-        // todo: see onend
+        // same as return, but I like better
+        world.i = world.tokens.length
         return world
     },
     "continue": function(world) {
