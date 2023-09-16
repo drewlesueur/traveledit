@@ -26,8 +26,10 @@ J = j
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true // count: count 1 plus
-    var classicCallSugar = true // say. "hello world"
+    var funcFirstWithDotSugar = true // say. "hello world"
+    var funcFirstSugar = true // say "hello world"
     var parensCallSugar = true // str slice(2 3)
+    
     var freshLine = true
     var currentTokenOnFreshLine = true
     var state = "out"
@@ -121,6 +123,7 @@ thumbscript4.tokenize = function(code, debug) {
                 }
             } else {
                 token = {th_type: varType, valueString: token, preventCall: preventCall}
+                token.isFunc = Object.hasOwn(thumbscript4.knownFuncs, token.valueString)
             }
         } else if (typeof token == "number") {
             token = {th_type: numberType, valueNumber: token}
@@ -266,8 +269,21 @@ thumbscript4.tokenize = function(code, debug) {
                 addToken(currentToken)
                 currentToken = ""
                 state = "out"
+                
+                
+                if (funcFirstSugar && " ".indexOf(chr) != -1 && tokens[tokens.length-1]?.onFreshLine && (tokens[tokens.length-1]?.th_type == builtInType || tokens[tokens.length-1]?.isFunc)) { // red marker
+                    addToken("<>")
+                    addToken("(")
+                    addClosingParensOnNewLine++
+                } else if (funcFirstSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                    for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                        addToken(")") // addedClosingParen pink marker
+                    }
+                    addClosingParensOnNewLine = 0
+                }
+                
 
-                if (classicCallSugar && " ".indexOf(chr) != -1 && addedToken[addedToken.length-1] == ".") { // red marker
+                if (funcFirstWithDotSugar && " ".indexOf(chr) != -1 && addedToken[addedToken.length-1] == ".") { // red marker
                     let tokenName = addedToken.slice(0, -1)
                     tokens.pop()
 
@@ -282,7 +298,7 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine++
-                } else if (classicCallSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                } else if (funcFirstWithDotSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
                     for (let i = 0; i < addClosingParensOnNewLine; i++) {
                         addToken(")") // addedClosingParen pink marker
                     }
@@ -859,14 +875,17 @@ thumbscript4.builtIns = {
     // at: thumbscript4.genFunc2((a, b) => a[b]),
     at: thumbscript4.genFunc2((a, b) => {
         // try {
-            var ret = a[b]
+            var ret = a && a[b]
+            // var ret = a[b]
         // } catch (e) {
         //     alert(a)
         //     return
         // }
         // js hack.
         if (typeof ret == "function") {
+            var ts = ret.toString.bind(ret)
             ret = ret.bind(a)
+            ret.toString = ts
         }
         return ret
     }),
@@ -1493,6 +1512,13 @@ thumbscript4.builtIns = {
         thumbscript4.outstandingCallbacks++
         return null // lol
     },
+    assertempty: function(world) {
+        if (world.stack.length) {
+            log2("-stack is not empty")
+            log2(world.stack)
+            return world
+        }
+    }
 }
 thumbscript4.builtIns["if"] = thumbscript4.builtIns["?"]
 thumbscript4.builtIns["elseif"] = thumbscript4.builtIns["??"]
@@ -1648,7 +1674,7 @@ thumbscript4.next = function(world) {
                 }
                 break outer
             case varType:
-                // see also set
+                // see also set and at
                 var x
                 if (token.valueString.indexOf(".") != -1) {
                     // see also the "set" builtin
@@ -1663,11 +1689,15 @@ thumbscript4.next = function(world) {
                             let w2 = thumbscript4.getWorldForKey(world, prop, false, false)
                             prop = w2.state[prop]
                         }
-                        var v = x[prop]
-                        if (typeof v == "function") {
-                            v = v.bind(x)
+                        if (x) {
+                            var v = x[prop]
+                            if (typeof v == "function") {
+                                var ts = v.toString.bind(v)
+                                v = v.bind(x)
+                                v.toString = ts
+                            }
+                            x = v
                         }
-                        x = v
                     }
                 } else {
                     var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
@@ -1770,7 +1800,7 @@ thumbscript4.stdlib = `
             theMax {
                 theKeys swap at :key
                 obj key at :value
-                value key block
+                ~value key block
             } loopn
             continuep
         } ?
@@ -1830,13 +1860,13 @@ thumbscript4.stdlib = `
     and: •local {
         :b :a
         a :firstValue
-        firstValue not { firstValue 2 continuen } ?
+        ~firstValue not { ~firstValue continuep } ?
         b
     }
     or: •local {
         :b :a
         a :firstValue
-        firstValue { firstValue 2 continuen } ?
+        ~firstValue { ~firstValue continuep } ?
         b
     }
     loop: •local {
@@ -1892,6 +1922,16 @@ thumbscript4.stdlib = `
     //     } ?
     // } dyn local
 `
+thumbscript4.knownFuncs = {}
+thumbscript4.stdlib.split("\n").forEach(function (line) {
+    var m = line.match(/^    (\w+): /)
+    if (m) {
+        thumbscript4.knownFuncs[m[1]] = true
+    }
+    delete thumbscript4.knownFuncs["swap"]
+    delete thumbscript4.knownFuncs["drop"]
+    delete thumbscript4.knownFuncs["dup"]
+})
 
 
 // idea macros?
@@ -1956,8 +1996,8 @@ log2(thumbscript4.tokenize(`
 // cases [
 // ]
 
-
-
+// bob/2: yo
+walrus
 `, true))
 
 function promiseCheck(name) {
@@ -1973,13 +2013,67 @@ function promiseCheck(name) {
 }
 window.promiseCheck = promiseCheck
 
-window.xyzzy = 0
+window.xyzzy = 123
+
+window.gulp = {
+    yo: function () {
+        alert("yo")
+    },
+    yo2: function () {
+        alert("yo2")
+    },
+    yo3: null,
+    yo4: {}
+}
 // `; var code2 = `
 // `; var code2 = `
 // `; var code2 = `
 // `; var code2 = `
 // `; var code2 = `
 var code = ` // lime marker
+window $xyzzy at "xyzzy is " swap cc say
+
+say "hello"
+"hello" say
+loopn 10 {
+    say
+}
+if 1 1 is {
+    say "it's 1"
+}
+// window.gulp {
+window {
+    :k :v
+    say. ""
+    say. k
+    
+    
+    // {~v} •and {~v.toString} {
+    ~v.toString {
+        source: v.toString
+        // if source contains("native code") {
+        // }
+    } ?
+    {
+        say. $nopers
+    } ?;
+} range
+
+exit
+
+window {
+    :k :v
+    // k say
+    // sleepms(300)
+    
+    // ~v.toString
+    // { ~v } and({ ~v.toString }) {
+    ~v.toString {
+       ~v.toString say
+       k say
+    } ?
+} range
+exit
 
 // alert. plus. 2 3
 // 

@@ -16,6 +16,38 @@
 //     "waited!" say
 // } call
 
+// alert. window
+// alert. Object.keys. window
+// window {
+//     :k :v
+//     log2(~k)
+// } range
+
+
+// alert(window.updateLineFile.toString())
+// alert(updateLineFile.toString())
+
+
+// for (let key of Object.keys(window)) {
+// 
+// }
+window {
+    :k :v
+    // k say
+    // sleepms(300)
+    { ~v } and({ ~v.toString }) {
+       funcCode: v.toString 
+       k say
+       funcCode say
+    } ?
+} range
+
+// alert. updateLineFile.toString()
+
+
+exit
+
+
 waitn: {
     :futures
     gotOne: 0
@@ -58,40 +90,6 @@ futureTest: {
 }
 futureTest
 
-test1: {
-    :futures
-    gotOne: 0
-    futures {
-        :w
-        {
-            w $runId at "looping runid: " swap cc say
-            // break
-            continue
-            // gotOne { breakp } ?
-            // gotOne { continuep } ?
-            1 :gotOne
-            w $runId at "looping runid (2): " swap cc say
-        // } local go drop
-        } go drop
-    } local each
-} local
-
-testFutures: [
-    [runId: 100]
-    [runId: 200]
-    [runId: 300]
-]
-
-testFutures test1
-
-test2: {
-    {
-         //  rand sleepms
-         500 rand sleepms
-         "the i is $i" say
-    } go futures push
-} local loopn
-futures waitn
 
 
 xyz: plus. 3 minus. 10 2
