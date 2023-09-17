@@ -21,7 +21,6 @@ const interpolateType = 11;
 function j(x) {
     return JSON.stringify(x, null, "    ")
 }
-J = j
 
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code, debug) {
@@ -172,8 +171,15 @@ thumbscript4.tokenize = function(code, debug) {
                         addClosingParensOnNewLine++
                     }
                 } else if ("[".indexOf(nextChar) != -1) {
-                     // 500 :[foo bar]
-                     addToken("->")
+                    // 500 :[foo bar]
+                    if (addClosingParensOnNewLine) {
+                        // TODO: this is copy-pasted
+                        for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                            addToken(")") // addedClosingParen pink marker
+                        }
+                        addClosingParensOnNewLine = 0
+                    }
+                    addToken("->")
                 } else if (":".indexOf(nextChar) != -1) {
                     var nextNextChar = code.charAt(i+2)
                     if (" \n\t".indexOf(nextNextChar) != -1) {
@@ -187,10 +193,24 @@ thumbscript4.tokenize = function(code, debug) {
                         }
                     } else {
                         i++
+                        // TODO: this is copy-pasted
+                        if (addClosingParensOnNewLine) {
+                            for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                                addToken(")") // addedClosingParen pink marker
+                            }
+                            addClosingParensOnNewLine = 0
+                        }
                         addToken("->>")
                     }
                 } else {
                      // 500 :baz
+                    // TODO: this is copy-pasted
+                    if (addClosingParensOnNewLine) {
+                        for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                            addToken(")") // addedClosingParen pink marker
+                        }
+                        addClosingParensOnNewLine = 0
+                    }
                     addToken("->1")
                     quoteNext = true
 
@@ -198,7 +218,10 @@ thumbscript4.tokenize = function(code, debug) {
                 currentToken = ""
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
+                // TODO: this is copy-pasted
                 if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                    // TODO: I check for close too much
+                    // also should not check leftAssignSugar just addClosingParensOnNewLine
                     for (let i = 0; i < addClosingParensOnNewLine; i++) {
                         addToken(")") // addedClosingParen pink marker
                     }
@@ -2113,7 +2136,6 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // } loopn
 
 log2(thumbscript4.tokenize(`
-// 2000
 nowmillis :foo
 `, true))
 
@@ -2153,7 +2175,7 @@ thumbscript4.exampleCode = function () { // maroon marker
 
 // alert plus. 3 4
 // alert 3 •plus 4
-goto $countPart
+// goto $countPart
 
 window $xyzzy at "xyzzy is " swap cc say
 
@@ -2561,37 +2583,11 @@ foo $bar at $bat at say
 
 #countPart
 
-100 {
-    sleepms 1
-    say "hi"
-} timeit
-
-exit
-
-
-{
-    0 :count
-    0 :i
-    nowmillis :start
-    {
-        i 1_000_000 guardlt
-        i count+=
-        i++
-        repeat
-    } call
-    nowmillis :end
-    end •minus start :total
-    "end: $end; start: $start" say
-    "+it took $total ms" say
-    "+count is $count" say
-} call
-say "-------"
-say ""
 
 {
     0 :count
     start: nowmillis
-    1_000_000 { count+= } timeit
+    100_000 { count+= } timeit
     "count is $count oh boy" say
     end: nowmillis
     say "it took ${end •minus start} ms"
@@ -2611,7 +2607,7 @@ say ""
     // { count+= } 100000 timeit
 
     // 100000 { count plus :count } timeit
-    1_000_000 { count+= } timeit
+    100_000 { count+= } timeit
     "count is $count" say
 
 
@@ -2624,6 +2620,25 @@ say ""
 say "-------"
 say ""
 
+{
+    0 :count
+    0 :i
+    nowmillis :start
+    
+    {
+        i 100_000 guardlt
+        i count+=
+        i++
+        repeat
+    } call
+    nowmillis :end
+    end •minus start :total
+    "end: $end; start: $start" say
+    "+it took $total ms" say
+    "+count is $count" say
+} call
+say "-------"
+say ""
 
 
 // {
@@ -3109,7 +3124,7 @@ var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-// thumbscript4.eval(code, window) // red marker
+thumbscript4.eval(code, window) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.

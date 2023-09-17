@@ -1782,7 +1782,7 @@ ijs.run = function(code, world) {
     // var oldPreventRender = preventRender
     // preventRender = true
     var tokens = ijs.tokenize(code)
-    log2(tokens)
+    // log2(tokens)  // pink marker
     // return
 
     if (!world) {
@@ -2323,6 +2323,12 @@ ijs.builtins = {
         while (w.blockScope) {
             w = w.parent
         }
+        w.state[varName] = undefined
+    },
+    "let_pre": function (args, world) {
+        varName = args[0]
+        assignType = "var"
+        var w = world
         w.state[varName] = undefined
     },
     "=": function (args, world) {
