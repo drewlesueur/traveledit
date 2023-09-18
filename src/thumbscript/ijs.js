@@ -1,8 +1,5 @@
 // TODO:
 // return await
-// [5, -2] ambiguity
-// !(foo) should not have <callFunc> token
-// !!
 
 
 if (typeof log2 === "undefined") {
@@ -63,8 +60,6 @@ ijs.getPrevNonSpaceChar = function (code, i) {
 // alert(ijs.getPrevNonSpaceChar(line, line.indexOf("?")))
 
 
-// TODO: ignore : , ;
-// TOODO: interpolation? (template literals)
 ijs.tokenize = function (code, debug) {
     var backslash = "\\"
     code = code + "\n"
@@ -990,6 +985,11 @@ ijs.testInfixate = function () {
     // some are just testing arity and precedence
     var casesString = `
         # check #debug #onl
+        !(3)
+        # expected
+        []
+
+        # check #debug #onl
         a++
         window.foo++
         console.log(bar)
@@ -1534,7 +1534,6 @@ ijs.infixate = function(tokens, debug) {
                 addOrWait()
             }
         } else if (state.name == "inNonOp") {
-            // todo: postfix
             if (Object.hasOwn(ijs.postfixes, token)) {
                 // these are hacked in
                 state.group = [token + "_post", state.group]
@@ -1918,8 +1917,6 @@ ijs.run = function(code, world) {
     return ret
 }
 
-// TODO: numbers
-
 
 ijs.hoist = function (body) {
     // Hoist!
@@ -2086,8 +2083,6 @@ ijs.exprStringMap = {
 }
 ijs.tab = "    "
 ijs.generateExprString = function (expr, indent, parentOperator) {
-    // TODO: interpolate
-
     if (expr === null) {
         return "null"
     }
@@ -2249,7 +2244,8 @@ ijs.generateFunctionString = function (isAsync, name, params, body, indent) {
 // ijs.breakMessage = {"break": true}
 // ijs.continueMessage = {"continue":true}
 
-ijs.assinmentOps = {
+ijs.assignmentOps = {
+    "delete": (o, k, v) => { return delete o[k] },
     "++_pre": (o, k, v) => { return ++o[k] },
     "++_post": (o, k, v) => { return o[k]++ },
     "--_pre": (o, k, v) => { return --o[k] },
@@ -2298,8 +2294,6 @@ ijs.getRunFunc = function (isAsync) {
     return "<run>"
 }
 ijs.builtins = {
-    // todo: might conflict with a variable named run
-    // call it "<run>"
     "<runAsync>": async function (args, world, inBlock) {
         // alert("running async")
         if (!args) {
@@ -2437,13 +2431,6 @@ ijs.builtins = {
         w.state[varName] = undefined
     },
     "=": function (args, world) {
-        // alert("= " + JSON.stringify(args))
-        // TODO: wrangle these
-        // not doing destructuring yet
-        // lol maybe destructuring can be handled at the parser level?
-        // like it turns it into the more verbose syntax
-        // that way the core is smaller.
-        // gotta figure out let vs if
         var varName = args[0]
         if (typeof args[0] == "object") {
             if (args[0][0] == "var_pre" || args[0][0] == "let_pre" || args[0][0] == "const_pre") {
@@ -2557,21 +2544,21 @@ ijs.builtins = {
             w.state[varName] = await ijs.exec(args[1], world)
         }
     },
-    "+=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["+="]),
-    "-=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["-="]),
-    "**=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["**="]),
-    "*=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["*="]),
-    "/=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["/="]),
-    "%=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["%="]),
-    "<<=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["<<="]),
-    ">>=": ijs.makeAssignmentBuiltin(ijs.assinmentOps[">>="]),
-    ">>>=": ijs.makeAssignmentBuiltin(ijs.assinmentOps[">>>="]),
-    "&=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["&="]),
-    "^=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["^="]),
-    "|=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["|="]),
-    "&&=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["&&="]),
-    "||=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["||="]),
-    "??=": ijs.makeAssignmentBuiltin(ijs.assinmentOps["??="]),
+    "+=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["+="]),
+    "-=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["-="]),
+    "**=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["**="]),
+    "*=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["*="]),
+    "/=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["/="]),
+    "%=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["%="]),
+    "<<=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["<<="]),
+    ">>=": ijs.makeAssignmentBuiltin(ijs.assignmentOps[">>="]),
+    ">>>=": ijs.makeAssignmentBuiltin(ijs.assignmentOps[">>>="]),
+    "&=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["&="]),
+    "^=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["^="]),
+    "|=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["|="]),
+    "&&=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["&&="]),
+    "||=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["||="]),
+    "??=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["??="]),
 
     "??": function (args, world) {
         return ijs.exec(args[0], world) ?? ijs.exec(args[1], world)
@@ -2721,24 +2708,15 @@ ijs.builtins = {
     "-_pre": function (args, world) {
         return -ijs.exec(args[0], world)
     },
-    "++_pre": ijs.makeAssignmentBuiltin(ijs.assinmentOps["++_pre"]),
-    "--_pre": ijs.makeAssignmentBuiltin(ijs.assinmentOps["--_pre"]),
+    "++_pre": ijs.makeAssignmentBuiltin(ijs.assignmentOps["++_pre"]),
+    "--_pre": ijs.makeAssignmentBuiltin(ijs.assignmentOps["--_pre"]),
     "typeof_pre": function (args, world) {
         return typeof ijs.exec(args[0], world)
     },
     "void_pre": function (args, world) {
         return void ijs.exec(args[0], world)
     },
-    "delete_pre": function (args, world) {
-        // TODO: finish this.
-        // delete foo.bar
-        // delete foo["bar"]
-        // var arg = args[0]
-        // // assuming (. x y)
-        // var o = ijs.exec(arg[1], world)
-        // delete(o, )
-        // return delete ijs.exec(args[0], world)
-    },
+    "delete_pre": ijs.makeAssignmentBuiltin(ijs.assignmentOps["delete"]),
     "await_pre": async function (args, world) {
         return await ijs.exec(args[0], world)
     },
@@ -2759,8 +2737,8 @@ ijs.builtins = {
         var ret = new (Function.prototype.bind.apply(theClass, [null].concat(evaledArgs)))
         return ret
     },
-    "++_post": ijs.makeAssignmentBuiltin(ijs.assinmentOps["++_post"]),
-    "--_post": ijs.makeAssignmentBuiltin(ijs.assinmentOps["--_post"]),
+    "++_post": ijs.makeAssignmentBuiltin(ijs.assignmentOps["++_post"]),
+    "--_post": ijs.makeAssignmentBuiltin(ijs.assignmentOps["--_post"]),
     "<array>_pre": function(args, world) {
         var computed = []
         if (!args[0]) {
@@ -3697,9 +3675,17 @@ ijs.makeSpecialReturn = function () {
 
 ijs.exampleCode = function () {
 /*
+
+
 var d = {a: 0}
 d.a++
 log2(d.a)
+delete d.a
+log2(d)
+d.b = "ok"
+delete d.b
+log2(d)
+
 // var x = new RegExp("t.d", "g")
 
 
@@ -3707,13 +3693,14 @@ log2(d.a)
 // broken with  sval
 [[1,2,3]].forEach(([a,b,c]) => log2(a+b+c)) // 6
 
-
 var computer = {keyboard: {keys: [null, {letter: "b"}]}}
 // var keys = [undefined, {letter: "b"}]
 // broken with  sval
 // alert(keys?.[0])
-alert(computer?.keyboard?.keys?.[1]?.letter)
-alert(foobar?.[0])
+log2(computer?.keyboard?.keys?.[1]?.letter)
+log2(foobar?.[0])
+log2("is it true: " + !!3)
+log2("is it true: " + !(3))
 
 var BuyerAddressArray = [
     {AddressStatusId: 0, B: "not this"},
