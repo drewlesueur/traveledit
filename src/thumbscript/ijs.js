@@ -48,6 +48,21 @@ if (typeof log2 === "undefined") {
 // So the Javascript object spread `{...a}` is simply a "sugar" for `Object.assign({}, a)`.
 
 var ijs = {}
+
+ijs.getPrevNonSpaceChar = function (code, i) {
+     for (i = i - 1; i >= 0; i--) {
+         var prev = code[i]
+         if (" \t\n\r".indexOf(prev) != -1) {
+             continue
+         }
+         return prev
+     }
+}
+
+// var line = "?  s"
+// alert(ijs.getPrevNonSpaceChar(line, line.indexOf("?")))
+
+
 // TODO: ignore : , ;
 // TOODO: interpolation? (template literals)
 ijs.tokenize = function (code, debug) {
@@ -56,6 +71,7 @@ ijs.tokenize = function (code, debug) {
     var i = 0
     var state = "out"
     var currentToken = ""
+    var currentRegExpFlags = ""
     var quoteType = ""
     var tokens = []
     var pushToken = function (x) {
@@ -234,12 +250,24 @@ ijs.tokenize = function (code, debug) {
                 tokens.push(chr)
                 state = "out"
             } else if ("[]".indexOf(chr) != -1) {
+                let pushed = false
                 if (currentToken) {
                     pushToken(currentToken)
                     currentToken = ""
+                    pushed = true
                 }
                 if (i != 0 && "[".indexOf(chr) != -1 && " \t\n\r({[".indexOf(code.charAt(i-1)) == -1 ) {
-                    tokens.push("<computedMemberAccess>")
+                    if (pushed) {
+                        let lastToken = tokens.pop()
+                        if (lastToken == "?.") {
+                            tokens.push("<optionallyChainedComputedMemberAccess>") // lol
+                        } else {
+                            tokens.push(lastToken)
+                            tokens.push("<computedMemberAccess>")
+                        }
+                    } else {
+                        tokens.push("<computedMemberAccess>")
+                    }
                 }
                 tokens.push(chr)
                 state = "out"
@@ -303,6 +331,40 @@ ijs.tokenize = function (code, debug) {
             } else {
                 currentToken += chr
             }
+        } else if (state == "in_regexp") {
+            if ('/'.indexOf(chr) != -1) {
+                state = "after_regexp"
+                currentRegExpFlags = ""
+            } else {
+                currentToken += chr
+            }
+        } else if (state == "after_regexp") {
+            if (!isVar(chr)) {
+                tokens.push("new")
+                tokens.push("RegExp")
+                tokens.push("<callFunc>")
+                tokens.push("(")
+                tokens.push("#" + currentToken)
+                tokens.push(",")
+                tokens.push("#" + currentRegExpFlags)
+                tokens.push(")")
+                state = "out"
+                currentRegExpFlags = ""
+                currentToken = ""
+                // tokens.push([
+                //     "<callFunc>",
+                //     [
+                //         "new_pre",
+                //         "RegExp"
+                //     ],
+                //     [
+                //         "#bar",
+                //         "#i"
+                //     ]
+                // ])
+            } else {
+                currentRegExpFlags += chr
+            }
         } else if (state == "escape") {
             if ('"\\/bfnrtu'.indexOf(chr) != -1) {
                 currentToken += backslash + chr
@@ -314,9 +376,16 @@ ijs.tokenize = function (code, debug) {
             if ("/".indexOf(chr) != -1) {
                 state = "comment"
             } else {
-                currentToken = "/"
-                state = "in_symbol"
-                i--
+                // total Hack
+                let prev = ijs.getPrevNonSpaceChar(code, i-1)
+                if (prev == undefined || ";:,=({[".indexOf(prev) != -1) {
+                    state = "in_regexp"
+                    currentToken = chr
+                } else {
+                    currentToken = "/"
+                    state = "in_symbol"
+                    i--
+                }
             }
         } else if (state == "comment") {
             if ("\n\r".indexOf(chr) != -1) {
@@ -368,7 +437,7 @@ ijs.tokenize = function (code, debug) {
                 var t = newTokens.pop()
                 var prev = newTokens.pop()
                 newTokens.push(prev) // lol
-                if (prev == "<computedMemberAccess>") {
+                if (prev == "<computedMemberAccess>" || prev ==  "<optionallyChainedComputedMemberAccess>") {
                     // t = t[0] || [] // TODO: why this?
                     t = t[0]
                 }
@@ -611,6 +680,10 @@ ijs.infixes = {
          "precedence": 17,
      },
      "<computedMemberAccess>": {
+         "associatitivity": 0,
+         "precedence": 17,
+     },
+     "<optionallyChainedComputedMemberAccess>": {
          "associatitivity": 0,
          "precedence": 17,
      },
@@ -915,7 +988,12 @@ ijs.testInfixate = function () {
     // note some of these tests don't work as actual javascript
     // some are just testing arity and precedence
     var casesString = `
-        # check #debug
+        # check #debug #onl
+        keys?.[1*2]
+        # expected
+        ["keys","<optionallyChainedComputedMemberAccess>",["*",1,2]]
+
+        # check
         a = [3++, 4, ++5]
         # expected
         [["=","a",["<array>_pre",[["++_post",3],4,["++_pre",5]]]]]
@@ -2097,6 +2175,8 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
                 ret.push(ijs.generateExprString(expr[1], indent, operator) + "(" + genedArgs + ")")
             } else if (operator == "<computedMemberAccess>") {
                 ret.push(ijs.generateExprString(expr[1], indent, operator) + "[" + ijs.generateExprString(expr[2], indent, operator) + "]")
+            } else if (operator == "<optionallyChainedComputedMemberAccess>") {
+                ret.push(ijs.generateExprString(expr[1], indent, operator) + "?.[" + ijs.generateExprString(expr[2], indent, operator) + "]")
             } else {
                 var spacer = " "
                 if (opDef.squish) {
@@ -2554,6 +2634,12 @@ ijs.builtins = {
         }
         return ret
     },
+    // !!!!
+    // TODO: every time you bind for function, also do this!
+    // var ts = ret.toString.bind(ret)
+    // ret = ret.bind(a)
+    // ret.toString = ts
+
     "?.": function (args, world) {
         var o = ijs.exec(args[0], world)
         if (o === null) {
@@ -2576,6 +2662,21 @@ ijs.builtins = {
         }
         return ret
     },
+    "<optionallyChainedComputedMemberAccess>": function (args, world) {
+        var o = ijs.exec(args[0], world)
+        if (o === null) {
+            return undefined
+        }
+        if (o === undefined) {
+            return undefined
+        }
+        var ret = o[ijs.exec(args[1], world)]
+        if (typeof ret == "function") {
+            return ret.bind(o)
+        }
+        return ret
+    },
+    // wait is that used?? .? looks like a bug
     ".?": function (args, world) {
         var first = ijs.exec(args[0], world)
         if (first == null || typeof first == "undefined") {
@@ -3575,9 +3676,82 @@ ijs.makeSpecialReturn = function () {
 
 
 
+// alert("yo".match(/y/))
+// var x = new RegExp("y", "")
+// alert(x)
+
+// alert("yo".match())
 
 ijs.exampleCode = function () {
 /*
+
+
+
+// var x = new RegExp("t.d", "g")
+
+
+// https://github.com/Siubaak/sval/issues/94
+// broken with  sval
+[[1,2,3]].forEach(([a,b,c]) => log2(a+b+c)) // 6
+
+
+var computer = {keyboard: keys: [null, {letter: "b"}]}
+// var keys = [undefined, {letter: "b"}]
+// broken with  sval
+// alert(keys?.[0])
+alert(computer?.keyboard?.keys?.[0]?.bar)
+alert(foobar?.[0])
+
+var BuyerAddressArray = [
+    {AddressStatusId: 0, B: "not this"},
+    {AddressStatusId: 1, B: "yea this one"},
+    {AddressStatusId: 0, B: "nor this"},
+]
+var buyerCurrentAddress = BuyerAddressArray.find(
+  (a) => a.AddressStatusId == 1
+);
+
+log2(buyerCurrentAddress)
+
+return
+var a = 100
+
+// function foo() {
+//     
+//     if (true) {
+//         let x
+//         // var x
+//         x = 100
+//         alert(x)
+//     }
+//     alert(x)
+// }
+// foo()
+
+
+// var x = /t.d/g
+
+
+// var str = "tod ted bob bill tad"
+// alert(JSON.stringify(str.match(x)))
+
+// alert("tod ted bob bill tad".match(x))
+// alert("tod ted bob bill tad".match(/t.d/g))
+// alert("tod ted bob bill tad".match(new RegExp("t.d", "g")))
+// alert("tod ted bob bill tad".slice(4))
+
+
+
+// they should match
+// x = /\d.+\d/i
+// x = new RegExp('\\d.+\\d', "i")
+
+// alert("yo".match(/y/))
+// var str = "7 whatever 8 ok!!"
+// var x = str.match(/\d.+\d/i)
+// var x = "what"
+// var x = "7 whatever 8 ok!!".match(/\d.+\d/i)
+// alert(x)
 
 // function w2() {
 //     if (false) {
@@ -4864,4 +5038,4 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-ijs.run(code)
+// ijs.run(code)
