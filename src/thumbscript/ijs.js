@@ -378,7 +378,8 @@ ijs.tokenize = function (code, debug) {
             } else {
                 // total Hack
                 let prev = ijs.getPrevNonSpaceChar(code, i-1)
-                if (prev == undefined || ";:,=({[".indexOf(prev) != -1) {
+                // if (prev == undefined || ";:,=({[".indexOf(prev) != -1) {
+                if (false) {
                     state = "in_regexp"
                     currentToken = chr
                 } else {
@@ -989,9 +990,22 @@ ijs.testInfixate = function () {
     // some are just testing arity and precedence
     var casesString = `
         # check #debug #onl
+        a++
+        window.foo++
+        console.log(bar)
+        # expected
+        [["++_post",[".","window","foo"]],["<callFunc>",[".","console","log"],["bar"]]]
+
+        # check #onl
+        window.foo++
+        console.log(bar)
+        # expected
+        [["++_post",[".","window","foo"]],["<callFunc>",[".","console","log"],["bar"]]]
+
+        # check #onl
         keys?.[1*2]
         # expected
-        ["keys","<optionallyChainedComputedMemberAccess>",["*",1,2]]
+        [["<optionallyChainedComputedMemberAccess>","keys",["*",1,2]]]
 
         # check
         a = [3++, 4, ++5]
@@ -1410,7 +1424,8 @@ ijs.infixate = function(tokens, debug) {
                 if (parentState) {
                     stack.pop()
 
-                    if (typeof parentState.group != "object") {
+                    // checking postfix here is also a hack I think
+                    if (typeof parentState.group != "object" || (parentState.group[0].indexOf("_post") != -1)) {
                         // alert("yay")
                         newTokens.push(parentState.group)
                         // state.group = token
@@ -1422,6 +1437,12 @@ ijs.infixate = function(tokens, debug) {
 
                     }
                 } else {
+                    let next = tokens[0]
+                    if (Object.hasOwn(ijs.postfixes, next)) {
+                        // these are hacked in
+                        state.group = [next + "_post", state.group]
+                        tokens.shift()
+                    }
                     newTokens.push(state.group)
                     state = {
                          name: "before",
@@ -2229,6 +2250,10 @@ ijs.generateFunctionString = function (isAsync, name, params, body, indent) {
 // ijs.continueMessage = {"continue":true}
 
 ijs.assinmentOps = {
+    "++_pre": (o, k, v) => { return ++o[k] },
+    "++_post": (o, k, v) => { return o[k]++ },
+    "--_pre": (o, k, v) => { return --o[k] },
+    "--_post": (o, k, v) => { return o[k]++ },
     "+=": (o, k, v) => { return o[k] += v },
     "-=": (o, k, v) => { return o[k] -= v },
     "**=": (o, k, v) => { return o[k] **= v },
@@ -2696,14 +2721,8 @@ ijs.builtins = {
     "-_pre": function (args, world) {
         return -ijs.exec(args[0], world)
     },
-    "++_pre": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        return ++w.state[args[0]]
-    },
-    "--_pre": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        return --w.state[args[0]]
-    },
+    "++_pre": ijs.makeAssignmentBuiltin(ijs.assinmentOps["++_pre"]),
+    "--_pre": ijs.makeAssignmentBuiltin(ijs.assinmentOps["--_pre"]),
     "typeof_pre": function (args, world) {
         return typeof ijs.exec(args[0], world)
     },
@@ -2740,14 +2759,8 @@ ijs.builtins = {
         var ret = new (Function.prototype.bind.apply(theClass, [null].concat(evaledArgs)))
         return ret
     },
-    "++_post": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        return w.state[args[0]]++
-    },
-    "--_post": function (args, world) {
-        var w = ijs.getWorldForKey(world, args[0])
-        return w.state[args[0]]--
-    },
+    "++_post": ijs.makeAssignmentBuiltin(ijs.assinmentOps["++_post"]),
+    "--_post": ijs.makeAssignmentBuiltin(ijs.assinmentOps["--_post"]),
     "<array>_pre": function(args, world) {
         var computed = []
         if (!args[0]) {
@@ -3684,9 +3697,9 @@ ijs.makeSpecialReturn = function () {
 
 ijs.exampleCode = function () {
 /*
-
-
-
+var d = {a: 0}
+d.a++
+log2(d.a)
 // var x = new RegExp("t.d", "g")
 
 
@@ -3695,11 +3708,11 @@ ijs.exampleCode = function () {
 [[1,2,3]].forEach(([a,b,c]) => log2(a+b+c)) // 6
 
 
-var computer = {keyboard: keys: [null, {letter: "b"}]}
+var computer = {keyboard: {keys: [null, {letter: "b"}]}}
 // var keys = [undefined, {letter: "b"}]
 // broken with  sval
 // alert(keys?.[0])
-alert(computer?.keyboard?.keys?.[0]?.bar)
+alert(computer?.keyboard?.keys?.[1]?.letter)
 alert(foobar?.[0])
 
 var BuyerAddressArray = [
@@ -5038,4 +5051,4 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-// ijs.run(code)
+ijs.run(code)
