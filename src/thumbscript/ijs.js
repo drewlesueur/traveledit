@@ -498,6 +498,7 @@ ijs.infixes = {
      ":": {
          "associatitivity": 1,
          "precedence": 2,
+         squishLeft: true,
      },
      "=>": {
          "associatitivity": 1,
@@ -987,14 +988,14 @@ ijs.testInfixate = function () {
         # check #debug #onl
         !(3)
         # expected
-        []
+        [["!_pre",["<group>_pre",[3]]]]
 
         # check #debug #onl
         a++
         window.foo++
         console.log(bar)
         # expected
-        [["++_post",[".","window","foo"]],["<callFunc>",[".","console","log"],["bar"]]]
+        [["++_post","a"],["++_post",[".","window","foo"]],["<callFunc>",[".","console","log"],["bar"]]]
 
         # check #onl
         window.foo++
@@ -1370,7 +1371,6 @@ ijs.testInfixate = function () {
         log2("- There were " + failureCount + "/" +cases.length+" failures")
     }
 }
-setTimeout(ijs.testInfixate, 1)
 
 // hacked but tested
 // if I were to redo, I'd pop the stack as soon as you csn after push to group
@@ -1903,6 +1903,7 @@ ijs.run = function(code, world) {
         }
     }
     var f = ijs.makeFunc([], tokens, world)
+    // log2(f.toString())
     var ret
     // try {
         ret = f()
@@ -2194,14 +2195,19 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
             } else if (operator == "<optionallyChainedComputedMemberAccess>") {
                 ret.push(ijs.generateExprString(expr[1], indent, operator) + "?.[" + ijs.generateExprString(expr[2], indent, operator) + "]")
             } else {
-                var spacer = " "
+                var spacerLeft = " "
+                var spacerRight = " "
                 if (opDef.squish) {
-                    spacer = ""
+                    spacerLeft = ""
+                    spacerRight = ""
+                } else if (opDef.squishLeft) {
+                    spacerLeft = ""
+                    var spacerRight = " "
                 }
                 ret.push(ijs.generateExprString(expr[1], indent, operator))
-                ret.push(spacer)
+                ret.push(spacerLeft)
                 ret.push(operator)
-                ret.push(spacer)
+                ret.push(spacerRight)
                 ret.push(ijs.generateExprString(expr[2], indent, operator))
             }
         }
@@ -2233,7 +2239,7 @@ ijs.generateFunctionString = function (isAsync, name, params, body, indent) {
         asyncText = "async "
     }
 
-    ret = [ijs.tab.repeat(indent) + asyncText + "function "+name+"("+genedParams+") {"]
+    ret = [ijs.tab.repeat(indent) + asyncText + "function "+(name || "")+"("+genedParams+") {"]
     for (expr of body) {
         ret.push(ijs.tab.repeat(indent+1) + ijs.generateExprString(expr, indent+1, "function"))
     }
@@ -3345,6 +3351,9 @@ ijs.builtins = {
     "else": function (args, world) {
         // var ret = ijs.exec(args[0], world)
         var ret = ijs.exec(args[0], world)
+        if (ijs.isSpecialReturn(ret)) {
+            return ret
+        }
         var elseRet
         if (!ret) {
             var body = args[1]
@@ -3367,6 +3376,9 @@ ijs.builtins = {
     "else_await": async function (args, world) {
         // var ret = ijs.exec(args[0], world)
         var ret = await ijs.exec(args[0], world)
+        if (ijs.isSpecialReturn(ret)) {
+            return ret
+        }
         var elseRet
         if (!ret) {
             var body = args[1]
@@ -3428,7 +3440,8 @@ ijs.getWorldForKey = function(world, key) {
     //     return world.cachedLookupWorld[key]
     // }
     for (var w = world; w != null; w = w.parent) {
-        if (w.state.hasOwnProperty(key)) {
+        // if (w.state.hasOwnProperty(key)) {
+        if (key in w.state) {
             // world.cachedLookupWorld[key] = w
             break
         }
@@ -3676,6 +3689,56 @@ ijs.makeSpecialReturn = function () {
 ijs.exampleCode = function () {
 /*
 
+function onMessageListener(message, sender, sendResponse) {
+  // Check if the message action matches the function you want to execute
+  if (message.action == "extensionscriptsforpageisolated") {
+    console.log("fetching!!!")
+
+    // refresh ourselves, then get content script
+    fetch("http://localhost:80/extensionscriptsforbackground").then(r => r.json()).then(resp => {
+        console.log("Here is the response", resp)
+        resp.forEach(function (s) {
+            if (s.name.endsWith("js")) {
+                console.log("running script: " + s.name)
+                //eval(s.contents)  // can't use eval so we use the ijs library
+                ijs.run(s.contents)
+            }
+        })
+    }).then(function () {
+        fetch("http://localhost:80/extensionscriptsforpageisolated?url=" + encodeURIComponent(message.payload.url)).then(r => r.json()).then(r => {
+            console.log("Here is the response", r)
+            sendResponse(r)
+        })
+    })
+    console.log("returning true=============================")
+    return true
+    console.log("should not get here==========================")
+    // returning true means it will wait for async response
+    // where is that documented?
+    // https://stackoverflow.com/questions/44056271/chrome-runtime-onmessage-response-with-async-await
+  } else if (message.action === "urlToCheck") {
+    console.log("URLTocheck Message Received");
+    let urlToCheck = message.urlToCheck;
+    console.log("Url to check: ", urlToCheck);
+    }
+}
+
+function testMe() {
+    if (false) {
+        return "a"
+    } else if (false) {
+        return "b"
+    // } else {
+    //     return "c"
+    }
+    
+    return "not here"
+}
+
+log2(testMe() === undefined)
+log2(testMe())
+
+return
 
 var d = {a: 0}
 d.a++
@@ -3713,7 +3776,6 @@ var buyerCurrentAddress = BuyerAddressArray.find(
 
 log2(buyerCurrentAddress)
 
-return
 var a = 100
 
 // function foo() {
@@ -5038,4 +5100,5 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-ijs.run(code)
+// ijs.run(code)
+// setTimeout(ijs.testInfixate, 1)
