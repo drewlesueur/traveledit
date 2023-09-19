@@ -2644,12 +2644,12 @@ ijs.builtins = {
     "**": function (args, world) {
         return ijs.exec(args[0], world) ** ijs.exec(args[1], world)
     },
-    ".": function (args, world) {
+    ".": function (args, world, _, opts) {
         var o = ijs.exec(args[0], world)
         var ret = o[args[1]]
-        if (typeof ret == "function") {
-            // return ret.bind(o)
-            ret.__ijs_this = o
+        if (opts && opts.inCall && typeof ret == "function") {
+            return ret.bind(o)
+            // ret.__ijs_this = o
         }
         return ret
     },
@@ -2659,7 +2659,7 @@ ijs.builtins = {
     // ret = ret.bind(a)
     // ret.toString = ts
 
-    "?.": function (args, world) {
+    "?.": function (args, world, _, opts) {
         var o = ijs.exec(args[0], world)
         if (o === null) {
             return undefined
@@ -2668,22 +2668,22 @@ ijs.builtins = {
             return undefined
         }
         var ret = o[args[1]]
-        if (typeof ret == "function") {
-            // return ret.bind(o)
-            ret.__ijs_this = o
+        if (opts && opts.inCall && typeof ret == "function") {
+            return ret.bind(o)
+            // ret.__ijs_this = o
         }
         return ret
     },
-    "<computedMemberAccess>": function (args, world) {
+    "<computedMemberAccess>": function (args, world, _, opts) {
         var o = ijs.exec(args[0], world)
         var ret = o[ijs.exec(args[1], world)]
-        if (typeof ret == "function") {
-            // return ret.bind(o)
-            ret.__ijs_this = o
+        if (opts && opts.inCall && typeof ret == "function") {
+            return ret.bind(o)
+            // ret.__ijs_this = o
         }
         return ret
     },
-    "<optionallyChainedComputedMemberAccess>": function (args, world) {
+    "<optionallyChainedComputedMemberAccess>": function (args, world, _, opts) {
         var o = ijs.exec(args[0], world)
         if (o === null) {
             return undefined
@@ -2692,22 +2692,22 @@ ijs.builtins = {
             return undefined
         }
         var ret = o[ijs.exec(args[1], world)]
-        if (typeof ret == "function") {
-            // return ret.bind(o)
-            ret.__ijs_this = o
+        if (opts && opts.inCall && typeof ret == "function") {
+            return ret.bind(o)
+            // ret.__ijs_this = o
         }
         return ret
     },
     // wait is that used?? .? looks like a bug
-    ".?": function (args, world) {
+    ".?": function (args, world, _, opts) {
         var o = ijs.exec(args[0], world)
         if (o == null || typeof o == "undefined") {
             return void 0
         }
         let ret = o[args[1]]
-        if (typeof ret == "function") {
-            // return ret.bind(o)
-            ret.__ijs_this = o
+        if (opts && opts.inCall && typeof ret == "function") {
+            return ret.bind(o)
+            // ret.__ijs_this = o
         }
         return ret
     },
@@ -3457,7 +3457,7 @@ ijs.getWorldForKey = function(world, key) {
     }
     return w
 }
-ijs.exec = function(tokens, world) {
+ijs.exec = function(tokens, world, opts) {
     if (tokens === null) {
         return null
     }
@@ -3507,7 +3507,7 @@ ijs.exec = function(tokens, world) {
         // or throw?
         return undefined
     }
-    return ijs.callFunc(tokens[0], tokens.slice(1), world)
+    return ijs.callFunc(tokens[0], tokens.slice(1), world, opts)
 }
 
 ijs.asyncVersions = {
@@ -3520,7 +3520,7 @@ ijs.asyncVersions = {
     // not doing this because of initialization assignments in for loops?
     // "=": true,
 }
-ijs.callFunc = function(funcAccessor, theArgs, world) {
+ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     // special case for new
 
     if (typeof funcAccessor == "object") {
@@ -3542,31 +3542,34 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
             funcAccessor = funcAccessor + "_await"
         }
         func = ijs.builtins[funcAccessor]
-        var ret = func(theArgs, world)
+        var ret = func(theArgs, world, false, opts)
         return ret
     }
-    func = ijs.exec(funcAccessor, world)
-    // log2(funcAccessor)
+    func = ijs.exec(funcAccessor, world, {inCall: true})
+    // log2(["funcAccessor", funcAccessor])
     if (!func) {
         alert("no func: " + funcAccessor)
     }
     theArgs = theArgs || []
 
-    // hacky
-    let theThis = null
-    let oldThis = world.state["this"]
-    // total hack to see if you accessed with a.b by checking if object
-    if (func.__ijs_this && typeof funcAccessor == "object") {
-        theThis = func.__ijs_this
-        world.state["this"] = theThis
-    } else {
-        world.state["this"] = {}
-    }
-    var ret = func.apply(theThis, theArgs.map(function (t) {
+    var ret = func.apply(null, theArgs.map(function (t) {
         return ijs.exec(t, world)
     }))
-    world.state["this"] = oldThis
-    delete func.__ijs_this
+    // hacky, buggy?
+    // let theThis = null
+    // let oldThis = world.state["this"]
+    // // total hack to see if you accessed with a.b by checking if object
+    // if (func.__ijs_this && typeof funcAccessor == "object") {
+    //     theThis = func.__ijs_this
+    //     world.state["this"] = theThis
+    // } else {
+    //     world.state["this"] = {}
+    // }
+    // var ret = func.apply(theThis, theArgs.map(function (t) {
+    //     return ijs.exec(t, world)
+    // }))
+    // world.state["this"] = oldThis
+    // delete func.__ijs_this
     return ret
 }
 
@@ -3708,36 +3711,20 @@ ijs.makeSpecialReturn = function () {
 
 // alert("yo".match())
 
-window.p = {eat: function () {this.hunger--}, hunger: 100}
 
+window.p = {eat: function () {this.hunger--}, hunger: 100}
 ijs.exampleCode = function () {
 /*
 console = {log: log2}
-// p.eat()
-// p.eat()
-// p.eat()
-// p.eat()
-// log2(p)
 
+// var sEat = p.eat
 // sEat(); console.log(p.hunger)
 // sEat(); console.log(p.hunger)
-// p.eat(); console.log(p.hunger)
-// p.eat(); console.log(p.hunger)
-
-var sEat = p.eat
-sEat(); console.log(p.hunger)
-sEat(); console.log(p.hunger)
-var bEat = p.eat.bind(p)
-bEat(); console.log(p.hunger)
-bEat(); console.log(p.hunger)
-sEat(); console.log(p.hunger)
-sEat(); console.log(p.hunger)
-
+// var bEat = p.eat.bind(p)
+// bEat(); console.log(p.hunger)
+// bEat(); console.log(p.hunger)
 // sEat(); console.log(p.hunger)
 // sEat(); console.log(p.hunger)
-// sEat(); console.log(p.hunger)
-
-
 
 return
 function testMe() {
@@ -5116,5 +5103,5 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-// ijs.run(code)
+ijs.run(code)
 // setTimeout(ijs.testInfixate, 1)
