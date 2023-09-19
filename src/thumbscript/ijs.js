@@ -2255,7 +2255,7 @@ ijs.assignmentOps = {
     "++_pre": (o, k, v) => { return ++o[k] },
     "++_post": (o, k, v) => { return o[k]++ },
     "--_pre": (o, k, v) => { return --o[k] },
-    "--_post": (o, k, v) => { return o[k]++ },
+    "--_post": (o, k, v) => { return o[k]-- },
     "+=": (o, k, v) => { return o[k] += v },
     "-=": (o, k, v) => { return o[k] -= v },
     "**=": (o, k, v) => { return o[k] **= v },
@@ -2648,7 +2648,8 @@ ijs.builtins = {
         var o = ijs.exec(args[0], world)
         var ret = o[args[1]]
         if (typeof ret == "function") {
-            return ret.bind(o)
+            // return ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
@@ -2668,7 +2669,8 @@ ijs.builtins = {
         }
         var ret = o[args[1]]
         if (typeof ret == "function") {
-            return ret.bind(o)
+            // return ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
@@ -2676,7 +2678,8 @@ ijs.builtins = {
         var o = ijs.exec(args[0], world)
         var ret = o[ijs.exec(args[1], world)]
         if (typeof ret == "function") {
-            return ret.bind(o)
+            // return ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
@@ -2690,17 +2693,23 @@ ijs.builtins = {
         }
         var ret = o[ijs.exec(args[1], world)]
         if (typeof ret == "function") {
-            return ret.bind(o)
+            // return ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
     // wait is that used?? .? looks like a bug
     ".?": function (args, world) {
-        var first = ijs.exec(args[0], world)
-        if (first == null || typeof first == "undefined") {
+        var o = ijs.exec(args[0], world)
+        if (o == null || typeof o == "undefined") {
             return void 0
         }
-        return first[args[1]]
+        let ret = o[args[1]]
+        if (typeof ret == "function") {
+            // return ret.bind(o)
+            ret.__ijs_this = o
+        }
+        return ret
     },
     "!_pre": function (args, world) {
         return !ijs.exec(args[0], world)
@@ -3537,14 +3546,27 @@ ijs.callFunc = function(funcAccessor, theArgs, world) {
         return ret
     }
     func = ijs.exec(funcAccessor, world)
+    // log2(funcAccessor)
     if (!func) {
         alert("no func: " + funcAccessor)
     }
     theArgs = theArgs || []
 
-    var ret = func.apply(null, theArgs.map(function (t) {
+    // hacky
+    let theThis = null
+    let oldThis = world.state["this"]
+    // total hack to see if you accessed with a.b by checking if object
+    if (func.__ijs_this && typeof funcAccessor == "object") {
+        theThis = func.__ijs_this
+        world.state["this"] = theThis
+    } else {
+        world.state["this"] = {}
+    }
+    var ret = func.apply(theThis, theArgs.map(function (t) {
         return ijs.exec(t, world)
     }))
+    world.state["this"] = oldThis
+    delete func.__ijs_this
     return ret
 }
 
@@ -3686,43 +3708,38 @@ ijs.makeSpecialReturn = function () {
 
 // alert("yo".match())
 
+window.p = {eat: function () {this.hunger--}, hunger: 100}
+
 ijs.exampleCode = function () {
 /*
+console = {log: log2}
+// p.eat()
+// p.eat()
+// p.eat()
+// p.eat()
+// log2(p)
 
-function onMessageListener(message, sender, sendResponse) {
-  // Check if the message action matches the function you want to execute
-  if (message.action == "extensionscriptsforpageisolated") {
-    console.log("fetching!!!")
+// sEat(); console.log(p.hunger)
+// sEat(); console.log(p.hunger)
+// p.eat(); console.log(p.hunger)
+// p.eat(); console.log(p.hunger)
 
-    // refresh ourselves, then get content script
-    fetch("http://localhost:80/extensionscriptsforbackground").then(r => r.json()).then(resp => {
-        console.log("Here is the response", resp)
-        resp.forEach(function (s) {
-            if (s.name.endsWith("js")) {
-                console.log("running script: " + s.name)
-                //eval(s.contents)  // can't use eval so we use the ijs library
-                ijs.run(s.contents)
-            }
-        })
-    }).then(function () {
-        fetch("http://localhost:80/extensionscriptsforpageisolated?url=" + encodeURIComponent(message.payload.url)).then(r => r.json()).then(r => {
-            console.log("Here is the response", r)
-            sendResponse(r)
-        })
-    })
-    console.log("returning true=============================")
-    return true
-    console.log("should not get here==========================")
-    // returning true means it will wait for async response
-    // where is that documented?
-    // https://stackoverflow.com/questions/44056271/chrome-runtime-onmessage-response-with-async-await
-  } else if (message.action === "urlToCheck") {
-    console.log("URLTocheck Message Received");
-    let urlToCheck = message.urlToCheck;
-    console.log("Url to check: ", urlToCheck);
-    }
-}
+var sEat = p.eat
+sEat(); console.log(p.hunger)
+sEat(); console.log(p.hunger)
+var bEat = p.eat.bind(p)
+bEat(); console.log(p.hunger)
+bEat(); console.log(p.hunger)
+sEat(); console.log(p.hunger)
+sEat(); console.log(p.hunger)
 
+// sEat(); console.log(p.hunger)
+// sEat(); console.log(p.hunger)
+// sEat(); console.log(p.hunger)
+
+
+
+return
 function testMe() {
     if (false) {
         return "a"
@@ -3738,7 +3755,6 @@ function testMe() {
 log2(testMe() === undefined)
 log2(testMe())
 
-return
 
 var d = {a: 0}
 d.a++
