@@ -2445,8 +2445,10 @@ ijs.builtins = {
         w.state[varName] = undefined
     },
     "=": function (args, world) {
+        var ret
         var varName = args[0]
         if (typeof args[0] == "object") {
+            // no ret for the statements
             if (args[0][0] == "var_pre" || args[0][0] == "let_pre" || args[0][0] == "const_pre") {
                 var w = world
                 if (args[0][0] == "var_pre") {
@@ -2477,10 +2479,12 @@ ijs.builtins = {
                 var obj = ijs.exec(args[0][1], world)
                 varName = args[0][2]
                 obj[varName] = ijs.exec(args[1], world)
+                ret = obj[varName]
             } else if (args[0][0] == "<computedMemberAccess>") {
                 var obj = ijs.exec(args[0][1], world)
                 var varName = ijs.exec(args[0][2], world)
                 obj[varName] = ijs.exec(args[1], world)
+                ret = obj[varName]
             } else if (args[0][0] == "<array>_pre") {
                 var varNames = args[0][1]
                 valuesArray = ijs.exec(args[1], world)
@@ -2489,21 +2493,27 @@ ijs.builtins = {
                     var w = ijs.getWorldForKey(world, varName) || world.global
                     w.state[varName] = valuesArray[i]
                 }
+                ret = valuesArray
             } else if (args[0][0] == "<object>_pre") {
                 var varNames = args[0][1]
                 var valuesObj = ijs.exec(args[1], world)
                 for (var varName of varNames) {
                     w.state[varName] = valuesObj[varName]
                 }
+                ret = valuesObj
             }
         } else {
             var w = ijs.getWorldForKey(world, varName) || world.global
             w.state[varName] = ijs.exec(args[1], world)
+            ret = w.state[varName]
         }
+        return ret
     },
     "=_await": async function (args, world) {
+        var ret
         var varName = args[0]
         if (typeof args[0] == "object") {
+            // no ret for the statements
             if (args[0][0] == "var_pre" || args[0][0] == "let_pre" || args[0][0] == "const_pre") {
                 var w = world
                 if (args[0][0] == "var_pre") {
@@ -2534,10 +2544,12 @@ ijs.builtins = {
                 var obj = ijs.exec(args[0][1], world)
                 varName = args[0][2]
                 obj[varName] = await ijs.exec(args[1], world)
+                ret = obj[varName]
             } else if (args[0][0] == "<computedMemberAccess>") {
                 var obj = ijs.exec(args[0][1], world)
                 var varName = ijs.exec(args[0][2], world)
                 obj[varName] = await ijs.exec(args[1], world)
+                ret = obj[varName]
             } else if (args[0][0] == "<array>_pre") {
                 var varNames = args[0][1]
                 valuesArray = await ijs.exec(args[1], world)
@@ -2546,17 +2558,21 @@ ijs.builtins = {
                     var w = ijs.getWorldForKey(world, varName) || world.global
                     w.state[varName] = valuesArray[i]
                 }
+                ret = valuesArray
             } else if (args[0][0] == "<object>_pre") {
                 var varNames = args[0][1]
                 var valuesObj = await ijs.exec(args[1], world)
                 for (var varName of varNames) {
                     w.state[varName] = valuesObj[varName]
                 }
+                ret = valuesObj
             }
         } else {
             var w = ijs.getWorldForKey(world, varName) || world.global
             w.state[varName] = await ijs.exec(args[1], world)
+            ret = w.state[varName]
         }
+        return ret
     },
     "+=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["+="]),
     "-=": ijs.makeAssignmentBuiltin(ijs.assignmentOps["-="]),
@@ -3747,6 +3763,12 @@ ijs.makeSpecialReturn = function () {
 // /
 ijs.exampleCode = function () {
 /*
+
+// var a = 10
+// function foo1() {
+//     return (a = 30)
+// }
+// alert(foo1()) // 30
 
 // var a = /hello/g
 // log2(a)
