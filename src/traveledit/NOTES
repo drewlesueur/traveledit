@@ -1,4 +1,9 @@
 
+function foo() {
+    var a11 = 1, b11 = 2
+}
+
+
 
 time
 tracking

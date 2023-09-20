@@ -729,6 +729,33 @@ setTimeout(function () {
     // alert(thumbscript4.evalQuick("plus 1 30"))
 }, 0)
 
+PretendArray = function () {
+    var ret = new Array(1000)
+    ret._i = 0
+    ret.push = function (x) {
+        ret[ret._i] = x
+        ret._i++
+        return ret._i
+    }
+    ret.pop = function () {
+        var r = ret[ret._i-1]
+        ret._i--
+        return r
+    }
+    return ret
+    // javascript initialize array of specified size
+    // Sure, you can initialize an array of a specified size in JavaScript using the Array constructor. Here's how:
+    // ```javascript
+    // var arraySize = 5; // specify your array size
+    // var myArray = new Array(arraySize).fill(null);
+    // ```
+    // In this example, `new Array(arraySize)` will initialize an array with 5 undefined elements. The `fill(null)` function will fill the array with `null` values.
+    // If you want to fill with different values or initialize with values based on the index, you can use `Array.from`:
+    // ```javascript
+    // var myOtherArray = Array.from({length: arraySize}, (v, i) => i);
+    // ```
+    // This will create an array `[0, 1, 2, 3, 4]` as it uses the current index value (`i`) for each element.
+}
 thumbscript4.eval = function(code, state) {
     // alert("evaling")
     clearTimeout(window.t99)
@@ -745,6 +772,7 @@ thumbscript4.eval = function(code, state) {
     world = {
         state: state || {},
         stack: [],
+        // stack: PretendArray(),
         tokens: tokens,
         i: 0,
         parent: null,
@@ -2136,7 +2164,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // } loopn
 
 log2(thumbscript4.tokenize(`
-nowmillis :foo
+// nowmillis :foo
 `, true))
 
 function promiseCheck(name) {
@@ -2175,7 +2203,7 @@ thumbscript4.exampleCode = function () { // maroon marker
 
 // alert plus. 3 4
 // alert 3 •plus 4
-// goto $countPart
+goto $countPart
 
 window $xyzzy at "xyzzy is " swap cc say
 

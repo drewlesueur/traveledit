@@ -330,6 +330,9 @@ ijs.tokenize = function (code, debug) {
             if ('/'.indexOf(chr) != -1) {
                 state = "after_regexp"
                 currentRegExpFlags = ""
+            } else if (backslash.indexOf(chr) != -1) {
+                state = "escape_regexp"
+                currentToken += chr
             } else {
                 currentToken += chr
             }
@@ -346,20 +349,13 @@ ijs.tokenize = function (code, debug) {
                 state = "out"
                 currentRegExpFlags = ""
                 currentToken = ""
-                // tokens.push([
-                //     "<callFunc>",
-                //     [
-                //         "new_pre",
-                //         "RegExp"
-                //     ],
-                //     [
-                //         "#bar",
-                //         "#i"
-                //     ]
-                // ])
+                i--
             } else {
                 currentRegExpFlags += chr
             }
+        } else if (state == "escape_regexp") {
+            state = "in_regexp"
+            currentToken += chr
         } else if (state == "escape") {
             if ('"\\/bfnrtu'.indexOf(chr) != -1) {
                 currentToken += backslash + chr
@@ -373,8 +369,8 @@ ijs.tokenize = function (code, debug) {
             } else {
                 // total Hack
                 let prev = ijs.getPrevNonSpaceChar(code, i-1)
-                // if (prev == undefined || ";:,=({[".indexOf(prev) != -1) {
-                if (false) {
+                if (prev == undefined || ";:,=({[".indexOf(prev) != -1) {
+                // if (false) {
                     state = "in_regexp"
                     currentToken = chr
                 } else {
@@ -3712,10 +3708,74 @@ ijs.makeSpecialReturn = function () {
 // alert("yo".match())
 
 
-window.p = {eat: function () {this.hunger--}, hunger: 100}
+// these all toString to the same thing.
+// alert(/yo\.bar\/yea/)
+// alert(new RegExp("yo\\.bar/yea", ""))
+// alert(new RegExp("yo\\.bar\/yea", ""))
+// alert(new RegExp("yo\\.bar\\/yea", ""))
+
+
+// I don't fully understand the leniency with backslashes, but that's hire javascript does it
+// var regexps = [
+//     /yo\.bar\/yea/,
+//     new RegExp("yo\\.bar/yea", ""),
+//     new RegExp("yo\\.bar\/yea", ""),
+//     new RegExp("yo\\.bar\\/yea", ""),
+//     new RegExp("yo\\.bar\\\/yea", ""),
+//     new RegExp("yo\\\.bar\\\/yea", "")
+// ]
+// for (let r of regexps) {
+//     log2("yo.bar\/yea".match(r))
+// }
+// log2(regexps.map(r => r.toString()))
+// window.p = {eat: function () {this.hunger--}, hunger: 100}
+// *
+// }
+// ijs.exampleCode2 = function () {
+// /
 ijs.exampleCode = function () {
 /*
-console = {log: log2}
+
+// var a = /hello/g
+// log2(a)
+// x = /\d.+\d/i
+// x = new RegExp('\\d.+\\d', "i")
+
+// these all toString to the same thing.
+var regexps = [
+    /yo\.bar\/yea/,
+    new RegExp("yo\\.bar/yea", ""),
+    new RegExp("yo\\.bar\/yea", ""),
+    new RegExp("yo\\.bar\\/yea", ""),
+    new RegExp("yo\\.bar\\\/yea", "")
+    new RegExp("yo\\\.bar\\\/yea", "")
+]
+for (let r of regexps) {
+    log2("yo.bar\/yea".match(r))
+}
+log2(regexps.map(r => r.toString()))
+
+log2("myyyy name is drew".match(/m.*name.is.dr/))
+// "yo".match(/y/)
+// "yo".match(new RegExp("y", ""))
+// alert("yo".match(/y/))
+// alert("yo".match(new RegExp("y", "")))
+// var str = "7 whatever 8 ok!!"
+// var x = str.match(/\d.+\d/i)
+// var x = "what"
+// var x = "7 whatever 8 ok!!".match(/\d.+\d/i)
+// alert(x)
+
+
+
+
+
+var a = "hi"
+
+log2(`oh ${
+    a
+} whats up?`)
+// console = {log: log2}
 
 // var sEat = p.eat
 // sEat(); console.log(p.hunger)
