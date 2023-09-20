@@ -14,6 +14,13 @@ fun gifs
 editor commandnis long press search area
 long press yay
 
+wrangle positions after inserting
+will applynto undo
+will apply to many things
+wrangle the splices basically
+feature to collapse lines!
+implement it with array of areays
+
 cut then type changing the copybuffer should only work if it's one line.
 
 
