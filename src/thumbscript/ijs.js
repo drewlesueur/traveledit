@@ -1,7 +1,7 @@
 // TODO:
 // return await
 // throw error with function() 
-//
+// obj.call?.()
 
 if (typeof log2 === "undefined") {
    log2 = function (x) {
@@ -238,7 +238,13 @@ ijs.tokenize = function (code, debug) {
                 // }
                 if ("(".indexOf(chr) != -1) {
                     if (i != 0 && " \t\n\r\(\[\-\!\+".indexOf(code.charAt(i-1)) == -1) {
-                        tokens.push("<callFunc>")
+                        let lastToken = tokens.pop()
+                        if (lastToken == "?.") {
+                            tokens.push("<optionalCallFunc>")
+                        } else {
+                            tokens.push(lastToken)
+                            tokens.push("<callFunc>")
+                        }
                     } else {
                         tokens.push("<group>")
                     }
@@ -391,7 +397,9 @@ ijs.tokenize = function (code, debug) {
     // return tokens
 
     // logging pre tokens
-    // log2(tokens) // deeppink marker
+    if (debug) {
+        log2(tokens) // deeppink marker
+    }
     var newTokens = []
     var tokenStack = []
     // squish funcs
@@ -671,6 +679,10 @@ ijs.infixes = {
          "precedence": 13,
      },
      "<callFunc>": {
+         "associatitivity": 0,
+         "precedence": 17,
+     },
+     "<optionalCallFunc>": {
          "associatitivity": 0,
          "precedence": 17,
      },
@@ -2199,6 +2211,15 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
                     var genedArgs = ""
                 }
                 ret.push(ijs.generateExprString(expr[1], indent, operator) + "(" + genedArgs + ")")
+            } else if (operator == "<optionalCallFunc>") {
+                if (expr[2]) {
+                    var genedArgs = expr[2].map(arg => {
+                        return ijs.generateExprString(arg, indent, operator)
+                    }).join(", ")
+                } else {
+                    var genedArgs = ""
+                }
+                ret.push(ijs.generateExprString(expr[1], indent, operator) + "?.(" + genedArgs + ")")
             } else if (operator == "<computedMemberAccess>") {
                 ret.push(ijs.generateExprString(expr[1], indent, operator) + "[" + ijs.generateExprString(expr[2], indent, operator) + "]")
             } else if (operator == "<optionallyChainedComputedMemberAccess>") {
@@ -2822,7 +2843,7 @@ ijs.builtins = {
             } else {
                 var key = kv[1]
                 var value = kv[2]
-                if (key.charAt(0) == "#") {
+                if (key.charAt && key.charAt(0) == "#") {
                     key = key.slice(1)
                 }
                 o[key] = ijs.exec(value, world)
@@ -2897,6 +2918,9 @@ ijs.builtins = {
         // (<callfunc> bar baz)
         // alternate
         return ijs.callFunc(args[0], args[1], world)
+    },
+    "<optionalCallFunc>": function(args, world) {
+        return ijs.callFunc(args[0], args[1], world, {optional: true})
     },
     "while_pre": function (args, world) {
         var condition = args[0][1][0]
@@ -3571,6 +3595,10 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     }
     func = ijs.exec(funcAccessor, world, {inCall: true})
     // log2(["funcAccessor", funcAccessor])
+    
+    if (opts?.optional && !func) {
+        return
+    }
     if (!func) {
         alert("no func: " + funcAccessor)
     }
@@ -3767,9 +3795,33 @@ ijs.makeSpecialReturn = function () {
 // }
 // ijs.exampleCode2 = function () {
 // /
+// alert("hiyoyoyo".slice?.(1))
+
+
+
+
+// log2(ijs.tokenize(`
+//     "hiyoyoyo".slice?.(1)
+// `, true))
+
+
+
+
 ijs.exampleCode = function () {
 /*
 
+// a = {foo2: x => 20}
+// alert(a.foo?.())
+
+// alert("hiyoyoyo".slice?.(1))
+// switch (x) {
+//     case 200:
+//         log2("200 works")
+//         break
+//     case 300:
+//         log2("200 works")
+//         break
+// }
 p = {eat: function () {this.hunger--}, hunger: 100}
 p.eat();
 p.eat();
