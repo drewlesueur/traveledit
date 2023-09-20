@@ -2287,18 +2287,18 @@ ijs.makeAssignmentBuiltin = function (opFunc) {
                 var obj = ijs.exec(args[0][1], world)
                 varName = args[0][2]
                 // obj[varName] += ijs.exec(args[1], world)
-                opFunc(obj, varName, ijs.exec(args[1], world))
+                return opFunc(obj, varName, ijs.exec(args[1], world))
             } else if (args[0][0] == "<computedMemberAccess>") {
                 var obj = ijs.exec(args[0][1], world)
                 var varName = ijs.exec(args[0][2], world)
                 // obj[varName] += ijs.exec(args[1], world)
-                opFunc(obj, varName, ijs.exec(args[1], world))
+                return opFunc(obj, varName, ijs.exec(args[1], world))
             }
             return
         }
         var w = ijs.getWorldForKey(world, args[0])
         // w.state[args[0]] += ijs.exec(args[1], world)
-        opFunc(w.state, args[0], ijs.exec(args[1], world))
+        return opFunc(w.state, args[0], ijs.exec(args[1], world))
     }
 }
 ijs.getRunFunc = function (isAsync) {
@@ -3766,9 +3766,10 @@ ijs.exampleCode = function () {
 
 // var a = 10
 // function foo1() {
-//     return (a = 30)
+//     // return (a = 30)
+//     return (a += 1)
 // }
-// alert(foo1()) // 30
+// alert(foo1()) // 11
 
 // var a = /hello/g
 // log2(a)
