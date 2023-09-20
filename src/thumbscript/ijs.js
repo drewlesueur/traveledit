@@ -316,7 +316,8 @@ ijs.tokenize = function (code, debug) {
                     // log2("current token is ")
                     // log2(currentToken)
                     // return
-                    tokens.push(["<interpolate>", JSON.parse(currentToken.replaceAll("\n", "\\n"))])
+                    //tokens.push(["<interpolate>", JSON.parse(currentToken.replaceAll("\n", "\\n"))])
+                    tokens.push(["<interpolate>", JSON.parse(currentToken.replaceAll("\n", "\\n").replaceAll("\r", "\\r"))])
                 } else {
                     tokens.push("#" + JSON.parse(currentToken))
                 }
@@ -1871,7 +1872,7 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
 // var tokens = "7 - - 2 * 3".split(" ")
 // log2(ijs.infixate(tokens))
 
-
+ijs.ranFuncs = []
 ijs.run = function(code, world) {
     // var oldPreventRender = preventRender
     // preventRender = true
@@ -1886,19 +1887,26 @@ ijs.run = function(code, world) {
         } else if (typeof self != "undefined") {
             globalObject = self
         }
-        var globalWorld = {
-            state: globalObject,
-            // cachedLookupWorld: {},
-            parent: null,
-        }
-        world = {
-            parent: globalWorld,
-            state: {},
-            // cachedLookupWorld: {},
-            global: globalWorld
-        }
+        // var globalWorld = {
+        //     state: globalObject,
+        //     // cachedLookupWorld: {},
+        //     parent: null,
+        // }
+        // world = {
+        //     parent: globalWorld,
+        //     state: {},
+        //     // cachedLookupWorld: {},
+        //     global: globalWorld
+        // }
+
+		world = {
+			parent: null,
+			state: globalObject,
+		}
+		world.global = world
     }
-    var f = ijs.makeFunc([], tokens, world)
+    var f = ijs.makeFunc([], tokens, world, null, {skipNewScope: true})
+	ijs.ranFuncs.push(f)
     // log2(f.toString())
     var ret
     // try {
@@ -2004,18 +2012,22 @@ ijs.makeAsyncFunc = function(params, body, world, name) {
     return f
 }
 
-ijs.makeFunc = function(params, body, world, name) {
+ijs.makeFunc = function(params, body, world, name, opts) {
     body = body || []
     // body = ["run", ...body]
     // body.unshift("run")
     // alert(JSON.stringify(body, null, "    "))
-    var world = {
-        parent: world,
-        state: {},
-        // cachedLookupWorld: {},
-        global: world.global,
-        async: false
-    }
+	if (opts && opts.skipNewScope) {
+
+	} else {
+		world = {
+			parent: world,
+			state: {},
+			// cachedLookupWorld: {},
+			global: world.global,
+			async: false
+		}
+	}
     // log2("+params are")
     // log2(params)
     var origBody = body
