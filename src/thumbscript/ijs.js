@@ -1,6 +1,7 @@
 // TODO:
 // return await
-
+// throw error with function() 
+//
 
 if (typeof log2 === "undefined") {
    log2 = function (x) {
@@ -2672,12 +2673,11 @@ ijs.builtins = {
         var o = ijs.exec(args[0], world)
         var ret = o[args[1]]
         if (opts && opts.inCall && typeof ret == "function") {
-            return ret.bind(o)
-            // ret.__ijs_this = o
+            ret = ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
-    // !!!!
     // TODO: every time you bind for function, also do this!
     // var ts = ret.toString.bind(ret)
     // ret = ret.bind(a)
@@ -2693,8 +2693,8 @@ ijs.builtins = {
         }
         var ret = o[args[1]]
         if (opts && opts.inCall && typeof ret == "function") {
-            return ret.bind(o)
-            // ret.__ijs_this = o
+            ret = ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
@@ -2702,8 +2702,8 @@ ijs.builtins = {
         var o = ijs.exec(args[0], world)
         var ret = o[ijs.exec(args[1], world)]
         if (opts && opts.inCall && typeof ret == "function") {
-            return ret.bind(o)
-            // ret.__ijs_this = o
+            ret = ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
@@ -2717,8 +2717,8 @@ ijs.builtins = {
         }
         var ret = o[ijs.exec(args[1], world)]
         if (opts && opts.inCall && typeof ret == "function") {
-            return ret.bind(o)
-            // ret.__ijs_this = o
+            ret = ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
@@ -2730,8 +2730,8 @@ ijs.builtins = {
         }
         let ret = o[args[1]]
         if (opts && opts.inCall && typeof ret == "function") {
-            return ret.bind(o)
-            // ret.__ijs_this = o
+            ret = ret.bind(o)
+            ret.__ijs_this = o
         }
         return ret
     },
@@ -3576,6 +3576,12 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     }
     theArgs = theArgs || []
 
+    if (func.__ijs_this && typeof funcAccessor == "object") {
+        theThis = func.__ijs_this
+        world.state["this"] = theThis
+    } else {
+        world.state["this"] = {}
+    }
     var ret = func.apply(null, theArgs.map(function (t) {
         return ijs.exec(t, world)
     }))
@@ -3763,6 +3769,42 @@ ijs.makeSpecialReturn = function () {
 // /
 ijs.exampleCode = function () {
 /*
+
+p = {eat: function () {this.hunger--}, hunger: 100}
+p.eat();
+p.eat();
+p.eat();
+p.eat();
+log2(p)
+var nonBoundEat = p.eat
+nonBoundEat()
+nonBoundEat()
+nonBoundEat()
+nonBoundEat()
+log2(p)
+
+async function doThing(ms, arg) {
+    return new Promise(function (resolve, reject) {
+        setTimeout(function () {
+            resolve(arg)
+        }, ms)
+        return arg
+    })
+}
+
+// this is broken because i only support await in top level statement or assignment
+async function process() {
+    // var a = await doThing(10)
+    var a = await doThing(0, await doThing(0, 5))
+    alert(a)
+    alert("ok")
+    var p = {
+        name: await doThing(0, "Drew")
+    }
+    log2(p)
+}
+// process()
+// alert("yo")
 
 // var a = 10
 // function foo1() {
