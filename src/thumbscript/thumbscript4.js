@@ -157,7 +157,6 @@ thumbscript4.tokenize = function(code, debug) {
         if (state == "out") {
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
-                addToken(chr)
                 if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
                         addClosingParensStack.push(addClosingParensOnNewLine)
@@ -175,6 +174,7 @@ thumbscript4.tokenize = function(code, debug) {
                         
                     }
                 }
+                addToken(chr)
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 // some fancy desugaring here and below
@@ -280,9 +280,6 @@ thumbscript4.tokenize = function(code, debug) {
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 addToken(currentToken)
-                addToken(chr)
-                currentToken = ""
-                state = "out"
                 if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
                         // this more relates to the parensCallSugar below?
@@ -296,11 +293,12 @@ thumbscript4.tokenize = function(code, debug) {
                             }
                             addClosingParensOnNewLine = 0
                         }
-                        
                         addClosingParensOnNewLine = addClosingParensStack.pop()
-                        
                     }
                 }
+                addToken(chr)
+                currentToken = ""
+                state = "out"
                 if (parensCallSugar && "(".indexOf(chr) != -1) {
                     let leftParen = tokens.pop()
                     let t = tokens.pop()
@@ -323,6 +321,16 @@ thumbscript4.tokenize = function(code, debug) {
                         addClosingParensOnNewLine++
                     }
                 } else {
+                    // close out
+                    // a: [b: 1 2 plus c: 40 3 minus]
+                    // weirdly this may not be needed but it's more understandable
+                    if (addClosingParensOnNewLine) {
+                        for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                            addToken(")") // addedClosingParen pink marker
+                        }
+                        addClosingParensOnNewLine = 0
+                    }
+                    
                     addToken("$" + currentToken)
                     addToken("1<-")
                     freshLine = true // darkorange marker
@@ -2280,8 +2288,8 @@ log2(thumbscript4.tokenize(`
 
 // a: [b: 1 2 plus]
 // [person 0 $score] props say
-a: [b: 1
-]
+// a: [b: 1]
+a: [b: 1 2 plus c: 40 3 minus]
 `, true))
 
 function promiseCheck(name) {
@@ -2320,7 +2328,7 @@ thumbscript4.exampleCode = function () { // maroon marker
 
 // alert plus. 3 4
 // alert 3 •plus 4
-a: [b: 1]
+a: [b: 1 2 plus c: 40 3 minus]
 say. a tojson
 
 
@@ -2338,7 +2346,6 @@ person 0 at say
 list: ["drew" "cristi"]
 list at(0 plus. 1) say
 
-exit
 goto. $countPart
 
 window $xyzzy at "xyzzy is " swap cc say
@@ -2964,7 +2971,6 @@ assertempty. "a check" // olive marker
 
 
 [person 0 $score] props say
-exit
 
 500 :[person 0 $score]
 [person 0 $score] props say
