@@ -1,7 +1,7 @@
 // TODO:
 // return await
 // throw error with function() 
-//
+// obj.call?.()
 
 if (typeof log2 === "undefined") {
    log2 = function (x) {
@@ -238,7 +238,13 @@ ijs.tokenize = function (code, debug) {
                 // }
                 if ("(".indexOf(chr) != -1) {
                     if (i != 0 && " \t\n\r\(\[\-\!\+".indexOf(code.charAt(i-1)) == -1) {
-                        tokens.push("<callFunc>")
+                        let lastToken = tokens.pop()
+                        if (lastToken == "?.") {
+                            tokens.push("<optionalCallFunc>")
+                        } else {
+                            tokens.push(lastToken)
+                            tokens.push("<callFunc>")
+                        }
                     } else {
                         tokens.push("<group>")
                     }
@@ -391,7 +397,9 @@ ijs.tokenize = function (code, debug) {
     // return tokens
 
     // logging pre tokens
-    // log2(tokens) // deeppink marker
+    if (debug) {
+        log2(tokens) // deeppink marker
+    }
     var newTokens = []
     var tokenStack = []
     // squish funcs
@@ -674,6 +682,10 @@ ijs.infixes = {
          "associatitivity": 0,
          "precedence": 17,
      },
+     "<optionalCallFunc>": {
+         "associatitivity": 0,
+         "precedence": 17,
+     },
      "<computedMemberAccess>": {
          "associatitivity": 0,
          "precedence": 17,
@@ -823,6 +835,7 @@ ijs.prefixes = {
      //     "arity": 1,
      //     "fix": "pre",
      // },
+     // TODO: make these the same
      "var": {
          "associatitivity": 1,
          "precedence": 9,
@@ -2199,6 +2212,15 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
                     var genedArgs = ""
                 }
                 ret.push(ijs.generateExprString(expr[1], indent, operator) + "(" + genedArgs + ")")
+            } else if (operator == "<optionalCallFunc>") {
+                if (expr[2]) {
+                    var genedArgs = expr[2].map(arg => {
+                        return ijs.generateExprString(arg, indent, operator)
+                    }).join(", ")
+                } else {
+                    var genedArgs = ""
+                }
+                ret.push(ijs.generateExprString(expr[1], indent, operator) + "?.(" + genedArgs + ")")
             } else if (operator == "<computedMemberAccess>") {
                 ret.push(ijs.generateExprString(expr[1], indent, operator) + "[" + ijs.generateExprString(expr[2], indent, operator) + "]")
             } else if (operator == "<optionallyChainedComputedMemberAccess>") {
@@ -2353,31 +2375,32 @@ ijs.builtins = {
                 //     continue
                 }
                 // log2("the thing to run is " + JSON.stringify(arg))
-            }
-            if (arg == "break") {
-                var ret = ijs.makeSpecialReturn()
-                ret.breakMessage = true
-                return ret
-            }
-            if (arg == "continue") {
-                var ret = ijs.makeSpecialReturn()
-                ret.continueMessage = true
-                return ret
-            }
-            if (arg == "debugger") {
-                debugger
             } else {
-                var pRet = ijs.exec(arg, world)
-                var ret
-                if (arg[0] in ijs.asyncVersions) {
-                    ret = await pRet
-                } else {
-                    ret = pRet
+                if (arg == "break") {
+                    var ret = ijs.makeSpecialReturn()
+                    ret.breakMessage = true
+                    return ret
                 }
-                if (ijs.isSpecialReturn(ret)) {
-                    if (ret.breakMessage || ret.returnMessage) {
-                        return ret
-                    }
+                if (arg == "continue") {
+                    var ret = ijs.makeSpecialReturn()
+                    ret.continueMessage = true
+                    return ret
+                }
+                if (arg == "debugger") {
+                    debugger
+                    return
+                }
+            }
+            var pRet = ijs.exec(arg, world)
+            var ret
+            if (arg[0] in ijs.asyncVersions) {
+                ret = await pRet
+            } else {
+                ret = pRet
+            }
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage || ret.returnMessage) {
+                    return ret
                 }
             }
         }
@@ -2390,7 +2413,6 @@ ijs.builtins = {
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
             // some special cases
-            // log2("-running: "+JSON.stringify(arg))
             if (typeof arg == "object") {
                 if (arg[0] == "return_pre") {
                     var ret
@@ -2407,25 +2429,28 @@ ijs.builtins = {
                     }
                     return ret
                 }
-            }
-            if (arg == "break") {
-                var ret = ijs.makeSpecialReturn()
-                ret.breakMessage = true
-                return ret
-            }
-            if (arg == "continue") {
-                var ret = ijs.makeSpecialReturn()
-                ret.continueMessage = true
-                return ret
-            }
-            if (arg == "debugger") {
-                debugger
             } else {
-                var ret = ijs.exec(arg, world)
-                if (ijs.isSpecialReturn(ret)) {
-                    if (ret.breakMessage || ret.returnMessage) {
-                        return ret
-                    }
+                // comparing object to string seems slow!!
+                // this used to not be in else
+                if (arg == "break") {
+                    var ret = ijs.makeSpecialReturn()
+                    ret.breakMessage = true
+                    return ret
+                }
+                if (arg == "continue") {
+                    var ret = ijs.makeSpecialReturn()
+                    ret.continueMessage = true
+                    return ret
+                }
+                if (arg == "debugger") {
+                    debugger
+                    return
+                }
+            }
+            var ret = ijs.exec(arg, world)
+            if (ijs.isSpecialReturn(ret)) {
+                if (ret.breakMessage || ret.returnMessage) {
+                    return ret
                 }
             }
         }
@@ -2674,7 +2699,7 @@ ijs.builtins = {
         var ret = o[args[1]]
         if (opts && opts.inCall && typeof ret == "function") {
             ret = ret.bind(o)
-            ret.__ijs_this = o
+            // ret.__ijs_this = o
         }
         return ret
     },
@@ -2694,7 +2719,7 @@ ijs.builtins = {
         var ret = o[args[1]]
         if (opts && opts.inCall && typeof ret == "function") {
             ret = ret.bind(o)
-            ret.__ijs_this = o
+            // ret.__ijs_this = o
         }
         return ret
     },
@@ -2703,7 +2728,7 @@ ijs.builtins = {
         var ret = o[ijs.exec(args[1], world)]
         if (opts && opts.inCall && typeof ret == "function") {
             ret = ret.bind(o)
-            ret.__ijs_this = o
+            // ret.__ijs_this = o
         }
         return ret
     },
@@ -2718,7 +2743,7 @@ ijs.builtins = {
         var ret = o[ijs.exec(args[1], world)]
         if (opts && opts.inCall && typeof ret == "function") {
             ret = ret.bind(o)
-            ret.__ijs_this = o
+            // ret.__ijs_this = o
         }
         return ret
     },
@@ -2731,7 +2756,7 @@ ijs.builtins = {
         let ret = o[args[1]]
         if (opts && opts.inCall && typeof ret == "function") {
             ret = ret.bind(o)
-            ret.__ijs_this = o
+            // ret.__ijs_this = o
         }
         return ret
     },
@@ -2822,7 +2847,7 @@ ijs.builtins = {
             } else {
                 var key = kv[1]
                 var value = kv[2]
-                if (key.charAt(0) == "#") {
+                if (key.charAt && key.charAt(0) == "#") {
                     key = key.slice(1)
                 }
                 o[key] = ijs.exec(value, world)
@@ -2897,6 +2922,9 @@ ijs.builtins = {
         // (<callfunc> bar baz)
         // alternate
         return ijs.callFunc(args[0], args[1], world)
+    },
+    "<optionalCallFunc>": function(args, world) {
+        return ijs.callFunc(args[0], args[1], world, {optional: true})
     },
     "while_pre": function (args, world) {
         var condition = args[0][1][0]
@@ -3559,9 +3587,7 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
             var ret = new (Function.prototype.bind.apply(theClass, [null].concat(evaledArgs)))
             return ret
         }
-    }
-
-    if (funcAccessor in ijs.builtins) {
+    } else if (funcAccessor in ijs.builtins) {
         if (world.async && (funcAccessor in ijs.asyncVersions)) {
             funcAccessor = funcAccessor + "_await"
         }
@@ -3571,17 +3597,26 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     }
     func = ijs.exec(funcAccessor, world, {inCall: true})
     // log2(["funcAccessor", funcAccessor])
+    
+    if (opts?.optional && !func) {
+        return
+    }
     if (!func) {
         alert("no func: " + funcAccessor)
     }
     theArgs = theArgs || []
 
-    if (func.__ijs_this && typeof funcAccessor == "object") {
-        theThis = func.__ijs_this
-        world.state["this"] = theThis
-    } else {
-        world.state["this"] = {}
-    }
+    // TODO: t he this thing  doesnt work in a for loop unless parent calls the function too ?!
+    // if (func?.world?.state) {
+    //     if (func.__ijs_this && typeof funcAccessor == "object") {
+    //         theThis = func.__ijs_this
+    //         func.world.state["this"] = theThis
+    //         // world.state["this"] = theThis
+    //     } else {
+    //         func.world.state["this"] = {}
+    //         // world.state["this"] = {}
+    //     }
+    // }
     var ret = func.apply(null, theArgs.map(function (t) {
         return ijs.exec(t, world)
     }))
@@ -3767,9 +3802,51 @@ ijs.makeSpecialReturn = function () {
 // }
 // ijs.exampleCode2 = function () {
 // /
+// alert("hiyoyoyo".slice?.(1))
+
+
+
+
+log2(ijs.tokenize(`
+// switch (x) {
+//     case x- 1:
+//         log2("200 works")
+//         log2("100 works")
+//         break
+//     case 300:
+//         log2("200 works")
+//         log2("100 works")
+//         break
+// }
+
+outer:
+for (i of yo) {
+    break outer
+}
+
+
+`, false))
+
+
+
+
 ijs.exampleCode = function () {
 /*
 
+// a = {foo2: x => 20}
+// alert(a.foo?.())
+
+// alert("hiyoyoyo".slice?.(1))
+// switch (x) {
+//     case 200:
+//         log2("200 works")
+//         log2("100 works")
+//         break
+//     case 300:
+//         log2("200 works")
+//         log2("100 works")
+//         break
+// }
 p = {eat: function () {this.hunger--}, hunger: 100}
 p.eat();
 p.eat();
@@ -5240,5 +5317,42 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-ijs.run(code)
+// ijs.run(code)
 // setTimeout(ijs.testInfixate, 1)
+
+function timeIt(name, fn) {
+    var start = Date.now()
+    fn()
+    log2("for " + name + " it took " + (Date.now() - start) + "ms")
+}
+var code = `
+function testMe() {
+    // var p = {rocks: 0, dig: function () {this.rocks--}}
+    var p = {rocks: 0, dig: function () {p.rocks--}}
+    // p.dig()
+    for (var i=0; i<100000; i++) {
+        p.dig()
+    }
+    // alert(p.rocks)
+    // count = 0
+    // for (var i=0; i<1000000; i++) {
+    //     count++
+    // }
+}
+testMe()
+`
+window.count = 0
+var interpreter = new Sval({
+    sandbox: false
+})
+
+setTimeout(() => {
+    timeIt("ijs", () => {
+        ijs.run(code)
+    })
+    // timeIt("sval", () => {
+    //     interpreter.run(code)
+    // })
+}, 1000)
+
+// alert(window.count)
