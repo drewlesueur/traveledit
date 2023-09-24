@@ -17,6 +17,7 @@ const incrType = 8;
 const noOpType = 9;
 const anchorType = 10;
 const interpolateType = 11;
+const boolType = 12;
 
 function j(x) {
     return JSON.stringify(x, null, "    ")
@@ -25,10 +26,11 @@ function j(x) {
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true // count: count 1 plus
-    var funcFirstWithDotSugar = true // say. "hello world"
-    var funcFirstSugar = true // say "hello world"
+    var funcFirstWithDotSugar = true // say. "hello world" or .say "hi"
+    // var funcFirstSugar = true // say "hello world"
+    var funcFirstSugar = false // say "hello world"
     var parensCallSugar = true // str slice(2 3)
-    
+
     var freshLine = true
     var currentTokenOnFreshLine = true
     var state = "out"
@@ -44,10 +46,21 @@ thumbscript4.tokenize = function(code, debug) {
             quoteNext = false
             token = "$" + token
         }
-        
+        // if (!token) {
+        //     log2(tokens)
+        //     return
+        // }
         var sinUnderscores = token.replaceAll("_", "")
         if (sinUnderscores - 0 == sinUnderscores) {
             addToken2(sinUnderscores-0)
+            return
+        }
+        if (token == "true") {
+            addToken2(true)
+            return
+        }
+        if (token == "false") {
+            addToken2(false)
             return
         }
         if (typeof token == "string") {
@@ -130,6 +143,8 @@ thumbscript4.tokenize = function(code, debug) {
             token = {th_type: numberType, valueNumber: token}
         } else if (typeof token == "function") {
             token = {th_type: builtInType, valueFunc: token, name: token.theName}
+        } else if (typeof token == "boolean") {
+            token = {th_type: boolType, valueBool: token, name: token + ""}
         } else {
             // log2("- unknowntoken type")
             // log2(token)
@@ -142,15 +157,24 @@ thumbscript4.tokenize = function(code, debug) {
         if (state == "out") {
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
-                addToken(chr)
                 if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
                         addClosingParensStack.push(addClosingParensOnNewLine)
                         addClosingParensOnNewLine = 0
                     } else if (")]}".indexOf(chr) != -1) {
+                        // attempt!
+                        if (addClosingParensOnNewLine) {
+                            for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                                addToken(")") // addedClosingParen pink marker
+                            }
+                            addClosingParensOnNewLine = 0
+                        }
+
                         addClosingParensOnNewLine = addClosingParensStack.pop()
+                        
                     }
                 }
+                addToken(chr)
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 // some fancy desugaring here and below
@@ -240,7 +264,7 @@ thumbscript4.tokenize = function(code, debug) {
                 freshLine = false // orange marker
                 state = "string2"
                 string2OpenCount = 1
-            } else if ("•@".indexOf(chr) != -1) {
+            } else if (".•@".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 state = "dot"
                 currentToken = chr
@@ -256,17 +280,25 @@ thumbscript4.tokenize = function(code, debug) {
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 addToken(currentToken)
-                addToken(chr)
-                currentToken = ""
-                state = "out"
                 if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
+                        // this more relates to the parensCallSugar below?
                         addClosingParensStack.push(addClosingParensOnNewLine)
                         addClosingParensOnNewLine = 0
                     } else if (")]}".indexOf(chr) != -1) {
+                        // attempt!
+                        if (addClosingParensOnNewLine) {
+                            for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                                addToken(")") // addedClosingParen pink marker
+                            }
+                            addClosingParensOnNewLine = 0
+                        }
                         addClosingParensOnNewLine = addClosingParensStack.pop()
                     }
                 }
+                addToken(chr)
+                currentToken = ""
+                state = "out"
                 if (parensCallSugar && "(".indexOf(chr) != -1) {
                     let leftParen = tokens.pop()
                     let t = tokens.pop()
@@ -289,10 +321,21 @@ thumbscript4.tokenize = function(code, debug) {
                         addClosingParensOnNewLine++
                     }
                 } else {
+                    // close out
+                    // a: [b: 1 2 plus c: 40 3 minus]
+                    // weirdly this may not be needed but it's more understandable
+                    if (addClosingParensOnNewLine) {
+                        for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                            addToken(")") // addedClosingParen pink marker
+                        }
+                        addClosingParensOnNewLine = 0
+                    }
+                    
                     addToken("$" + currentToken)
                     addToken("1<-")
                     freshLine = true // darkorange marker
-                    if (leftAssignSugar && tokens[tokens.length - 2]?.onFreshLine) {
+                    // if (leftAssignSugar && tokens[tokens.length - 2]?.onFreshLine) {
+                    if (leftAssignSugar) { // maroon marker
                         addToken("(") // addLeftParen
                         addClosingParensOnNewLine++
                     }
@@ -304,8 +347,8 @@ thumbscript4.tokenize = function(code, debug) {
                 addToken(currentToken)
                 currentToken = ""
                 state = "out"
-                
-                
+
+
                 if (funcFirstSugar && " ".indexOf(chr) != -1 && tokens[tokens.length-1]?.onFreshLine && (tokens[tokens.length-1]?.th_type == builtInType || tokens[tokens.length-1]?.isFunc)) { // red marker
                     addToken("<>")
                     addToken("(")
@@ -316,10 +359,13 @@ thumbscript4.tokenize = function(code, debug) {
                     }
                     addClosingParensOnNewLine = 0
                 }
-                
 
-                if (funcFirstWithDotSugar && " ".indexOf(chr) != -1 && addedToken[addedToken.length-1] == ".") { // red marker
-                    let tokenName = addedToken.slice(0, -1)
+
+                if (funcFirstWithDotSugar && " ".indexOf(chr) != -1 && (addedToken[addedToken.length-1] == ".")) { // red marker
+                    let tokenName
+                    if (addedToken.endsWith(".")) {
+                        tokenName = addedToken.slice(0, -1)
+                    }
                     tokens.pop()
 
                     // for if else chain?
@@ -426,7 +472,7 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "in"
             }
         } else if (state == "dot") {
-            if ("•@".indexOf(chr) != -1) {
+            if (".•@".indexOf(chr) != -1) {
                 currentToken += chr
             } else {
                 i--
@@ -607,7 +653,7 @@ thumbscript4.desugarAtSign = function(tokens) {
 
         if (token.th_type == varType) {
             var j = 0
-            while (j < token.valueString.length && "@•".indexOf(token.valueString.charAt(j)) != -1) {
+            while (j < token.valueString.length && ".•@".indexOf(token.valueString.charAt(j)) != -1) {
                 j++
             }
             if (j == 0) {
@@ -858,7 +904,7 @@ thumbscript4.run = function(world) {
             return world
         }
         world = newWorld
-        
+
         // log2("\t".repeat(world.indent) + "// stack: " + JSON.stringify(world.stack))
         // if (world.name) {
         //     log2("\t".repeat(world.indent) + "+ in world " + world.name + "(" +world.runId+") < " + (world.parent?.name || "") )
@@ -1067,6 +1113,7 @@ thumbscript4.builtIns = {
     contains: thumbscript4.genFunc2((a, b) => a && a?.indexOf(b) !== -1),
     replace: thumbscript4.genFunc3((a, b, c) => a.replaceAll(b, c)),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
+    urlencode: thumbscript4.genFunc1((a) => encodeURIComponent(a)),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
@@ -1598,6 +1645,23 @@ thumbscript4.builtIns = {
         world.stack.push(r)
         return world
     },
+    sqldate: (world) => {
+        var unixTime = world.stack.pop()
+        // write js code that takes a unix timestamp
+        // and generates a date string in this format:
+        // 2006-01-02 15:04:05
+        // the timezone will be utc
+
+        let date = new Date(unixTimestamp * 1000)
+        const year = date.getUTCFullYear()
+        const month = ("0" + (date.getUTCMonth() + 1)).slice(-2)
+        const day = ("0" + date.getUTCDate()).slice(-2)
+        const hours = ("0" + date.getUTCHours()).slice(-2)
+        const minutes = ("0" + date.getUTCMinutes()).slice(-2)
+        const seconds = ("0" + date.getUTCSeconds()).slice(-2)
+        const formattedTime = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds
+        thumbscript4.stack.push(formattedTime)
+    },
     sleepms: function(world) {
         var a = world.stack.pop()
         setTimeout(function() {
@@ -1717,6 +1781,9 @@ thumbscript4.next = function(world) {
             case numberType:
                 world.stack.push(token.valueNumber)
                 break outer
+            case boolType:
+                world.stack.push(token.valueBool)
+                break outer
             case squareType:
                 newWorld = {
                     parent: world,
@@ -1781,7 +1848,7 @@ thumbscript4.next = function(world) {
                 //     asyncGlobal: world.asyncGlobal,
                 // }
                 // break outer
-                
+
                 // this
                 newWorld = {
                     parent: world,
@@ -1886,7 +1953,7 @@ thumbscript4.next = function(world) {
 
 
 // c b a
-thumbscript4.stdlib = `
+thumbscript4.stdlib = function x() { /*
     swap: •local { :b :a ~b ~a }
     drop: •local { :a }
     dup: •local { :a ~a ~a }
@@ -1993,12 +2060,12 @@ thumbscript4.stdlib = `
         :block :n
         // nowmillis :start
         start: nowmillis
-        say "start is $start"
+        say. "start is $start"
         n ~block loopn
         // n ~block jsloopn
         // nowmillis :end
         end: nowmillis
-        say "end is $end"
+        say. "end is $end"
         // end •minus start :total
         total: end •minus start
         "it took $total ms" say
@@ -2067,7 +2134,54 @@ thumbscript4.stdlib = `
     //         loc goto
     //     } ?
     // } dyn local
-`
+    exec: { runshell drop trim }
+    bashStrEscape: {
+        "'"
+        swap
+        "'" "'\''" replace
+        cc
+        "'" cc
+    }
+    httpreq: {
+        :config
+        config $method at :method
+
+        headers: []
+
+        config.headers not {
+            config.headers: []
+        } ?
+
+        config $headers at {
+            :k :v
+            "-H " "$k: $v" bashStrEscape cc
+            headers push
+        } range
+
+        headersStr: headers " " join
+
+        dataStr: ""
+        data: config $body at
+        data {
+            dataStr: " -d " data bashStrEscape cc
+        } ?
+        pre: ""
+        continue
+        alert. pre
+        .if config.debug {
+            pre: "echo "
+        }
+        urlStr: config $url at bashStrEscape
+        «
+            ${pre}curl -s -X $method $headersStr $dataStr $urlStr
+        » exec
+    } local
+*/}.toString().split("\n").slice(1, -1).join("\n")
+
+
+// alert(j(thumbscript4.stdlib))
+
+// knownFuncs is deprecated
 thumbscript4.knownFuncs = {}
 thumbscript4.stdlib.split("\n").forEach(function (line) {
     var m = line.match(/^    (\w+): /)
@@ -2137,7 +2251,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // person.friend1.name: "Peterio"
 // alert. str.length
 // alert. trim. " yo "
-// x plus(2) 
+// x plus(2)
 
 // cases [
 // ]
@@ -2165,6 +2279,14 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 
 log2(thumbscript4.tokenize(`
 // nowmillis :foo
+
+// list at(i plus. 1)
+// 1 (i plus. 1)
+
+// a: [b: 1 2 plus]
+// [person 0 $score] props say
+// a: [b: 1]
+// a: [b: 1 2 plus c: 40 3 minus]
 `, true))
 
 function promiseCheck(name) {
@@ -2201,31 +2323,56 @@ window.gulp = {
 thumbscript4.exampleCode = function () { // maroon marker
 /*
 
+
 // alert plus. 3 4
 // alert 3 •plus 4
-goto $countPart
+a: [b: 1 2 plus c: 40 3 minus]
+say. a tojson
+
+
+person: [
+    [score: 10]
+]
+person tojson say
+assertempty. "a check" // olive marker
+
+
+// [person 0 $score] props say
+person 0 at say
+// person.$0.score say
+
+list: ["drew" "cristi"]
+list at(0 plus. 1) say
+
+// goto. $countPart
 
 window $xyzzy at "xyzzy is " swap cc say
 
-if 1 1 is {
-    say "it's 1"
+if. 1 1 is {
+    say. "it's 1"
 }
+
+if. 1 1 is {
+    say. "it's 1"
+}
+
 // window.gulp {
 
 10 {
     :i
     i say
-    if i 5 is { breakp }
+    if. i 5 is { breakp }
 } loopn
 #done
 
-say "done"
+say. "done"
 
-loopn 10 {
+loopn. 10 {
     :i
-    say "yay $i"
-    if i 5 is {
-        say "tried to break"
+    // say. "yay $i"
+    say. "yay $i"
+    if. i 5 is {
+        say. "tried to break"
         breakp
     }
 }
@@ -2233,94 +2380,75 @@ loopn 10 {
 
 
 {
-    say "what"
+    say. "what"
 } local call
 
 
 a: 20
-say "hello $a"
-say "hello ${plus a 1}"
+say. "hello $a"
+say. "hello ${a 1 plus}"
 
-assertempty "first assert" // olive marker
+assertempty. "first assert" // olive marker
 
-
-say "hello"
+say. "hello"
 "hello" say
 // loopn 10 {
 //     say
 // }
-if 1 1 is {
-    say "it's 1"
+if. 1 1 is {
+    say. "it's 1"
 }
 // window.gulp {
 
 10 {
     :i
-    say "yay $i"
+    say. "yay $i"
     // i 5 is {
     //     breakp
     // } ?
-    if i 5 is {
-        say "tried to break"
+    if. i 5 is {
+        say. "tried to break"
         breakp
     }
 } loopn
 
-loopn 10 {
+loopn. 10 {
     :i
-    say "yay $i"
+    say. "yay $i"
     // yo
-    if i 5 is {
-        say "tried to break"
+    if. i 5 is {
+        say. "tried to break"
         breakp
     }
 }
 
-// 10 {
-//     :i
-//     say "yay $i"
-//     // i 5 is {
-//     //     breakp
-//     // } ?
-//     if i 5 is {
-//         say "tried to break"
-//         breakp
-//     }
-// } loopn
-// 
-// loopn 10 {
-//     :i
-//     say "yay $i"
-//     if i 5 is {
-//         say "tried to break"
-//         breakp
-//     }
-// }
 
+
+assertempty("prewow") // olive marker
 #a
-range window {
+range. window {
     #b
     :k :v
-    // {~v} •and {~v.toString} {
-    if ~v.toString {
+    if. ~v.toString {
         #c
-        if typename(~v) is("function") not {
+        if. typename(~v) is("function") not {
             #d
-            say "$k: is not a function!"
+            say. "$k: is not a function!"
             "endy" goto
             // 3 breakn // this also works
         }
-        say "$k: ${typename ~v}"
+        say. "$k: ${typename. ~v}"
         source: v.toString
-        if source contains("native code") {
-            say v.length
-            say ""
-            say k
-            say source
+        if. source contains("native code") {
+            say. v.length
+            say. ""
+            say. k
+            say. source
         }
     }
 }
 #endy
+assertempty("assert after wow") // olive marker
 
 
 
@@ -2330,14 +2458,13 @@ say. "abc is $abc"
 
 "abcdefg" slice(0 3) "sliced: " swap cc say
 
-say. cc. "sliced: " "abcdefg" slice(0 3) 
+say. cc. "sliced: " "abcdefg" slice(0 3)
 
 x: 3
 if. x is(3) {
     say. "wow x is 3"
 }
 
-assertempty("assert after wow") // olive marker
 
 str: "some random string"
 // alert. str.length
@@ -2361,7 +2488,7 @@ person say
 
 
 
-// x plus(2) 
+// x plus(2)
 // "why hello" slice(0 3) say
 
 
@@ -2422,19 +2549,6 @@ x 20 lt $end1 jumpelse
 
 
 
-// x: 201
-// x: 10
-// if. "yo1" say x 10 is {
-//     say. "x is 10"
-// } elseif. "yo2" say x 20 is {
-//     say. "x is 20"
-// } else. {
-//     say. "x is something else"
-// }
-
-// if. x is(1) {
-// 
-// } else. 
 
 
 if. x 10 is {
@@ -2481,7 +2595,6 @@ person say
 person.friend1.name: "Peterio"
 person say
 
-document $getElementById
 
 addProp: {
     (10 1 plus):: "was here"
@@ -2492,13 +2605,14 @@ p addProp
 p say
 
 
+assertempty. "a checky1" // olive marker
 
 
 $yo say
 
 v: 1 2 plus
 "v is $v" say
-3 4 plus
+3 4 plus say
 
 
 
@@ -2515,6 +2629,7 @@ v: 1 2 plus
 
 
 
+assertempty. "a checky2" // olive marker
 
 
 
@@ -2584,13 +2699,15 @@ v: 1 2 plus
 
 // person: [a: 1 friend: [b: 1]]
 
+assertempty. "a check -1" // olive marker
 foo: [bar: [baz: 3]]
 foo say
+
 [foo $bar $baz] props say
 
+// assertempty. "a check0" // olive marker
 10 :[foo "bar" "baz"]
 
-foo $bar at "baz" 10 set
 
 [foo $bar $baz] props say
 
@@ -2599,6 +2716,7 @@ foo $bar at "baz" 10 set
 
 foo $bar at $bat at say
 
+assertempty. "a check0.1" // olive marker
 
 
 // person say
@@ -2618,10 +2736,11 @@ foo $bar at $bat at say
     100_000 { count+= } timeit
     "count is $count oh boy" say
     end: nowmillis
-    say "it took ${end •minus start} ms"
+    say. "it took ${end •minus start} ms"
 } call
-say "-------"
-say ""
+say. "-------"
+say. ""
+
 
 {
     0 :count
@@ -2645,14 +2764,15 @@ say ""
     // ["count2 is" count2] sayn
     // h say
 } call
-say "-------"
-say ""
+say. "-------"
+say. ""
+assertempty. "a check0.25" // olive marker
 
 {
     0 :count
     0 :i
     nowmillis :start
-    
+
     {
         i 100_000 guardlt
         i count+=
@@ -2665,9 +2785,10 @@ say ""
     "+it took $total ms" say
     "+count is $count" say
 } call
-say "-------"
-say ""
+say. "-------"
+say. ""
 
+assertempty. "a check0.5" // olive marker
 
 // {
 //     someVal1 say
@@ -2709,6 +2830,7 @@ say ""
 
 
 
+assertempty. "a check1" // olive marker
 
 "that was cool" say
 
@@ -2812,6 +2934,9 @@ person: [
     [score: 10]
 ]
 person say
+assertempty. "a check" // olive marker
+
+
 [person 0 $score] props say
 
 500 :[person 0 $score]
