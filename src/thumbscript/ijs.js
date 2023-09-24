@@ -1,6 +1,6 @@
 // TODO:
 // return await
-// throw error with function() 
+// throw error with function()
 // obj.call?.()
 
 if (typeof log2 === "undefined") {
@@ -1427,7 +1427,7 @@ ijs.infixate = function(tokens, debug) {
             if (parentState && parentState.opDef) {
                 parentOpdef = parentState.opDef
             }
-            
+
             if (parentOpdef && nextOpDef) {
                 if (nextOpDef.precedence > parentOpdef.precedence || (nextOpDef.precedence == parentOpdef.precedence && nextOpDef.associatitivity)) {
                     state.name = "inNonOp"
@@ -1896,16 +1896,30 @@ ijs.makeDraggable = function (el, handleEl) {
 	var startY
 	var startElX
 	var startElY
-
-	handleEl.addEventListener("mousedown", function (e) {
+	var start = function (e) {
+		if (e.target != handleEl) {
+		    return
+		}
 		e.preventDefault()
-		startX = e.clientX	
-		startY = e.clientY
+		if (e.touches) {
+			startX = e.touches[0].clientX
+			startY = e.touches[0].clientY
+		} else {
+			startX = e.clientX
+			startY = e.clientY
+		}
 		var startElX = parseInt(el.style.left)
 		var startElY = parseInt(el.style.top)
 		var mouseMove = function (e) {
-			var newElX = startElX + (e.clientX - startX)	
-			var newElY = startElY + (e.clientY - startY)	
+			var newElX
+			var newElY
+			if (e.touches) {
+				newElX = startElX + (e.touches[0].clientX - startX)
+				newElY = startElY + (e.touches[0].clientY - startY)
+			} else {
+				newElX = startElX + (e.clientX - startX)
+				newElY = startElY + (e.clientY - startY)
+			}
 			el.style.left = newElX + "px"
 			el.style.top = newElY + "px"
 			//console.log(newElX, newElY)
@@ -1913,10 +1927,15 @@ ijs.makeDraggable = function (el, handleEl) {
 		var mouseUp = function (e) {
 			document.body.removeEventListener("mousemove", mouseMove)
 			document.body.removeEventListener("mouseup", mouseUp)
+			document.body.removeEventListener("touchmove", mouseMove)
+			document.body.removeEventListener("touchend", mouseUp)
 		}
-		document.body.addEventListener("mousemove", mouseMove)
-		document.body.addEventListener("mouseup", mouseUp)
-	})	
+		document.body.addEventListener("touchmove", mouseMove)
+		document.body.addEventListener("touchend", mouseUp)
+	}
+
+	handleEl.addEventListener("mousedown", start)
+	handleEl.addEventListener("touchstart", start)
 
 }
 
@@ -1924,16 +1943,26 @@ ijs.ranFuncs = []
 ijs.run = function(code, world) {
 	if (ijs.interactiveDebugger) {
 		if (typeof window != "undefined" && (!window.ijsInteractiveDebuggerEl || window.ijsInteractiveDebuggerEl.parentNode != document.body))  {
+			let el = document.createElement("div")
 			let w = 300
 			let h = 300
 			var playEl = document.createElement("button")
+			playEl.innerText = "▶️"
 			var pauseEl = document.createElement("button")
+			pauseEl.innerText = "⏸️"
+			var nextEl = document.createElement("button")
+			nextEl.innerText = "⏭️"
+			var closeEl = document.createElement("button")
+			closeEl.innerHTML = "&times;"
 			let topBarEl = document.createElement("div")
+			topBarEl.appendChild(document.createTextNode("debugger"))
+			topBarEl.appendChild(playEl)
+			topBarEl.appendChild(pauseEl)
+			topBarEl.appendChild(nextEl)
+			topBarEl.appendChild(closeEl)
 			topBarEl.style.width = w+"px"
 			topBarEl.style.height = 30+"px"
 			topBarEl.style.backgroundColor = "navy"
-			topBarEl.innerText = "debugger"
-			let el = document.createElement("div")
 			window.ijsInteractiveDebuggerEl = el
 			el.style.width = w + "px"
 			el.style.height = h + "px"
@@ -1963,7 +1992,35 @@ ijs.run = function(code, world) {
 			t.style.margin = 0
 			t.spellcheck = false
 			el.appendChild(t)
-			ijs.debugTextarea = t	
+			// closeEl.onclick = function () {
+			//     alert("removing")
+			//     el.remove()
+			// }
+            closeEl.addEventListener('click', function (e) {
+                e.preventDefault()
+                e.stopPropagation()
+                el.remove();
+            });
+            nextEl.addEventListener('click', function (e) {
+                e.preventDefault()
+                e.stopPropagation()
+                ijs.goNext?.()
+            });
+            playEl.addEventListener('click', function (e) {
+                e.preventDefault()
+                e.stopPropagation()
+                ijs.isPaused = false
+                ijs.goNext?.()
+            });
+            pauseEl.addEventListener('click', function (e) {
+                e.preventDefault()
+                e.stopPropagation()
+                // alert("paused!")
+                ijs.isPaused = true
+            });
+			
+			// usinf window and not ijs so it will preserve in traveledit when I click run
+			window.ijsDebugTextarea = t
 		}
 	}
 
@@ -2418,6 +2475,12 @@ ijs.sleep = function (ms) {
         }, ms)
     })
 }
+
+ijs.waitNext = function () {
+    return new Promise(function (resolve, reject) {
+        ijs.goNext = resolve
+    })
+}
 ijs.builtins = {
     "<runAsync>": async function (args, world, inBlock, parentOperator) {
         // alert("running async")
@@ -2427,10 +2490,16 @@ ijs.builtins = {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
-			if (ijs.debugTextarea) {
-				ijs.debugTextarea.value = ijs.generateExprString(arg, 0, "", parentOperator)
+			if (window.ijsDebugTextarea) {
+				window.ijsDebugTextarea.value = ijs.generateExprString(arg, 0, "", parentOperator)
 			}
-			await ijs.sleep(250)
+			// await ijs.sleep(250)
+			if (ijs.isPaused) {
+				await ijs.waitNext()
+			}
+			if (ijs.interactiveDebugger) {
+				await ijs.sleep(1)
+			}
             // some special cases
             // log2("-running: "+JSON.stringify(arg))
             if (typeof arg == "object") {
@@ -2480,7 +2549,12 @@ ijs.builtins = {
                 }
                 if (arg == "debugger") {
                     debugger
-                    return
+                    continue
+                }
+                if (arg == "debuggy") {
+                    ijs.isPaused = true
+					await ijs.waitNext()
+                    continue
                 }
             }
             var pRet = ijs.exec(arg, world)
@@ -3670,7 +3744,7 @@ ijs.asyncVersions = {
 ijs.inCall = {inCall: true}
 ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     // special case for new
-    var func 
+    var func
     if (typeof funcAccessor == "object") {
         if (funcAccessor[0] == "new_pre") {
             var theClass = ijs.exec(funcAccessor[1], world)
@@ -3695,7 +3769,7 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     }
     func = ijs.exec(funcAccessor, world, ijs.inCall)
     // log2(["funcAccessor", funcAccessor])
-    
+
     if (opts?.optional && !func) {
         return
     }
@@ -4050,7 +4124,7 @@ function testMe() {
     // } else {
     //     return "c"
     }
-    
+
     return "not here"
 }
 
@@ -4097,7 +4171,7 @@ log2(buyerCurrentAddress)
 var a = 100
 
 // function foo() {
-//     
+//
 //     if (true) {
 //         let x
 //         // var x
@@ -4209,12 +4283,12 @@ var w1 = (a, [x, y], b = 4, ...z) => {
         log2(a, b, c)
         log2(10)
     }
-    
+
     function foo(x, y, z) {
         alert("yo", bar)
         log2(10)
     }
-    
+
     if (x == 1) {
         log2(1)
         log2(2)
@@ -4230,7 +4304,7 @@ var w1 = (a, [x, y], b = 4, ...z) => {
         log2(1)
         log2(2)
     }
-    
+
     var i = 0
     while (i < 10) {
         i++
@@ -4239,20 +4313,20 @@ var w1 = (a, [x, y], b = 4, ...z) => {
             log2("hey " + i2)
         }, 100)
     }
-    
+
     var x = `${i + 1} yo`
     b = c = d
     3 + 4 + 5
-    
+
     [1,2,3].map(x => x)
-    
+
     y = await foo.baz()
     var t = new Date(x, y, z).getTime()
-    
+
     {foo, bar} = yoyo
     typeof x == "undefined"
     if (a) doThing()
-    
+
     if (b) {
         break
         continue
@@ -4265,14 +4339,14 @@ var w1 = (a, [x, y], b = 4, ...z) => {
             return 27
         }
     }
-    
+
     for (let x of foobar) {
         alert(x)
     }
 
     let c = 20
     let d = {a: 100, "b": 300, c: {x: 20}}
-    
+
     foo.bar.baz()
     bar()
 }
@@ -5421,6 +5495,35 @@ var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 // ijs.run(code)
 // setTimeout(ijs.testInfixate, 1)
 
+
+var code = `
+var sleep = function (ms) {
+    return new Promise(function (resolve, reject) {
+        log2("doing the setTimeout " + ms)
+        setTimeout(function () {
+            resolve()
+        }, ms)
+    })
+}
+async function foo() {
+    for (let i=0; i<100; i++) {
+        log2("test")
+        log2("test2")
+        // debuggy
+        log2("test3")
+        log2("test4")
+        log2("test5")
+        await sleep(200)
+        log2("test6")
+    }
+}
+foo()
+`
+// ijs.run(code)
+
+
+
+
 function timeIt(name, fn) {
     var start = performance.now()
     // for (var i = 0; i < 1; i++) {
@@ -5452,7 +5555,7 @@ testMe()
 // var interpreter = new Sval({
 //     sandbox: false
 // })
-// 
+//
 // setTimeout(() => {
 //     timeIt("ijs", () => {
 //         ijs.run(code)
