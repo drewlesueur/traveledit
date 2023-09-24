@@ -3510,7 +3510,7 @@ ijs.getWorldForKey = function(world, key) {
     return w
 }
 ijs.exec = function(tokens, world, opts) {
-    if (tokens === null) {
+    if (tokens == null) {
         return null
     }
     if (typeof tokens == "number") {
@@ -3526,6 +3526,8 @@ ijs.exec = function(tokens, world, opts) {
     if (tokens.length == 0) {
         return undefined
     }
+
+
     // state = state || {}
     // simplify lexical rules?
     // anuthing in a function shares state.
@@ -3540,6 +3542,7 @@ ijs.exec = function(tokens, world, opts) {
         var token = tokens
         if (token.charAt(0) == "#") {
             return token.slice(1)
+            // return token.substr(1)
         }
 
         var w = ijs.getWorldForKey(world, token)
@@ -3572,9 +3575,10 @@ ijs.asyncVersions = {
     // not doing this because of initialization assignments in for loops?
     // "=": true,
 }
+ijs.inCall = {inCall: true}
 ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     // special case for new
-
+    var func 
     if (typeof funcAccessor == "object") {
         if (funcAccessor[0] == "new_pre") {
             var theClass = ijs.exec(funcAccessor[1], world)
@@ -3587,15 +3591,17 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
             var ret = new (Function.prototype.bind.apply(theClass, [null].concat(evaledArgs)))
             return ret
         }
-    } else if (funcAccessor in ijs.builtins) {
+    } else if (funcAccessor in ijs.builtins) { // perf, you could do this at compile time, also "in" seems fastest
+    // } else if (funcAccessor.charAt(0) < 65 || funcAccessor in ijs.builtins) { // perf, you could do this at compile time
+    // } else if (Object.hasOwn(ijs.builtins, funcAccessor)) {
         if (world.async && (funcAccessor in ijs.asyncVersions)) {
             funcAccessor = funcAccessor + "_await"
         }
-        func = ijs.builtins[funcAccessor]
+        var func = ijs.builtins[funcAccessor]
         var ret = func(theArgs, world, false, opts)
         return ret
     }
-    func = ijs.exec(funcAccessor, world, {inCall: true})
+    func = ijs.exec(funcAccessor, world, ijs.inCall)
     // log2(["funcAccessor", funcAccessor])
     
     if (opts?.optional && !func) {
@@ -3604,7 +3610,6 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     if (!func) {
         alert("no func: " + funcAccessor)
     }
-    theArgs = theArgs || []
 
     // TODO: t he this thing  doesnt work in a for loop unless parent calls the function too ?!
     // if (func?.world?.state) {
@@ -3617,9 +3622,13 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     //         // world.state["this"] = {}
     //     }
     // }
-    var ret = func.apply(null, theArgs.map(function (t) {
-        return ijs.exec(t, world)
-    }))
+    if (theArgs && theArgs.length) {
+        var ret = func.apply(null, theArgs.map(function (t) {
+            return ijs.exec(t, world)
+        }))
+    } else {
+        var ret = func.apply(null)
+    }
     // hacky, buggy?
     // let theThis = null
     // let oldThis = world.state["this"]
@@ -5321,18 +5330,24 @@ var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 // setTimeout(ijs.testInfixate, 1)
 
 function timeIt(name, fn) {
-    var start = Date.now()
-    fn()
-    log2("for " + name + " it took " + (Date.now() - start) + "ms")
+    var start = performance.now()
+    // for (var i = 0; i < 1; i++) {
+        fn()
+    // }
+    log2("for " + name + " it took " + (performance.now() - start) + "ms")
 }
 var code = `
 function testMe() {
     // var p = {rocks: 0, dig: function () {this.rocks--}}
-    var p = {rocks: 0, dig: function () {p.rocks--}}
+    var p = {rocks: 0, dig: function () {p.rocks = p.rocks * 4 / 16 + 2}}
     // p.dig()
-    for (var i=0; i<100000; i++) {
+    var list = []
+    // for (var i=0; i<1000000; i++) {
+    for (var i=0; i<10000; i++) {
         p.dig()
+        // list.push("yo12345678901234567890_"+i)
     }
+    // alert(list[999])
     // alert(p.rocks)
     // count = 0
     // for (var i=0; i<1000000; i++) {
