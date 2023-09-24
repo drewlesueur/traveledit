@@ -33,6 +33,12 @@ if (typeof log2 === "undefined") {
 // in `newArray`,
 // it will also modify `a`.
 
+var ijs = {}
+ijs.interactiveDebugger = true
+
+
+
+
 
 
 
@@ -45,7 +51,6 @@ if (typeof log2 === "undefined") {
 // ```
 // So the Javascript object spread `{...a}` is simply a "sugar" for `Object.assign({}, a)`.
 
-var ijs = {}
 
 ijs.getPrevNonSpaceChar = function (code, i) {
      for (i = i - 1; i >= 0; i--) {
@@ -1886,8 +1891,83 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
 // var tokens = "7 - - 2 * 3".split(" ")
 // log2(ijs.infixate(tokens))
 
+ijs.makeDraggable = function (el, handleEl) {
+	var startX
+	var startY
+	var startElX
+	var startElY
+
+	handleEl.addEventListener("mousedown", function (e) {
+		e.preventDefault()
+		startX = e.clientX	
+		startY = e.clientY
+		var startElX = parseInt(el.style.left)
+		var startElY = parseInt(el.style.top)
+		var mouseMove = function (e) {
+			var newElX = startElX + (e.clientX - startX)	
+			var newElY = startElY + (e.clientY - startY)	
+			el.style.left = newElX + "px"
+			el.style.top = newElY + "px"
+			//console.log(newElX, newElY)
+		}
+		var mouseUp = function (e) {
+			document.body.removeEventListener("mousemove", mouseMove)
+			document.body.removeEventListener("mouseup", mouseUp)
+		}
+		document.body.addEventListener("mousemove", mouseMove)
+		document.body.addEventListener("mouseup", mouseUp)
+	})	
+
+}
+
 ijs.ranFuncs = []
 ijs.run = function(code, world) {
+	if (ijs.interactiveDebugger) {
+		if (typeof window != "undefined" && (!window.ijsInteractiveDebuggerEl || window.ijsInteractiveDebuggerEl.parentNode != document.body))  {
+			let w = 300
+			let h = 300
+			var playEl = document.createElement("button")
+			var pauseEl = document.createElement("button")
+			let topBarEl = document.createElement("div")
+			topBarEl.style.width = w+"px"
+			topBarEl.style.height = 30+"px"
+			topBarEl.style.backgroundColor = "navy"
+			topBarEl.innerText = "debugger"
+			let el = document.createElement("div")
+			window.ijsInteractiveDebuggerEl = el
+			el.style.width = w + "px"
+			el.style.height = h + "px"
+			el.style.backgroundColor = "lightyellow"
+			el.style.top = 0
+			el.style.left = 0
+			el.style.position = "absolute"
+			el.style.color = "white"
+			el.style.fontFamily = "Arial"
+			el.style.fontStyle = "bold"
+			el.appendChild(topBarEl)
+			el.style.border = "1px solid black"
+			document.body.appendChild(el)
+			el.style.zIndex = 9999999
+			ijs.makeDraggable(el, topBarEl)
+			let t = document.createElement("textarea")
+			t.style.resize = "both"
+			t.style.width = (w - 10) + "px"
+			t.style.height = (h - 40) + "px"
+			t.style.whiteSpace = "nowrap"
+			t.style.color = "black"
+			t.style.backgroundColor = "white"
+			t.style.fontFamily = "monospace"
+			t.style.fontSize = "12px"
+			t.style.lineHeight = "100%"
+			t.style.padding = 0
+			t.style.margin = 0
+			t.spellcheck = false
+			el.appendChild(t)
+			ijs.debugTextarea = t	
+		}
+	}
+
+
     // var oldPreventRender = preventRender
     // preventRender = true
     var tokens = ijs.tokenize(code)
@@ -2330,8 +2410,16 @@ ijs.getRunFunc = function (isAsync) {
     }
     return "<run>"
 }
+
+ijs.sleep = function (ms) {
+    return new Promise(function (resolve, reject) {
+        setTimeout(function () {
+            resolve()
+        }, ms)
+    })
+}
 ijs.builtins = {
-    "<runAsync>": async function (args, world, inBlock) {
+    "<runAsync>": async function (args, world, inBlock, parentOperator) {
         // alert("running async")
         if (!args) {
             return
@@ -2339,6 +2427,10 @@ ijs.builtins = {
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
+			if (ijs.debugTextarea) {
+				ijs.debugTextarea.value = ijs.generateExprString(arg, 0, "", parentOperator)
+			}
+			await ijs.sleep(250)
             // some special cases
             // log2("-running: "+JSON.stringify(arg))
             if (typeof arg == "object") {
@@ -2953,7 +3045,7 @@ ijs.builtins = {
             }
             i++
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+            var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "while")
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     // we stop here and don't return the breakMessage
@@ -2996,7 +3088,7 @@ ijs.builtins = {
             }
             i++
             // var ret = ijs.exec(body, world)
-            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "while")
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     // we stop here and don't return the breakMessage
@@ -3068,7 +3160,7 @@ ijs.builtins = {
                         worldToSet.state[varName] = val
                     }
 
-                    var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+                    var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -3096,7 +3188,7 @@ ijs.builtins = {
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
                         loopWorld.state[varName] = val
                     }
-                    var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+                    var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -3127,7 +3219,7 @@ ijs.builtins = {
                 async: wrapperWorld.async,
             }
             // log2("the call is: " + ijs.getRunFunc(loopWorld.async))
-            var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+            var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     break
@@ -3193,7 +3285,7 @@ ijs.builtins = {
                     } else {
                         worldToSet.state[varName] = val
                     }
-                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -3221,7 +3313,7 @@ ijs.builtins = {
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
                         loopWorld.state[varName] = val
                     }
-                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -3251,7 +3343,7 @@ ijs.builtins = {
                 async: wrapperWorld.async,
             }
             // log2("the call is: " + ijs.getRunFunc(loopWorld.async))
-            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true)
+            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     break
@@ -3289,14 +3381,14 @@ ijs.builtins = {
         catchBody = ijs.hoist(catchBody)
 
         try {
-            var ret = ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
+            var ret = ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true, "try")
             // log2("ret from try is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
         } catch (e) {
             catchWorld.state[args[2][1][0]] = e
-            var ret = ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true)
+            var ret = ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true, "try")
             // log2("ret from catch is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
@@ -3328,14 +3420,14 @@ ijs.builtins = {
         catchBody = ijs.hoist(catchBody)
 
         try {
-            var ret = await ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true)
+            var ret = await ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true, "try")
             // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
         } catch (e) {
             catchWorld.state[args[2][1][0]] = e
-            var ret = await ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true)
+            var ret = await ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true, "try")
             // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
@@ -3369,7 +3461,7 @@ ijs.builtins = {
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+            var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true, "if")
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -3402,7 +3494,7 @@ ijs.builtins = {
         var condRet = ijs.exec(condition, ifWorld)
         if (condRet) {
             // var ret = ijs.exec(body, ifWorld)
-            var ret = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+            var ret = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true, "if")
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -3427,7 +3519,7 @@ ijs.builtins = {
                 // elseRet = ijs.exec(body, world)
                 body = [body]
             }
-            elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+            elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true, "else")
             // ijs.exec(body, world)
             if (ijs.isSpecialReturn(elseRet)) {
                 return elseRet
@@ -3448,7 +3540,7 @@ ijs.builtins = {
                 // body.unshift("run")
                 // body = ["run", ...body]
                 body = ijs.hoist(body)
-                elseRet = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true)
+                elseRet = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true, "else")
             } else {
                 // This isn't awaited bug?
                 // elseRet = ijs.exec(body, world)
@@ -5341,18 +5433,18 @@ function testMe() {
 }
 testMe()
 `
-window.count = 0
-var interpreter = new Sval({
-    sandbox: false
-})
-
-setTimeout(() => {
-    timeIt("ijs", () => {
-        ijs.run(code)
-    })
-    // timeIt("sval", () => {
-    //     interpreter.run(code)
-    // })
-}, 1000)
+// window.count = 0
+// var interpreter = new Sval({
+//     sandbox: false
+// })
+// 
+// setTimeout(() => {
+//     timeIt("ijs", () => {
+//         ijs.run(code)
+//     })
+//     // timeIt("sval", () => {
+//     //     interpreter.run(code)
+//     // })
+// }, 1000)
 
 // alert(window.count)
