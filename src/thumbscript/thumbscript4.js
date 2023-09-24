@@ -264,7 +264,7 @@ thumbscript4.tokenize = function(code, debug) {
                 freshLine = false // orange marker
                 state = "string2"
                 string2OpenCount = 1
-            } else if ("•@".indexOf(chr) != -1) {
+            } else if (".•@".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 state = "dot"
                 currentToken = chr
@@ -361,11 +361,8 @@ thumbscript4.tokenize = function(code, debug) {
                 }
 
 
-                if (funcFirstWithDotSugar && " ".indexOf(chr) != -1 && (addedToken[addedToken.length-1] == "." || addedToken[0] == ".")) { // red marker
+                if (funcFirstWithDotSugar && " ".indexOf(chr) != -1 && (addedToken[addedToken.length-1] == ".")) { // red marker
                     let tokenName
-                    if (addedToken.startsWith(".")) {
-                        tokenName = addedToken.slice(1)
-                    }
                     if (addedToken.endsWith(".")) {
                         tokenName = addedToken.slice(0, -1)
                     }
@@ -475,7 +472,7 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "in"
             }
         } else if (state == "dot") {
-            if ("•@".indexOf(chr) != -1) {
+            if (".•@".indexOf(chr) != -1) {
                 currentToken += chr
             } else {
                 i--
@@ -656,7 +653,7 @@ thumbscript4.desugarAtSign = function(tokens) {
 
         if (token.th_type == varType) {
             var j = 0
-            while (j < token.valueString.length && "@•".indexOf(token.valueString.charAt(j)) != -1) {
+            while (j < token.valueString.length && ".•@".indexOf(token.valueString.charAt(j)) != -1) {
                 j++
             }
             if (j == 0) {
@@ -2289,7 +2286,7 @@ log2(thumbscript4.tokenize(`
 // a: [b: 1 2 plus]
 // [person 0 $score] props say
 // a: [b: 1]
-a: [b: 1 2 plus c: 40 3 minus]
+// a: [b: 1 2 plus c: 40 3 minus]
 `, true))
 
 function promiseCheck(name) {
@@ -2326,6 +2323,7 @@ window.gulp = {
 thumbscript4.exampleCode = function () { // maroon marker
 /*
 
+
 // alert plus. 3 4
 // alert 3 •plus 4
 a: [b: 1 2 plus c: 40 3 minus]
@@ -2346,16 +2344,16 @@ person 0 at say
 list: ["drew" "cristi"]
 list at(0 plus. 1) say
 
-goto. $countPart
+// goto. $countPart
 
 window $xyzzy at "xyzzy is " swap cc say
 
 if. 1 1 is {
-    say "it's 1"
+    say. "it's 1"
 }
 
-.if 1 1 is {
-    say "it's 1"
+if. 1 1 is {
+    say. "it's 1"
 }
 
 // window.gulp {
@@ -2363,18 +2361,18 @@ if. 1 1 is {
 10 {
     :i
     i say
-    if i 5 is { breakp }
+    if. i 5 is { breakp }
 } loopn
 #done
 
-say "done"
+say. "done"
 
-loopn 10 {
+loopn. 10 {
     :i
     // say. "yay $i"
-    .say "yay $i"
-    if i 5 is {
-        say "tried to break"
+    say. "yay $i"
+    if. i 5 is {
+        say. "tried to break"
         breakp
     }
 }
@@ -2382,94 +2380,75 @@ loopn 10 {
 
 
 {
-    say "what"
+    say. "what"
 } local call
 
 
 a: 20
 say. "hello $a"
-say. "hello ${plus a 1}"
+say. "hello ${a 1 plus}"
 
 assertempty. "first assert" // olive marker
-
 
 say. "hello"
 "hello" say
 // loopn 10 {
 //     say
 // }
-if 1 1 is {
-    say "it's 1"
+if. 1 1 is {
+    say. "it's 1"
 }
 // window.gulp {
 
 10 {
     :i
-    say "yay $i"
+    say. "yay $i"
     // i 5 is {
     //     breakp
     // } ?
-    if i 5 is {
-        say "tried to break"
+    if. i 5 is {
+        say. "tried to break"
         breakp
     }
 } loopn
 
-loopn 10 {
+loopn. 10 {
     :i
-    say "yay $i"
+    say. "yay $i"
     // yo
-    if i 5 is {
-        say "tried to break"
+    if. i 5 is {
+        say. "tried to break"
         breakp
     }
 }
 
-// 10 {
-//     :i
-//     say "yay $i"
-//     // i 5 is {
-//     //     breakp
-//     // } ?
-//     if i 5 is {
-//         say "tried to break"
-//         breakp
-//     }
-// } loopn
-//
-// loopn 10 {
-//     :i
-//     say "yay $i"
-//     if i 5 is {
-//         say "tried to break"
-//         breakp
-//     }
-// }
 
+
+assertempty("prewow") // olive marker
 #a
-range window {
+range. window {
     #b
     :k :v
-    // {~v} •and {~v.toString} {
-    if ~v.toString {
+    if. ~v.toString {
         #c
-        if typename(~v) is("function") not {
+        if. typename(~v) is("function") not {
             #d
-            say "$k: is not a function!"
+            say. "$k: is not a function!"
             "endy" goto
             // 3 breakn // this also works
         }
-        say "$k: ${typename ~v}"
+        say. "$k: ${typename. ~v}"
         source: v.toString
-        if source contains("native code") {
-            say v.length
-            say ""
-            say k
-            say source
+        if. source contains("native code") {
+            say. v.length
+            say. ""
+            say. k
+            say. source
         }
     }
 }
 #endy
+assertempty("assert after wow") // olive marker
 
 
 
@@ -2486,7 +2465,6 @@ if. x is(3) {
     say. "wow x is 3"
 }
 
-assertempty("assert after wow") // olive marker
 
 str: "some random string"
 // alert. str.length
@@ -2571,19 +2549,6 @@ x 20 lt $end1 jumpelse
 
 
 
-// x: 201
-// x: 10
-// if. "yo1" say x 10 is {
-//     say. "x is 10"
-// } elseif. "yo2" say x 20 is {
-//     say. "x is 20"
-// } else. {
-//     say. "x is something else"
-// }
-
-// if. x is(1) {
-//
-// } else.
 
 
 if. x 10 is {
@@ -2630,7 +2595,6 @@ person say
 person.friend1.name: "Peterio"
 person say
 
-document $getElementById
 
 addProp: {
     (10 1 plus):: "was here"
@@ -2641,13 +2605,14 @@ p addProp
 p say
 
 
+assertempty. "a checky1" // olive marker
 
 
 $yo say
 
 v: 1 2 plus
 "v is $v" say
-3 4 plus
+3 4 plus say
 
 
 
@@ -2664,6 +2629,7 @@ v: 1 2 plus
 
 
 
+assertempty. "a checky2" // olive marker
 
 
 
@@ -2733,14 +2699,15 @@ v: 1 2 plus
 
 // person: [a: 1 friend: [b: 1]]
 
+assertempty. "a check -1" // olive marker
 foo: [bar: [baz: 3]]
 foo say
 
 [foo $bar $baz] props say
 
+// assertempty. "a check0" // olive marker
 10 :[foo "bar" "baz"]
 
-foo $bar at "baz" 10 set
 
 [foo $bar $baz] props say
 
@@ -2749,6 +2716,7 @@ foo $bar at "baz" 10 set
 
 foo $bar at $bat at say
 
+assertempty. "a check0.1" // olive marker
 
 
 // person say
@@ -2761,7 +2729,6 @@ foo $bar at $bat at say
 
 #countPart
 
-assertempty. "a check0" // olive marker
 
 {
     0 :count
