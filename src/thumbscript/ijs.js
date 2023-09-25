@@ -3010,6 +3010,10 @@ ijs.builtins = {
                         o[key] = otherObj[key]
                     }
                 }
+            } else if (typeof kv != "object") {
+                var key = kv
+                var value = kv
+                o[key] = ijs.exec(value, world)
             } else {
                 var key = kv[1]
                 var value = kv[2]
