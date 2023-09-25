@@ -737,7 +737,7 @@ thumbscript4.squishFuncs = function(tokens) {
 thumbscript4.evalQuick = function(code, oldWorld, state) {
     var tokens
     if (!oldWorld) {
-        code = thumbscript4.stdlib + code // red marker
+        code = thumbscript4.stdlib + "\n" + code // red marker
     }
     tokens = thumbscript4.tokenize(code)
     world = {
@@ -810,7 +810,7 @@ thumbscript4.eval = function(code, state) {
     // would be nice to grab the state of the stdlib
     // problem might be some function scope?
     // look later
-    code = thumbscript4.stdlib + code // red marker
+    code = thumbscript4.stdlib + "\n" + code // red marker
 
     var tokens = thumbscript4.tokenize(code)
     // log2(tokens)
@@ -2142,41 +2142,89 @@ thumbscript4.stdlib = function x() { /*
         cc
         "'" cc
     }
+    // only does simple types for now
+    formencode: local. {
+        r: []
+        range. { :key :value
+            "${urlencode. key}=${urlencode. value}"
+            r push
+        }
+        r join("&")
+    }
+    every: {
+        :fn :skip :list
+        i: 0
+        loop. {
+            if. i gte(list len) {
+                breakp
+            }
+            fn. list at(i) i
+            i: i plus(skip)
+        }
+    } local
+    replacegroup: local. {
+      :replacerMap :str
+      chunks: [str]
+      range. replacerMap { :search :toReplace
+          newChunks: []
+          chunks every. 2 {
+              :i
+              partialStr: chunks i at
+              subChunks: partialStr split(search)
+              loopn. subChunks len {
+                  :sI
+                  subChunks at(sI) newChunks push
+                  if. sI .ne (subChunks len .minus 1) {
+                      toReplace newChunks push
+                  }
+              }
+              if. i lt(chunks len .minus 1) {
+                  chunks at(i plus. 1) push. newChunks
+              }
+          }
+          chunks: newChunks
+      }
+      chunks join("")
+    }
+    
+    // replacegroup. "a story about a dog" [
+    //     a: "A"
+    //     s: "S"
+    // ]
+    // say
     httpreq: {
         :config
         config $method at :method
-
         headers: []
-
         config.headers not {
             config.headers: []
         } ?
-
         config $headers at {
             :k :v
             "-H " "$k: $v" bashStrEscape cc
             headers push
         } range
-
         headersStr: headers " " join
-
         dataStr: ""
         data: config $body at
         data {
             dataStr: " -d " data bashStrEscape cc
         } ?
         pre: ""
-        continue
-        alert. pre
-        .if config.debug {
+        if. config.debug {
             pre: "echo "
+        }
+        extraFlags: ""
+        if. config.extraFlags {
+            extraFlags: config.extraFlags
         }
         urlStr: config $url at bashStrEscape
         «
-            ${pre}curl -s -X $method $headersStr $dataStr $urlStr
-        » exec
+            ${pre}curl ${extraFlags} -s -X $method $headersStr $dataStr $urlStr
+        »
+        exec
     } local
-*/}.toString().split("\n").slice(1, -1).join("\n")
+*/}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 
 
 // alert(j(thumbscript4.stdlib))
