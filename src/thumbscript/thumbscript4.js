@@ -18,6 +18,7 @@ const noOpType = 9;
 const anchorType = 10;
 const interpolateType = 11;
 const boolType = 12;
+const nullType = 13;
 
 function j(x) {
     return JSON.stringify(x, null, "    ")
@@ -61,6 +62,10 @@ thumbscript4.tokenize = function(code, debug) {
         }
         if (token == "false") {
             addToken2(false)
+            return
+        }
+        if (token == "null") {
+            addToken2(null)
             return
         }
         if (typeof token == "string") {
@@ -145,6 +150,8 @@ thumbscript4.tokenize = function(code, debug) {
             token = {th_type: builtInType, valueFunc: token, name: token.theName}
         } else if (typeof token == "boolean") {
             token = {th_type: boolType, valueBool: token, name: token + ""}
+        } else if (token === null) {
+            token = {th_type: nullType, name: "null"}
         } else {
             // log2("- unknowntoken type")
             // log2(token)
@@ -860,8 +867,10 @@ thumbscript4.displayToken = function(tk) {
                 return `<noop>`
             case anchorType:
                 return `<anchor ${tk.valueString}>`
-            case interpolateType:
-                return `<interpolate ${tk.valueString}>`
+            case boolType:
+                return `${tk.valueBool}`
+            case nullType:
+                return `<null>`
             default:
                 return `huh????`
         }
@@ -1113,7 +1122,12 @@ thumbscript4.builtIns = {
     contains: thumbscript4.genFunc2((a, b) => a && a?.indexOf(b) !== -1),
     replace: thumbscript4.genFunc3((a, b, c) => a.replaceAll(b, c)),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
-    urlencode: thumbscript4.genFunc1((a) => encodeURIComponent(a)),
+    urlencode: thumbscript4.genFunc1((a) => {
+        if (a === null) {
+            return ""
+        }
+        return encodeURIComponent(a)
+    }),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
@@ -1706,6 +1720,20 @@ thumbscript4.builtIns = {
 thumbscript4.builtIns["if"] = thumbscript4.builtIns["?"]
 thumbscript4.builtIns["elseif"] = thumbscript4.builtIns["??"]
 thumbscript4.builtIns["else"] = thumbscript4.builtIns["?;"]
+thumbscript4.builtIns.localDateFormat = thumbscript4.genFunc1((unixTimestamp) => {
+    // return 2001
+    let date = new Date(unixTimestamp * 1000)
+    const year = date.getFullYear()
+    const month = ("0" + (date.getMonth() + 1)).slice(-2)
+    const day = ("0" + date.getDate()).slice(-2)
+    const hours = ("0" + date.getHours()).slice(-2)
+    const minutes = ("0" + date.getMinutes()).slice(-2)
+    const seconds = ("0" + date.getSeconds()).slice(-2)
+    const formattedTime = month + '/' + day + '/' + year + ' ' + hours + ':' + minutes + ':' + seconds
+    return formattedTime
+})
+
+
 
 thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     // the cachedLookupWorld seems noticeably faster when running jsloopn
@@ -1783,6 +1811,9 @@ thumbscript4.next = function(world) {
                 break outer
             case boolType:
                 world.stack.push(token.valueBool)
+                break outer
+            case nullType:
+                world.stack.push(null)
                 break outer
             case squareType:
                 newWorld = {
@@ -2151,6 +2182,14 @@ thumbscript4.stdlib = function x() { /*
         }
         r join("&")
     }
+    // formencodedisplay: local. {
+    //     r: []
+    //     range. { :key :value
+    //         "${urlencode. key}=${urlencode. value}"
+    //         r push
+    //     }
+    //     r join("&")
+    // }
     every: {
         :fn :skip :list
         i: 0
@@ -2210,19 +2249,15 @@ thumbscript4.stdlib = function x() { /*
         data {
             dataStr: " -d " data bashStrEscape cc
         } ?
-        pre: ""
-        if. config.debug {
-            pre: "echo "
-        }
         extraFlags: ""
         if. config.extraFlags {
             extraFlags: config.extraFlags
         }
         urlStr: config $url at bashStrEscape
         «
-            ${pre}curl ${extraFlags} -s -X $method $headersStr $dataStr $urlStr
+            curl ${extraFlags} -s -X $method $headersStr $dataStr $urlStr
         »
-        exec
+        config.debug { trim say "" } ~exec ifelse
     } local
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 
@@ -2370,6 +2405,11 @@ window.gulp = {
 
 thumbscript4.exampleCode = function () { // maroon marker
 /*
+
+null
+urlencode
+tojson
+say
 
 
 // alert plus. 3 4
