@@ -1,5 +1,7 @@
 var thumbscript4 = {}
 
+// idea for perf. after desugaring, you can remove the parens
+
 if (typeof log2 == "undefined"){
     log2 = function (x) {
         console.log(x)
@@ -1363,8 +1365,7 @@ thumbscript4.builtIns = {
         // see preventRender assignment
         var f = world.stack.pop()
         var n = world.stack.pop()
-        log2(`---the value of n is ${n}`)
-        var newWorld = {
+        var loopWorld = {
             parent: f.world,
             state: {},
             stack: world.stack,
@@ -1379,9 +1380,15 @@ thumbscript4.builtIns = {
             local: f.local,
         }
         for (var i=0; i<n; i++) {
-            newWorld.stack.push(i)
-            thumbscript4.run(newWorld)
-            newWorld.i = 0
+            var pWorld = loopWorld
+            pWorld.stack.push(i)
+            while (true) {
+                var pWorld = thumbscript4.next(pWorld)
+                if (!pWorld) {
+                    break
+                }
+            }
+            loopWorld.i = 0
         }
         return world
     },
@@ -1464,6 +1471,24 @@ thumbscript4.builtIns = {
         // world.name = null
         // world.repeatCount = 0
         // world.onEnd = null
+        
+        
+        // if (f.local && f.world == world) { // not exactly the meaning of local, not handling dynamic yet
+        // if (!f.local) { // not exactly the meaning of local, not handling dynamic yet
+        //     log2("yay hack")
+        //     log2(f.world == world)
+        //     log2(f.world.name)
+        //     log2(f)
+        //     if (!world.tokenStack && !world.iStack) {
+        //         world.tokenStack = []
+        //         world.iStack = []
+        //     }
+        //     world.tokenStack.push(world.tokens)
+        //     world.iStack.push(world.i)
+        //     world.tokens = f.tokens
+        //     world.i = 0
+        //     return world
+        // }
 
         world = {
             parent: f.world,
@@ -1707,6 +1732,7 @@ thumbscript4.builtIns = {
         return null // lol
     },
     assertempty: function(world) {
+        return world
         var message = world.stack.pop()
         if (world.stack.length) {
             alert("stack not empty: " + message)
@@ -1742,13 +1768,16 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     if (world.local && forSetting) {
         return world
     }
-    // if (world.cachedLookupWorld[key]) {
-    //     return world.cachedLookupWorld[key]
-    // }
+    if (!world.cachedLookupWorld) {
+        world.cachedLookupWorld = {}
+    } else if (world.cachedLookupWorld[key]) {
+        return world.cachedLookupWorld[key]
+    }
     for (var w = world; w != null; w = w.parent) {
         // perf doesn't seem to matter here
         if (Object.hasOwn(w.state, key)) {
-            // world.cachedLookupWorld[key] = w
+        // if (key in w.state) {
+            world.cachedLookupWorld[key] = w
             break
         }
     }
@@ -1779,6 +1808,13 @@ thumbscript4.next = function(world) {
             return false
         }
         if (world.i >= world.tokens.length) {
+            // if (world.tokenStack && world.tokenStack.length) {
+            //    log2("pop stacky2")
+            //    log2(world.state.i + "/" + world.state.n)
+            //    world.tokens = world.tokenStack.pop()
+            //    world.i = world.iStack.pop()
+            //    return world
+            // }
             if (world.onEnd) {
                 world.onEnd(world)
             }
@@ -1994,6 +2030,7 @@ thumbscript4.stdlib = function x() { /*
         :block :n 0 :i
         {
             i •lt n not ~breakp ?
+            // i •lt n not ~break ?
             i block
             i++
             repeat
@@ -2092,8 +2129,8 @@ thumbscript4.stdlib = function x() { /*
         // nowmillis :start
         start: nowmillis
         say. "start is $start"
-        n ~block loopn
-        // n ~block jsloopn
+        // n ~block loopn
+        n ~block jsloopn
         // nowmillis :end
         end: nowmillis
         say. "end is $end"
@@ -2403,8 +2440,27 @@ window.gulp = {
 // `; var code2 = `
 // `; var code2 = `
 
+
+var county = 0
+var start = Date.now()
+for (var i=0; i<100_000; i++) {
+    county += i
+}
+log2("js: it took " + (Date.now(i) - start))
+log2("js county: " + county)
+
 thumbscript4.exampleCode = function () { // maroon marker
 /*
+
+say. "hi"
+say. "yo"
+
+
+#yo
+
+
+
+goto. $countPart
 
 null
 urlencode
@@ -2432,7 +2488,6 @@ person 0 at say
 list: ["drew" "cristi"]
 list at(0 plus. 1) say
 
-// goto. $countPart
 
 window $xyzzy at "xyzzy is " swap cc say
 
@@ -2818,17 +2873,32 @@ assertempty. "a check0.1" // olive marker
 #countPart
 
 
-{
-    0 :count
-    start: nowmillis
-    100_000 { count+= } timeit
-    "count is $count oh boy" say
-    end: nowmillis
-    say. "it took ${end •minus start} ms"
-} call
-say. "-------"
-say. ""
+    {
+        0 :count
+        nowmillis :start
+        100_000 {
+            count+=
+        } jsloopn
+        nowmillis :end
+        end •minus start :total
+        "end: $end; start: $start" say
+        "it took $total ms // pink marker" say
+        "count is $count" say
+    } call
 
+
+    {
+        0 :count
+        nowmillis :start
+        100_000 {
+            count+=
+        } jsloopn
+        nowmillis :end
+        end •minus start :total
+        "end: $end; start: $start" say
+        "it took $total ms // pink marker" say
+        "count is $count" say
+    } call
 
 {
     0 :count
@@ -2856,25 +2926,71 @@ say. "-------"
 say. ""
 assertempty. "a check0.25" // olive marker
 
+
 {
     0 :count
-    0 :i
-    nowmillis :start
-
-    {
-        i 100_000 guardlt
-        i count+=
-        i++
-        repeat
-    } call
-    nowmillis :end
-    end •minus start :total
-    "end: $end; start: $start" say
-    "+it took $total ms" say
-    "+count is $count" say
+    start: nowmillis
+    100_000 { count+= } timeit
+    "count is $count oh boy" say
+    end: nowmillis
+    say. "(2) it took ${end •minus start} ms"
 } call
 say. "-------"
 say. ""
+
+
+
+3 loopn. {
+    {
+        0 :count
+        0 :i
+        nowmillis :start
+        {
+            i 100_000 guardlt
+            // i 100_000 lt guardb
+            // if. i .gt 100_000 {
+            //     breakp
+            // }
+
+            i count+=
+            // count: count plus. i
+            // count+=. i
+
+            // i: i plus. 1
+            // i 1 plus :i
+            i++
+            repeat
+        } call
+        nowmillis :end
+        end •minus start :total
+        "end: $end; start: $start" say
+        "it took $total ms // blue marker" say
+        "+count is $count" say
+    } call
+    say. "-------"
+    say. ""
+}
+
+
+3 loopn. {
+    {
+        0 :count
+        0 :i
+        nowmillis :start
+        100_000 jsloopn. {
+            count+=
+        }
+        nowmillis :end
+        end •minus start :total
+        "end: $end; start: $start" say
+        "it took $total ms // pink marker" say
+        "count is $count" say
+    } call
+    say. "-------"
+    say. ""
+}
+
+
 
 assertempty. "a check0.5" // olive marker
 
