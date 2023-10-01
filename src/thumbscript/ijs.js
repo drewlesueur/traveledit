@@ -4259,24 +4259,24 @@ log2(ijs.tokenize(`
 
 
 
-setTimeout(function () {
-    log2("")
-    log2("")
-    log2("")
-    var names = ["Cristina", "Drew", "Bob"]
-    var yo = 0
-    names.forEach((name) => {
-        // let y = yo++
-        var y = yo++
-        let name2 = name
-        setTimeout(() => {
-            log2("name:  " + name)
-            log2("name2: " + name2)
-            log2("yo: " + yo)
-            log2("y: " + y)
-        })
-    })
-}, 200)
+// setTimeout(function () {
+//     log2("")
+//     log2("")
+//     log2("")
+//     var names = ["Cristina", "Drew", "Bob"]
+//     var yo = 0
+//     names.forEach((name) => {
+//         // let y = yo++
+//         var y = yo++
+//         let name2 = name
+//         setTimeout(() => {
+//             log2("name:  " + name)
+//             log2("name2: " + name2)
+//             log2("yo: " + yo)
+//             log2("y: " + y)
+//         })
+//     })
+// }, 200)
 ijs.exampleCode = function () {
 /*
 
@@ -5794,7 +5794,7 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-ijs.run(code)
+// ijs.run(code)
 // setTimeout(ijs.testInfixate, 1)
 
 
