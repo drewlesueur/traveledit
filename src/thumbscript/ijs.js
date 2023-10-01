@@ -34,7 +34,7 @@ if (typeof log2 === "undefined") {
 // it will also modify `a`.
 
 var ijs = {}
-ijs.interactiveDebugger = true
+ijs.interactiveDebugger = false
 
 
 
@@ -379,6 +379,8 @@ ijs.tokenize = function (code, debug) {
         } else if (state == "firstSlash") {
             if ("/".indexOf(chr) != -1) {
                 state = "comment"
+            } else if ("*".indexOf(chr) != -1) {
+                state = "multiline_comment"
             } else {
                 // total Hack
                 let prev = ijs.getPrevNonSpaceChar(code, i-1)
@@ -394,6 +396,14 @@ ijs.tokenize = function (code, debug) {
             }
         } else if (state == "comment") {
             if ("\n\r".indexOf(chr) != -1) {
+                state = "out"
+            }
+        } else if (state == "multiline_comment") {
+            if ("*".indexOf(chr) != -1) {
+                state = "asterisk_multiline"
+            }
+        } else if (state == "asterisk_multiline") {
+            if ("/".indexOf(chr) != -1) {
                 state = "out"
             }
         }
@@ -1932,6 +1942,8 @@ ijs.makeDraggable = function (el, handleEl) {
 		}
 		document.body.addEventListener("touchmove", mouseMove)
 		document.body.addEventListener("touchend", mouseUp)
+		document.body.addEventListener("mousemove", mouseMove)
+		document.body.addEventListener("mouseup", mouseUp)
 	}
 
 	handleEl.addEventListener("mousedown", start)
@@ -1944,8 +1956,8 @@ ijs.run = function(code, world) {
 	if (ijs.interactiveDebugger) {
 		if (typeof window != "undefined" && (!window.ijsInteractiveDebuggerEl || window.ijsInteractiveDebuggerEl.parentNode != document.body))  {
 			let el = document.createElement("div")
-			let w = 300
-			let h = 300
+			let w = 600
+			let h = 100
 			var playEl = document.createElement("button")
 			playEl.innerText = "▶️"
 			var pauseEl = document.createElement("button")
@@ -1954,12 +1966,21 @@ ijs.run = function(code, world) {
 			nextEl.innerText = "⏭️"
 			var closeEl = document.createElement("button")
 			closeEl.innerHTML = "&times;"
+			let inputEl = document.createElement("input")
+			inputEl.addEventListener('input', function () {
+				try {
+					var ret = ijs.run('return ' + inputEl.value, ijs.debuggingWorld)	
+					console.log("debug: " + inputEl.value + ": ", ret)
+				} catch (e) {
+				}
+			})
 			let topBarEl = document.createElement("div")
 			topBarEl.appendChild(document.createTextNode("debugger"))
 			topBarEl.appendChild(playEl)
 			topBarEl.appendChild(pauseEl)
 			topBarEl.appendChild(nextEl)
 			topBarEl.appendChild(closeEl)
+			topBarEl.appendChild(inputEl)
 			topBarEl.style.width = w+"px"
 			topBarEl.style.height = 30+"px"
 			topBarEl.style.backgroundColor = "navy"
@@ -1967,7 +1988,8 @@ ijs.run = function(code, world) {
 			el.style.width = w + "px"
 			el.style.height = h + "px"
 			el.style.backgroundColor = "lightyellow"
-			el.style.top = 0
+			//el.style.top = 0
+			el.style.top = (window.innerHeight - h) + "px" 
 			el.style.left = 0
 			el.style.position = "absolute"
 			el.style.color = "white"
@@ -2004,18 +2026,24 @@ ijs.run = function(code, world) {
             nextEl.addEventListener('click', function (e) {
                 e.preventDefault()
                 e.stopPropagation()
-                ijs.goNext?.()
+				if (ijs.nextPromises.length) {
+					ijs.nextPromises.pop().resolve()
+				}
             });
             playEl.addEventListener('click', function (e) {
                 e.preventDefault()
                 e.stopPropagation()
-                ijs.isPaused = false
-                ijs.goNext?.()
+				if (ijs.nextPromises.length) {
+					let p
+					while (p = ijs.nextPromises.pop()) {
+						ijs.isPaused = false
+						p.resolve()
+					}
+				}
             });
             pauseEl.addEventListener('click', function (e) {
                 e.preventDefault()
                 e.stopPropagation()
-                // alert("paused!")
                 ijs.isPaused = true
             });
 			
@@ -2094,6 +2122,15 @@ ijs.hoist = function (body) {
         body = [...hoisted, ...nonHoisted]
     }
     return body
+}
+
+ijs.isOrHasParent = function (world, debuggingWorld) {
+	for (let w = world; w; w = w.parent) {
+		if (w == debuggingWorld) {
+			return true
+		}			
+	}
+	return false
 }
 
 ijs.makeAsyncFunc = function(params, body, world, name) {
@@ -2383,7 +2420,8 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
     }
 
     if (expr && expr[0] == "<interpolate>") {
-        return "`" + JSON.stringify(expr[1]).slice(1, -1) + "`"
+        //return "`" + JSON.stringify(expr[1]).slice(1, -1) + "`"
+        return "`" + expr[1] + "`"
     }
     // should not get here?
     return expr[0] + "(" + expr.slice(1).map(x => ijs.exprStringMap[x]) + ")"
@@ -2476,30 +2514,136 @@ ijs.sleep = function (ms) {
     })
 }
 
-ijs.waitNext = function () {
-    return new Promise(function (resolve, reject) {
-        ijs.goNext = resolve
+
+
+// deprecated
+// ijs.signals = {}
+// ijs.makeSignal = function (name) {
+// 	if (!ijs.signals[name]) {
+// 		var resolve
+// 		ijs.signals[name] = new Promise(function (res, rej) {
+// 			ijs.signals[name] = null
+// 			resolve = res
+// 		})
+// 		ijs.signals[name].resolve = resolve
+// 	}
+// } 
+// ijs.waitSignal = async function (name) {
+// 	//console.log("====waiting for " + name)
+// 	// if (!ijs.signals[name]) {
+// 	// 	ijs.signals[name] = []
+// 	// }
+// 	// return new Promise(function (resolve) {
+// 	// 	ijs.signals[name].push(resolve)
+// 	// })
+// 	// return
+// 
+// 	ijs.makeSignal(name)
+// 	await ijs.signals[name]
+// 	ijs.signals[name] = null
+// }
+// ijs.broadcastSignal = function (name) {
+// 	//console.log("====broadcasted" + name)
+// 
+// 	// if (!ijs.signals[name]) {
+// 	// 	ijs.signals[name] = []
+// 	// }
+// 	// ijs.signals[name].forEach(r => r())
+// 	// ijs.signals[name] = []
+// 	// return
+// 
+// 	ijs.makeSignal(name)
+// 	ijs.signals[name].resolve()
+// 	ijs.makeSignal(name)
+// }
+// 
+// ijs.waitForOtherDebuggingSessions = async function (world, exprString) {
+// 	while (true) {
+// 		if (!ijs.debuggingWorld || ijs.isOrHasParent(world, ijs.debuggingWorld)) {
+// 			return
+// 		}
+// 		
+// 		//console.log("====waiting for", exprString)
+// 		await ijs.waitSignal("doneDebugging")
+// 		console.log("got it!")
+// 	}
+// }
+// ijs.setDebugging = async function (world) {
+// 	while (true) {
+// 		if (!ijs.debuggingWorld || ijs.isOrHasParent(world, ijs.debuggingWorld)) {
+// 			break
+// 		}
+// 		await ijs.waitSignal("doneDebugging")
+// 		console.log("got it (set) !")
+// 	}
+// 	ijs.debuggingWorld = world
+// }
+// 
+// ijs.setDoneDebugging = function (world) {
+// 	//console.log("====set done debugging!")
+// 	if (world == ijs.debuggingWorld) {
+// 		ijs.debuggingWorld = null
+// 		ijs.broadcastSignal("doneDebugging")	
+// 		console.log("yay!")
+// 	} else {
+// 		//console.log("====set done debugging, ignore")
+// 	}
+// }
+// ijs.setDoneDebuggingPlay = function () {
+// 	//console.log("====set done debugging play!")
+// 	ijs.debuggingWorld = null
+// 	ijs.broadcastSignal("doneDebugging")	
+// }
+
+
+
+
+ijs.nextPromises = []
+ijs.waitNext = async function (world) {
+	// multiple runs at the same time?
+	var resolve
+	var p = new Promise(function (res, rej) {
+		resolve = res
     })
+	p.world = world
+	p.resolve = function () {
+		resolve()
+	}
+	ijs.nextPromises.push(p)
+	return p
 }
 ijs.builtins = {
     "<runAsync>": async function (args, world, inBlock, parentOperator) {
         // alert("running async")
         if (!args) {
+			//ijs.setDoneDebugging(world)
             return
         }
         // var last = void 0;
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
-			if (window.ijsDebugTextarea) {
-				window.ijsDebugTextarea.value = ijs.generateExprString(arg, 0, "", parentOperator)
-			}
-			// await ijs.sleep(250)
-			if (ijs.isPaused) {
-				await ijs.waitNext()
-			}
+
 			if (ijs.interactiveDebugger) {
-				await ijs.sleep(1)
+				//await ijs.sleep(1)
 			}
+
+			let exprString
+			exprString = ijs.generateExprString(arg, 0, "", parentOperator)
+			console.log("expr: ", exprString.split("\n")[0] + " " + (new Date().toLocaleString()))
+
+			// interactiveDebugger is not supported yet
+			if (ijs.interactiveDebugger) {
+				if (typeof window != "undefined" && window.ijsDebugTextarea) {
+					window.ijsDebugTextarea.value = exprString
+				}
+			}
+
+			//if (world.isPaused) {
+			if (ijs.isPaused) {
+				ijs.debuggingWorld = world
+				await ijs.waitNext(world)
+			}
+
             // some special cases
             // log2("-running: "+JSON.stringify(arg))
             if (typeof arg == "object") {
@@ -2514,15 +2658,23 @@ ijs.builtins = {
                         var ret2 = ijs.makeSpecialReturn()
                         ret2.returnMessage = true
                         ret2.returnValue = ret
+						//ijs.setDoneDebugging(world)
                         return ret2
                     }
+					//ijs.setDoneDebugging(world)
                     return ret
                 } else if (arg[0] == "await_pre") {
                     await ijs.exec(arg[1], world)
                     continue
                 } else if (arg[0] == "=" && arg[2] && (typeof arg[2] == "object") && arg[2][0] == "await_pre") {
                     // special case for var a = await smthbg()
-                    await ijs.callFunc("=_await", arg.slice(1), world)
+                    //await ijs.callFunc("=_await", arg.slice(1), world)
+
+					if (!arg.argSlice) {
+						arg.argSlice = arg.slice(1)
+					} else {
+					}
+                    await ijs.callFunc("=_await", arg.argSlice, world)
                     continue
                 // instead of doing this here, I handle in exec
                 // then await here, a bit kludgy
@@ -2540,44 +2692,57 @@ ijs.builtins = {
                 if (arg == "break") {
                     var ret = ijs.makeSpecialReturn()
                     ret.breakMessage = true
+					//ijs.setDoneDebugging(world)
                     return ret
                 }
                 if (arg == "continue") {
                     var ret = ijs.makeSpecialReturn()
                     ret.continueMessage = true
+					//ijs.setDoneDebugging(world)
                     return ret
                 }
                 if (arg == "debugger") {
                     debugger
                     continue
                 }
-                if (arg == "debuggy") {
+                if (arg.startsWith("debuggy")) {
+                    //world.isPaused = true
                     ijs.isPaused = true
-					await ijs.waitNext()
+					await ijs.waitNext(world)
                     continue
                 }
             }
+
             var pRet = ijs.exec(arg, world)
             var ret
-            if (arg[0] in ijs.asyncVersions) {
+            if (arg[0] in ijs.asyncVersions && pRet && pRet.constructor == Promise) {
+            //if (arg[0] in ijs.asyncVersions) {
                 ret = await pRet
             } else {
                 ret = pRet
             }
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage || ret.returnMessage) {
+					//ijs.setDoneDebugging(world)
                     return ret
                 }
             }
         }
+		//ijs.setDoneDebugging(world)
     },
-    "<run>": function(args, world, inBlock) {
+    "<run>": function(args, world, inBlock, parentOperator) {
         // var last = void 0;
         if (!args) {
             return
         }
         for (var i=0; i<args.length; i++) {
             var arg = args[i]
+
+			let exprString
+			exprString = ijs.generateExprString(arg, 0, "", parentOperator)
+			console.log("expr: ", exprString.split("\n")[0] + " " + (new Date().toLocaleString()))
+
+
             // some special cases
             if (typeof arg == "object") {
                 if (arg[0] == "return_pre") {
@@ -3010,6 +3175,10 @@ ijs.builtins = {
                         o[key] = otherObj[key]
                     }
                 }
+            } else if (typeof kv != "object") {
+                var key = kv
+                var value = kv
+                o[key] = ijs.exec(value, world)
             } else {
                 var key = kv[1]
                 var value = kv[2]
@@ -3119,7 +3288,7 @@ ijs.builtins = {
             }
             i++
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "while")
+            var ret = ijs.builtins["<run>"](body, loopWorld, true, "while")
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     // we stop here and don't return the breakMessage
@@ -3162,7 +3331,7 @@ ijs.builtins = {
             }
             i++
             // var ret = ijs.exec(body, world)
-            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "while")
+            var ret = await ijs.builtins["<runAsync>"](body, loopWorld, true, "while")
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     // we stop here and don't return the breakMessage
@@ -3234,7 +3403,7 @@ ijs.builtins = {
                         worldToSet.state[varName] = val
                     }
 
-                    var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
+                    var ret = ijs.builtins["<run>"](body, loopWorld, true, "for")
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -3262,7 +3431,7 @@ ijs.builtins = {
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
                         loopWorld.state[varName] = val
                     }
-                    var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
+                    var ret = ijs.builtins["<run>"](body, loopWorld, true, "for")
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -3292,8 +3461,7 @@ ijs.builtins = {
                 blockScope: true,
                 async: wrapperWorld.async,
             }
-            // log2("the call is: " + ijs.getRunFunc(loopWorld.async))
-            var ret = ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
+            var ret = ijs.builtins["<run>"](body, loopWorld, true, "for")
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     break
@@ -3359,7 +3527,7 @@ ijs.builtins = {
                     } else {
                         worldToSet.state[varName] = val
                     }
-                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
+                    var ret = await ijs.builtins["<runAsync>"](body, loopWorld, true, "for")
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -3387,7 +3555,7 @@ ijs.builtins = {
                     } else if (assignType == "let_pre" || assignType == "const_pre") {
                         loopWorld.state[varName] = val
                     }
-                    var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
+                    var ret = await ijs.builtins["<runAsync>"](body, loopWorld, true, "for")
                     if (ijs.isSpecialReturn(ret)) {
                         if (ret.breakMessage) {
                             break
@@ -3416,8 +3584,7 @@ ijs.builtins = {
                 blockScope: true,
                 async: wrapperWorld.async,
             }
-            // log2("the call is: " + ijs.getRunFunc(loopWorld.async))
-            var ret = await ijs.builtins[ijs.getRunFunc(loopWorld.async)](body, loopWorld, true, "for")
+            var ret = await ijs.builtins["<runAsync>"](body, loopWorld, true, "for")
             if (ijs.isSpecialReturn(ret)) {
                 if (ret.breakMessage) {
                     break
@@ -3455,14 +3622,14 @@ ijs.builtins = {
         catchBody = ijs.hoist(catchBody)
 
         try {
-            var ret = ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true, "try")
+            var ret = ijs.builtins["<run>"](tryBody, tryWorld, true, "try")
             // log2("ret from try is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
         } catch (e) {
             catchWorld.state[args[2][1][0]] = e
-            var ret = ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true, "try")
+            var ret = ijs.builtins["<run>"](catchBody, catchWorld, true, "try")
             // log2("ret from catch is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
@@ -3494,14 +3661,14 @@ ijs.builtins = {
         catchBody = ijs.hoist(catchBody)
 
         try {
-            var ret = await ijs.builtins[ijs.getRunFunc(tryWorld.async)](tryBody, tryWorld, true, "try")
+            var ret = await ijs.builtins["<runAsync>"](tryBody, tryWorld, true, "try")
             // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
         } catch (e) {
             catchWorld.state[args[2][1][0]] = e
-            var ret = await ijs.builtins[ijs.getRunFunc(catchWorld.async)](catchBody, catchWorld, true, "try")
+            var ret = await ijs.builtins["<runAsync>"](catchBody, catchWorld, true, "try")
             // log2("ret from if is: " + JSON.stringify(ret))
             if (ijs.isSpecialReturn(ret)) {
                 return ret
@@ -3535,7 +3702,7 @@ ijs.builtins = {
         var condRet = ijs.exec(condition, world)
         if (condRet) {
             // var ret = ijs.exec(body, world)
-            var ret = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true, "if")
+            var ret = ijs.builtins["<run>"](body, world, true, "if")
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -3568,7 +3735,7 @@ ijs.builtins = {
         var condRet = ijs.exec(condition, ifWorld)
         if (condRet) {
             // var ret = ijs.exec(body, ifWorld)
-            var ret = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true, "if")
+            var ret = await ijs.builtins["<runAsync>"](body, world, true, "if")
             if (ijs.isSpecialReturn(ret)) {
                 return ret
             }
@@ -3593,7 +3760,7 @@ ijs.builtins = {
                 // elseRet = ijs.exec(body, world)
                 body = [body]
             }
-            elseRet = ijs.builtins[ijs.getRunFunc(world.async)](body, world, true, "else")
+            elseRet = ijs.builtins["<run>"](body, world, true, "else")
             // ijs.exec(body, world)
             if (ijs.isSpecialReturn(elseRet)) {
                 return elseRet
@@ -3614,7 +3781,7 @@ ijs.builtins = {
                 // body.unshift("run")
                 // body = ["run", ...body]
                 body = ijs.hoist(body)
-                elseRet = await ijs.builtins[ijs.getRunFunc(world.async)](body, world, true, "else")
+                elseRet = await ijs.builtins["<runAsync>"](body, world, true, "else")
             } else {
                 // This isn't awaited bug?
                 // elseRet = ijs.exec(body, world)
@@ -3728,7 +3895,16 @@ ijs.exec = function(tokens, world, opts) {
         // or throw?
         return undefined
     }
-    return ijs.callFunc(tokens[0], tokens.slice(1), world, opts)
+    // return ijs.callFunc(tokens[0], tokens.slice(1), world, opts)
+
+	// #perf cachedslice ? may or may not be helpful
+	if (!tokens.argSlice) {
+		tokens.argSlice = tokens.slice(1)
+	} else {
+	}
+
+
+    return ijs.callFunc(tokens[0], tokens.argSlice, world, opts)
 }
 
 ijs.asyncVersions = {
@@ -3760,8 +3936,25 @@ ijs.callFunc = function(funcAccessor, theArgs, world, opts) {
     } else if (funcAccessor in ijs.builtins) { // perf, you could do this at compile time, also "in" seems fastest
     // } else if (funcAccessor.charAt(0) < 65 || funcAccessor in ijs.builtins) { // perf, you could do this at compile time
     // } else if (Object.hasOwn(ijs.builtins, funcAccessor)) {
+
+		// TODO: only do this if the body of the function has await anywhere!
         if (world.async && (funcAccessor in ijs.asyncVersions)) {
-            funcAccessor = funcAccessor + "_await"
+
+			if (!theArgs.checkedAwait) {
+				// Total hack from sync, TODO: fix this perf wise #perf
+				//theArgs.hasAwait = theArgs.toString().indexOf("await_pre") != -1 // TODO: optimize this!
+				theArgs.hasAwait = theArgs.toString().indexOf("await") != -1 // TODO: optimize this!
+				// TODO: need to dig deeper, for example an await in a nested function that's not called should be fine.
+				//console.log("======checked await ", theArgs, theArgs.toString())
+				theArgs.checkedAwait = true
+			} else {
+			}
+			if (theArgs.hasAwait) {
+			//if (true || theArgs.hasAwait) {
+				funcAccessor = funcAccessor + "_await"
+			} else {
+				//console.log("=====we skipped this!", theArgs.toString())
+			}
         }
         var func = ijs.builtins[funcAccessor]
         var ret = func(theArgs, world, false, opts)
