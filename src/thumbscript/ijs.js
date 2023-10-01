@@ -1012,11 +1012,22 @@ ijs.testInfixate = function () {
     // some are just testing arity and precedence
     var casesString = `
         # check #debug #onl
+        var y = yo++
+        # expected
+        [["=",["var_pre","y"],["++_post","yo"]]]
+
+        # check #debug #onl
+        // var y = yo++
+        var y = 3 - yo.hi++
+        # expected
+        [["=",["var_pre","y"],["-",3,["++_post",[".","yo","hi"]]]]]
+
+        # check #onl
         !(3)
         # expected
         [["!_pre",["<group>_pre",[3]]]]
 
-        # check #debug #onl
+        # check #onl #debug
         a++
         window.foo++
         console.log(bar)
@@ -1465,8 +1476,53 @@ ijs.infixate = function(tokens, debug) {
                 } else {
                     let next = tokens[0]
                     if (Object.hasOwn(ijs.postfixes, next)) {
+                        // alert("yea!")
                         // these are hacked in
-                        state.group = [next + "_post", state.group]
+                        var postfixOp = ijs.postfixes[next]
+                        // ok we got a whole group here, where donee add the postfix?
+                        // add it around the first last subgroup whose precedence tou are bigger than.
+                        // let parent = [null, state.group]
+                        
+                        // maybe there's a more clever way here, than the lastParent hack, but this works
+                        let parent = state.group
+                        let lastParent = [null, state.group]
+                        
+                        var updated = false
+                        while (true) {
+                            let first = typeof parent == "object" && parent[0]
+                            if (first) {
+                                var op
+                                if (first.endsWith("_pre")) {
+                                     op = ijs.prefixes[first.slice(0, -4)]
+                                } else if (first.endsWith("_post")) {
+                                     op = ijs.prefixes[first.slice(0, -5)]
+                                } else {
+                                     op = ijs.infixes[first]
+                                }
+                                log2("ok comparing these: ")
+                                log2("+next: " + next + ", " + " op: " + first)
+                                if (postfixOp.precedence < op.precedence) {
+                                    updated = true
+                                    if (lastParent[0] == null) {
+                                        state.group = [next + "_post", state.group]
+                                    } else {
+                                        // parent[parent.length - 1] = [next + "_post", parent[parent.length - 1]]
+                                        lastParent[lastParent.length - 1] = [next + "_post", lastParent[lastParent.length - 1]]
+                                    }
+                                    break
+                                }
+                            } else {
+                                lastParent[lastParent.length - 1] = [next + "_post", lastParent[lastParent.length - 1]]
+                                break
+                            }
+                            lastParent = parent
+                            parent = parent[parent.length - 1]
+                        }
+                        // log2("adding the "+next+" postfix to ")
+                        // log2(state.group)
+                        // if (!updated) {
+                        //     state.group = [next + "_post", state.group]
+                        // }
                         tokens.shift()
                     }
                     newTokens.push(state.group)
@@ -1561,7 +1617,10 @@ ijs.infixate = function(tokens, debug) {
             }
         } else if (state.name == "inNonOp") {
             if (Object.hasOwn(ijs.postfixes, token)) {
+                // alert("wha?")
                 // these are hacked in
+                // log2("wha adding the "+token+" postfix to ")
+                // log2(state.group)
                 state.group = [token + "_post", state.group]
             } else if (token == ",") {
                 var parentState = stack.pop()
@@ -4187,19 +4246,64 @@ log2(ijs.tokenize(`
 //         break
 // }
 
-outer:
-for (i of yo) {
-    break outer
-}
+// outer:
+// for (i of yo) {
+//     break outer
+// }
 
+// var yo = 0
+// var y = yo++
+// log2(y)
 
 `, false))
 
 
 
-
+setTimeout(function () {
+    var names = ["Cristina", "Drew", "Bob"]
+    var yo = 0
+    names.forEach((name) => {
+        // let y = yo++
+        var y = yo++
+        setTimeout(() => {
+            log2("name: " + name)
+            log2("yo: " + yo)
+            log2("y: " + y)
+        })
+    })
+}, 200)
 ijs.exampleCode = function () {
 /*
+
+var yo = 0
+var y = yo++
+log2(y)
+
+
+return
+var names = ["Cristina", "Drew", "Bob"]
+var yo = 0
+names.forEach((name) => {
+    // let y = yo++
+    var y = yo++
+    setTimeout(() => {
+        log2("name: " + name)
+        log2("yo: " + yo)
+        log2("y: " + y)
+    })
+})
+
+var makeIncr = function (x) {
+    return function () {
+        log2(x++)
+    }
+}
+var incr = makeIncr(20)
+incr()
+incr()
+incr()
+
+return
 
 // a = {foo2: x => 20}
 // alert(a.foo?.())
@@ -4215,18 +4319,18 @@ ijs.exampleCode = function () {
 //         log2("100 works")
 //         break
 // }
-p = {eat: function () {this.hunger--}, hunger: 100}
-p.eat();
-p.eat();
-p.eat();
-p.eat();
-log2(p)
-var nonBoundEat = p.eat
-nonBoundEat()
-nonBoundEat()
-nonBoundEat()
-nonBoundEat()
-log2(p)
+// p = {eat: function () {this.hunger--}, hunger: 100}
+// p.eat();
+// p.eat();
+// p.eat();
+// p.eat();
+// log2(p)
+// var nonBoundEat = p.eat
+// nonBoundEat()
+// nonBoundEat()
+// nonBoundEat()
+// nonBoundEat()
+// log2(p)
 
 async function doThing(ms, arg) {
     return new Promise(function (resolve, reject) {
@@ -5686,7 +5790,7 @@ for (let i = 0; i < 10; i++) {
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 // ijs.run(code)
-// setTimeout(ijs.testInfixate, 1)
+setTimeout(ijs.testInfixate, 1)
 
 
 var code = `
