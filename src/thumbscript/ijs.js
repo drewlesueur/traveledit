@@ -2197,19 +2197,19 @@ ijs.makeAsyncFunc = function(params, body, world, name) {
     // body = ["run", ...body]
     // body.unshift("run")
     // alert(JSON.stringify(body, null, "    "))
-    var world = {
-        parent: world,
-        state: {},
-        // cachedLookupWorld: {},
-        global: world.global,
-        async: true,
-    }
     // log2("+params are")
     // log2(params)
 
     var origBody = body
     body = ijs.hoist(body)
     var f = async function(...args) {
+        world = {
+            parent: world,
+            state: {},
+            // cachedLookupWorld: {},
+            global: world.global,
+            async: true,
+        }
         if (params) {
             // only handling spread if it's the only argument for bow
             if (params.length == 1 && params[0][0] == "..._pre") {
@@ -2264,22 +2264,22 @@ ijs.makeFunc = function(params, body, world, name, opts) {
     // body = ["run", ...body]
     // body.unshift("run")
     // alert(JSON.stringify(body, null, "    "))
-	if (opts && opts.skipNewScope) {
-
-	} else {
-		world = {
-			parent: world,
-			state: {},
-			// cachedLookupWorld: {},
-			global: world.global,
-			async: false
-		}
-	}
     // log2("+params are")
     // log2(params)
     var origBody = body
     body = ijs.hoist(body)
     var f = function(...args) {
+	    if (opts && opts.skipNewScope) {
+    
+	    } else {
+	    	world = {
+	    		parent: world,
+	    		state: {},
+	    		// cachedLookupWorld: {},
+	    		global: world.global,
+	    		async: false
+	    	}
+	    }
         if (params) {
             // only handling spread if it's the only argument for bow
             if (params.length == 1 && params[0][0] == "..._pre") {
@@ -4260,13 +4260,18 @@ log2(ijs.tokenize(`
 
 
 setTimeout(function () {
+    log2("")
+    log2("")
+    log2("")
     var names = ["Cristina", "Drew", "Bob"]
     var yo = 0
     names.forEach((name) => {
         // let y = yo++
         var y = yo++
+        let name2 = name
         setTimeout(() => {
-            log2("name: " + name)
+            log2("name:  " + name)
+            log2("name2: " + name2)
             log2("yo: " + yo)
             log2("y: " + y)
         })
@@ -4276,22 +4281,22 @@ ijs.exampleCode = function () {
 /*
 
 var yo = 0
-var y = yo++
-log2(y)
+// var y = yo++
 
 
-return
 var names = ["Cristina", "Drew", "Bob"]
 var yo = 0
-names.forEach((name) => {
-    // let y = yo++
+names.forEach(async (name) => {
     var y = yo++
+    let name2 = name
     setTimeout(() => {
-        log2("name: " + name)
+        log2("name:  " + name)
+        log2("name2: " + name2)
         log2("yo: " + yo)
         log2("y: " + y)
     })
 })
+
 
 var makeIncr = function (x) {
     return function () {
@@ -5789,8 +5794,8 @@ for (let i = 0; i < 10; i++) {
 
 // var code = String.raw``
 var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-// ijs.run(code)
-setTimeout(ijs.testInfixate, 1)
+ijs.run(code)
+// setTimeout(ijs.testInfixate, 1)
 
 
 var code = `
