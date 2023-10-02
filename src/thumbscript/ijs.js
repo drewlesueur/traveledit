@@ -82,9 +82,9 @@ ijs.tokenize = function (code, debug) {
         // if (x == ":") {
         //     return
         // }
-        if (x == ";") {
-            return
-        }
+        // if (x == ";") {
+        //     return
+        // }
 
         if (x == "true") {
             tokens.push(true)
@@ -310,6 +310,10 @@ ijs.tokenize = function (code, debug) {
                 currentToken = chr
             } else if (",".indexOf(chr) != -1) {
                 // special case for ,
+                pushToken(currentToken)
+                currentToken = chr
+            } else if (";".indexOf(chr) != -1) {
+                // special case for ;
                 pushToken(currentToken)
                 currentToken = chr
             } else {
@@ -1006,17 +1010,53 @@ function logCurr(indent, msg, obj) {
         // // let x in stuff
         // # expected
 
+        // # check #debug #onl
+        // y++ z
+        // y++, z
+        // y++; z
+        // y, ++z
+        // # expected
+        // [["=",["var_pre","y"],["++_post","yo"]]]
 ijs.testInfixate = function () {
 
     // note some of these tests don't work as actual javascript
     // some are just testing arity and precedence
     var casesString = `
-        # check #debug #onl
+        # check #debu #onl
+        y ++ a
+        y++, a
+        y++; a
+
+        y, ++a
+        y; ++a
+
+        y.z ++ a
+        y.z++, a
+        y.z++; a
+
+        y.z, ++a
+        y.z; ++a
+        # expected
+        [["++_post","y"],"a",["++_post","y"],"a",["++_post","y"],"a","y",["++_pre","a"],"y",["++_pre","a"],["++_post",[".","y","z"]],"a",["++_post",[".","y","z"]],"a",["++_post",[".","y","z"]],"a",[".","y","z"],["++_pre","a"],[".","y","z"],["++_pre","a"]]
+
+        # check #debu #onl
+        y++
+        4
+        # expected
+        [["++_post","y"],4]
+
+        # check #debu #onl
+        y.z++
+        4
+        # expected
+        [["++_post",[".","y","z"]],4]
+
+        # check #debu #onl
         var y = yo++
         # expected
         [["=",["var_pre","y"],["++_post","yo"]]]
 
-        # check #debug #onl
+        # check #debu #onl
         // var y = yo++
         var y = 3 - yo.hi++
         # expected
@@ -1027,7 +1067,7 @@ ijs.testInfixate = function () {
         # expected
         [["!_pre",["<group>_pre",[3]]]]
 
-        # check #onl #debug
+        # check #onl #debu
         a++
         window.foo++
         console.log(bar)
@@ -1395,6 +1435,8 @@ ijs.testInfixate = function () {
             log2("-they don't match")
             log2("-expected:")
             log2(theCase.expected)
+            log2("-actual:")
+            log2(actual)
             log2("-fail")
             failureCount++
         } else {
@@ -1499,8 +1541,6 @@ ijs.infixate = function(tokens, debug) {
                                 } else {
                                      op = ijs.infixes[first]
                                 }
-                                log2("ok comparing these: ")
-                                log2("+next: " + next + ", " + " op: " + first)
                                 if (postfixOp.precedence < op.precedence) {
                                     updated = true
                                     if (lastParent[0] == null) {
@@ -1599,6 +1639,8 @@ ijs.infixate = function(tokens, debug) {
                 state.name = "inPre"
             } else if (token == ",") {
                 // lol
+            } else if (token == ";") {
+                // lol
             } else {
                 // stack.push(state)
                 state = {}
@@ -1622,7 +1664,26 @@ ijs.infixate = function(tokens, debug) {
                 // log2("wha adding the "+token+" postfix to ")
                 // log2(state.group)
                 state.group = [token + "_post", state.group]
+                newTokens.push(state.group)
+                state = {
+                     name: "before",
+                     opDef: null,
+                     group: null,
+                }
             } else if (token == ",") {
+                var parentState = stack.pop()
+                if (parentState) {
+                    parentState.group.push(state.group)
+                    state = parentState
+                } else {
+                    newTokens.push(state.group)
+                    state = {
+                         name: "before",
+                         opDef: null,
+                         group: null,
+                    }
+                }
+            } else if (token == ";") {
                 var parentState = stack.pop()
                 if (parentState) {
                     parentState.group.push(state.group)
@@ -1754,6 +1815,9 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
         }
         var token = tokens.shift()
         if (token == ",") {
+            continue
+        }
+        if (token == ";") {
             continue
         }
         // log2("+ token: " + JSON.stringify(token))
@@ -4254,6 +4318,13 @@ log2(ijs.tokenize(`
 // var yo = 0
 // var y = yo++
 // log2(y)
+// for (var i = 0; i < 10; ++i) {
+//     log2("i is " + i)
+// }
+
+// a = [1, ++2]
+// y++
+// 4
 
 `, false))
 
