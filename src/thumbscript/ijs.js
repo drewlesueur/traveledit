@@ -5863,10 +5863,6 @@ for (let i = 0; i < 10; i++) {
 */
 }
 
-// var code = String.raw``
-var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
-// ijs.run(code)
-// setTimeout(ijs.testInfixate, 1)
 
 
 var code = `
@@ -5939,3 +5935,8 @@ testMe()
 // }, 1000)
 
 // alert(window.count)
+
+// var code = String.raw``
+var code = ijs.exampleCode.toString().split("\n").slice(2, -2).join("\n")
+ijs.run(code)
+// setTimeout(ijs.testInfixate, 1)
