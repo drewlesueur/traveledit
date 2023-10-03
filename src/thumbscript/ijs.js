@@ -2735,6 +2735,7 @@ ijs.waitNext = async function (world) {
 	ijs.nextPromises.push(p)
 	return p
 }
+ijs.preventDebugLog = false
 ijs.builtins = {
     "<runAsync>": async function (args, world, inBlock, parentOperator) {
         // alert("running async")
@@ -2752,7 +2753,9 @@ ijs.builtins = {
 
 			let exprString
 			exprString = ijs.generateExprString(arg, 0, "", parentOperator)
-			console.log("expr: ", exprString.split("\n")[0] + " " + (new Date().toLocaleString()))
+            if (!ijs.preventDebugLog) {
+                console.log("expr: ", exprString.split("\n")[0] + " " + (new Date().toLocaleString()))
+            }
 
 			// interactiveDebugger is not supported yet
 			if (ijs.interactiveDebugger) {
@@ -2863,7 +2866,9 @@ ijs.builtins = {
 
 			let exprString
 			exprString = ijs.generateExprString(arg, 0, "", parentOperator)
-			console.log("expr: ", exprString.split("\n")[0] + " " + (new Date().toLocaleString()))
+            if (!ijs.preventDebugLog) {
+                console.log("expr: ", exprString.split("\n")[0] + " " + (new Date().toLocaleString()))
+            }
 
 
             // some special cases
