@@ -3,6 +3,17 @@
 // throw error with function()
 // obj.call?.()
 
+
+// setTimeout(function () {}, 500), NOT setTimeout(function() {})
+// Only one await per statement, if you need 2 break to new variable
+// don't support switch statements yet, convert to if else chains.
+// don't support the `this` variable.
+// don't support multipole var/let on one line. like var a, b, c
+// don't support single line if statements. (Need to put {} for if, else if, else)
+// for (let key in obj) not for (key in obj)
+// no await in object or array
+// no await in for loop conditions or if conditions
+
 if (typeof log2 === "undefined") {
    log2 = function (x) {
        console.log(x)
@@ -75,6 +86,16 @@ ijs.tokenize = function (code, debug) {
     var currentRegExpFlags = ""
     var quoteType = ""
     var tokens = []
+    // quick check for syntax we don't support
+    
+    
+    // let lines = code.split("\n")
+    // for (let line of lines) {
+    //     let trimmed = line.trim()
+    //     if (trimmed.startsWith("var") || trimmed.startsWith("let") || trimmed.startsWith("const")) {
+    //     
+    //     }
+    // }
     var pushToken = function (x) {
         // if (x == ",") {
         //     return
@@ -85,6 +106,15 @@ ijs.tokenize = function (code, debug) {
         // if (x == ";") {
         //     return
         // }
+        
+        if (x == "switch") {
+            alert("switch statements not supported")
+            return
+        }
+        if (x == "this") {
+            alert("'this' is not supported")
+            return
+        }
 
         if (x == "true") {
             tokens.push(true)
@@ -2209,6 +2239,14 @@ ijs.run = function(code, world) {
     }
     var f = ijs.makeFunc([], tokens, world, null, {skipNewScope: true})
 	ijs.ranFuncs.push(f)
+	// audit
+    let lines = f.toString().split("\n")
+    for (let line of lines) {
+        if ((line.match(/await /g) || []).length >= 2) {
+            alert("only support one async statement at a time. error: " + line)
+        }
+    }
+    
     // log2(f.toString())
     var ret
     // try {
@@ -3351,6 +3389,10 @@ ijs.builtins = {
         } else {
             params = args[0][1]
         }
+        if (args[1] == null) {
+            alert("error with function, possibly need to use 'function (' instead of 'function(' for anonymous functions")
+            return
+        }
         var body = args[1][1]
         var f = ijs.makeFunc(params, body, world, name)
         if (name) {
@@ -4331,6 +4373,12 @@ log2(ijs.tokenize(`
 // y++
 // 4
 
+// This syntax doesn't parse right
+// return /\d/.test("d")
+// return foo.bar++
+// return await foo()
+
+var a = 3, b = 3
 `, false))
 
 
@@ -4355,10 +4403,29 @@ log2(ijs.tokenize(`
 // }, 200)
 ijs.exampleCode = function () {
 /*
+// switch (x) { }
+// var a = function() {
+// }
 
+// alert(a.toString())
+// async function foo(x) {
+//     return x
+// }
+// var b = await foo(await foo(3))
+// alert(b)
 var yo = 0
 // var y = yo++
 
+// if (/\d/.test("1")) {
+//     alert("yay")
+// } else {
+//     alert("nay")
+// }
+// function rTest() {
+//     return /\d/.test("d")
+// }
+// alert(rTest())
+// alert(/\d/.test("d"))
 
 var names = ["Cristina", "Drew", "Bob"]
 var yo = 0
@@ -4425,8 +4492,8 @@ async function doThing(ms, arg) {
 // this is broken because i only support await in top level statement or assignment
 async function process() {
     // var a = await doThing(10)
-    var a = await doThing(0, await doThing(0, 5))
-    alert(a)
+    // var a = await doThing(0, await doThing(0, 5))
+    // alert(a)
     alert("ok")
     var p = {
         name: await doThing(0, "Drew")
