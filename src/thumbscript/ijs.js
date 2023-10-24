@@ -1535,12 +1535,9 @@ ijs.infixate = function(tokens, debug) {
 
                     // checking postfix here is also a hack I think
                     if (typeof parentState.group != "object" || (parentState.group[0].indexOf("_post") != -1)) {
-                        // alert("yay")
                         newTokens.push(parentState.group)
                         // state.group = token
                     } else {
-                        // alert(next)
-                        // alert(parentState.group)
                         parentState.group.push(state.group)
                         state = parentState
 
@@ -1548,7 +1545,6 @@ ijs.infixate = function(tokens, debug) {
                 } else {
                     let next = tokens[0]
                     if (Object.hasOwn(ijs.postfixes, next)) {
-                        // alert("yea!")
                         // these are hacked in
                         var postfixOp = ijs.postfixes[next]
                         // ok we got a whole group here, where donee add the postfix?
@@ -1614,7 +1610,6 @@ ijs.infixate = function(tokens, debug) {
         if (Object.hasOwn(ijs.infixes, next)) {
             var opDef = state.opDef || {precedence: 0}
             var nextOpDef = ijs.infixes[next]
-            // alert(nextOpDef.precedence + " >? " + opDef.precedence)
             if (nextOpDef.precedence > opDef.precedence || (nextOpDef.precedence == opDef.precedence && nextOpDef.associatitivity)) {
                 stack.push(state)
                 state = {
@@ -1622,7 +1617,6 @@ ijs.infixate = function(tokens, debug) {
                      group: token
                 }
             } else {
-                // alert("pushing " + token)
                 state.group.push(token)
                 state.name = "inNonOp"
                 unwind() // blue marker
@@ -1689,7 +1683,6 @@ ijs.infixate = function(tokens, debug) {
             }
         } else if (state.name == "inNonOp") {
             if (Object.hasOwn(ijs.postfixes, token)) {
-                // alert("wha?")
                 // these are hacked in
                 // log2("wha adding the "+token+" postfix to ")
                 // log2(state.group)
@@ -1755,8 +1748,6 @@ ijs.infixate = function(tokens, debug) {
         }
 
         if (debug) {
-            // alert("state is ")
-            // alert(state)
             log2("# from: " + oldStateName)
             log2("# token: " + token + " ("+tokens[0]+")")
             // for (let i=stack.length-1; i>=0; i--) {
@@ -1881,7 +1872,6 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
             }
             if (stopAfter) {
                 if (forAsync) {
-                    // alert("stopping1: " + JSON.stringify(lastGroup))
                 }
                 // wait maybe just return lastGroup?
                 logIndent(iter, "infix return", lastGroup)
@@ -1906,7 +1896,6 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
                 } else if (next in ijs.postfixes) {
                     tokens.shift()
                     if (forAsync) {
-                        // alert("stopping4: " + JSON.stringify([next + "_post", token]))
                     }
                     return [next + "_post", lastGroup]
                 } else {
@@ -1924,14 +1913,11 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
             lastGroup = [token + "_pre"]
             for (var i=0; i<(opDef.arity || 1); i++) {
                 if (token == "async") {
-                    // alert("trying to grab for async: " + JSON.stringify(tokens))
                     var grabbed = ijs.infixateOld(tokens, true, true, currPrecedence, iter + 1, true)
                 } else {
-                    // alert("trying to grab for " + token + ":"  + JSON.stringify(tokens))
                     var grabbed = ijs.infixateOld(tokens, true, true, currPrecedence, iter + 1, false)
                 }
                 if (token == "async") {
-                    // alert("for "+token+" i grabbed: " + JSON.stringify(grabbed))
                 }
                 lastGroup.push(grabbed)
             }
@@ -1939,9 +1925,7 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
             lastPrecedence = currPrecedence
             if (stopAfter) {
                 if (forAsync) {
-                    // alert("stopping2: " + JSON.stringify(lastGroup))
                 }
-                // alert("returning: " + JSON.stringify(lastGroup))
                 // wait maybe just return lastGroup?
                 logIndent(iter, "prefix return", lastGroup)
                 // return lastGroup // red marker
@@ -1964,7 +1948,6 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
                 } else if (next in ijs.postfixes) {
                     tokens.shift()
                     if (forAsync) {
-                        // alert("stopping4: " + JSON.stringify([next + "_post", token]))
                     }
                     return [next + "_post", lastGroup]
                 } else {
@@ -1980,7 +1963,6 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
         } else {
             if (stopAfter) {
                 if (forAsync) {
-                    // alert("got here for async")
                 }
                 var next = ""
                 if (tokens.length) {
@@ -1994,20 +1976,17 @@ ijs.infixateOld = function(tokens, stopAfter, skipInfix, lastPrecedence, iter, f
                     if (currPrecedence < lastPrecedence || (currPrecedence == lastPrecedence && !currAssociatitivity)) {
                         logIndent(iter, "token return a", token)
                         if (forAsync) {
-                            // alert("stopping3: " + JSON.stringify(token))
                         }
                         return token
                     }
                 } else if (next in ijs.postfixes) {
                     tokens.shift()
                     if (forAsync) {
-                        // alert("stopping4: " + JSON.stringify([next + "_post", token]))
                     }
                     return [next + "_post", token]
                 } else {
                     logIndent(iter, "token return b", token)
                     if (forAsync) {
-                        // alert("stopping5: " + JSON.stringify(token))
                     }
                     return token
                 }
@@ -2168,7 +2147,6 @@ ijs.run = function(code, world) {
 			t.spellcheck = false
 			el.appendChild(t)
 			// closeEl.onclick = function () {
-			//     alert("removing")
 			//     el.remove()
 			// }
             closeEl.addEventListener('click', function (e) {
@@ -2468,6 +2446,7 @@ ijs.generateExprString = function (expr, indent, parentOperator) {
 
     var operator = expr[0]
     if (!operator.endsWith) {
+        debugger
         alert(JSON.stringify(expr))
     }
     var oMap = ijs.infixes
@@ -2941,7 +2920,7 @@ ijs.builtins = {
                 }
                 if (arg == "debugger") {
                     debugger
-                    return
+					continue
                 }
             }
             var ret = ijs.exec(arg, world)
@@ -3974,7 +3953,6 @@ ijs.builtins = {
     },
     "?": function (args, world) {
         var testingValue = ijs.exec(args[0], world)
-        // alert("testing " + args[0] + " and it's " + testingValue)
         if (testingValue) {
             return ijs.exec(args[1][1], world)
         }
@@ -4050,7 +4028,6 @@ ijs.exec = function(tokens, world, opts) {
 
         var w = ijs.getWorldForKey(world, token)
         if (w == null) {
-            // alert("can't find: " + token)
             return undefined // let's pretend it's hoisted
             // TODO: if you add var hoisting, you can undo this
             // debugger
