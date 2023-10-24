@@ -325,6 +325,7 @@ They get changed later on.
     <div class=square onclick=goUpDirectory()>⬆️</div>
     <div class=square onclick="runScript()" id=statusBar>run script</div>
     <div id=saveButton class=square onclick=saveWrapper()>save</div>
+    <div class=square id="gptButton2" onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -3418,7 +3419,8 @@ async function runChatGPT(model, options) {
     var messages = [
           {
             "role": "system",
-            "content": "You are a helpful assistant. In your responses, add new lines after about every 8 words, except when writing code."
+            "content": "You are a helpful assistant."
+            // "content": "You are a helpful assistant. In your responses, add new lines after about every 8 words, except when writing code."
             // "content": "When you answer prompts, be sure to add a new line after every 7 or so words, except when writing code. Be sure to add those new lines that's a '\\n' character!"
           },
           // {
@@ -7243,6 +7245,7 @@ function onStart(e) {
     // this is global
     isLongPress = false
     shouldOpenEditorCommand = false
+    
     if (e.touches.length == 1) {
         longPressAction = function() {
             isLongPress = true
@@ -7505,7 +7508,19 @@ function onStart(e) {
         }
         if (cursorType != "select") {
             selectTimeout = setTimeout(selectAction, selectTimeoutMillisMove)
+            var bbox = c.getBoundingClientRect()
+            // if (startTouchX > (bbox.width * 2 / 3)) {
+            // if (startTouchX > (bbox.width * 4 / 5)) {
+            // XXXXXXXXXXXX...
+            // XXXXXXXXXX.....
+            if (startTouchX > (bbox.width * 11 / 15)) {
+                // bad name now
+                if (touchTopTopTopTopMiddle_Right()) {
+                    return
+                }
+            }
         }
+        
         var diffTouchX = e.touches[0].pageX - startTouchX
         var diffTouchY = e.touches[0].pageY - startTouchY
         //cursorX = bind(startX + diffTouchX*touchScale, 0, canvasWidth)
@@ -7893,7 +7908,7 @@ function onStart(e) {
             var bbox = c.getBoundingClientRect() // deeppink marker
             // alert("yay")
             if (bbox.bottom - e.changedTouches[0].pageY > (5*verticalTouchSize)) {
-                // Fifth row from bottom // violet marker
+                // Sixth row from bottom // violet marker
             } else if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
                 // Fifth row from bottom // aquamarine marker
                 // touchTopTopTopMiddle
@@ -8832,7 +8847,6 @@ function onStart(e) {
         // if ((startTouchY - bbox.top < (bbox.height/3)) && document.activeElement != theText) {
 
 
-        // if ((bbox.bottom - startTouchY > (4*verticalTouchSize)) && (bbox.bottom - startTouchY < (5*verticalTouchSize))) {
         if ((bbox.bottom - startTouchY > (5*verticalTouchSize))) {  // hotpink marker
             // touch top third to select #topthird  #selectline #touchtop
             if (e.changedTouches[0].pageX > (bbox.width * 2 / 3)) {
@@ -8845,7 +8859,14 @@ function onStart(e) {
     if (fx.selectedRegions.length) {
         // idea: if 2 touches while selected
         // do something else like comment
-        if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+        if (e.changedTouches[0].pageX < (bbox.width * 1 / 3)) {
+            // select, lift finger, move on right side
+            // cursorType = "select"
+            document.body.addEventListener("touchmove", onMove)
+            moveListenerCount += 1
+            document.body.addEventListener("touchend", onEnd)
+            endListenerCount += 1
+        } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
             document.body.addEventListener("touchmove", onMoveWhileSelected)
             moveListenerCount += 1
             document.body.addEventListener("touchend", onEndWhileSelected)
