@@ -7259,6 +7259,9 @@ var keywords = {
     "return": true,
     "const": true,
     "let": true,
+    "switch": true,
+    "case": true,
+    "default": true,
 
     "func": true,
     "range": true,
@@ -7271,27 +7274,49 @@ var keywords = {
     "float64": true,
     "interface": true,
     "nil": true,
+    "type": true,
+    "struct": true,
+    "defer": true,
+    "bool": true,
+    "package": true,
+    "import": true,
+    "error": true,
+    
+    
+    "final": true,
+    "static": true,
+    "public": true,
+    "use": true,
+    "include": true,
+    "include_once": true,
+    "abstract": true,
 }
 // kind of like getQuoteRanges
 var syntaxColorMap = [
     {
         // lightmode
         quote: "red",
-        keyword: "navy",
-        symbol: "green",
-        key: "deepskyblue",
+        keyword: "blue",
+        symbol: "slateblue",
+        key: "dodgerblue",
         comment: "rgba(0, 0, 0, 0.5)",
-        dotword: "green",
+        dotword: "dodgerblue",
+        // call: "forestgreen",
+        call: "teal",
+        dollarword: "brown",
+        uppercasefirst: "brown",
     },
     {
         // darkmode
         quote: "orangered",
         keyword: "deepskyblue",
-        symbol: "magenta",
         symbol: "orange",
         key: "cyan",
         comment: "rgba(255, 255, 255, 0.5)",
-        dotword: "lime",
+        dotword: "aquamarine",
+        call: "lime",
+        dollarword: "magenta",
+        uppercasefirst: "gold",
     },
 ]
 function getSyntaxHighlight(expandedLine) {
@@ -7322,7 +7347,10 @@ function getSyntaxHighlight(expandedLine) {
                 state = "inFirstForwardSlash"
                 syntaxColors.push("symbol")
             } else if ("#".indexOf(chr) != -1) {
-                state = "comment"
+                state = "inComment"
+                syntaxColors.push("comment")
+            } else if ("*".indexOf(chr) != -1 && i == 5) {
+                state = "inComment"
                 syntaxColors.push("comment")
             } else {
                 state = "inSymbol"
@@ -7333,11 +7361,18 @@ function getSyntaxHighlight(expandedLine) {
                 curWord += chr
                 syntaxColors.push("word")
             } else if (":".indexOf(chr) != -1) {
-                syntaxColors.push("key")
+                syntaxColors.push("symbol")
                 for (let j = i-1; j >= i - curWord.length; j--) {
                     syntaxColors[j] = "key"
                 }
-            } else if (".".indexOf(chr) != -1) {
+                curWord = ""
+            } else if ("(".indexOf(chr) != -1) {
+                syntaxColors.push("symbol")
+                for (let j = i-1; j >= i - curWord.length; j--) {
+                    syntaxColors[j] = "call"
+                }
+                curWord = ""
+            } else if (".".indexOf(chr) != -1 || (chr == "-" && expandedLine[i+1] == ">")) {
                 if (curWord in keywords || curWord.toUpperCase() == curWord) {
                     // as if abc
                     // 0123456789
@@ -7348,6 +7383,11 @@ function getSyntaxHighlight(expandedLine) {
                 syntaxColors.push("symbol")
                 state = "inDotWord"
                 curWord = ""
+                
+                if (chr == "-") {
+                    syntaxColors.push("symbol")
+                    i++
+                }
             } else {
                 other = true
                 if (curWord in keywords || curWord.toUpperCase() == curWord) {
@@ -7356,7 +7396,12 @@ function getSyntaxHighlight(expandedLine) {
                     for (let j = i-1; j >= i - curWord.length; j--) {
                         syntaxColors[j] = "keyword"
                     }
+                } else if (curWord[0].toUpperCase() == curWord[0]) {
+                    for (let j = i-1; j >= i - curWord.length; j--) {
+                        syntaxColors[j] = "uppercasefirst"
+                    }
                 }
+                curWord = ""
                 i--
                 state = "out"
             }
@@ -7367,18 +7412,57 @@ function getSyntaxHighlight(expandedLine) {
                     for (let j = i; j >= i - curWord.length+1; j--) {
                         syntaxColors[j] = "keyword"
                     }
+                } else if (curWord[0].toUpperCase() == curWord[0]) {
+                    for (let j = i; j >= i - curWord.length+1; j--) {
+                        syntaxColors[j] = "uppercasefirst"
+                    }
                 }
             }
         } else if (state == "inDotWord") {
             if (isWordyChar(chr, true)) {
                 curWord += chr
                 syntaxColors.push("dotword")
-            } else if (".".indexOf(chr) != -1) {
+            } else if (".".indexOf(chr) != -1 || (chr == "-" && expandedLine[i+1] == ">")) {
                 syntaxColors.push("symbol")
                 state = "inDotWord"
+                curWord = ""
+                if (chr == "-") {
+                    syntaxColors.push("symbol")
+                    i++
+                }
+            } else if ("(".indexOf(chr) != -1) {
+                syntaxColors.push("symbol")
+                for (let j = i-1; j >= i - curWord.length; j--) {
+                    syntaxColors[j] = "call"
+                }
+                curWord = ""
             } else {
                 i--
                 state = "out"
+                curWord = ""
+            }
+        } else if (state == "inDollarWord") {
+            if (isWordyChar(chr, true)) {
+                curWord += chr
+                syntaxColors.push("dollarword")
+            } else if (".".indexOf(chr) != -1 || (chr == "-" && expandedLine[i+1] == ">")) {
+                syntaxColors.push("symbol")
+                state = "inDotWord"
+                curWord = ""
+                if (chr == "-") {
+                    syntaxColors.push("symbol")
+                    i++
+                }
+            } else if ("(".indexOf(chr) != -1) {
+                syntaxColors.push("symbol")
+                for (let j = i-1; j >= i - curWord.length; j--) {
+                    syntaxColors[j] = "call"
+                }
+                curWord = ""
+            } else {
+                i--
+                state = "out"
+                curWord = ""
             }
         } else if (state == "inFirstForwardSlash") {
             if ("/".indexOf(chr) != -1) {
@@ -7391,8 +7475,14 @@ function getSyntaxHighlight(expandedLine) {
             }
         } else if (state == "inSymbol") {
             // we aren't keeping track of symbols for now so
-            i--
-            state = "out"
+            if (expandedLine[i -1] == "$" && isWordyChar(chr, true)) {
+                state = "inDollarWord"
+                curWord = chr
+                syntaxColors.push("dollarword")
+            } else {
+                i--
+                state = "out"
+            }
         } else if (state == "inComment") {
             syntaxColors.push("comment")
         } else if (state == "inQuote") {
@@ -7414,6 +7504,9 @@ function getSyntaxHighlight(expandedLine) {
     expandedLine.syntaxColors = syntaxColors
     return syntaxColors
 }
+
+// getSyntaxHighlight("GpsiTools::logOutput(")
+
 
 
 
