@@ -7332,9 +7332,13 @@ var syntaxColorMap = [
         dotword: "aquamarine",
         call: "lime",
         // dollarword: "rgb(255, 100, 255)",
-        dollarword: "magenta",
+        // dollarword: "magenta",
+        dollarword: "khaki",
         uppercasefirst: "gold",
-        uppercase: "yellow",
+        // uppercase: "yellow",
+        // uppercase: "chartreuse",
+        // uppercase: "cornflowerblue",
+        uppercase: "lightskyblue",
         keyword2: "plum",
         keyword3: "yellowgreen",
         number: "yellow",
@@ -7485,7 +7489,6 @@ function getSyntaxHighlight(expandedLine) {
                     syntaxColors.push("symbol")
                     i++
                 }
-                state = "out"
             } else if ("(".indexOf(chr) != -1) {
                 syntaxColors.push("symbol")
                 for (let j = i-1; j >= i - curWord.length; j--) {
@@ -7510,7 +7513,6 @@ function getSyntaxHighlight(expandedLine) {
                     syntaxColors.push("symbol")
                     i++
                 }
-                state = "out"
             } else if ("(".indexOf(chr) != -1) {
                 syntaxColors.push("symbol")
                 for (let j = i-1; j >= i - curWord.length; j--) {
