@@ -6558,7 +6558,9 @@ function renderInternal() {
         // t.fillStyle = "magenta"
         // t.fillStyle = lightFontColor
         if (isDark) {
-            t.fillStyle = "gray"
+            t.fillStyle = "#333"
+            // t.fillStyle = "magenta"
+            // t.fillStyle = "yellow"
         } else {
             // t.fillStyle = "lightgray"
             t.fillStyle = "#ccc"
@@ -7036,7 +7038,11 @@ function renderInternal() {
                         extraY = 0
                     }
                     if (syntaxHighlight) {
-                        t.fillStyle = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
+                        // t.fillStyle = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
+                        let f = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
+                        if (f) {
+                            t.fillStyle = f
+                        }
                     }
                     t.fillText(chr, x*fontWidth, y*fontHeight + extraY)
                 } else {
@@ -7278,6 +7284,7 @@ var keywords = {
     "final": true,
     "static": true,
     "public": true,
+    "protected": true,
     "use": true,
     "include": true,
     "include_once": true,
@@ -7292,6 +7299,7 @@ var keywords2 = {
     "true": true,
     "false": true,
     "this": true,
+    "self": true,
 }
 var keywords3 = {
     "error": true,
