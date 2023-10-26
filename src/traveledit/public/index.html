@@ -1,4 +1,8 @@
 <!doctype html>
+<!--
+syntax highlighting
+
+-->
 <html>
 <head>
 <script>
@@ -707,6 +711,10 @@ They get changed later on.
     <input onchange="fraktur = frakturCheckbox.checked" type=checkbox name=frakturCheckbox id=frakturCheckbox />
     fraktur
 </label>
+<label for=syntaxHighlightCheckbox>
+    <input onchange="syntaxHighlight = syntaxHighlightCheckbox.checked" type=checkbox name=syntaxHighlightCheckbox id=syntaxHighlightCheckbox checked/>
+    syntax highlight
+</label>
 <br>
 <label for=serverViewCheckbox>
     <input onchange="serverViewFeature = serverViewCheckbox.checked" type=checkbox name=serverViewCheckbox id=serverViewCheckbox />
@@ -1096,6 +1104,7 @@ var bluetoothKeyboard = false
 var floatingKeyboard = false
 var fauxMono = false
 var fraktur = false
+var syntaxHighlight = true
 
 var lastFile = fx
 // not using indexes so we can move files around without worrying about the indexes
@@ -6974,6 +6983,10 @@ function renderInternal() {
 
         theLine = theLine || ""
         var expandedLine = expandLine(theLine, (y + fx.offsetY))
+        var syntaxColors
+        if (syntaxHighlight) {
+            syntaxColors = getSyntaxHighlight(expandedLine)
+        }
 
         // one option is to draw the whole line in one go
         // likely more optimal, wouln't have to do the unicode stuff
@@ -7021,6 +7034,9 @@ function renderInternal() {
                     } else {
                         t.font = fontCSS
                         extraY = 0
+                    }
+                    if (syntaxHighlight) {
+                        t.fillStyle = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
                     }
                     t.fillText(chr, x*fontWidth, y*fontHeight + extraY)
                 } else {
@@ -7226,6 +7242,180 @@ function getQuoteRanges(expandedLine) {
     }
     return quoteRanges
 }
+
+var keywords = {
+    "function": true,
+    "of": true,
+    "in": true,
+    "class": true,
+    "if": true,
+    "else": true,
+    "for": true,
+    "true": true,
+    "false": true,
+    "var": true,
+    "break": true,
+    "continue": true,
+    "return": true,
+    "const": true,
+    "let": true,
+
+    "func": true,
+    "range": true,
+    "len": true,
+    "make": true,
+    "map": true,
+    "any": true,
+    "string": true,
+    "int": true,
+    "float64": true,
+    "interface": true,
+    "nil": true,
+}
+// kind of like getQuoteRanges
+var syntaxColorMap = [
+    {
+        // lightmode
+        quote: "red",
+        keyword: "navy",
+        symbol: "green",
+        key: "deepskyblue",
+        comment: "rgba(0, 0, 0, 0.5)",
+        dotword: "green",
+    },
+    {
+        // darkmode
+        quote: "orangered",
+        keyword: "deepskyblue",
+        symbol: "magenta",
+        symbol: "orange",
+        key: "cyan",
+        comment: "rgba(255, 255, 255, 0.5)",
+        dotword: "lime",
+    },
+]
+function getSyntaxHighlight(expandedLine) {
+    var quoties = "\"'`"
+    var backslash = "\\"
+    var state = "out"
+    var quoteType = ""
+    var syntaxColors = []
+    var curWord = ""
+    if (expandedLine.syntaxColors) {
+        return expandedLine.syntaxColors
+    }
+    for (var i=0; i<expandedLine.length; i++) {
+        var chr = expandedLine[i]
+        if (state == "out") {
+            var theIndex = quoties.indexOf(chr)
+            if (theIndex != -1) {
+                state = "inQuote"
+                quoteType = quoties[theIndex]
+                syntaxColors.push("quote")
+            } else if (" \t\r\n".indexOf(chr) != -1) {
+                syntaxColors.push("space")
+            } else if (isWordyChar(chr, true)) {
+                state = "inWord"
+                curWord = chr
+                syntaxColors.push("word")
+            } else if ("/".indexOf(chr) != -1) {
+                state = "inFirstForwardSlash"
+                syntaxColors.push("symbol")
+            } else if ("#".indexOf(chr) != -1) {
+                state = "comment"
+                syntaxColors.push("comment")
+            } else {
+                state = "inSymbol"
+                syntaxColors.push("symbol")
+            }
+        } else if (state == "inWord") {
+            if (isWordyChar(chr, true)) {
+                curWord += chr
+                syntaxColors.push("word")
+            } else if (":".indexOf(chr) != -1) {
+                syntaxColors.push("key")
+                for (let j = i-1; j >= i - curWord.length; j--) {
+                    syntaxColors[j] = "key"
+                }
+            } else if (".".indexOf(chr) != -1) {
+                if (curWord in keywords || curWord.toUpperCase() == curWord) {
+                    // as if abc
+                    // 0123456789
+                    for (let j = i-1; j >= i - curWord.length; j--) {
+                        syntaxColors[j] = "keyword"
+                    }
+                }
+                syntaxColors.push("symbol")
+                state = "inDotWord"
+                curWord = ""
+            } else {
+                other = true
+                if (curWord in keywords || curWord.toUpperCase() == curWord) {
+                    // as if abc
+                    // 0123456789
+                    for (let j = i-1; j >= i - curWord.length; j--) {
+                        syntaxColors[j] = "keyword"
+                    }
+                }
+                i--
+                state = "out"
+            }
+            if (i == expandedLine.length - 1) {
+                if (curWord in keywords || curWord.toUpperCase() == curWord) {
+                    // as if
+                    // 0123456789
+                    for (let j = i; j >= i - curWord.length+1; j--) {
+                        syntaxColors[j] = "keyword"
+                    }
+                }
+            }
+        } else if (state == "inDotWord") {
+            if (isWordyChar(chr, true)) {
+                curWord += chr
+                syntaxColors.push("dotword")
+            } else if (".".indexOf(chr) != -1) {
+                syntaxColors.push("symbol")
+                state = "inDotWord"
+            } else {
+                i--
+                state = "out"
+            }
+        } else if (state == "inFirstForwardSlash") {
+            if ("/".indexOf(chr) != -1) {
+                state = "inComment"
+                syntaxColors[i-1] = "comment"
+                syntaxColors.push("comment")
+            } else {
+                state = "inSymbol"
+                i--
+            }
+        } else if (state == "inSymbol") {
+            // we aren't keeping track of symbols for now so
+            i--
+            state = "out"
+        } else if (state == "inComment") {
+            syntaxColors.push("comment")
+        } else if (state == "inQuote") {
+            if (chr == backslash) {
+                state = "backslashInQuote"
+                syntaxColors.push("quote")
+            } else if (chr == quoteType) {
+                state = "out"
+                quoteType = ""
+                syntaxColors.push("quote")
+            } else {
+                syntaxColors.push("quote")
+            }
+        } else if (state == "backslashInQuote") {
+            syntaxColors.push("quote")
+            state = "inQuote"
+        }
+    }
+    expandedLine.syntaxColors = syntaxColors
+    return syntaxColors
+}
+
+
 
 var overflowX = 0
 var overflowY = 0
@@ -7513,7 +7703,7 @@ function onStart(e) {
             // if (startTouchX > (bbox.width * 4 / 5)) {
             // XXXXXXXXXXXX...
             // XXXXXXXXXX.....
-            if (startTouchX > (bbox.width * 11 / 15)) {
+            if (startTouchX > (bbox.width * 4 / 5)) {
                 // bad name now
                 if (touchTopTopTopTopMiddle_Right()) {
                     return
