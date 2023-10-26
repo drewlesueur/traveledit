@@ -7337,7 +7337,7 @@ var syntaxColorMap = [
         uppercase: "yellow",
         keyword2: "plum",
         keyword3: "yellowgreen",
-        number: "lightcoral",
+        number: "yellow",
     },
 ]
 function getSyntaxHighlight(expandedLine) {
@@ -7386,12 +7386,14 @@ function getSyntaxHighlight(expandedLine) {
                 for (let j = i-1; j >= i - curWord.length; j--) {
                     syntaxColors[j] = "key"
                 }
+                state = "out"
                 curWord = ""
             } else if ("(".indexOf(chr) != -1) {
                 syntaxColors.push("symbol")
                 for (let j = i-1; j >= i - curWord.length; j--) {
                     syntaxColors[j] = "call"
                 }
+                state = "out"
                 curWord = ""
             } else if (".".indexOf(chr) != -1 || (chr == "-" && expandedLine[i+1] == ">")) {
                 if (curWord in keywords || curWord.toUpperCase() == curWord) {
@@ -7483,12 +7485,14 @@ function getSyntaxHighlight(expandedLine) {
                     syntaxColors.push("symbol")
                     i++
                 }
+                state = "out"
             } else if ("(".indexOf(chr) != -1) {
                 syntaxColors.push("symbol")
                 for (let j = i-1; j >= i - curWord.length; j--) {
                     syntaxColors[j] = "call"
                 }
                 curWord = ""
+                state = "out"
             } else {
                 i--
                 state = "out"
@@ -7506,12 +7510,14 @@ function getSyntaxHighlight(expandedLine) {
                     syntaxColors.push("symbol")
                     i++
                 }
+                state = "out"
             } else if ("(".indexOf(chr) != -1) {
                 syntaxColors.push("symbol")
                 for (let j = i-1; j >= i - curWord.length; j--) {
                     syntaxColors[j] = "call"
                 }
                 curWord = ""
+                state = "out"
             } else {
                 i--
                 state = "out"
