@@ -7251,8 +7251,6 @@ var keywords = {
     "if": true,
     "else": true,
     "for": true,
-    "true": true,
-    "false": true,
     "var": true,
     "break": true,
     "continue": true,
@@ -7262,25 +7260,19 @@ var keywords = {
     "switch": true,
     "case": true,
     "default": true,
+    "new": true,
 
     "func": true,
     "range": true,
     "len": true,
     "make": true,
-    "map": true,
-    "any": true,
-    "string": true,
-    "int": true,
-    "float64": true,
-    "interface": true,
-    "nil": true,
     "type": true,
     "struct": true,
     "defer": true,
     "bool": true,
     "package": true,
     "import": true,
-    "error": true,
+    "fallthrough": true,
     
     
     "final": true,
@@ -7290,6 +7282,26 @@ var keywords = {
     "include": true,
     "include_once": true,
     "abstract": true,
+    "CONST": true,
+    "throw": true,
+}
+
+var keywords2 = {
+    "nil": true,
+    "null": true,
+    "true": true,
+    "false": true,
+    "this": true,
+}
+var keywords3 = {
+    "error": true,
+    "map": true,
+    "any": true,
+    "string": true,
+    "int": true,
+    "float64": true,
+    "interface": true,
+    "byte": true,
 }
 // kind of like getQuoteRanges
 var syntaxColorMap = [
@@ -7305,6 +7317,10 @@ var syntaxColorMap = [
         call: "teal",
         dollarword: "brown",
         uppercasefirst: "brown",
+        uppercase: "brown",
+        keyword2: "magenta",
+        keyword3: "brown", 
+        number: "coral",
     },
     {
         // darkmode
@@ -7315,8 +7331,13 @@ var syntaxColorMap = [
         comment: "rgba(255, 255, 255, 0.5)",
         dotword: "aquamarine",
         call: "lime",
+        // dollarword: "rgb(255, 100, 255)",
         dollarword: "magenta",
         uppercasefirst: "gold",
+        uppercase: "yellow",
+        keyword2: "plum",
+        keyword3: "yellowgreen",
+        number: "lightcoral",
     },
 ]
 function getSyntaxHighlight(expandedLine) {
@@ -7390,11 +7411,27 @@ function getSyntaxHighlight(expandedLine) {
                 }
             } else {
                 other = true
-                if (curWord in keywords || curWord.toUpperCase() == curWord) {
+                if (curWord in keywords) {
                     // as if abc
                     // 0123456789
                     for (let j = i-1; j >= i - curWord.length; j--) {
                         syntaxColors[j] = "keyword"
+                    }
+                } else if (curWord in keywords2) {
+                    for (let j = i-1; j >= i - curWord.length; j--) {
+                        syntaxColors[j] = "keyword2"
+                    }
+                } else if (curWord in keywords3) {
+                    for (let j = i-1; j >= i - curWord.length; j--) {
+                        syntaxColors[j] = "keyword3"
+                    }
+                } else if (curWord.replaceAll("_", "") - 0 == curWord) {
+                    for (let j = i-1; j >= i - curWord.length; j--) {
+                        syntaxColors[j] = "number"
+                    }
+                } else if (curWord.toUpperCase() == curWord) {
+                    for (let j = i-1; j >= i - curWord.length; j--) {
+                        syntaxColors[j] = "uppercase"
                     }
                 } else if (curWord[0].toUpperCase() == curWord[0]) {
                     for (let j = i-1; j >= i - curWord.length; j--) {
@@ -7406,11 +7443,27 @@ function getSyntaxHighlight(expandedLine) {
                 state = "out"
             }
             if (i == expandedLine.length - 1) {
-                if (curWord in keywords || curWord.toUpperCase() == curWord) {
+                if (curWord in keywords) {
                     // as if
                     // 0123456789
                     for (let j = i; j >= i - curWord.length+1; j--) {
                         syntaxColors[j] = "keyword"
+                    }
+                } else if (curWord in keywords2) {
+                    for (let j = i; j >= i - curWord.length+1; j--) {
+                        syntaxColors[j] = "keyword2"
+                    }
+                } else if (curWord in keywords3) {
+                    for (let j = i; j >= i - curWord.length+1; j--) {
+                        syntaxColors[j] = "keyword3"
+                    }
+                } else if (curWord.replaceAll("_", "") - 0 == curWord) {
+                    for (let j = i; j >= i - curWord.length+1; j--) {
+                        syntaxColors[j] = "number"
+                    }
+                } else if (curWord.toUpperCase() == curWord) {
+                    for (let j = i; j >= i - curWord.length+1; j--) {
+                        syntaxColors[j] = "uppercase"
                     }
                 } else if (curWord[0].toUpperCase() == curWord[0]) {
                     for (let j = i; j >= i - curWord.length+1; j--) {
