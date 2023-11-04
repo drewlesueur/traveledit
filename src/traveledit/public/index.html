@@ -339,10 +339,10 @@ They get changed later on.
     -->
     <div class=middleButton onclick='clearLog(); event.preventDefault()'>clear</div>
     <div class=middleButton onclick='sendTerminal("\x1b[A"); event.preventDefault()'>up</div>
-    <div class=middleButton onclick='saveWrapper()'>run</div>
     <!-- ctrl c, clear, up, enter -->
     <div class=middleButton onclick='rerunTerminal()'>rerun</div>
     <div class=middleButton onclick='sendTerminal("git add -p"); event.preventDefault()'>-p</div>
+    <div class=middleButton onclick='saveWrapper()'>run</div>
     <div class=middleButton id=slot1Button onclick='sendTerminal(slot1Input.value); event.preventDefault()'>slot 1</div>
     <div class=middleButton id=slot2Button onclick='sendTerminal(slot2Input.value); event.preventDefault()'>slot 2</div>
     <div class=middleButton id=slot3Button onclick='sendTerminal(slot3Input.value); event.preventDefault()'>slot 3</div>
