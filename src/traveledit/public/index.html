@@ -1178,7 +1178,7 @@ function doSizing() {
         canvasHeightFull=1820 + (oneRow*1)
         canvasHeightKeyboard=1154 
         // navTouchSize = 50
-        navTouchSize = 35
+        navTouchSize = 40
         if (innerWidth > innerHeight) {
             canvasHeightFull = 900
             canvasHeightKeyboard = 300
@@ -7334,7 +7334,8 @@ var syntaxColorMap = [
     },
     {
         // darkmode
-        quote: "orangered",
+        // quote: "orangered",
+        quote: "coral",
         keyword: "deepskyblue",
         symbol: "orange",
         key: "cyan",
@@ -7868,10 +7869,13 @@ function onStart(e) {
             // XXXXXXXXXXXX...
             // XXXXXXXXXX.....
             if (startTouchX > (bbox.width * 4 / 5)) {
+                selectAction(true)
                 // bad name now
-                if (touchTopTopTopTopMiddle_Right()) {
-                    return
-                }
+                // if (touchTopTopTopTopMiddle_Right()) {
+                //     return
+                // }
+            } else if (startTouchX < (bbox.width * 1 / 5)) {
+                selectAction(false)
             }
         }
         
