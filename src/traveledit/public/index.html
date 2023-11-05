@@ -340,9 +340,9 @@ They get changed later on.
     <div class=middleButton onclick='clearLog(); event.preventDefault()'>clear</div>
     <div class=middleButton onclick='sendTerminal("\x1b[A"); event.preventDefault()'>up</div>
     <!-- ctrl c, clear, up, enter -->
-    <div class=middleButton onclick='rerunTerminal()'>rerun</div>
     <div class=middleButton onclick='sendTerminal("git add -p"); event.preventDefault()'>-p</div>
     <div class=middleButton onclick='saveWrapper()'>run</div>
+    <div class=middleButton onclick='rerunTerminal()'>rerun</div>
     <div class=middleButton id=slot1Button onclick='sendTerminal(slot1Input.value); event.preventDefault()'>slot 1</div>
     <div class=middleButton id=slot2Button onclick='sendTerminal(slot2Input.value); event.preventDefault()'>slot 2</div>
     <div class=middleButton id=slot3Button onclick='sendTerminal(slot3Input.value); event.preventDefault()'>slot 3</div>
@@ -712,7 +712,7 @@ They get changed later on.
     fraktur
 </label>
 <label for=syntaxHighlightCheckbox>
-    <input onchange="syntaxHighlight = syntaxHighlightCheckbox.checked" type=checkbox name=syntaxHighlightCheckbox id=syntaxHighlightCheckbox checked/>
+    <input onchange="syntaxHighlight = syntaxHighlightCheckbox.checked" type=checkbox name=syntaxHighlightCheckbox id=syntaxHighlightCheckbox />
     syntax highlight
 </label>
 <br>
@@ -1104,7 +1104,7 @@ var bluetoothKeyboard = false
 var floatingKeyboard = false
 var fauxMono = false
 var fraktur = false
-var syntaxHighlight = true
+var syntaxHighlight = false
 
 var lastFile = fx
 // not using indexes so we can move files around without worrying about the indexes
@@ -2927,11 +2927,18 @@ function findDown(searchDir, wrap, startTop) {
             // nextHighlightRange()
             // return
             // navForward()
-            nextHighlightText()
+            if (fx.cursorColIndex == -marginLeft) { //     red marker
+                fx.cursorLineIndex++
+                searchText.value = " mar"+"ker$"
+                searchText.preventXNav = true
+                findDown()
+                searchText.value = ""
+            } else {
+                nextHighlightText()
+            }
             lastFindWasHighlightText = true
             return
-            // searchText.value = " mar"+"ker"
-        }
+        } // red marker
     }
     for (var i=startY; i<fx.lines.length; i++) {
         var lineToSearch = fx.lines[i]
@@ -2968,7 +2975,9 @@ function findDown(searchDir, wrap, startTop) {
                 pos += startX
             }
             fx.cursorLineIndex = i
-            fx.cursorColIndex = expandTabIndex(originalLineToSearch, pos, i, fx)
+            if (!searchText.preventXNav) {
+                fx.cursorColIndex = expandTabIndex(originalLineToSearch, pos, i, fx)
+            }
 
             updateCursorXY()
             ensureCursorInScreen()
@@ -3036,7 +3045,17 @@ function findUp() {
         // prevHighlightRange()
         // return
         // navBack()
-        prevHighlightText()
+        
+        
+        if (fx.cursorColIndex == -marginLeft) { //     red marker
+            fx.cursorLineIndex--
+            searchText.value = " mar"+"ker$"
+            searchText.preventXNav = true
+            findUp()
+            searchText.value = ""
+        } else {
+            prevHighlightText()
+        }
         lastFindWasHighlightText = true
         return
         // searchText.value = " mar"+"ker"
@@ -3076,13 +3095,15 @@ function findUp() {
                 pos += (fx.lines[i].length - u(fx.cursorColIndex))
             }
             fx.cursorLineIndex = i
-            if (!useRegexSearch) {
-                var colIndex = fx.lines[i].length - (pos + searchText.value.length)
-                fx.cursorColIndex = expandTabIndex(fx.lines[i], colIndex, i)
-            } else {
-                // this pos is from the left
-                // in the future we could probably make the non regexp more consistent where it loops to the last one. (maybe better than reversing string?)
-                fx.cursorColIndex = expandTabIndex(lineToSearch, pos, null, null, "nocache")
+            if (!searchText.preventXNav) {
+                if (!useRegexSearch) {
+                    var colIndex = fx.lines[i].length - (pos + searchText.value.length)
+                    fx.cursorColIndex = expandTabIndex(fx.lines[i], colIndex, i)
+                } else {
+                    // this pos is from the left
+                    // in the future we could probably make the non regexp more consistent where it loops to the last one. (maybe better than reversing string?)
+                    fx.cursorColIndex = expandTabIndex(lineToSearch, pos, null, null, "nocache")
+                }
             }
             updateCursorXY()
             ensureCursorInScreen()
@@ -3095,6 +3116,7 @@ function findUp() {
 }
 function clearSearch() {
     lastFindWasHighlightText = false
+    searchText.preventXNav = false
     searchText.value = ""
     render()
 }
