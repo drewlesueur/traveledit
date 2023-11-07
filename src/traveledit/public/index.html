@@ -323,13 +323,25 @@ They get changed later on.
     <div class=longButton onclick="editEditorCommandText()" >status</div>
     <div class=square onclick=undo()>undo</div>
     <div class=square onclick=redo()>redo</div>
-    -->
     <div class=square id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
+    
+    
+    <div class=square id="gptButton" onclick=runChatGPT('gpt-4-1106-preview')>chatGPT4</div>
     <div class=square onclick=reloadFile(fx)>reload</div>
     <div class=square onclick=goUpDirectory()>⬆️</div>
-    <div class=square onclick="runScript()" id=statusBar>run script</div>
-    <div id=saveButton class=square onclick=saveWrapper()>save</div>
     <div class=square id="gptButton2" onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
+    <div id=saveButton class=square onclick=saveWrapper()>save</div>
+    <div class=square onclick="runScript()" id=statusBar>run script</div>
+    -->
+    
+    <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4-1106-preview')>chatGPT4</div>
+    <div class=middleButton onclick=reloadFile(fx)>reload</div>
+    <div class=middleButton onclick=goUpDirectory()>⬆️</div>
+    <div class=middleButton id="gptButton2" onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
+    <div id=saveButton class=middleButton onclick=saveWrapper()>save</div>
+    <div class=middleButton onclick="runScript()" id=statusBar>run script</div>
+    <div class=middleButton onclick="runScript()">action2</div>
+    <div class=middleButton onclick="runScript()">action3</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -2143,7 +2155,8 @@ function runEditorCommand(e) {
         break
     case "g":
         log("g called")
-        runChatGPT('gpt-4', {inline: true, extra: "\n\n" + rest})
+        // runChatGPT('gpt-4', {inline: true, extra: "\n\n" + rest})
+        runChatGPT('gpt-4-1106-preview', {inline: true, extra: "\n\n" + rest})
         break
     case "g3":
         runChatGPT('gpt-3.5-turbo', {inline: true, extra: "\n\n" + rest})
@@ -3368,8 +3381,21 @@ function log2() {
 }
 function runScript() {
     clearLog2()
-    var theScriptLines = getSelectedLines(fx).lines
+    var sl = getSelectedLines(fx)
+    var theScriptLines = sl.lines
+    var isWholeFile = sl.isWholeFile
     var thumbscriptWorld
+    
+    if (isWholeFile && fx.fullPath.endsWith(".go")) {
+        let filename = fx.fullPath.split("/").slice(-1)
+        addTerminalTab()
+        fx.terminalLoadPromise.then(function () {
+            sendTerminal("go run " + filename, function() {
+                saveWrapper() // hits Enter
+            })
+        })
+        return
+    }
     if (theScriptLines[0] == "#thumbscript" || theScriptLines[0] == "#ths") {
             // lol
             thumbscriptWorld = thumbscript4.eval(theScriptLines.join("\n"), window) // lol the window
@@ -4932,9 +4958,13 @@ function callAllAndClear(cbs) {
 }
 function rerunTerminal() {
     // could convert to await
+    
+    // ctrl-C
     sendTerminal("\x03", function() {
         clearLog()
+        // up arrow
         sendTerminal("\x1b[A", function() {
+            // this hits enter (weird naming)
             saveWrapper()
         })
     })
