@@ -3386,11 +3386,31 @@ function runScript() {
     var isWholeFile = sl.isWholeFile
     var thumbscriptWorld
     
+    if (isWholeFile) {
+        if (fx.fileMode != "file") {
+            alert("needs to be a file")
+            return
+        }
+        if (fx.version != fx.savedVersion) {
+            alert("need to save before running to prevent accidents")
+            return
+        }
+    }
     if (isWholeFile && fx.fullPath.endsWith(".go")) {
         let filename = fx.fullPath.split("/").slice(-1)
         addTerminalTab()
         fx.terminalLoadPromise.then(function () {
-            sendTerminal("go run " + filename, function() {
+            sendTerminal("time go run " + filename, function() {
+                saveWrapper() // hits Enter
+            })
+        })
+        return
+    }
+    if (isWholeFile && fx.fullPath.endsWith(".sh")) {
+        let filename = fx.fullPath.split("/").slice(-1)
+        addTerminalTab()
+        fx.terminalLoadPromise.then(function () {
+            sendTerminal("./" + filename, function() {
                 saveWrapper() // hits Enter
             })
         })
