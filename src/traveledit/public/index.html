@@ -3379,6 +3379,18 @@ function log2() {
     }
     render()
 }
+function log2Inline(str) {
+    try {
+        var subs = str.split("\n")
+        debugOutput[debugOutput.length -1] += subs[0]
+        for (var i=1; i<subs.length; i++) {
+            debugOutput.push(subs[i])
+        }
+        render()
+    } catch(e) {
+        alert(e)
+    }
+}
 function runScript() {
     clearLog2()
     var sl = getSelectedLines(fx)
@@ -11296,6 +11308,107 @@ var buttonActions = {
 
 }
 
+
+// compare this to the built in one thet uses server side.
+// this is all local and writes to debugOutput (log2)
+async function chatGPTCallPayload(payload) {
+    alert("payload")
+    var resolve, reject
+    var p = new Promise(function (res, rej) {
+        resolve = res
+        reject = rej
+    })
+    model = model || "gpt-3.5-turbo";
+    const token = localStorage.getItem("chatgpt_token")
+    
+    function processSubResult(index, subResult) {
+        var content = ""
+        try {
+           var response = JSON.parse(subResult)
+           content = response.choices[0].delta.content || ""
+        } catch (e) {
+           content = subResult
+           if (content == "[DONE]") {
+               content = ""
+               resolve()
+               return
+           }
+        }
+        if (index == 0) {
+            log2(content)
+        } else {
+            log2Inline(content)
+        }
+    }
+    var response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+    })
+    if (response.status !== 200) {
+        alert("bad response code: " + response.status)
+        // throw new Error("ERROR: Status Code: " + response.status);
+        reject()
+    }
+    const reader = response.body.getReader();
+    const textDecoder = new TextDecoder();
+    let resultIndex = -1
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+            break;
+        }
+        let lines = textDecoder.decode(value).split('\n');
+    
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null}]}
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":","},"finish_reason":null}]}
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null}]}
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"2"},"finish_reason":null}]}
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":","},"finish_reason":null}]}
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":" "},"finish_reason":null}]}
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{"content":"3"},"finish_reason":null}]}
+        // {"id":"chatcmpl-8Hhm1KHFlSwxzDSFLQ483kXqjBuNE","object":"chat.completion.chunk","created":1699230533,"model":"gpt-3.5-turbo-0613","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+        // [DONE]
+        for (let line of lines) {
+            if (line.length === 0 || line[0] === ':') {
+                continue; // Ignore comments and empty lines
+            }
+        
+            if (line.startsWith('data: ')) {
+                // log2(line.slice(6));
+                resultIndex++
+                processSubResult(resultIndex, line.slice(6))
+            } else {
+                // log2(line);
+                resultIndex++
+                processSubResult(resultIndex, line)
+            }
+        }
+    }
+    return p
+}
+
+async function chatGPTCall(model, content) {
+    let payload = {
+        model: model,
+        stream: true,
+        messages: [
+              {
+                "role": "system",
+                "content": "You are a helpful assistant."
+              },
+              {
+                "role": "user",
+                "content": content
+              }
+        ]
+    }
+    return chatGPTCallPayload(payload)
+}
 
 </script>
 <audio id="audio" controls></audio>
