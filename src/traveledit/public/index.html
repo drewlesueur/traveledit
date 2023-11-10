@@ -631,6 +631,11 @@ They get changed later on.
         <div class=longButton onclick="selectFont('Monospace')">Monospace</div>
         <div class=longButton onclick="selectFont('Droid Sans Mono')">DSM</div>
     -->
+    <div class=longButton onclick="selectFont('Neon')">Neon</div>
+    <div class=longButton onclick="selectFont('Argon')">Argon</div>
+    <div class=longButton onclick="selectFont('Krypton')">Krypton</div>
+    <div class=longButton onclick="selectFont('Radon')">Radon</div>
+    <div class=longButton onclick="selectFont('Xenon')">Xenon</div>
     <div class=longButton onclick="selectFont('Menlo')">Menlo</div>
     <div class=longButton onclick="selectFont('Courier')">Courier</div>
     <div class=longButton onclick="selectFont('SFMono')">SF Mono</div>
@@ -829,7 +834,55 @@ var wordAtCursor = ""
 var wordAtCursorRegexp = null
 
 
+
+// other fonts.
+// Berkley Mono, Operator, Mona Lisa, Commit Mono
 var fonts = {
+    "Neon": {
+        fontHeightPre: 36,
+        fontWidthPre: 18.5,
+        fontOffsetYPre: 3,
+        fontSize: 30,
+        fontName: "Neon",
+        // url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/webfonts/MonaspaceNeon-Regular.woff"
+        url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/otf/MonaspaceNeon-Regular.otf"
+    },
+    "Argon": {
+        fontHeightPre: 36,
+        fontWidthPre: 18.5,
+        fontOffsetYPre: 3,
+        fontSize: 30,
+        fontName: "Argon",
+        // url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/webfonts/MonaspaceArgon-Regular.woff"
+        url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/otf/MonaspaceArgon-Regular.otf"
+    },
+    "Krypton": {
+        fontHeightPre: 36,
+        fontWidthPre: 18.5,
+        fontOffsetYPre: 3,
+        fontSize: 30,
+        fontName: "Krypton",
+        // url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/webfonts/MonaspaceKrypton-Regular.woff"
+        url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/otf/MonaspaceKrypton-Regular.otf"
+    },
+    "Radon": {
+        fontHeightPre: 36,
+        fontWidthPre: 18.5,
+        fontOffsetYPre: 3,
+        fontSize: 30,
+        fontName: "Radon",
+        // url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/webfonts/MonaspaceRadon-Regular.woff"
+        url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/otf/MonaspaceRadon-Regular.otf"
+    },
+    "Xenon": {
+        fontHeightPre: 36,
+        fontWidthPre: 18.5,
+        fontOffsetYPre: 3,
+        fontSize: 30,
+        fontName: "Xenon",
+        // url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/webfonts/MonaspaceXenon-Regular.woff"
+        url: proxyPath + "/tepublic/monaspace/monaspace-v1.000/fonts/otf/MonaspaceXenon-Regular.otf"
+    },
     // "Monospace": {
     //     fontHeightPre: 36,
     //     fontWidthPre: 18,
@@ -1834,6 +1887,7 @@ function updateFontScale() {
 function setFontVars() {
     fontHeight = currentFont.fontHeightPre * fontScale
     fontWidth = currentFont.fontWidthPre * fontScale
+    fontOffsetY = (currentFont.fontOffsetYPre || 0) * fontScale
     // fontCSS = (currentFont.fontSize * fontScale) + "px '"+currentFont.fontName+"', ui-monospace"
     // fontCSS = (currentFont.fontSize * fontScale) + "px 'Courier', ui-monospace"
     // fontCSS = (currentFont.fontSize * fontScale) + "px ui-monospace"
@@ -6983,7 +7037,7 @@ function renderInternal() {
                         var lineNumberIndex = fx.offsetX + marginLeft + i
                         var lineNoChr = lineNumber.charAt(lineNumberIndex)
                         if (lineNoChr != " ") {
-                            t.fillText(lineNoChr, i*fontWidth, y*fontHeight)
+                            t.fillText(lineNoChr, i*fontWidth, y*fontHeight + fontOffsetY)
                         }
                     }
                 }
@@ -7095,7 +7149,7 @@ function renderInternal() {
             if (chr == "\t") {
                 if (shouldSeeTabs) {
                     t.fillStyle = veryLightFontColor
-                    t.fillText("•", x*fontWidth, y*fontHeight)
+                    t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
                 }
             } else if (chr != "" && chr != " ") {
                 t.fillStyle = textFillStyle
@@ -7134,9 +7188,9 @@ function renderInternal() {
                             t.fillStyle = f
                         }
                     }
-                    t.fillText(chr, x*fontWidth, y*fontHeight + extraY)
+                    t.fillText(chr, x*fontWidth, y*fontHeight + extraY + fontOffsetY)
                 } else {
-                    t.fillText(chr, x*fontWidth, y*fontHeight)
+                    t.fillText(chr, x*fontWidth, y*fontHeight + fontOffsetY)
                 }
             }
             if (useUnicode) {
@@ -7429,7 +7483,9 @@ var syntaxColorMap = [
         key: "cyan",
         comment: "rgba(255, 255, 255, 0.5)",
         dotword: "aquamarine",
-        call: "lime",
+        // call: "lime",
+        // call: "lightgreen",
+        call: "limegreen",
         // dollarword: "rgb(255, 100, 255)",
         // dollarword: "magenta",
         dollarword: "khaki",
@@ -8480,10 +8536,17 @@ function onStart(e) {
                     }
                     // TODO: at some point wrangle the select mode?
                     // really it should be called pasteMode?
+                    
+                    // well it's also selectMode
+                    // don't change anything and just past according to how you selected
                     if (document.activeElement == theText) {
-                        selectMode = "char"
+                        // selectMode = "char"
                     } else {
-                        selectMode = "line"
+                        // if fx.cursorLineIndex <= 0 {
+                        // }
+                        // selectMode = "line"
+                        // selectMode = "char"
+                        // try inline paste when touching bottom right
                     }
                     if (hasMovedSinceCut || lastDeleteWasFromSelection) {
                         var linesPasted = paste(true, false, true) // unselect, pastebefore, smartPaste
