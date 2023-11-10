@@ -7801,6 +7801,7 @@ function onStart(e) {
         if (selectedRegion.startY != selectedRegion.stopY) {
             return
         }
+        selectedRegion.selectedWord = false
         var mappedClosers = {
             "(": ")",
             "{": "}",
@@ -8268,7 +8269,11 @@ function onStart(e) {
         // Testing isDragKeyboard feature red marker
         var sr = fx.selectedRegions[0]
         if (sr) { 
-        
+            if (sr.selectedWord) {
+                copy()
+                fx.selectedRegions = []
+                cursorType = "move"
+            }
             // for now you can only select down right
             if (sr.startY > sr.stopY) {
                 fx.selectedRegions = []
