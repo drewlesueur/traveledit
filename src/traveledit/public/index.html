@@ -4200,6 +4200,7 @@ function pasteLines(localCopyBuffer, unselect, pasteBefore, fromTap, unselectIfC
         }
         fx.lines.splice(fx.cursorLineIndex + theOffset, 0, ...localCopyBuffer)
         adjustHighlightRanges(fx.cursorLineIndex + theOffset, localCopyBuffer.length)
+        
         var stopY = fx.cursorLineIndex + localCopyBuffer.length + theOffset2
         var lastLine = fx.lines[stopY] || ""
         var newSelection = {
@@ -4209,7 +4210,7 @@ function pasteLines(localCopyBuffer, unselect, pasteBefore, fromTap, unselectIfC
                 startX: 0,
                 stopX: expandTabIndex(lastLine, lastLine.length, stopY),
             }
-        if (!unselect) {
+        if (false && !unselect) {
             fx.selectedRegions = [newSelection]
         } else {
             ghostSelection = newSelection
@@ -4228,16 +4229,19 @@ function pasteLines(localCopyBuffer, unselect, pasteBefore, fromTap, unselectIfC
             // #alternateTap
             var theLine = fx.lines[fx.cursorLineIndex] || ""
             var stopX = expandTabIndex(theLine, u(fx.cursorColIndex) + localCopyBuffer[0].length)
-            // regex to test for non-wordy characters
-            var isOneWord = !/\W/.test(localCopyBuffer[0].trim())
-            if (alternateTap && !unselect && (!isOneWord || !unselectIfCharOneWord)) {
-                var sr = {
-                    startY: fx.cursorLineIndex,
-                    startX: fx.cursorColIndex,
-                    stopX: stopX,
-                    stopY: fx.cursorLineIndex,
+
+            if (false) {
+                // regex to test for non-wordy characters
+                var isOneWord = !/\W/.test(localCopyBuffer[0].trim())
+                if (alternateTap && !unselect && (!isOneWord || !unselectIfCharOneWord)) {
+                    var sr = {
+                        startY: fx.cursorLineIndex,
+                        startX: fx.cursorColIndex,
+                        stopX: stopX,
+                        stopY: fx.cursorLineIndex,
+                    }
+                    fx.selectedRegions = [sr]
                 }
-                fx.selectedRegions = [sr]
             }
             fx.cursorColIndex = stopX // usually we want the cursor at the end
             updateCursorXY()
