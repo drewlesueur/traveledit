@@ -1332,6 +1332,7 @@ var touchScaleX = 2
 // var touchScaleX = 1 // 1 now because of snapping
 
 var lastAction = "move" // move or type
+var lastDirection = "vertical" // vertical or horizontal
 var lastSearchDirForSameTerm = "" // up or down or ""
 var lastSearchMatchLength = 0
 var hasMovedSinceNewLine = false
@@ -3185,6 +3186,14 @@ function clearSearch() {
     lastFindWasHighlightText = false
     searchText.preventXNav = false
     searchText.value = ""
+    
+    // reusing this for 2 things
+    if (lastDirection == "vertical") {
+        lastDirection = "horizontal"
+    } else {
+        lastDirection = "vertical"
+    }
+    log(lastDirection)
     render()
 }
 
@@ -3477,6 +3486,16 @@ function runScript() {
         addTerminalTab()
         fx.terminalLoadPromise.then(function () {
             sendTerminal("./" + filename, function() {
+                saveWrapper() // hits Enter
+            })
+        })
+        return
+    }
+    if (isWholeFile && fx.fullPath.endsWith(".php")) {
+        let filename = fx.fullPath.split("/").slice(-1)
+        addTerminalTab()
+        fx.terminalLoadPromise.then(function () {
+            sendTerminal("php " + filename, function() {
                 saveWrapper() // hits Enter
             })
         })
@@ -8063,6 +8082,8 @@ function onStart(e) {
         if (fx.iframe) {
             fx.iframeCursorY += toAddY/3
         }
+        
+        
         lastTouchX = e.touches[0].pageX
         lastTouchY = e.touches[0].pageY
         if (fx.iframe) {
@@ -8336,6 +8357,15 @@ function onStart(e) {
         if (e.touches.length != 0) {
             return
         }
+        
+        var absMoveX = Math.abs(startX - cursorX)
+        var absMoveY = Math.abs(startY - cursorY)
+        if (absMoveY > (2 * absMoveX)) {
+            lastDirection = "vertical"
+        } else if (absMoveX > (2 * absMoveY)) {
+            lastDirection = "horizontal"
+        }
+        log(lastDirection)
 
          //         fx.cursorColIndex = wordEndX
         // Testing isDragKeyboard feature red marker
@@ -9280,7 +9310,11 @@ function onStart(e) {
         } else if (!hasMovedSincePaste && ghostSelection) {
             dedent(ghostSelection)
         } else {
-            moveCursorLeft()
+            if (lastDirection == "horizontal") {
+                moveCursorLeft()
+            } else {
+                moveCursorUp()
+            }
         }
     }
     var touchBottomMiddle = function() {
@@ -9295,7 +9329,11 @@ function onStart(e) {
         } else if (!hasMovedSincePaste && ghostSelection) {
             indent(ghostSelection)
         } else {
-            moveCursorRight()
+            if (lastDirection == "horizontal") {
+                moveCursorRight()
+            } else {
+                moveCursorDown()
+            }
         }
     }
     
