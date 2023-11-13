@@ -28,7 +28,7 @@ document.write(`
 <!-- For now not loading in third party diff library. -->
 <!--<script src="`+proxyPath+`/tepublic/diff.js"></scr`+`ipt>-->
 <script src="`+proxyPath+`/tepublic/md52.js"></scr`+`ipt>
-<script src="`+proxyPath+`/tepublic/thumbscript4.js?v=27"></scr`+`ipt>
+<script src="`+proxyPath+`/tepublic/thumbscript4.js?v=29"></scr`+`ipt>
 <!-- For now not loading in grapheme splitter to save pageload. -->
 <!-- it means we can't use emojis, other unicode chars for now -->
 <!-- <script src="`+proxyPath+`/tepublic/grapheme-splitter.js"></scr`+`ipt>
@@ -539,6 +539,82 @@ They get changed later on.
         <div class=square onclick=undo()>undo</div>
     -->
 </div>
+
+<div class=toolbar>
+    <div class=longButton onclick="selectFont('anonymouspro')">anonymouspro</div>
+    <div class=longButton onclick="selectFont('azeretmono')">azeretmono</div>
+    <div class=longButton onclick="selectFont('b612mono')">b612mono</div>
+    <div class=longButton onclick="selectFont('chivomono')">chivomono</div>
+    <div class=longButton onclick="selectFont('courierprime')">courierprime</div>
+    <div class=longButton onclick="selectFont('cousine')">cousine</div>
+    <div class=longButton onclick="selectFont('cutivemono')">cutivemono</div>
+    <div class=longButton onclick="selectFont('dmmono')">dmmono</div>
+    <div class=longButton onclick="selectFont('firacode')">firacode</div>
+    <div class=longButton onclick="selectFont('firamono')">firamono</div>
+    <div class=longButton onclick="selectFont('fragmentmono')">fragmentmono</div>
+    <div class=longButton onclick="selectFont('ibmplexmono')">ibmplexmono</div>
+    <div class=longButton onclick="selectFont('inconsolata')">inconsolata</div>
+    <div class=longButton onclick="selectFont('jetbrainsmono')">jetbrainsmono</div>
+    <div class=longButton onclick="selectFont('mplus1code')">mplus1code</div>
+    <div class=longButton onclick="selectFont('martianmono')">martianmono</div>
+    <div class=longButton onclick="selectFont('nanumgothiccoding')">nanumgothiccoding</div>
+    <div class=longButton onclick="selectFont('notosansmono')">notosansmono</div>
+    <div class=longButton onclick="selectFont('overpassmono')">overpassmono</div>
+    <div class=longButton onclick="selectFont('oxygenmono')">oxygenmono</div>
+    <div class=longButton onclick="selectFont('ptmono')">ptmono</div>
+    <div class=longButton onclick="selectFont('redhatmono')">redhatmono</div>
+    <div class=longButton onclick="selectFont('robotomono')">robotomono</div>
+    <div class=longButton onclick="selectFont('sharetechmono')">sharetechmono</div>
+    <div class=longButton onclick="selectFont('sometypemono')">sometypemono</div>
+    <div class=longButton onclick="selectFont('sono')">sono</div>
+    <div class=longButton onclick="selectFont('sourcecodepro')">sourcecodepro</div>
+    <div class=longButton onclick="selectFont('spacemono')">spacemono</div>
+    <div class=longButton onclick="selectFont('splinesansmono')">splinesansmono</div>
+    <div class=longButton onclick="selectFont('ubuntumono')">ubuntumono</div>
+    <div class=longButton onclick="selectFont('victormono')">victormono</div>
+    <div class=longButton onclick="selectFont('wellfleet')">wellfleet</div>
+    
+    <div class=longButton onclick="selectFont('Neon')">Neon</div>
+    <div class=longButton onclick="selectFont('Argon')">Argon</div>
+    <div class=longButton onclick="selectFont('Krypton')">Krypton</div>
+    <div class=longButton onclick="selectFont('Radon')">Radon</div>
+    <div class=longButton onclick="selectFont('Xenon')">Xenon</div>
+    <div class=longButton onclick="selectFont('Menlo')">Menlo</div>
+    <div class=longButton onclick="selectFont('Courier')">Courier</div>
+    <div class=longButton onclick="selectFont('SFMono')">SF Mono</div>
+    <div class=longButton onclick="selectFont('Dossier')">Dossier</div>
+    <div class=longButton onclick="selectFont('JetBrainsMono')">JetBrainsMono</div>
+    <div class=longButton onclick="selectFont('IosevkaExtended')">Iosevka Ext.</div>
+    <div class=longButton onclick="selectFont('InputMono')">Input Mono</div>
+    <div class=longButton onclick="selectFont('InputMonoX')">Input Mono X</div>
+    <div class=longButton onclick="selectFont('VictorMono')">Victor Mono</div>
+    <div class=longButton onclick="selectFont('SaxMono')">Sax Mono</div>
+    <div class=longButton onclick="selectFont('VictorMonoMedium')">Victor Mono M</div>
+    <div class=longButton onclick="selectFont('VictorMonoSemiBold')">Victor Semi Bold</div>
+    <div class=longButton onclick="selectFont('AnonymousPro')">Anonymous Pro</div>
+    <div class=longButton onclick="selectFont('AnonymousProBold')">Anonymous Pro Bold</div>
+    <div class=longButton onclick="selectFont('SourceCodePro')">Source Code Pro</div>
+    <div class=longButton onclick="selectFont('InputMonoLucida')">Input Mono L</div>
+    <div class=longButton onclick="selectFont('IosevkaLucida')">Iosevka L</div>
+    <div class=longButton onclick="selectFont('IosevkaLucidaMedium')">Iosevka L Medium</div>
+    <div class=longButton onclick="selectFont('IosevkaLucidaSemiBold')">Iosevka L SemiBold</div>
+    <div class=longButton onclick="selectFont('IosevkaLucidaThin')">Iosevka L Thin</div>
+    <div class=longButton onclick="selectFont('RobotoMono')">Roboto Mono</div>
+    <div class=longButton onclick="selectFont('CourierThin')">Courier Thin</div>
+    <div class=longButton onclick="selectFont('SFMonoThin')">SF Thin</div>
+    <div class=longButton onclick="selectFont('IosevkaThin')">Iosevka Thin</div>
+    <div class=longButton onclick="selectFont('Iosevka')">Iosevka</div>
+    <div class=longButton onclick="selectFont('IosevkaSlab')">Iosevka S</div>
+    <div class=longButton onclick="selectFont('XanhMono')">Xanh</div>
+    <div class=longButton onclick="selectFont('Inconsolata')">Inconsolata</div>
+    <div class=longButton onclick="selectFont('InconsolataThin')">Inconsolata Thin</div>
+    <div class=longButton onclick="selectFont('Courier New')">Courier New</div>
+    <div class=longButton onclick="selectFont('NanumGothicCoding')">Nanum GC</div>
+    <div class=longButton onclick="selectFont('GillSans')">Gill Sans</div>
+    <div class=longButton onclick="selectFont('AmericanTypewriter')">American T</div>
+</div>
+
+
 <div class=toolbar>
     <div class=square onclick="cleanUpFiles()">Clean Up</div>
     <!--
@@ -625,50 +701,6 @@ They get changed later on.
 <div class=toolbar>
     <select onclick="selectFont('')">
     </select>
-</div>
-<div class=toolbar>
-    <!--
-        <div class=longButton onclick="selectFont('Monospace')">Monospace</div>
-        <div class=longButton onclick="selectFont('Droid Sans Mono')">DSM</div>
-    -->
-    <div class=longButton onclick="selectFont('Neon')">Neon</div>
-    <div class=longButton onclick="selectFont('Argon')">Argon</div>
-    <div class=longButton onclick="selectFont('Krypton')">Krypton</div>
-    <div class=longButton onclick="selectFont('Radon')">Radon</div>
-    <div class=longButton onclick="selectFont('Xenon')">Xenon</div>
-    <div class=longButton onclick="selectFont('Menlo')">Menlo</div>
-    <div class=longButton onclick="selectFont('Courier')">Courier</div>
-    <div class=longButton onclick="selectFont('SFMono')">SF Mono</div>
-    <div class=longButton onclick="selectFont('Dossier')">Dossier</div>
-    <div class=longButton onclick="selectFont('JetBrainsMono')">JetBrainsMono</div>
-    <div class=longButton onclick="selectFont('IosevkaExtended')">Iosevka Ext.</div>
-    <div class=longButton onclick="selectFont('InputMono')">Input Mono</div>
-    <div class=longButton onclick="selectFont('InputMonoX')">Input Mono X</div>
-    <div class=longButton onclick="selectFont('VictorMono')">Victor Mono</div>
-    <div class=longButton onclick="selectFont('SaxMono')">Sax Mono</div>
-    <div class=longButton onclick="selectFont('VictorMonoMedium')">Victor Mono M</div>
-    <div class=longButton onclick="selectFont('VictorMonoSemiBold')">Victor Semi Bold</div>
-    <div class=longButton onclick="selectFont('AnonymousPro')">Anonymous Pro</div>
-    <div class=longButton onclick="selectFont('AnonymousProBold')">Anonymous Pro Bold</div>
-    <div class=longButton onclick="selectFont('SourceCodePro')">Source Code Pro</div>
-    <div class=longButton onclick="selectFont('InputMonoLucida')">Input Mono L</div>
-    <div class=longButton onclick="selectFont('IosevkaLucida')">Iosevka L</div>
-    <div class=longButton onclick="selectFont('IosevkaLucidaMedium')">Iosevka L Medium</div>
-    <div class=longButton onclick="selectFont('IosevkaLucidaSemiBold')">Iosevka L SemiBold</div>
-    <div class=longButton onclick="selectFont('IosevkaLucidaThin')">Iosevka L Thin</div>
-    <div class=longButton onclick="selectFont('RobotoMono')">Roboto Mono</div>
-    <div class=longButton onclick="selectFont('CourierThin')">Courier Thin</div>
-    <div class=longButton onclick="selectFont('SFMonoThin')">SF Thin</div>
-    <div class=longButton onclick="selectFont('IosevkaThin')">Iosevka Thin</div>
-    <div class=longButton onclick="selectFont('Iosevka')">Iosevka</div>
-    <div class=longButton onclick="selectFont('IosevkaSlab')">Iosevka S</div>
-    <div class=longButton onclick="selectFont('XanhMono')">Xanh</div>
-    <div class=longButton onclick="selectFont('Inconsolata')">Inconsolata</div>
-    <div class=longButton onclick="selectFont('InconsolataThin')">Inconsolata Thin</div>
-    <div class=longButton onclick="selectFont('Courier New')">Courier New</div>
-    <div class=longButton onclick="selectFont('NanumGothicCoding')">Nanum GC</div>
-    <div class=longButton onclick="selectFont('GillSans')">Gill Sans</div>
-    <div class=longButton onclick="selectFont('AmericanTypewriter')">American T</div>
 </div>
 <div class=toolbar>
     <div class=longButton onclick="fontScale = 0.4; updateFontScale()">0.4</div>
@@ -1153,6 +1185,269 @@ var fonts = {
         url: "http://192.168.0.21:8000/tepublic/notreal.ttf"
     },
 }
+
+var extraFonts = {
+   "anonymouspro": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "anonymouspro",
+      "url": "https://fonts.gstatic.com/s/anonymouspro/v21/rP2Bp2a15UIB7Un-bOeISG3pLlw.ttf"
+   },
+   "azeretmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "azeretmono",
+      "url": "https://fonts.gstatic.com/s/azeretmono/v17/3XF5ErsiyJsY9O_Gepph-FvtTQgMQUdNekSfnPVh0g.ttf"
+   },
+   "b612mono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "b612mono",
+      "url": "https://fonts.gstatic.com/s/b612mono/v14/kmK_Zq85QVWbN1eW6lJl1w.ttf"
+   },
+   "chivomono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "chivomono",
+      "url": "https://fonts.gstatic.com/s/chivomono/v9/mFThWbgRxKvF_Z5eQMO9qRMrJJrnKNtC3D7hr6fV.ttf"
+   },
+   "courierprime": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "courierprime",
+      "url": "https://fonts.gstatic.com/s/courierprime/v9/u-450q2lgwslOqpF_6gQ8kELWwY.ttf"
+   },
+   "cousine": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "cousine",
+      "url": "https://fonts.gstatic.com/s/cousine/v27/d6lIkaiiRdih4SpPzSM.ttf"
+   },
+   "cutivemono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "cutivemono",
+      "url": "https://fonts.gstatic.com/s/cutivemono/v20/m8JWjfRfY7WVjVi2E-K9H5RF.ttf"
+   },
+   "dmmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "dmmono",
+      "url": "https://fonts.gstatic.com/s/dmmono/v14/aFTU7PB1QTsUX8KYhh0.ttf"
+   },
+   "firacode": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "firacode",
+      "url": "https://fonts.gstatic.com/s/firacode/v22/uU9eCBsR6Z2vfE9aq3bL0fxyUs4tcw4W_D1sFVc.ttf"
+   },
+   "firamono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "firamono",
+      "url": "https://fonts.gstatic.com/s/firamono/v14/N0bX2SlFPv1weGeLZDtQIQ.ttf"
+   },
+   "fragmentmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "fragmentmono",
+      "url": "https://fonts.gstatic.com/s/fragmentmono/v4/4iCr6K5wfMRRjxp0DA6-2CLnN4Q.ttf"
+   },
+   "ibmplexmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "ibmplexmono",
+      "url": "https://fonts.gstatic.com/s/ibmplexmono/v19/-F63fjptAgt5VM-kVkqdyU8n5ig.ttf"
+   },
+   "inconsolata": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "inconsolata",
+      "url": "https://fonts.gstatic.com/s/inconsolata/v32/QldgNThLqRwH-OJ1UHjlKENVzkWGVkL3GZQmAwLYxYWI2qfdm7Lpp4U8aRo.ttf"
+   },
+   "jetbrainsmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "jetbrainsmono",
+      "url": "https://fonts.gstatic.com/s/jetbrainsmono/v18/tDbY2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKxjPQ.ttf"
+   },
+   "mplus1code": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "mplus1code",
+      "url": "https://fonts.gstatic.com/s/mplus1code/v12/ypvMbXOOx2xFpzmYJS3N2_J2hBN6RZ5oIp8m_7iN0HHp.ttf"
+   },
+   "martianmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "martianmono",
+      "url": "https://fonts.gstatic.com/s/martianmono/v3/2V08KIcADoYhV6w87xrTKjs4CYElh_VS9YA4TlTnQzaVMIE6j15dYY1qu86W.ttf"
+   },
+   "nanumgothiccoding": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "nanumgothiccoding",
+      "url": "https://fonts.gstatic.com/s/nanumgothiccoding/v21/8QIVdjzHisX_8vv59_xMxtPFW4IXROwsy6Q.ttf"
+   },
+   "notosansmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "notosansmono",
+      "url": "https://fonts.gstatic.com/s/notosansmono/v30/BngrUXNETWXI6LwhGYvaxZikqZqK6fBq6kPvUce2oAZcdthSBUsYck4-_FNJ49o.ttf"
+   },
+   "overpassmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "overpassmono",
+      "url": "https://fonts.gstatic.com/s/overpassmono/v16/_Xm5-H86tzKDdAPa-KPQZ-AC_COcRycquHlL6EXUokzz.ttf"
+   },
+   "oxygenmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "oxygenmono",
+      "url": "https://fonts.gstatic.com/s/oxygenmono/v14/h0GsssGg9FxgDgCjLeAd7ijf.ttf"
+   },
+   "ptmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "ptmono",
+      "url": "https://fonts.gstatic.com/s/ptmono/v13/9oRONYoBnWILk-9ArCg.ttf"
+   },
+   "redhatmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "redhatmono",
+      "url": "https://fonts.gstatic.com/s/redhatmono/v11/jVyY7nDnA2uf2zVvFAhhzEs-VMSjJpBTfgjwQV3I-7E.ttf"
+   },
+   "robotomono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "robotomono",
+      "url": "https://fonts.gstatic.com/s/robotomono/v23/L0xuDF4xlVMF-BfR8bXMIhJHg45mwgGEFl0_3vqPQw.ttf"
+   },
+   "sharetechmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "sharetechmono",
+      "url": "https://fonts.gstatic.com/s/sharetechmono/v15/J7aHnp1uDWRBEqV98dVQztYldFc7pA.ttf"
+   },
+   "sometypemono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "sometypemono",
+      "url": "https://fonts.gstatic.com/s/sometypemono/v1/70lGu745KGk_R3uxyq0WrROhAJiJsJ_eTWllpTAMGE9a.ttf"
+   },
+   "sono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "sono",
+      "url": "https://fonts.gstatic.com/s/sono/v6/aFT97PNiY3U2Cqf_aYEN64CYaK18YWJEsV6u-QLiOsxVtkWdEg.ttf"
+   },
+   "sourcecodepro": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "sourcecodepro",
+      "url": "https://fonts.gstatic.com/s/sourcecodepro/v23/HI_diYsKILxRpg3hIP6sJ7fM7PqPMcMnZFqUwX28DMyQhM4.ttf"
+   },
+   "spacemono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "spacemono",
+      "url": "https://fonts.gstatic.com/s/spacemono/v13/i7dPIFZifjKcF5UAWdDRUEY.ttf"
+   },
+   "splinesansmono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "splinesansmono",
+      "url": "https://fonts.gstatic.com/s/splinesansmono/v10/R70MjzAei_CDNLfgZxrW6wrZOF2WdZ6xabUGSVtNuGBiMrtV.ttf"
+   },
+   "ubuntumono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "ubuntumono",
+      "url": "https://fonts.gstatic.com/s/ubuntumono/v17/KFOjCneDtsqEr0keqCMhbBc9.ttf"
+   },
+   "victormono": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontWidthPre": 18,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "victormono",
+      "url": "https://fonts.gstatic.com/s/victormono/v3/Yq6H-LGQWyfv-LGy7lEO09xRn-T81AVB_tCyO87NhA.ttf"
+   },
+   "wellfleet": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18.5,
+      // "fontOffsetYPre": 3,
+      "fontSize": 30,
+      "fontName": "wellfleet",
+      "url": "https://fonts.gstatic.com/s/wellfleet/v22/nuF7D_LfQJb3VYgX6eyT4w.ttf"
+   }
+}
+Object.assign(fonts, extraFonts)
+
+
 
 // this gets changes later down.
 // Just need to set some variables I guess
@@ -8371,7 +8666,6 @@ function onStart(e) {
         } else if (absMoveX > (2 * absMoveY)) {
             lastDirection = "horizontal"
         }
-        log(lastDirection)
 
          //         fx.cursorColIndex = wordEndX
         // Testing isDragKeyboard feature red marker
@@ -8459,7 +8753,8 @@ function onStart(e) {
                 // editEditorCommandText()
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     // visit?
-                    if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
+                    // if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
+                    if (fx.cursorColIndex < 0) {
                         // join lines
                         var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
                         fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
@@ -11544,4 +11839,5 @@ async function chatGPTCall(model, content) {
 <audio id="audio" controls></audio>
 </body>
 </html>
+
 

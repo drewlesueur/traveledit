@@ -700,16 +700,16 @@ thumbscript4.squishFuncs = function(tokens) {
             log2([tokens.length, i])
             return []
         }
-        if (token.valueString == "{") {
+        if (token.th_type != stringType && token.valueString == "{") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token.valueString == "[") {
+        } else if (token.th_type != stringType && token.valueString == "[") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token.valueString == "(") {
+        } else if (token.th_type != stringType && token.valueString == "(") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token.valueString == "}") {
+        } else if (token.th_type != stringType && token.valueString == "}") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
@@ -717,7 +717,7 @@ thumbscript4.squishFuncs = function(tokens) {
                 th_type: curlyType,
                 valueArr: thumbscript4.desugar(r),
             })
-        } else if (token.valueString == "]") {
+        } else if (token.th_type != stringType && token.valueString == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
@@ -725,7 +725,7 @@ thumbscript4.squishFuncs = function(tokens) {
                 th_type: squareType,
                 valueArr: thumbscript4.desugar(r),
             })
-        } else if (token.valueString == ")") {
+        } else if (token.th_type != stringType && token.valueString == ")") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
@@ -2397,7 +2397,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 //     }
 // } loopn
 
-log2(thumbscript4.tokenize(`
+thumbscript4.tokenize(`
 // nowmillis :foo
 
 // list at(i plus. 1)
@@ -2407,7 +2407,9 @@ log2(thumbscript4.tokenize(`
 // [person 0 $score] props say
 // a: [b: 1]
 // a: [b: 1 2 plus c: 40 3 minus]
-`, true))
+
+// "hell(oyo" split("l")
+`, true)
 
 function promiseCheck(name) {
     return new Promise(function (res, rej) {
@@ -3466,27 +3468,9 @@ something1
 } :something2
 something2
 say
-*/
-}
-var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 
 
 
-
-// come back to this
-// var world = thumbscript4.eval(thumbscript4.stdlib, {})
-// thumbscript4.defaultState = world.state
-// log2(world.state)
-
-
- // mid 70 ms for the onenperf check
-// thumbscript4.eval(code, {})
-thumbscript4.eval(code, window) // red marker
-// window makes my test a bit slower (in 80s) interesting
-// actuallt down to sub 60 ms now. with inlining
-// was mis 60s before.
-// showLog()
-false && thumbscript4.eval(`
 
 // this tests the desugaring
 bug: {•plus 1}
@@ -3514,6 +3498,28 @@ foo2: •fix •bug 3
 somefunc
 "the value of a is " a cc say
 
+
+*/
+}
+var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n")
+
+
+
+
+// come back to this
+// var world = thumbscript4.eval(thumbscript4.stdlib, {})
+// thumbscript4.defaultState = world.state
+// log2(world.state)
+
+
+ // mid 70 ms for the onenperf check
+// thumbscript4.eval(code, {})
+thumbscript4.eval(code, window) // red marker
+// window makes my test a bit slower (in 80s) interesting
+// actuallt down to sub 60 ms now. with inlining
+// was mis 60s before.
+// showLog()
+thumbscript4.eval(`
 
 
 
