@@ -11833,11 +11833,9 @@ var buttonActions = {
 
 }
 
-
 // compare this to the built in one thet uses server side.
 // this is all local and writes to debugOutput (log2)
 async function chatGPTCallPayload(payload) {
-    alert("payload")
     var resolve, reject
     var p = new Promise(function (res, rej) {
         resolve = res
