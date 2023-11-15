@@ -548,11 +548,19 @@ They get changed later on.
     <div class=longButton onclick="selectFont('IosevkaTermExtended')">IkaE2 (slow)</div>
     <div class=longButton onclick="selectFont('Martha')">Martha</div>
     <div class=longButton onclick="selectFont('chivomono')">chivomono</div>
+    <div class=longButton onclick="selectFont('chivomonolight')">chivomonolight</div>
     <div class=longButton onclick="selectFont('azeretmono')">azeretmono</div>
     <div class=longButton onclick="selectFont('martianmono')">martianmono</div>
     <div class=longButton onclick="selectFont('spacemono')">spacemono</div>
     <div class=longButton onclick="selectFont('jetbrainsmono')">jetbrainsmono</div>
     <div class=longButton onclick="selectFont('splinesansmono')">splinesansmono</div>
+    
+    <div class=longButton onclick="selectFont('firacode')">firacode</div>
+    <div class=longButton onclick="selectFont('firamono')">firamono</div>
+    <div class=longButton onclick="selectFont('fragmentmono')">fragmentmono</div>
+    <div class=longButton onclick="selectFont('ibmplexmono')">ibmplexmono</div>
+    
+    
     <div class=longButton onclick="selectFont('Neon')">Neon</div>
     <div class=longButton onclick="selectFont('Argon')">Argon</div>
     <div class=longButton onclick="selectFont('Krypton')">Krypton</div>
@@ -600,10 +608,6 @@ They get changed later on.
     <div class=longButton onclick="selectFont('cousine')">cousine</div>
     <div class=longButton onclick="selectFont('cutivemono')">cutivemono</div>
     <div class=longButton onclick="selectFont('dmmono')">dmmono</div>
-    <div class=longButton onclick="selectFont('firacode')">firacode</div>
-    <div class=longButton onclick="selectFont('firamono')">firamono</div>
-    <div class=longButton onclick="selectFont('fragmentmono')">fragmentmono</div>
-    <div class=longButton onclick="selectFont('ibmplexmono')">ibmplexmono</div>
     <div class=longButton onclick="selectFont('inconsolata')">inconsolata</div>
     <div class=longButton onclick="selectFont('mplus1code')">mplus1code</div>
     <div class=longButton onclick="selectFont('nanumgothiccoding')">nanumgothiccoding</div>
@@ -873,7 +877,7 @@ var wordAtCursorRegexp = null
 
 
 // other fonts.
-// Berkley Mono, Operator, Mona Lisa, Commit Mono
+// Berkley Mono, Cascadia, Consolas, Operator, Mona Lisa, Commit Mono, Cartograph, Martha from Coppers Brasses
 // https://klim.co.nz/retail-fonts/founders-grotesk-mono/
 // https://www.colophon-foundry.org/typefaces/basis-grotesque-mono
 // https://abcdinamo.com/typefaces/monument-grotesk
@@ -1253,11 +1257,23 @@ var extraFonts = {
    },
    "chivomono": {
       "fontHeightPre": 36,
+      // "fontHeightPre": 34,
+      // "fontWidthPre": 17,
       "fontWidthPre": 18,
+      // "fontWidthPre": 18.5,
+      // "fontWidthPre": 19,
+      // "fontWidthPre": 22,
       // "fontOffsetYPre": 3,
       "fontSize": 30,
       "fontName": "chivomono",
       "url": "https://fonts.gstatic.com/s/chivomono/v9/mFThWbgRxKvF_Z5eQMO9qRMrJJrnKNtC3D7hr6fV.ttf"
+   },
+   "chivomonolight": {
+      "fontHeightPre": 36,
+      "fontWidthPre": 18,
+      "fontSize": 30,
+      "fontName": "chivomonolight",
+      "url": "https://fonts.gstatic.com/s/chivomono/v9/mFThWbgRxKvF_Z5eQMO9qRMrJJrnKNtC3D6_r5fSIJlp0Gl5.woff2"
    },
    "courierprime": {
       "fontHeightPre": 36,
@@ -2220,6 +2236,7 @@ function updateFontScale() {
     setCanvasWidth(canvasWidth)
     render()
 }
+
 function setFontVars() {
     fontHeight = currentFont.fontHeightPre * fontScale
     fontWidth = currentFont.fontWidthPre * fontScale
@@ -2236,6 +2253,10 @@ function setFontVars() {
     // extraYEmoji = (currentFont.fontSize * fontScale * .6) / 2 / emojiWidth
     extraYEmoji = 0
 }
+// fonts.chivomono.fontWidthPre = 18.5
+// fonts.chivomono.fontWidthPre = 18
+// log2("hello world this font is cool")
+// updateFontScale()
 
 
 function importPaste() {
@@ -4569,9 +4590,23 @@ function paste(unselect, pasteBefore, fromTap, unselectIfCharOneWord) {
     hasMovedSincePaste = false
     // todo: fromTap really means "smart" paste
     if (fx.fileMode == "directory" && copiedDirectoryFiles.length) {
-        if (confirm("copy " + copiedDirectoryFiles.length + " files?")) {
+        var dest = "."
+        
+        var shouldContinue = false
+        if (copiedDirectoryFiles.length == 1) {
+            dest = prompt("copy file", copiedDirectoryFiles[0].split("/").slice(-1) + "")
+            if (dest) {
+                shouldContinue = true
+                // add quotes
+                dest = '"' + dest + '"'
+            }
+        } else {
+            shouldContinue = confirm("copy " + copiedDirectoryFiles.length + " files?")
+        }
+        if (shouldContinue) {
             var theCmd = copiedDirectoryFiles.map(function(f) {
-                return "cp -r \"" + f  + "\" ." + ";"
+                // return "cp -r \"" + f  + "\" ." + ";"
+                return `cp -r "${f}" ${dest};`
             }).join("")
             runQuickShellCommand(theCmd, function(err, result) {
                 if (err) {
