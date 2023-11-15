@@ -2572,6 +2572,12 @@ function runEditorCommand(e) {
     case "g3":
         runChatGPT('gpt-3.5-turbo', {inline: true, extra: "\n\n" + rest})
         break
+    case "pin":
+        fx.pinned = true
+        break
+    case "unpin":
+        fx.pinned = false
+        break
     }
     editorCommandText.blur()
     return false
@@ -2638,10 +2644,13 @@ function cleanUpFiles() {
     var seenFiles = {}
     var filesToClose = []
     var filesToKeep = []
+    var pinnedFiles = []
     for (var i=0; i<files.length; i++) {
         var file = files[i]
         if (file.fileMode == "file" || file.fileMode == "directory") {
-            if (file.fullPath in seenFiles) {
+            if (file.pinned) {
+                pinnedFiles.push(file)
+            } else if (file.fullPath in seenFiles) {
                 filesToClose.push(file)
             } else {
                 seenFiles[file.fullPath] = true
@@ -2668,9 +2677,8 @@ function cleanUpFiles() {
             file.iframeWrapper.remove()
         }
     }
-    files = filesToKeep
-
-    files.sort((a, b) => {
+    
+    filesToKeep.sort((a, b) => {
         var key = "fullPath"
         if (a[key] < b[key]) {
             return -1;
@@ -2680,6 +2688,7 @@ function cleanUpFiles() {
         }
         return 0;
     });
+    files = pinnedFiles.concat(filesToKeep)
     
     render()
     renderFileDropdown()
@@ -10953,7 +10962,7 @@ function renderFileDropdown() {
             colorDiv.style.borderRadius = "5px"
             button.appendChild(colorDiv)
         }
-        if (file.group) {
+        if (file.group || file.pinned) {
             var groupDiv = document.createElement("div")
             // groupDiv.style.height = "10px"
             // groupDiv.style.width = "10px"
@@ -10961,7 +10970,7 @@ function renderFileDropdown() {
             groupDiv.style.bottom = "1px"
             groupDiv.style.right = "1px"
             groupDiv.style.border = "none"
-            groupDiv.innerText = file.group
+            groupDiv.innerText = (file.group || "") + (file.pinned ? "📍" : "")
             groupDiv.style.borderRadius = "2px"
             button.appendChild(groupDiv)
         }
@@ -11093,15 +11102,20 @@ function getLinesForFileList() {
         if (f.group) {
             groupText = " " + f.group + " "
         }
-        var parts = (f.fullPath + groupText + "(" + (f.ID) + ")").split("/")
+        var pinnedText = ""
+        if (f.pinned) {
+            pinnedText = "📍"
+        }
+        
+        var parts = (f.fullPath + groupText + pinnedText + "(" + (f.ID) + ")").split("/")
         // if (f.group) {
         //     parts[parts.length - 1] = f.group + ": " + parts[parts.length - 1]
         // }
         if (f.fileMode == "shell") {
-            parts = ["(cmd)", (f.tmpIndex+"").padStart(2, "0") + ": " + (f.name || "") + groupText]
+            parts = ["(cmd)", (f.tmpIndex+"").padStart(2, "0") + ": " + (f.name || "") + groupText + pinnedText]
         } else if (f.fileMode == "terminal") {
             // #todoterminal: how get the cwd of the process (/proc/fd) ?
-            parts = ["(terminal)", (f.tmpIndex+"").padStart(2, "0") + ": " + (f.name || "") + groupText]
+            parts = ["(terminal)", (f.tmpIndex+"").padStart(2, "0") + ": " + (f.name || "") + groupText + pinnedText]
         }
         // var parts = (f.fullPath).split("/")
         var curTree = fileTree
@@ -11131,15 +11145,18 @@ function getLinesForFileList() {
         treeFiles.push("-") // blank line do you can paste on top
         for (let i = 0; i < files.length; i++) {
             // treeFiles.push(files[i].fullPath.split("/").reverse().join(" < "))
-            
+
             // treeFiles.push(files[i].name || files[i].fullPath.split("/").slice(-1)[0])
             var flatName = files[i].name || files[i].fullPath.split("/").slice(-1)[0]
-            
-            
-            if (files[i].group) {
-                flatName = files[i].group + ": " + flatName
+
+            var prefixText = files[i].group || ""
+            if (files[i].pinned) {
+                prefixText += "📍"
             }
-            
+            if (files[i].group) {
+                flatName = prefixText + ": " + flatName
+            }
+
             var dirPart = files[i].fullPath.split("/").slice(0, -1).reverse().join(" < ")
             var theLen = expandTabIndex(flatName, flatName.length, null, null, "nocache")
             var gap = 35 - theLen
@@ -11148,7 +11165,7 @@ function getLinesForFileList() {
             }
             flatName = flatName + " ".repeat(gap) + "< " + dirPart
             treeFiles.push(flatName)
-            
+
             // I wrote this so you could get rid of the last part if you want and only show the file name
             // treeFiles.push(files[i].name || files[i].fullPath.split("/").slice(-1)[0] + "\t\t\t\t< " + files[i].fullPath.split("/").reverse().slice(1).join(" < "))
             // treeFiles.push(files[i].name || files[i].fullPath.split("/").slice(-2).join("/"))
@@ -11287,6 +11304,8 @@ function duplicateFile(f, cursorLineIndex, options, id="") {
     fc.fileToken = fileToken
     fc.uniqueID = getUniqueID()
     fc.ID = id
+    fc.pinned = false // we don't want to duplicate pinned
+    
 
     if (id == "") {
         fetch(proxyPath + "/duplfile?idtodup="+f.ID+"&id="+id, {
@@ -11499,6 +11518,7 @@ function fetchWorkspaceWithList(index) {
             // #serverAssignments
             fx.color = serverFile.Color
             fx.group = serverFile.Group || ""
+            fx.pinned = serverFile.Pinned || ""
             fx.highlightRanges = serverFile.HighlightRanges
         }
         initialFileAdding = false
@@ -11560,6 +11580,7 @@ function saveWorkspace(oldWorkspaceName) {
             "CWD": f.shellCWD,
             "Color": f.color,
             "Group": f.group,
+            "Pinned": !!f.pinned,
             "HighlightRanges": f.highlightRanges,
             // "HighlightText": f.highlightText,
         })

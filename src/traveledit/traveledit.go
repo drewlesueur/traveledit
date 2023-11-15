@@ -283,7 +283,8 @@ type File struct {
 
 	// CSS color
 	Color string
-	Group string
+	Group string // group is for emoji
+	Pinned bool
 
 	HighlightText   string // deprecated
 	HighlightRanges []*HighlightRange
@@ -395,6 +396,7 @@ func workspaceView(w *Workspace) map[string]interface{} {
 			"CWD":             f.CWD,
 			"Color":           f.Color,
 			"Group":           f.Group,
+			"Pinned":          f.Pinned,
 			"HighlightText":   f.HighlightText,
 			"HighlightRanges": f.HighlightRanges,
 		})
@@ -573,6 +575,7 @@ func main() {
 					addedFile.Name = f.Name
 					addedFile.Color = f.Color
 					addedFile.Group = f.Group
+					addedFile.Pinned = f.Pinned
 					addedFile.HighlightText = f.HighlightText
 					addedFile.HighlightRanges = f.HighlightRanges
 				}
@@ -1005,6 +1008,7 @@ func main() {
 				f.Name = fc.Name
 				f.Color = fc.Color
 				f.Group = fc.Group
+				f.Pinned = fc.Pinned
 				f.HighlightText = fc.HighlightText
 				f.HighlightRanges = fc.HighlightRanges
 				newFiles = append(newFiles, f)
