@@ -2,6 +2,7 @@
 <!--
 syntax highlighting
 select line with one tap
+fonts on screenshare
 -->
 <html>
 <head>
@@ -2229,7 +2230,7 @@ function setFontVars() {
     // after experimentation, there seems to be a bug in ios 15 where if we use the ui-monospace font
     // which would render SF Mono before, but now
     // causes the page to crash
-    fontCSS = (currentFont.fontSize * fontScale) + "px '"+currentFont.fontName+"', monospace"
+    fontCSS = (currentFont.fontSize * fontScale) + "px '"+currentFont.fontName+"', Menlo, monospace"
     fontCSSTiny = (currentFont.fontSize * fontScale/2) + "px '"+currentFont.fontName+"', monospace"
     fontCSSEmoji = (currentFont.fontSize * fontScale * .6 * emojiWidth) + "px '"+currentFont.fontName+"', ui-monospace, monospace"
     // extraYEmoji = (currentFont.fontSize * fontScale * .6) / 2 / emojiWidth
