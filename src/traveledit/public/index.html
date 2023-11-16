@@ -8205,8 +8205,7 @@ function onStart(e) {
     
     if (e.touches.length == 1) {
         longPressAction = function() {
-            
-            isLongPress = true
+            isLongPress = true // prevents regular onEnd handling from happening.
             var bbox = c.getBoundingClientRect() // deeppink marker
             // alert("yay long press not edges") white marker
             // TODO: add more features here
@@ -8298,6 +8297,10 @@ function onStart(e) {
                     if (fx.fileMode == "shell" || fx.fileMode == "terminal") {
                         saveWrapper() // hits enter
                     } else if (fx.fileMode == "file") {
+                        if (fx.selectedRegions.length) {
+                            runScript()
+                            return
+                        }
                         var theLine = fx.lines[fx.cursorLineIndex] || ""
                         var theIndent = getIndent(theLine)
                         // fx.lines.splice(fx.cursorLineIndex + 1, 0, theIndent)
@@ -8313,6 +8316,7 @@ function onStart(e) {
                         var doFocus = function () {
                             theText.focus()
                             // focus has to be on touchend or click event it seems
+                            // another workaroudn for something like this is the shouldOpenEditorCommand variable
                             document.body.removeEventListener("touchend", doFocus)
                         }
                         document.body.removeEventListener("touchmove", onMove)
@@ -8519,6 +8523,7 @@ function onStart(e) {
             return
         }
         if (cursorType != "select") {
+            // yay something 2 // yellow marker
             selectTimeout = setTimeout(selectAction, selectTimeoutMillisMove)
             var bbox = c.getBoundingClientRect()
             // if (startTouchX > (bbox.width * 2 / 3)) {
@@ -9358,6 +9363,7 @@ function onStart(e) {
         var diffStartTouchY = e.touches[0].pageY - startTouchY
         lastTouchX = e.touches[0].pageX
         lastTouchY = e.touches[0].pageY
+        clearTimeout(selectTimeout)
         if (Math.abs(diffStartTouchX) < 5 && Math.abs(diffStartTouchY) < 5) {
             return
         }
@@ -9383,6 +9389,16 @@ function onStart(e) {
         overflowX = 0
         overflowY = 0
         touchCount = e.touches.length
+        clearTimeout(selectTimeout)
+        
+        document.body.removeEventListener("touchmove", onMoveWhileSelected)
+        moveListenerCount = max(moveListenerCount-1, 0)
+        document.body.removeEventListener("touchend", onEndWhileSelected)
+        endListenerCount = max(endListenerCount-1, 0)
+        if (isLongPress) {
+            return
+        }
+        
         var sr = fx.selectedRegions[0]
         if (!moved && sr) {
             // Note: add more actions, and try to be consistent-ish
@@ -9445,10 +9461,6 @@ function onStart(e) {
                 cursorType = "move"
             }
         }
-        document.body.removeEventListener("touchmove", onMoveWhileSelected)
-        moveListenerCount = max(moveListenerCount-1, 0)
-        document.body.removeEventListener("touchend", onEndWhileSelected)
-        endListenerCount = max(endListenerCount-1, 0)
         render()
     }
 
@@ -9927,10 +9939,11 @@ function onStart(e) {
         }
     }
     if (fx.selectedRegions.length) {
+        // yay something 1 // yellow marker
         // idea: if 2 touches while selected
         // do something else like comment
         if (e.changedTouches[0].pageX < (bbox.width * 1 / 3)) {
-            // select, lift finger, move on right side
+            // select, lift finger, move on ledt side
             // cursorType = "select"
             document.body.addEventListener("touchmove", onMove)
             moveListenerCount += 1
@@ -9949,6 +9962,7 @@ function onStart(e) {
             document.body.addEventListener("touchend", onEnd)
             endListenerCount += 1
         }
+        selectTimeout = setTimeout(longPressAction, selectTimeoutMillis)
     } else {
         if (e.touches.length > 1 && cursorType != "select") {
             // this selectAction is the one from the first touch
@@ -9960,6 +9974,7 @@ function onStart(e) {
         var bbox = c.getBoundingClientRect()
 
         if (startTouchY - bbox.top < navTouchSize) {
+            // this old feature not used??
             if (document.activeElement == theText && !acWord) {
                shouldAutocompleteLine = true
             } else if (false) { // commenting out the page down feature
