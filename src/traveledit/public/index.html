@@ -2349,6 +2349,7 @@ function runEditorCommand(e) {
                         files[i].color = rest
                     }
                 }
+                seeFilesForReal()
             }
             break
         }
@@ -2370,6 +2371,7 @@ function runEditorCommand(e) {
                         files[i].group = rest
                     }
                 }
+                seeFilesForReal()
             }
             break
         }
@@ -2573,10 +2575,42 @@ function runEditorCommand(e) {
         runChatGPT('gpt-3.5-turbo', {inline: true, extra: "\n\n" + rest})
         break
     case "pin":
-        fx.pinned = true
+        if (fx.fileMode == "fileList") {
+            if (fx.selectedRegions.length>0) {
+                var r = fx.selectedRegions[0]
+                // we subtract 1 because of the initial "-" at the beginning
+                var fileIndexStart = r.startY - 1
+                var fileIndexStop = r.stopY - 1
+                for (var i=fileIndexStart; i<= fileIndexStop; i++) {
+                    files[i].pinned = true
+                }
+            }
+            seeFilesForReal()
+        } else {
+            fx.pinned = true
+        }
+        render()
+        renderFileDropdown()
+        saveWorkspace()
         break
     case "unpin":
-        fx.pinned = false
+        if (fx.fileMode == "fileList") {
+            if (fx.selectedRegions.length>0) {
+                var r = fx.selectedRegions[0]
+                // we subtract 1 because of the initial "-" at the beginning
+                var fileIndexStart = r.startY - 1
+                var fileIndexStop = r.stopY - 1
+                for (var i=fileIndexStart; i<= fileIndexStop; i++) {
+                    files[i].pinned = false
+                }
+            }
+            seeFilesForReal()
+        } else {
+            fx.pinned = false
+        }
+        render()
+        renderFileDropdown()
+        saveWorkspace()
         break
     }
     editorCommandText.blur()
@@ -2696,8 +2730,8 @@ function cleanUpFiles() {
     
     render()
     renderFileDropdown()
-    seeFiles()
-    seeFiles()
+    // seeFiles()
+    seeFilesForReal()
     
     log(seenFiles)
 }
@@ -3931,6 +3965,7 @@ async function runChatGPT(model, options) {
         deleteSelection = true
     }
     var selectedLinesWrapper = getSelectedLines(fx, deleteSelection);
+    fx.selectedRegions = []
     if (selectedLinesWrapper.isWholeFile) {
         // don't want accidental whole file processing.
         gptButton.innerText = gptButton.oldInnerText
@@ -8220,6 +8255,8 @@ function onStart(e) {
                         var theLine = fx.lines[fx.cursorLineIndex]
                         theLine = theLine.slice(u(fx.cursorColIndex))
                         fx.lines[fx.cursorLineIndex] = theLine
+                        fx.cursorColIndex = 0
+                        updateCursorXY()
                         selectMode = "char"
                         copyBuffer = [theLine.slice(0, u(fx.cursorColIndex))]
                         docChanged()
@@ -8257,26 +8294,34 @@ function onStart(e) {
                     return 
                 } else {
                     // should we do this newline?
-                    var theLine = fx.lines[fx.cursorLineIndex] || ""
-                    var theIndent = getIndent(theLine)
-                    fx.lines.splice(fx.cursorLineIndex + 1, 0, theIndent)
-                    fx.cursorLineIndex++
-                    fx.cursorColIndex = expandTabIndex(theIndent)
-                    updateCursorXY()
-                    docChanged()
-                    render()
-                    var doFocus = function () {
-                        theText.focus()
-                        // focus has to be on touchend or click event it seems
-                        
-                        document.body.removeEventListener("touchend", doFocus)
+                    // make it run, enter.
+                    if (fx.fileMode == "shell" || fx.fileMode == "terminal") {
+                        saveWrapper() // hits enter
+                    } else if (fx.fileMode == "file") {
+                        var theLine = fx.lines[fx.cursorLineIndex] || ""
+                        var theIndent = getIndent(theLine)
+                        // fx.lines.splice(fx.cursorLineIndex + 1, 0, theIndent)
+                        if (theLine.endsWith("{")) {
+                            theIndent += " ".repeat(4)
+                        }
+                        fx.lines.splice(fx.cursorLineIndex + 1, 0, theIndent)
+                        fx.cursorLineIndex++
+                        fx.cursorColIndex = expandTabIndex(theIndent)
+                        updateCursorXY()
+                        docChanged()
+                        render()
+                        var doFocus = function () {
+                            theText.focus()
+                            // focus has to be on touchend or click event it seems
+                            document.body.removeEventListener("touchend", doFocus)
+                        }
+                        document.body.removeEventListener("touchmove", onMove)
+                        moveListenerCount -= 1
+                        // document.body.removeEventListener("touchend", onEnd)
+                        // endListenerCount -= 1
+    
+                        document.body.addEventListener("touchend", doFocus)
                     }
-                    document.body.removeEventListener("touchmove", onMove)
-                    moveListenerCount -= 1
-                    document.body.removeEventListener("touchend", onEnd)
-                    endListenerCount -= 1
-                    
-                    document.body.addEventListener("touchend", doFocus)
                     return 
                 }
             }
@@ -11159,7 +11204,7 @@ function getLinesForFileList() {
             if (files[i].pinned) {
                 prefixText += "📍"
             }
-            if (files[i].group) {
+            if (files[i].group || files[i].pinned) {
                 flatName = prefixText + ": " + flatName
             }
 
@@ -11191,7 +11236,10 @@ function seeFiles() {
         setCurrentFile(lastFile)
         return
     }
+    seeFilesForReal()
+}
 
+function seeFilesForReal() {
     splicedFiles = []
 
     var contents = getLinesForFileList().join("\n")
