@@ -2659,10 +2659,14 @@ function cleanUpFiles() {
         } else if (file.fileMode == "shell") {
                 filesToClose.push(file)
         } else if (file.fileMode == "terminal") {
-            if (file.name)  {
-                filesToKeep.push(file)
+            if (file.pinned) {
+                pinnedFiles.push(file)
             } else {
-                filesToClose.push(file)
+                if (file.name)  {
+                    filesToKeep.push(file)
+                } else {
+                    filesToClose.push(file)
+                }
             }
         } else {
             filesToKeep.push(file)
@@ -10960,6 +10964,7 @@ function renderFileDropdown() {
             colorDiv.style.right = "2px"
             colorDiv.style.border = "none"
             colorDiv.style.borderRadius = "5px"
+            colorDiv.setAttribute("data-index", fileI)
             button.appendChild(colorDiv)
         }
         if (file.group || file.pinned) {
@@ -10972,6 +10977,7 @@ function renderFileDropdown() {
             groupDiv.style.border = "none"
             groupDiv.innerText = (file.group || "") + (file.pinned ? "📍" : "")
             groupDiv.style.borderRadius = "2px"
+            groupDiv.setAttribute("data-index", fileI)
             button.appendChild(groupDiv)
         }
         fileRow.appendChild(button)
