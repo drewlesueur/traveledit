@@ -6548,7 +6548,8 @@ var mockCanvasContext = {
       if (this.lastFont != this.font) {
           this.lastWasString = false
           this.lastFont = this.font
-          this.commands.push([3, this.font])
+          // simple parsing
+          this.commands.push([3, this.font, fonts[this._fontName]])
       }
       if (this.lastTextBaseline != this.textBaseline) {
           this.lastWasString = false
@@ -7139,22 +7140,23 @@ function renderInternal() {
     // draw line where your cursor is for help with finding
     var underlineOffset = (fontHeight) - (1/6/2 * fontHeight)
     var underlineHeight = fontHeight/6
+    // var highlightLine = true
     var highlightLine = true
     if (highlightLine) {
         // t.fillStyle = "rgba(0, 255, 255, 0.15)"
         // more apparent highlight line
         if (isDark) {
             // temp experiment with darker line
-            // t.fillStyle = "rgba(0, 128, 128, 0.55)"
-            t.fillStyle = "rgba(128, 128, 128, 0.55)"
+            t.fillStyle = "rgba(0, 128, 128, 0.55)"
+            // t.fillStyle = "rgba(128, 128, 128, 0.55)"
         } else {
             // t.fillStyle = "rgba(0, 255, 255, 0.55)"
             // t.fillStyle = "rgba(192, 192, 192, 0.55)"
             t.fillStyle = "rgba(224, 224, 224, 0.55)"
         }
         // go twice as wide as you need, for server rendering purposes
-        t.fillRect(0, (fx.cursorLineIndex - fx.offsetY) * fontHeight, c.width*2, fontHeight)
-                    
+        t.fillRect(0, (fx.cursorLineIndex - fx.offsetY) * fontHeight, c.width*3, fontHeight)
+
         // var line = (fx.lines[fx.cursorLineIndex] || "")
         // var [newStartX, adjustment] = skipLeadingSace(line, 0, fx.offsetX, y + fx.offsetY, fx)
         // t.fillStyle = "deeppink"
@@ -7170,9 +7172,10 @@ function renderInternal() {
         // t.fillStyle = lightFontColor
         if (isDark) {
             // t.fillStyle = "#333"
-            t.fillStyle = "gray"
+            // t.fillStyle = "gray"
             // t.fillStyle = "magenta"
             // t.fillStyle = "yellow"
+            t.fillStyle = "rgba(0, 128, 255, 0.55)"
         } else {
             // t.fillStyle = "lightgray"
             t.fillStyle = "#ccc"
@@ -7265,6 +7268,7 @@ function renderInternal() {
     }
 
     t.font = fontCSS
+    t._fontName = currentFont.fontName // hack
     t.textBaseline = "top"
     var r = fx.selectedRegions[0]
     // TODO: this element is hitten

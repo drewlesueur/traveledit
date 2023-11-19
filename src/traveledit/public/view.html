@@ -131,8 +131,8 @@ function splitGraphemesCached(part) {
     }
     console.log(cachedSplitKeys.length)
     return cachedSplit[part]
-    
 }
+var seenFonts = {}
 var cmds = {
     0: function(a) {
         if (a.length == 1) {
@@ -179,6 +179,24 @@ var cmds = {
     },
     3: function(a) {
         t.font = a[0]
+        var currentFont = a[1]
+        if (seenFonts[currentFont.fontName]) {
+            return
+        }
+        if (currentFont.url) {
+            seenFonts[currentFont.fontName] = true
+            var font
+            if (currentFont.descriptors) {
+                font = new FontFace(currentFont.fontName, "url(" + currentFont.url + ")")
+            } else {
+                font = new FontFace(currentFont.fontName, "url(" + currentFont.url + ")", currentFont.descriptors)
+            }
+            font.load().then(function(loaded){
+                document.fonts.add(loaded)
+            }).catch(function(e){
+                alert(e)
+            })
+        }
     },
     4: function(a) {
         t.textBaseline = a[0]
