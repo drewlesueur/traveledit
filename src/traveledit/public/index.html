@@ -3,6 +3,8 @@
 syntax highlighting
 select line with one tap
 fonts on screenshare
+
+if cursor not in screen, breaks screenshare until you move cursor (becsuse moving ensures it's in screen)
 -->
 <html>
 <head>
@@ -874,6 +876,10 @@ var pathDecorators = []
 var wordAtCursor = ""
 var wordAtCursorRegexp = null
 
+function calcMarginLeft(lineLength) {
+    var ret = Math.ceil(Math.log(lineLength + 1)/Math.log(10)) + 1
+    return ret
+}
 
 
 // other fonts.
@@ -1540,8 +1546,7 @@ var workspaceName = ""
 var cursorX=0
 var cursorY=0
 // 4 chars for line number and 1 for space
-var marginLeft = 6
-// var marginLeft = 50
+// var marginLeft = 6
 // Note that the width and height need to match
 // the width and height of the canvas tag attribute.
 
@@ -2761,6 +2766,7 @@ function closeFile(theFX) {
                 files.splice(indexToClose, 1)
             }
             theFX.lines = getLinesForFileList()
+            theFX.marginLeft = calcMarginLeft(theFX.lines.length)
             // TODO?: to the useUnicode stuff here and related places
             // or maybe don't show unicode in file list?
             render()
@@ -2773,6 +2779,7 @@ function closeFile(theFX) {
             })
         }
         theFX.lines = getLinesForFileList()
+        theFX.marginLeft = calcMarginLeft(theFX.lines.length)
     } else {
         if (theFX.fileMode == "file") {
             if (theFX.version != theFX.savedVersion) {
@@ -2986,6 +2993,7 @@ function docChanged(preventUndo) {
     }
     renderSaves()
     lastRenderFullScreenForSet = false
+    fx.marginLeft = calcMarginLeft(fx.lines.length)
 }
 function saveUndo(preventUndo) {
     // 3 ways of doing undo
@@ -3113,11 +3121,13 @@ function setLines(lines) {
     // we can't just set the lines on one
     // for when you have to update the whole object
     fx.lines = lines
+    fx.marginLeft = calcMarginLeft(fx.lines.length)
     for (var i=0; i<files.length; i++) {
         // TODO: maybe you souldn't make terminal and shell have the same path anyway?
         if (fx.fileMode != "terminal" && fx.fileMode != "shell") {
             if (fx != files[i] && files[i].fullPath == fx.fullPath) {
                 files[i].lines = fx.lines
+                files[i].marginLeft = fx.marginLeft
             }
         }
     }
@@ -3132,10 +3142,10 @@ function repositionUndo(isUndo) {
         fx.cursorLineIndex = fx.undo.yStack[fx.undo.index]
     }
     if (fx.cursorLineIndex < fx.offsetY || fx.cursorLineIndex > fx.offsetY+maxLines) {
-        fx.offsetY = max(0, fx.cursorLineIndex - marginLeft)
+        fx.offsetY = max(0, fx.cursorLineIndex - fx.marginLeft)
     }
     if (fx.cursorColIndex < fx.offsetX || fx.cursorColIndex > fx.offsetX+maxCols) {
-        fx.offsetX = max(0, fx.cursorColIndex - marginLeft)
+        fx.offsetX = max(0, fx.cursorColIndex - fx.marginLeft)
     }
     updateCursorXY()
     render()
@@ -3155,7 +3165,8 @@ function clearLog() {
         runShellCommand("clear")
     } else if (fx.fileMode == "terminal") {
         // TODO: should I be using setLines?
-        fx.lines = [""]
+        // fx.lines = [""]
+        setLines([""])
         fx.cursorLineIndex = 0
         fx.cursorColIndex = 0
         updateCursorXY()
@@ -3398,7 +3409,7 @@ function findDown(searchDir, wrap, startTop) {
             // nextHighlightRange()
             // return
             // navForward()
-            if (fx.cursorColIndex == -marginLeft) { //     red marker
+            if (fx.cursorColIndex == -fx.marginLeft) { //     red marker
                 fx.cursorLineIndex++
                 searchText.value = " mar"+"ker$"
                 searchText.preventXNav = true
@@ -3483,8 +3494,8 @@ function ensureCursorInScreen(file) {
     } else if (file.cursorColIndex > file.offsetX+maxCols) {
         file.offsetX = file.cursorColIndex - Math.floor(maxCols/2)
     }
-    if (file.offsetX < -marginLeft) {
-        file.offsetX = -marginLeft
+    if (file.offsetX < -file.marginLeft) {
+        file.offsetX = -file.marginLeft
     }
     updateCursorXY(file)
     render()
@@ -3518,7 +3529,7 @@ function findUp() {
         // navBack()
         
         
-        if (fx.cursorColIndex == -marginLeft) { //     red marker
+        if (fx.cursorColIndex == -fx.marginLeft) { //     red marker
             fx.cursorLineIndex--
             searchText.value = " mar"+"ker$"
             searchText.preventXNav = true
@@ -3821,6 +3832,7 @@ function showLog() {
         addFileToList(logFile)
         setCurrentFile(logFile)
         logFile.lines = debugOutput
+        logFile.marginLeft = calcMarginLeft(logFile.lines.length)
         render()
         return
     }
@@ -4939,7 +4951,7 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
 
         // if full lines then move cursor up once to paste
         if (fullLines) {
-            fx.cursorColIndex = -marginLeft
+            fx.cursorColIndex = -fx.marginLeft
             if (fx.cursorLineIndex > 0) {
                 fx.cursorLineIndex -= 1
             }
@@ -5159,9 +5171,9 @@ function runShellCommand(line) {
         if (line == "clear") {
             // clear everything but the last 2 lines
             // TODO: should we be using set lines here?
-            fx.lines = fx.lines.slice(-4)
+            setLines(fx.lines.slice(-4))
             if (fx.lines.length == 0) {
-                fx.lines = [""]
+                setLines([""])
             }
             fx.cursorLineIndex = 0
             fx.cursorColIndex = 0
@@ -6869,7 +6881,7 @@ function render() {
         var expandScreen = true
         
         if (expandScreen) {
-            fx.offsetX = -marginLeft
+            fx.offsetX = -fx.marginLeft
             if (maxCols < 175) {
                 maxCols = 175
             }
@@ -6883,8 +6895,8 @@ function render() {
         maxLines = Math.floor(canvasHeightFull / fontHeight)
 
         if (expandScreen) {
-            var section = Math.floor((fx.cursorColIndex + marginLeft) / maxCols)
-            fx.offsetX = (section * maxCols) - marginLeft
+            var section = Math.floor((fx.cursorColIndex + fx.marginLeft) / maxCols)
+            fx.offsetX = (section * maxCols) - fx.marginLeft
         }
 
         t = mockCanvasContext
@@ -6987,7 +6999,7 @@ function compactWord(word, theLine, startSpacesLength, index, prevWord) {
     if (noCompactPrevWords[prevWord]) {
       return word
     }
-    if ((theLine.trimStart().length + startSpacesLength + marginLeft) <= maxCols) {
+    if ((theLine.trimStart().length + startSpacesLength + fx.marginLeft) <= maxCols) {
         return word
     }
     var replacement = compactReplace[word]
@@ -7111,7 +7123,6 @@ var rendersInLastSecond = 0
 function renderInternal() {
     // todo, how performant is this?
     // better to do this on initial load and then docChanged or something?
-    marginLeft = Math.ceil(Math.log(fx.lines.length + 1)/Math.log(10)) + 1
     var startRenderTime = Date.now()
 
     if (fx.iframe) {
@@ -7473,7 +7484,7 @@ function renderInternal() {
 
         if (true) {
             if (y + fx.offsetY < fx.lines.length) {
-                var lineNumber = (y+fx.offsetY+1).toString().padStart(marginLeft-1, " ")
+                var lineNumber = (y+fx.offsetY+1).toString().padStart(fx.marginLeft-1, " ")
                 if (fx.offsetX < -1) {
                     // Line numbers
 
@@ -7487,7 +7498,7 @@ function renderInternal() {
                         t.fillStyle = lineNumberColor
                     }
                     for (var i=0; i<-fx.offsetX-1; i++) {
-                        var lineNumberIndex = fx.offsetX + marginLeft + i
+                        var lineNumberIndex = fx.offsetX + fx.marginLeft + i
                         var lineNoChr = lineNumber.charAt(lineNumberIndex)
                         if (lineNoChr != " ") {
                             t.fillText(lineNoChr, i*fontWidth, y*fontHeight + fontOffsetY)
@@ -8729,10 +8740,10 @@ function onStart(e) {
             if (!changedY) fx.offsetX += Math.floor(extendX/fontWidth)
 
             var prevOffsetX = fx.offsetX
-            if (fx.offsetX < -marginLeft) {
+            if (fx.offsetX < -fx.marginLeft) {
                 // Sign is inconsistent
-                overflowX += -marginLeft - fx.offsetX
-                fx.offsetX = -marginLeft
+                overflowX += -fx.marginLeft - fx.offsetX
+                fx.offsetX = -fx.marginLeft
             }
 
             // attempt 1 at swiping left to do an action
@@ -8744,7 +8755,7 @@ function onStart(e) {
             // }
 
             // attempt 2 at swiping left to do an action
-            if (overflowX > 75 && !hasDoneOverflowXAction && startCursorColIndex == -marginLeft) {
+            if (overflowX > 75 && !hasDoneOverflowXAction && startCursorColIndex == -fx.marginLeft) {
                 hasDoneOverflowXAction = true
                 // seeFiles()
                 moveFileAllTheWayLeft()
@@ -9178,7 +9189,7 @@ function onStart(e) {
 
 
             
-            if (fx.cursorColIndex == -marginLeft) {
+            if (fx.cursorColIndex == -fx.marginLeft) {
                 // since we are in the margin, let's force it
                 // to paste line-style.
                 if (fx.fileMode == "terminal") {
@@ -9629,7 +9640,7 @@ function onStart(e) {
         } else {
             var origOffsetX = fx.offsetX
             if (false && fx.offsetX <= 0) {
-                fx.offsetX = -marginLeft
+                fx.offsetX = -fx.marginLeft
             }  else {
                 // var tabStop = 4
                 var tabStop = 1 // we changed this to only move one cursor at a time
@@ -9637,8 +9648,8 @@ function onStart(e) {
             }
             // fx.cursorColIndex += fx.offsetX - origOffsetX
             fx.cursorColIndex -= 1
-            if (fx.cursorColIndex < -marginLeft) {
-                 fx.cursorColIndex = -marginLeft
+            if (fx.cursorColIndex < -fx.marginLeft) {
+                 fx.cursorColIndex = -fx.marginLeft
             }
         }
     }
@@ -9909,14 +9920,14 @@ function onStart(e) {
             touchBottomLeft()
         }
         
-        if (fx.cursorColIndex < -marginLeft){
-            fx.cursorColIndex = -marginLeft
+        if (fx.cursorColIndex < -fx.marginLeft){
+            fx.cursorColIndex = -fx.marginLeft
         }
         // if (fx.cursorColIndex < 0){
         //     fx.cursorColIndex = 0
         // }
-        if (fx.offsetX < -marginLeft){
-            fx.offsetX = -marginLeft
+        if (fx.offsetX < -fx.marginLeft){
+            fx.offsetX = -fx.marginLeft
         }
         document.body.addEventListener("touchend", onEndForEdges)
         updateCursorXY()
@@ -10077,7 +10088,7 @@ function getSelectedFilePathInDirectory() {
 }
 function clickItemInDirectory() {
     var newFullPath = getSelectedFilePathInDirectory()
-    if (fx.cursorColIndex != -marginLeft) {
+    if (fx.cursorColIndex != -fx.marginLeft) {
         replaceFile(newFullPath, {
         })
     } else {
@@ -10801,7 +10812,11 @@ function makeFile(fullPath, cursorLineIndex, contents) {
         lines: theLines,
         cursorLineIndex: cursorLineIndex,
         // cursorColIndex: 0,
-        cursorColIndex: -marginLeft,
+        // cursorColIndex: -marginLeft,
+        
+        // lines.length can be empty, and marginLeft will be set later
+        marginLeft: calcMarginLeft(theLines.length),
+        cursorColIndex: -calcMarginLeft(theLines.length),
         // offsetY: cursorLineIndex, // you could get smarter about this
         offsetY: max(cursorLineIndex - Math.floor(maxLines/2), 0), // you can still clean this up a bit, not sure if maxLines is ready?
         offsetX: 0,
@@ -10948,10 +10963,19 @@ function addFile(fullPath, options, id, name) { // hotpink marker
         for (var i=0; i<files.length; i++) {
             if (files[i] != file && files[i].fullPath == file.fullPath) {
                 // TODO: is this needed, I think duplicateFile should get these?
+                // see also setLines
                 files[i].lines = file.lines
                 files[i].undo = file.undo
+                files[i].marginLeft = file.marginLeft
+                log("the other file cli: " + files[i].cursorColIndex)
+                if (files[i].cursorColIndex < 0) {
+                    files[i].cursorColIndex = -file.marginLeft
+                    ensureCursorInScreen(files[i])
+                }
             }
         }
+        file.cursorColIndex = -file.marginLeft
+        ensureCursorInScreen(file)
         selectFileInDirectory(file, options.selectName)
         updateCursorXY(file)
         ensureCursorInScreen(file)
@@ -11263,7 +11287,7 @@ function seeFilesForReal() {
     f.fileMode = "fileList"
 
     f.cursorLineIndex = 0
-    f.cursorColIndex = -marginLeft
+    f.cursorColIndex = -f.marginLeft
     var fileIndex = treeFilesShadow.indexOf(fx)
     if (fileIndex != -1) {
         f.cursorLineIndex = fileIndex
@@ -11354,14 +11378,24 @@ function setCurrentFile(file) {
     if (lastFile && lastFile.iframe) {
         lastFile.iframeWrapper.style.display = "none"
     }
+    log("margin left is " + fx.marginLeft)
     setCanvasHeightAccordingly()
     updateCursorXY()
+    ensureCursorInScreen()
+    log({
+        cursorColIndex: fx.cursorColIndex,
+        offsetX: fx.offsetX,
+        cursorX: cursorX,
+        fontWidth: fontWidth,
+        cursorX_: (fx.cursorColIndex - fx.offsetX) * fontWidth,
+    })
     searchText.setAttribute("placeholder", fx.fullPath + " (search)")
     theText.setAttribute("placeholder", fx.fullPath.split("/").reverse().join(" < "))
     render()
     renderFileDropdown()
 
 }
+
 
 function duplicateFile(f, cursorLineIndex, options, id="") {
     options = options || {}
@@ -11390,6 +11424,7 @@ function duplicateFile(f, cursorLineIndex, options, id="") {
     }
     // copy everything but reference lines
     fc.lines = f.lines
+    // marginLeft got copied over already with json parse stringify
     fc.undo = f.undo
     if (window.fx) {
         fc.color = fx.color
@@ -11443,6 +11478,7 @@ function fetchFile(fullPath, file, id="") {
         return r.text()
     }).then(b => {
         file.lines = b.split("\n")
+        file.marginLeft = calcMarginLeft(file.lines.length)
         if (isDir) {
             // cmd and xterm in file list feature attempt
             // I don't like it that much
@@ -11461,6 +11497,7 @@ function fetchFile(fullPath, file, id="") {
         if (isDir) {
             file.fileMode = "directory"
             file.cursorLineIndex = 1
+            // this might get overwritten by callers
             file.cursorColIndex = 0
         } else {
             file.fileMode = "file"
@@ -11498,8 +11535,17 @@ function reloadFile(theFile) {
         for (var i=0; i<files.length; i++) {
             if (files[i].fullPath == theFile.fullPath) {
                 files[i].lines = theFile.lines
+                files[i].marginLeft = theFile.marginLeft
                 files[i].undo = theFile.undo
+                if (files[i].cursorColIndex < 0) {
+                    files[i].cursorColIndex = -theFile.marginLeft
+                    ensureCursorInScreen(files[i])
+                }
             }
+        }
+        if (theFile.cursorColIndex < 0) {
+            theFile.cursorColIndex = -theFile.marginLeft
+            ensureCursorInScreen(theFile)
         }
         render()
         resolve()
