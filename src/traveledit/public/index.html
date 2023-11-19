@@ -5381,6 +5381,7 @@ function pollTerminals() {
                             updateLineFile(file, file.lines.length-1, file.lines[file.lines.length-1] + lineBuffer.join(""))
                             lineBuffer = []
                             file.lines.push("")
+                            file.marginLeft = calcMarginLeft(file.lines.length)
                         // for  now commenting out \r, later do I need to code the difference between newline and carriage return?
                         } else if (strToProcess[i] == "\r") {
                             // file.lines.push("")
