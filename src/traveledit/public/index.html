@@ -887,14 +887,14 @@ function calcMarginLeft(lineLength) {
 // https://klim.co.nz/retail-fonts/founders-grotesk-mono/
 // https://www.colophon-foundry.org/typefaces/basis-grotesque-mono
 // https://abcdinamo.com/typefaces/monument-grotesk
+// sohne mono
 var fonts = {
     "Martha": {
-        // this font is crazy slow!
-        // but my other ones aren't?
         fontHeightPre: 36,
         fontWidthPre: 18,
         fontSize: 30,
         fontName: "Martha",
+        fontOffsetYPre: 3,
         url: proxyPath + "/tepublic/martha.otf"
     },
     "IosevkaTermExtended": {
@@ -2744,6 +2744,9 @@ function closeFile(theFX) {
     var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
     if (!theFX) {
         theFX = fx
+    }
+    if (theFX.pinned && !confirm("close pinned " + theFX.fullPath + "?")) {
+        return
     }
     if (theFX.thumbscriptWorld) {
         theFX.thumbscriptWorld.global.stopped = true
@@ -7959,10 +7962,12 @@ var syntaxColorMap = [
         // dollarword: "rgb(255, 100, 255)",
         // dollarword: "magenta",
         dollarword: "khaki",
-        uppercasefirst: "gold",
+        uppercasefirst: "darkkhaki",
+        // uppercasefirst: "olive",
         // uppercase: "yellow",
         // uppercase: "chartreuse",
         // uppercase: "cornflowerblue",
+        // uppercasefirst: "gold",
         uppercase: "lightskyblue",
         keyword2: "plum",
         keyword3: "yellowgreen",
