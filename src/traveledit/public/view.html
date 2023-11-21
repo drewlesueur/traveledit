@@ -215,19 +215,33 @@ var cmds = {
         canvasEl.style.width = (canvasEl.width/divideBy) + "px" 
         infoEl.style.width = (canvasEl.width/divideBy - 10) + "px" 
         canvasEl.style.height = (canvasEl.height/divideBy) + "px" 
+        // if (isDark) {
+        //     canvasEl.style.backgroundColor = "black"
+        //     canvasEl.style.borderColor = "white"
+        //     infoEl.style.backgroundColor = "black"
+        //     infoEl.style.color = "white"
+        // } else {
+        //     canvasEl.style.backgroundColor = "white"
+        //     // canvasEl.style.backgroundColor = "lightgray"
+        //     canvasEl.style.borderColor = "black"
+        //     infoEl.style.backgroundColor = "white"
+        //     infoEl.style.color = "black"
+        // }
+        // document.body.style.backgroundColor = "gray"
         if (isDark) {
             canvasEl.style.backgroundColor = "black"
-            canvasEl.style.borderColor = "white"
+            canvasEl.style.borderColor = "black"
             infoEl.style.backgroundColor = "black"
             infoEl.style.color = "white"
+            document.body.style.backgroundColor = "black"
         } else {
             canvasEl.style.backgroundColor = "white"
             // canvasEl.style.backgroundColor = "lightgray"
-            canvasEl.style.borderColor = "black"
+            canvasEl.style.borderColor = "white"
             infoEl.style.backgroundColor = "white"
             infoEl.style.color = "black"
+            document.body.style.backgroundColor = "white"
         }
-        document.body.style.backgroundColor = "gray"
     },
     // 6 means no op
     7: function(a) {

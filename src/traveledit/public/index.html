@@ -549,6 +549,7 @@ They get changed later on.
     <div class=longButton onclick="selectFont('IosevkaExtended')">IkaE (slow)</div>
     <div class=longButton onclick="selectFont('IosevkaTermExtended')">IkaE2 (slow)</div>
     <div class=longButton onclick="selectFont('Martha')">Martha</div>
+    <div class=longButton onclick="selectFont('BerkeleyMono')">Berkeley Mono</div>
     <div class=longButton onclick="selectFont('chivomono')">chivomono</div>
     <div class=longButton onclick="selectFont('chivomonolight')">chivomonolight</div>
     <div class=longButton onclick="selectFont('azeretmono')">azeretmono</div>
@@ -693,7 +694,7 @@ They get changed later on.
     <div class=square onclick="copyOneTimeLink()">one-time link</div>
     <div class=square onclick=record()>🎤</div>
     <div class=square onclick=editEditorCommandText()>editor cmd</div>
-    <div class=longButton onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
+    <div class=square onclick="window.open('https://github.com/drewlesueur/traveledit/archive/refs/heads/master.zip')">doenload repo</div>
 </div>
 <div class=toolbar>
     <!--<div class=square onclick=addSpace()>space</div>
@@ -883,12 +884,20 @@ function calcMarginLeft(lineLength) {
 
 
 // other fonts.
-// Berkley Mono, Cascadia, Consolas, Operator, Mona Lisa, Commit Mono, Cartograph, Martha from Coppers Brasses
+// Berkeley Mono, Cascadia, Consolas, Operator, Mona Lisa, Commit Mono, Cartograph, Martha from Coppers Brasses
 // https://klim.co.nz/retail-fonts/founders-grotesk-mono/
 // https://www.colophon-foundry.org/typefaces/basis-grotesque-mono
 // https://abcdinamo.com/typefaces/monument-grotesk
 // sohne mono
 var fonts = {
+    "BerkeleyMono": {
+        fontHeightPre: 36,
+        fontWidthPre: 17.5,
+        fontSize: 30,
+        fontName: "BerkeleyMono",
+        // fontOffsetYPre: 3,
+        url: proxyPath + "/tepublic/BerkeleyMonoTrial-Regular.otf"
+    },
     "Martha": {
         fontHeightPre: 36,
         fontWidthPre: 18,
@@ -1783,7 +1792,6 @@ function osPasteText() {
         alert("not copied: " + e)
     })
 }
-
 
 function doRefresh() {
     saveWorkspace().then(function() {
@@ -7147,6 +7155,7 @@ function renderInternal() {
         // more apparent highlight line
         if (isDark) {
             // temp experiment with darker line
+            // t.fillStyle = "rgba(0, 128, 128, 0.55)"
             t.fillStyle = "rgba(0, 128, 128, 0.55)"
             // t.fillStyle = "rgba(128, 128, 128, 0.55)"
         } else {
@@ -7178,8 +7187,9 @@ function renderInternal() {
             t.fillStyle = "rgba(0, 128, 255, 0.55)"
         } else {
             // t.fillStyle = "lightgray"
-            t.fillStyle = "#ccc"
             // t.fillStyle = "white"
+            // t.fillStyle = "#ccc"
+            t.fillStyle = "rgba(0, 128, 255, 0.55)"
         }
         for (var y=r.startY-fx.offsetY; y<=r.stopY-fx.offsetY; y++) {
             var line = fx.lines[y + fx.offsetY] || ""
@@ -7658,6 +7668,17 @@ function renderInternal() {
                         let f = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
                         if (f) {
                             t.fillStyle = f
+                        }
+                    }
+                    if (currentFont.fontName == "BerkeleyMono") {
+                        if (chr == "/") {
+                            chr = "\\"
+                        } else if (chr == "\\") {
+                            chr = "/"
+                        } else if (chr == "*") {
+                            chr = "#"
+                        } else if (chr == "#") {
+                            chr = "*"
                         }
                     }
                     t.fillText(chr, x*fontWidth, y*fontHeight + extraY + fontOffsetY)
@@ -11464,6 +11485,7 @@ function downloadFile() {
         var addPath = fx.lines[fx.cursorLineIndex]
         newFullPath = prefix + "/" + addPath
     }
+    log(newFullPath)
     window.open(proxyPath + "/saveload?fullpath=" + encodeURIComponent(newFullPath) + "&raw=1&download=1")
 }
 
