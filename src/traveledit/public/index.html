@@ -7316,6 +7316,7 @@ function renderInternal() {
         }
     }
     
+    var textFillStyleOverride
     // Highlight search results
     for (var y=minY; y < maxY; y++) {
         // show the end of the document
@@ -7326,6 +7327,16 @@ function renderInternal() {
 
         // highlight search highlightsearch
         var theLine = fx.lines[y + fx.offsetY] || ""
+        var trimmedLine = theLine.trim()
+        if (trimmedLine.endsWith("color")) {
+            let parts = theLine.split(" ")
+            let color = parts[parts.length - 2]
+            if (color != "end") {
+                textFillStyleOverride = color
+            } else {
+                textFillStyleOverride = ""
+            }
+        }
         var highlightStartSearch = 0
         var matchLength = 0
         if (theLine && searchText.value.length) {
@@ -7525,33 +7536,24 @@ function renderInternal() {
                 }
             }
         }
-        // TODO: set variable for line.trim()
         var textFillStyle
         // the actual text
         var commentLine = false
         // TODO: maybe pull some of this out of the loop
-        let cachedTrim
-        var trim = function() {
-            if (typeof cachedTrim != "undefined") {
-                return cachedTrim
-            }
-            cachedTrim = theLine.trim()
-            return cachedTrim
-        }
         if (fx.fileMode != "terminal") {
             if (theLine.startsWith("+")) {
                 textFillStyle = isDark ? "lime" : "green"
             } else if (theLine.startsWith("-")){
                 textFillStyle = "red"
-            // } else if (trim().startsWith("// mar"+"ker ") || trim().startsWith("# mar"+"ker ")) {
-            } else if (trim().endsWith("mar"+"ker")) {
+            // } else if (trimmedLine.startsWith("// mar"+"ker ") || trimmedLine.startsWith("# mar"+"ker ")) {
+            } else if (trimmedLine.endsWith("mar"+"ker")) {
                 // do a fill rect of the color that comes after
                 // Not using save and restore because my mock canvas doesn't support it
                 var oldFillStyle = t.fillStyle
-                // var theFillStyle = doTrimPrefix(theLine.trim(), "// mar"+"ker ").split(" ")[0]
-                // var theFillStyle = doTrimPrefix(doTrimPrefix(trim(), "// mar"+"ker "), "# mar"+"ker ").split(" ")[0]
-                // TODO: faster snagging of the color
-                var theParts = trim().split(" ")
+                // var theFillStyle = doTrimPrefix(trimmedLine, "// mar"+"ker ").split(" ")[0]
+                // var theFillStyle = doTrimPrefix(doTrimPrefix(trimmedLine, "// mar"+"ker "), "# mar"+"ker ").split(" ")[0]
+                // TODO: faster snagging of the color.
+                var theParts = trimmedLine.split(" ")
                 theFillStyle = theParts[theParts.length - 2]
                 t.fillStyle = theFillStyle
                 // go twice as wide as you need, for server rendering purposes
@@ -7580,7 +7582,7 @@ function renderInternal() {
                 // }
                 t.fillStyle = oldFillStyle
 
-            } else if (trim().startsWith("//") || trim().startsWith("#")) {
+            } else if (trimmedLine.startsWith("//") || trimmedLine.startsWith("#")) {
                 commentLine = true
                 // comments are gray
                 textFillStyle = lightFontColor
@@ -7634,7 +7636,14 @@ function renderInternal() {
                     t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
                 }
             } else if (chr != "" && chr != " ") {
-                t.fillStyle = textFillStyle
+                // TODO: do we need to assign every time?
+                // red color
+                if (textFillStyleOverride) {
+                    t.fillStyle = textFillStyleOverride
+                } else {
+                    t.fillStyle = textFillStyle
+                }
+                // end color
 
                 if (fauxMono) {
                     var charCode = chr.charCodeAt(0)
@@ -7695,7 +7704,7 @@ function renderInternal() {
         // if (expandedLine.length > maxCols) {
         //     t.save()
         //     t.font = fontCSSTiny
-        //     t.fillText(theLine.trim(), marginLeft*fontWidth, (y+1)*fontHeight - (0.2*fontHeight))
+        //     t.fillText(trimmedLine, marginLeft*fontWidth, (y+1)*fontHeight - (0.2*fontHeight))
         //     t.restore()
         // }
     }
