@@ -7328,7 +7328,7 @@ function renderInternal() {
         // highlight search highlightsearch
         var theLine = fx.lines[y + fx.offsetY] || ""
         var trimmedLine = theLine.trim()
-        if (trimmedLine.endsWith("color")) {
+        if (trimmedLine.endsWith("#color")) {
             let parts = theLine.split(" ")
             let color = parts[parts.length - 2]
             if (color != "end") {
@@ -7637,13 +7637,13 @@ function renderInternal() {
                 }
             } else if (chr != "" && chr != " ") {
                 // TODO: do we need to assign every time?
-                // red color
+                // red #color
                 if (textFillStyleOverride) {
                     t.fillStyle = textFillStyleOverride
                 } else {
                     t.fillStyle = textFillStyle
                 }
-                // end color
+                // end #color
 
                 if (fauxMono) {
                     var charCode = chr.charCodeAt(0)
