@@ -7538,7 +7538,8 @@ function renderInternal() {
             cachedTrim = theLine.trim()
             return cachedTrim
         }
-        if (fx.fileMode != "terminal") {
+        // if (fx.fileMode != "terminal") {
+        if (true) {
             if (theLine.startsWith("+")) {
                 textFillStyle = isDark ? "lime" : "green"
             } else if (theLine.startsWith("-")){
