@@ -8392,6 +8392,27 @@ function onStart(e) {
             fx.selectedRegions = []
             cursorType = "select"
             var line = fx.lines[fx.cursorLineIndex] || ""
+            
+            // yay selectLine vs selectWord white marker
+            if (fx.cursorColIndex >= 0) {
+                var bbox = c.getBoundingClientRect() // deeppink marker
+                if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
+                    // Second row from bottom // lime marker
+                    selectedRegion.startX = 0
+                    selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
+                    selectedRegion.stopX = expandTabIndex(line, line.length)
+                    selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
+                    selectedRegion.stopped = true
+                    selectedRegion.selectedLine = true
+                    selectMode = "line"
+                    fx.selectedRegions.push(selectedRegion)
+                    render()
+                    return
+                } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
+                    // Bottom row // deepskyblue marker
+                }
+            }
+            
 
             // Note how the stopY is inclusive
             // But the stopX is exclusive.
@@ -8402,8 +8423,6 @@ function onStart(e) {
                 selectedRegion.stopX = expandTabIndex(line, line.length)
                 selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
                 selectedRegion.stopped = true
-                // TODO: should selectMode be prop on selectedRegion
-                // or should some props on selectedRegion just be global vars?
                 selectMode = "line"
             } else {
                 var w = getWordAtCursor()
@@ -8442,6 +8461,7 @@ function onStart(e) {
             return
         }
         selectedRegion.selectedWord = false
+        selectedRegion.selectedLine = false
         var mappedClosers = {
             "(": ")",
             "{": "}",
@@ -8542,6 +8562,7 @@ function onStart(e) {
         if (selectedRegion.startX == 0 && selectedRegion.stopX == expandedLine.length) {
             selectMode = "line"
             selectedRegion.selectedWord = false
+            selectedRegion.selectedLine = false
         }
         // if (i == 0) {
         //     
@@ -8854,6 +8875,9 @@ function onStart(e) {
                 selectedRegion.startX = selectedRegion.origStartX
                 // selectedRegion.stopX = selectedRegion.origStopX
             }
+            if (selectedRegion.selectedLine) {
+                selectedRegion.selectedLine = false
+            }
             selectedRegion.stopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
             selectedRegion.stopY = bind(cli, 0, fx.lines.length-1)
             selectedRegion.stopped = true // TODO: I think stop can be removed
@@ -8922,6 +8946,11 @@ function onStart(e) {
         var sr = fx.selectedRegions[0]
         if (sr) { 
             if (sr.selectedWord) {
+                copy()
+                fx.selectedRegions = []
+                cursorType = "move"
+            }
+            if (sr.selectedLine) {
                 copy()
                 fx.selectedRegions = []
                 cursorType = "move"
@@ -9142,7 +9171,7 @@ function onStart(e) {
                     // really it should be called pasteMode?
                     
                     // well it's also selectMode
-                    // don't change anything and just past according to how you selected
+                    // don't change anything and just paste according to how you selected
                     if (document.activeElement == theText) {
                         // selectMode = "char"
                     } else {
@@ -9151,6 +9180,10 @@ function onStart(e) {
                         // selectMode = "line"
                         // selectMode = "char"
                         // try inline paste when touching bottom right
+                    }
+                    // actually if your cursor is all thr way left, force line
+                    if (fx.cursorColIndex < 0) {
+                        selectMode = "line"
                     }
                     if (hasMovedSinceCut || lastDeleteWasFromSelection) {
                         var linesPasted = paste(true, false, true) // unselect, pastebefore, smartPaste
