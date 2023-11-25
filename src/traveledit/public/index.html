@@ -8289,12 +8289,13 @@ function onStart(e) {
             } else if (bbox.bottom - e.changedTouches[0].pageY > (2*verticalTouchSize)) {
                 // Third row from bottom // red marker
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    selectAction(true)
+                    clearSearch()
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     editEditorCommandText()
                     shouldOpenEditorCommand = true
                     // need to do it like thst because text box doesn't focus on touch start, only touch end
                 } else {
+                    clearSearch()
                 }
                 return
             } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
@@ -9106,19 +9107,13 @@ function onStart(e) {
                 
                 // left to edit search, right to clear search
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    if (searchText.value == "") {
-                        moveCursorUp()
-                    } else {
-                        clearSearch()
-                    }
+                    moveCursorUp()
+                    // clearSearch happens in long press
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     editSearch()
                 } else {
-                    if (searchText.value == "") {
-                        moveCursorDown()
-                    } else {
-                        clearSearch()
-                    }
+                    moveCursorDown()
+                    // clearSearch happens in long press
                 }
                 return
             } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
