@@ -8384,7 +8384,7 @@ function onStart(e) {
                 }
             }
         }
-        selectAction = function(forceLines = false) {
+        selectAction = function(forceLines = false, preventSelectLine = false) {
             // return early in case we are already selecting
             if (cursorType == "select") {
                 // TODO: I think we can get rid of cursorType ans just use selectedRegions.length
@@ -8395,7 +8395,7 @@ function onStart(e) {
             var line = fx.lines[fx.cursorLineIndex] || ""
             
             // yay selectLine vs selectWord white marker
-            if (fx.cursorColIndex >= 0) {
+            if (!preventSelectLine && fx.cursorColIndex >= 0) {
                 var bbox = c.getBoundingClientRect() // deeppink marker
                 if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
                     // Second row from bottom // lime marker
@@ -8606,13 +8606,13 @@ function onStart(e) {
             // XXXXXXXXXXXX...
             // XXXXXXXXXX.....
             if (startTouchX > (bbox.width * 4 / 5)) {
-                selectAction(true)
+                selectAction(true, true)
                 // bad name now
                 // if (touchTopTopTopTopMiddle_Right()) {
                 //     return
                 // }
             } else if (startTouchX < (bbox.width * 1 / 5)) {
-                selectAction(false)
+                selectAction(false, true)
             }
         }
         
