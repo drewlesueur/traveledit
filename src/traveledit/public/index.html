@@ -1733,7 +1733,8 @@ var moveHomeEndTimeoutMillis = 300
 var moveHomeEndDirection
 var cleanUpFilesTimeout
 var selectTimeout
-var selectTimeoutMillis = 150
+// var selectTimeoutMillis = 150
+var selectTimeoutMillis = 120
 var selectTimeoutMillisMove = 350
 var expandSelectTimeout
 var expandSelectTimeoutMillis = 300
@@ -4498,20 +4499,20 @@ function setCanvasHeight(h) {
 }
 function setCanvasHeightAccordingly() {
     var heightReduction = 0
-    if (inDebugView) {  
-    
+    if (inDebugView) {
         // If this is too big then iOS wiLl auto scroll
         // it up so that the text isn't so low I guess
         // an attempt to window.scrollTo(0,0) failed
-        var statusElHeight = 190
+        // var statusElHeight = 190
+        var statusElHeight = 100
         statusEl.style.height = statusElHeight + "px"
         logEl.style.height = statusElHeight + "px"
-        
+
         // statusEl.style.border = "1px solid orange"
         heightReduction = statusElHeight * 3
     }
     // for the ipad, try to use the floating keyboard
-    
+
     if (!floatingKeyboard && (document.activeElement == theText || document.activeElement == searchText)) {
         if (fx.fileMode == "terminal") {
             setCanvasHeight(canvasHeightKeyboardTerminal - heightReduction)
@@ -8603,20 +8604,6 @@ function onStart(e) {
         if (cursorType != "select") {
             // yay something 2 // yellow marker
             selectTimeout = setTimeout(selectAction, selectTimeoutMillisMove)
-            var bbox = c.getBoundingClientRect()
-            // if (startTouchX > (bbox.width * 2 / 3)) {
-            // if (startTouchX > (bbox.width * 4 / 5)) {
-            // XXXXXXXXXXXX...
-            // XXXXXXXXXX.....
-            if (startTouchX > (bbox.width * 4 / 5)) {
-                selectAction(true, true)
-                // bad name now
-                // if (touchTopTopTopTopMiddle_Right()) {
-                //     return
-                // }
-            } else if (startTouchX < (bbox.width * 1 / 5)) {
-                selectAction(false, true)
-            }
         }
         
         var diffTouchX = e.touches[0].pageX - startTouchX
@@ -9951,6 +9938,7 @@ function onStart(e) {
         }
     }
     
+    
     // alert("yay edges") white marker
     // #clickedges #touchedges #tapedges // lime marker
     // scroll right and left and move cursor right and left or up and down
@@ -10016,6 +10004,7 @@ function onStart(e) {
         if ((bbox.bottom - startTouchY > (5*verticalTouchSize))) {  // hotpink marker
             // touch top third to select #topthird  #selectline #touchtop
             if (e.changedTouches[0].pageX > (bbox.width * 2 / 3)) {
+                // this can be moved down below and you won't have to also set event handlers again
                 if (touchTopTopTopTopMiddle_Right()) {
                     return
                 }
@@ -10095,6 +10084,16 @@ function onStart(e) {
         moveListenerCount += 1
         document.body.addEventListener("touchend", onEnd)
         endListenerCount += 1
+        // yay select sub edges white marker
+        var bbox = c.getBoundingClientRect() // XXXXXXXXXXXX... // XXXXXXXXXX.....
+        // if (startTouchX > (bbox.width * 4 / 5)) {
+        if (startTouchX > (bbox.width * .8)) {
+            clearTimeout(selectTimeout)
+            selectAction(true, true)
+        } else if (startTouchX < (bbox.width * .2)) {
+            clearTimeout(selectTimeout)
+            selectAction(false, true)
+        }
     }
     render()
 }
