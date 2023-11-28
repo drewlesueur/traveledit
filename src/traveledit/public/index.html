@@ -9020,20 +9020,18 @@ function onStart(e) {
                 // Sixth row from bottom // violet marker
             } else if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
                 // Fifth row from bottom // aquamarine marker
-                // touchTopTopTopMiddle
                 // closeFile()
                 // editEditorCommandText()
+                return
+            } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
+                // Fourth row from bottom // orange marker
+                // touchtoptopmiddle 2
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     // visit?
                     // if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
                     if (fx.cursorColIndex < 0) {
-                        // join lines #joinlines
-                        var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
-                        fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
-                        docChanged()
-                        render()
                     } else {
-                        backspace()
+                    backspace()
                     }
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
@@ -9046,57 +9044,36 @@ function onStart(e) {
                     render()
                     return
                 } else {
-                    // This is was handled in touchTopTopTopMiddle_Right
-                    // it starts a selection
-                    
                     fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
                     fx.cursorLineIndex++
                     docChanged()
                     render()
                     return
-                }
-                return
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
-                // Fourth row from bottom // orange marker
-                // touchtoptopmiddle 2
-                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    selectMode = "line"
-                    copyBuffer = [fx.lines[fx.cursorLineIndex]]
-                    // moveCursorUp()
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
-                    selectAction(true)
-                    // if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
-                    //     selectMode = "line"
-                    //     copyBuffer = [fx.lines[fx.cursorLineIndex]]
-                    // } else {
-                    //     selectMode = "char"
-                    //     var w = getWordAtCursor()
-                    //     if (w.word) {
-                    //         copyBuffer = [w.word]
-                    //     } else {
-                    //         // same as first case
-                    //         copyBuffer = [fx.lines[fx.cursorLineIndex]]
-                    //     }
-                    // }
-                    return
-                } else {
-                    selectMode = "char"
-                    var w = getWordAtCursor()
-                    if (w.word) {
-                        copyBuffer = [w.word]
-                    } else {
-                        // same as first case
-                        copyBuffer = [fx.lines[fx.cursorLineIndex]]
-                    }
-                    // moveCursorDown()
-                    return
-                }
+                }  
+
+                // if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                //     selectMode = "line"
+                //     copyBuffer = [fx.lines[fx.cursorLineIndex]]
+                //     return
+                // } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                //     selectAction(true)
+                //     return
+                // } else {
+                //     selectMode = "char"
+                //     var w = getWordAtCursor()
+                //     if (w.word) {
+                //         copyBuffer = [w.word]
+                //     } else {
+                //         // same as first case
+                //         copyBuffer = [fx.lines[fx.cursorLineIndex]]
+                //     }
+                //     return
+                // }
                 return
             } else if (bbox.bottom - e.changedTouches[0].pageY > (2*verticalTouchSize)) {
                 // Third row from bottom // red marker
                 // touchTopMiddle
-                
+
                 // left to edit search, right to clear search
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     moveCursorUp()
@@ -11482,7 +11459,6 @@ function duplicateFile(f, cursorLineIndex, options, id="") {
     fc.uniqueID = getUniqueID()
     fc.ID = id
     fc.pinned = false // we don't want to duplicate pinned
-    
 
     if (id == "") {
         fetch(proxyPath + "/duplfile?idtodup="+f.ID+"&id="+id, {
