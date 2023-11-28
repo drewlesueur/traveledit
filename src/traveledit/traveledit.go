@@ -79,6 +79,11 @@ func BasicAuth(handler http.Handler) http.HandlerFunc {
 			return
 		}
 
+		if strings.HasPrefix(r.URL.Path, "/clipboard") {
+			handler.ServeHTTP(w, r)
+			return
+		}
+
 		if os.Getenv("SCREENSHARENOAUTH") == "1" {
 			if r.URL.Path == "/screenshare" || r.URL.Path == "/view" {
 				handler.ServeHTTP(w, r)
@@ -315,6 +320,7 @@ type Workspace struct {
 
 	HighlightMatches []*HighlightMatch
 	PathDecorators []*PathDecorator
+	RemotePasteBuffer string
 }
 
 func (w *Workspace) GetFile(id int) (*File, bool) {
@@ -1027,10 +1033,18 @@ func main() {
 		workspace.Name = tmpWorkspace.Name
 		writeWorkspaceFile(w, r)
 	})
+	mux.HandleFunc("/clipboard", func(w http.ResponseWriter, r *http.Request) {
+		workspaceMu.Lock()
+		defer workspaceMu.Unlock()
+		workspace.RemotePasteBuffer = r.FormValue("v")
+		fmt.Fprintf(w, "%s", workspace.RemotePasteBuffer)
+		workspaceCond.Broadcast()
+	})
 	mux.HandleFunc("/myterminalpoll", func(w http.ResponseWriter, r *http.Request) {
 		workspaceMu.Lock()
 		defer workspaceMu.Unlock()
 		ret := map[int]TerminalResponse{}
+		wrapperRet := map[string]interface{}{}
 		timedOut := false
 		startWait := time.Now()
 	WaitLoop:
@@ -1038,6 +1052,10 @@ func main() {
 			if time.Since(startWait) > (10 * time.Second) {
 				timedOut = true
 				break
+			}
+
+			if workspace.RemotePasteBuffer != "" {
+				break WaitLoop
 			}
 
 			// If multiple clients were to need to connect to the terminals
@@ -1077,7 +1095,10 @@ func main() {
 				ret[t.ID] = tResp
 			}
 		}
-		json.NewEncoder(w).Encode(ret)
+		wrapperRet["Files"] = ret
+		wrapperRet["PasteBuffer"] = workspace.RemotePasteBuffer
+		workspace.RemotePasteBuffer = ""
+		json.NewEncoder(w).Encode(wrapperRet)
 	})
 	mux.HandleFunc("/myterminalopen", func(w http.ResponseWriter, r *http.Request) {
 		cwd := r.FormValue("cwd")

@@ -331,8 +331,6 @@ They get changed later on.
     <div class=square onclick=undo()>undo</div>
     <div class=square onclick=redo()>redo</div>
     <div class=square id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
-    
-    
     <div class=square id="gptButton" onclick=runChatGPT('gpt-4-1106-preview')>chatGPT4</div>
     <div class=square onclick=reloadFile(fx)>reload</div>
     <div class=square onclick=goUpDirectory()>⬆️</div>
@@ -344,11 +342,12 @@ They get changed later on.
     <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4-1106-preview')>chatGPT4</div>
     <div class=middleButton onclick=reloadFile(fx)>reload</div>
     <div class=middleButton onclick=goUpDirectory()>⬆️</div>
-    <div class=middleButton id="gptButton2" onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
+    <div class=middleButton onclick="osCopyText()" id=statusBar2>os copy</div>
     <div id=saveButton class=middleButton onclick=saveWrapper()>save</div>
     <div class=middleButton onclick="runScript()" id=statusBar>run script</div>
     <div class=middleButton onclick="runScript()">action2</div>
     <div class=middleButton onclick="runScript()">action3</div>
+    <div class=middleButton id="gptButton2" onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -1737,7 +1736,10 @@ var selectTimeout
 var selectTimeoutMillis = 120
 var selectTimeoutMillisMove = 350
 var expandSelectTimeout
-var expandSelectTimeoutMillis = 300
+// var expandSelectTimeoutMillis = 200
+// this low ofntimeout (120) makes it harder to select by holding then dragging
+// but you can get that same thing by dragging from the leftish
+var expandSelectTimeoutMillis = 120
 var moveListenerCount = 0
 var endListenerCount = 0
 var startListenerCount = 0
@@ -1784,6 +1786,7 @@ function copyOneTimeLink() {
 
 // it was the tap to cut flow. we can maybe bring that back even with alternate tap
 function osCopyText() {
+    copy()
     navigator.clipboard.writeText(copyBuffer.join("\n")).then(function() {
     }, function() {
         alert("not copied")
@@ -5353,8 +5356,12 @@ function pollTerminals() {
         cache: "no-cache"
     }).then(r => {
         return r.json()
-    }).then(r => {
+    }).then(wrapperR => {
         // map of terminals and their payload and maybe meta info
+        if (wrapperR.PasteBuffer) {
+            copyBuffer = wrapperR.PasteBuffer.split("\n")
+        }
+        var r = wrapperR.Files
         for (var id in r) {
             var termInfo = r[id]
             var file = files.find(f => f.ID == id)
