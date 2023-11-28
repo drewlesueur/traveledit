@@ -6839,7 +6839,9 @@ function render() {
             // TODO: this if statement only needed on iphone 12 mini!!! ???
             // TODO: check other iphone 12s
             // theText.value = cursorLine
-	    	if (agressiveRender || (touchCount == 0 && document.activeElement == theText)) {
+	    	// if (agressiveRender || (touchCount == 0 && document.activeElement == theText)) {
+	    	// I think count was an optimization that we no longer need plus touch cause problems when you press and hold to delete the end of the line or to the beggining of the line
+	    	if (agressiveRender || (document.activeElement == theText)) {
                 renderTheText(cursorLine)
             }
         }
