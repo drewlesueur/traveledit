@@ -8611,8 +8611,23 @@ function onStart(e) {
             return
         }
         if (cursorType != "select") {
-            // yay something 2 // yellow marker
             selectTimeout = setTimeout(selectAction, selectTimeoutMillisMove)
+            
+            // yay selectRegion // yellow marker
+            var bbox = c.getBoundingClientRect()
+            // if (startTouchX > (bbox.width * 2 / 3)) {
+            // if (startTouchX > (bbox.width * 4 / 5)) {
+            // XXXXXXXXXXXX...
+            // XXXXXXXXXX.....
+            if (startTouchX > (bbox.width * 4 / 5)) {
+                selectAction(true, true)
+                // bad name now
+                // if (touchTopTopTopTopMiddle_Right()) {
+                //     return
+                // }
+            } else if (startTouchX < (bbox.width * 1 / 5)) {
+                selectAction(false, true)
+            }
         }
         
         var diffTouchX = e.touches[0].pageX - startTouchX
@@ -10070,15 +10085,19 @@ function onStart(e) {
         moveListenerCount += 1
         document.body.addEventListener("touchend", onEnd)
         endListenerCount += 1
+
         // yay select sub edges white marker
-        var bbox = c.getBoundingClientRect() // XXXXXXXXXXXX... // XXXXXXXXXX.....
-        // if (startTouchX > (bbox.width * 4 / 5)) {
-        if (startTouchX > (bbox.width * .8)) {
-            clearTimeout(selectTimeout)
-            selectAction(true, true)
-        } else if (startTouchX < (bbox.width * .2)) {
-            clearTimeout(selectTimeout)
-            selectAction(false, true)
+        // yay selectRegion // yellow marker
+        if (false) {
+            var bbox = c.getBoundingClientRect() // XXXXXXXXXXXX... // XXXXXXXXXX.....
+            // if (startTouchX > (bbox.width * 4 / 5)) {
+            if (startTouchX > (bbox.width * .8)) {
+                clearTimeout(selectTimeout)
+                selectAction(true, true)
+            } else if (startTouchX < (bbox.width * .2)) {
+                clearTimeout(selectTimeout)
+                selectAction(false, true)
+            }
         }
     }
     render()
