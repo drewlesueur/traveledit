@@ -1565,6 +1565,8 @@ var canvasWidth
 var canvasHeightFull
 var canvasHeightKeyboard
 var navTouchSize
+var selectTouchSize = 30
+var selectAreaRatio = .15
 // var verticalTouchSize = 120
 // var verticalTouchSize = 100
 // var verticalTouchSize = 80
@@ -1611,6 +1613,7 @@ function doSizing() {
         canvasHeightKeyboard=1154 
         // navTouchSize = 50
         navTouchSize = 40
+        // navTouchSize = 30
         if (innerWidth > innerHeight) {
             canvasHeightFull = 900
             canvasHeightKeyboard = 300
@@ -7150,12 +7153,24 @@ function renderInternal() {
     // todo, how performant is this?
     // better to do this on initial load and then docChanged or something?
     var startRenderTime = Date.now()
-
     if (fx.iframe) {
         iframeCursor.style.top = (fx.iframeCursorY-5) + "px"
         // iframeCursor.style.left = ((navTouchSize) +fx.iframeCursorX-5) + "px"
         iframeCursor.style.left = (fx.iframeCursorX-5) + "px"
         return
+    }
+    
+    if (false) {
+    // if (true) {
+        var displaySelectTouchSize = selectTouchSize
+        // var displaySelectTouchSize = 10
+        t.fillStyle = "rgba(0,0,255, 0.55)"
+        t.fillRect((canvasWidth * (1-selectAreaRatio)) - (displaySelectTouchSize*3/2) , 0, displaySelectTouchSize*3, canvasHeight)
+        t.fillRect((canvasWidth * selectAreaRatio) - (displaySelectTouchSize*3/2) , 0, displaySelectTouchSize*3, canvasHeight)
+    
+        t.fillStyle = "rgba(255,0,255, 0.55)"
+        t.fillRect(0, 0, navTouchSize*3, canvasHeight)
+        t.fillRect(canvasWidth - navTouchSize*3, 0, navTouchSize*3, canvasHeight)
     }
     
     // draw line where your cursor is for help with finding
@@ -7761,6 +7776,18 @@ function renderInternal() {
         drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
         drawCircle(lightFontColor, dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
         drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+
+
+        // drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight, dotSize, theBackgroundColor, 5)
+        // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight, dotSize, theBackgroundColor, 5)
+        // // drawCircle("royalblue", canvasWidth * selectAreaRatio, 0, dotSize, theBackgroundColor, 5)
+        // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), 0, dotSize, theBackgroundColor, 5)
+        
+        
+        drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(1*vtsThrice), dotSize/2, theBackgroundColor, 5)
+        // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(1*vtsThrice), dotSize/2, theBackgroundColor, 5)
     }
 
     var duration = Date.now() - startRenderTime
@@ -8333,6 +8360,7 @@ function onStart(e) {
                     selectAction()
                     return
                 } else {
+                    // log("== delete ==") // red marker
                     copyShenanigans(function () {
                         // Delete to end
                         var theLine = fx.lines[fx.cursorLineIndex]
@@ -8605,6 +8633,7 @@ function onStart(e) {
         wasDelete = false // so a previous delete doesn't cause split line when you don't want
         acWord = null
         aclV2 = null
+        // log("moved: " + Date.now()) // red marker
         clearTimeout(selectTimeout)
         clearTimeout(expandSelectTimeout)
         if (e.touches.length > 1) {
@@ -8614,19 +8643,21 @@ function onStart(e) {
             selectTimeout = setTimeout(selectAction, selectTimeoutMillisMove)
             
             // yay selectRegion // yellow marker
-            var bbox = c.getBoundingClientRect()
-            // if (startTouchX > (bbox.width * 2 / 3)) {
-            // if (startTouchX > (bbox.width * 4 / 5)) {
-            // XXXXXXXXXXXX...
-            // XXXXXXXXXX.....
-            if (startTouchX > (bbox.width * 4 / 5)) {
-                selectAction(true, true)
-                // bad name now
-                // if (touchTopTopTopTopMiddle_Right()) {
-                //     return
-                // }
-            } else if (startTouchX < (bbox.width * 1 / 5)) {
-                selectAction(false, true)
+            if (false) {
+                var bbox = c.getBoundingClientRect()
+                // if (startTouchX > (bbox.width * 2 / 3)) {
+                // if (startTouchX > (bbox.width * 4 / 5)) {
+                // XXXXXXXXXXXX...
+                // XXXXXXXXXX.....
+                if (startTouchX > (bbox.width * 4 / 5)) {
+                    selectAction(true, true)
+                    // bad name now
+                    // if (touchTopTopTopTopMiddle_Right()) {
+                    //     return
+                    // }
+                } else if (startTouchX < (bbox.width * 1 / 5)) {
+                    selectAction(false, true)
+                }
             }
         }
         
@@ -9051,10 +9082,11 @@ function onStart(e) {
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
                     // visit?
                     // if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
-                    if (fx.cursorColIndex < 0) {
-                    } else {
-                    backspace()
-                    }
+                    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+                    fx.cursorLineIndex++
+                    docChanged()
+                    render()
+                    return
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     var theLine = fx.lines[fx.cursorLineIndex]
@@ -9066,11 +9098,10 @@ function onStart(e) {
                     render()
                     return
                 } else {
-                    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
-                    fx.cursorLineIndex++
-                    docChanged()
-                    render()
-                    return
+                    if (fx.cursorColIndex < 0) {
+                    } else {
+                        backspace()
+                    }
                 }  
 
                 // if (e.changedTouches[0].pageX < (bbox.width / 3)) {
@@ -10088,16 +10119,28 @@ function onStart(e) {
 
         // yay select sub edges white marker
         // yay selectRegion // yellow marker
-        if (false) {
+        // if (false) {
+        if (true) {
             var bbox = c.getBoundingClientRect() // XXXXXXXXXXXX... // XXXXXXXXXX.....
-            // if (startTouchX > (bbox.width * 4 / 5)) {
-            if (startTouchX > (bbox.width * .8)) {
+            // let frac = 0.05
+            var leftPipeStart = (bbox.width * selectAreaRatio) - (selectTouchSize/2)
+            var leftPipeEnd = leftPipeStart + selectTouchSize
+            var rightPipeStart = (bbox.width*(1-selectAreaRatio)) - (selectTouchSize/2)
+            var rightPipeEnd = rightPipeStart + selectTouchSize
+            if (startTouchX > rightPipeStart && startTouchX < rightPipeEnd) {
                 clearTimeout(selectTimeout)
                 selectAction(true, true)
-            } else if (startTouchX < (bbox.width * .2)) {
+            } else if (startTouchX > leftPipeStart && startTouchX < leftPipeEnd) {
                 clearTimeout(selectTimeout)
                 selectAction(false, true)
             }
+            // if (startTouchX > (bbox.width * .8)) {
+            //     clearTimeout(selectTimeout)
+            //     selectAction(true, true)
+            // } else if (startTouchX < (bbox.width * .2)) {
+            //     clearTimeout(selectTimeout)
+            //     selectAction(false, true)
+            // }
         }
     }
     render()
