@@ -8428,7 +8428,7 @@ function onStart(e) {
                 }
             }
         }
-        selectAction = function(forceLines = false, preventSelectLine = false) {
+        selectAction = function(forceLines = false, preventSelectLine = false, leftSideFeature = false) {
             // return early in case we are already selecting
             if (cursorType == "select") {
                 // TODO: I think we can get rid of cursorType ans just use selectedRegions.length
@@ -8478,8 +8478,10 @@ function onStart(e) {
                     selectedRegion.stopY = fx.cursorLineIndex
                     selectedRegion.stopX = expandTabIndex(line, w.end)
                     selectedRegion.stopped = true
-                    
-                    selectedRegion.selectedWord = true
+                    if (!leftSideFeature) {
+                        //  setting this causes it to unselect on mouse up
+                        selectedRegion.selectedWord = true
+                    }
                     selectedRegion.origStartX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
                     // selectedRegion.origStopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
                     // fx.cursorColIndex = w.end
@@ -8491,7 +8493,9 @@ function onStart(e) {
                     selectedRegion.stopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
                     selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
                 }
-                expandSelectTimeout = setTimeout(expandSelection, expandSelectTimeoutMillis)
+                if (!leftSideFeature) {
+                    expandSelectTimeout = setTimeout(expandSelection, expandSelectTimeoutMillis)
+                }
                 selectMode = "char"
             }
             fx.selectedRegions.push(selectedRegion)
@@ -8645,8 +8649,8 @@ function onStart(e) {
         if (cursorType != "select") {
             selectTimeout = setTimeout(selectAction, selectTimeoutMillisMove)
             
-            // yay selectRegion // yellow marker
-            if (false) {
+            // yay selectRegion selectArea // yellow marker
+            if (false) { // see the other selectRegion
                 var bbox = c.getBoundingClientRect()
                 // if (startTouchX > (bbox.width * 2 / 3)) {
                 // if (startTouchX > (bbox.width * 4 / 5)) {
@@ -8921,8 +8925,10 @@ function onStart(e) {
             var line = fx.lines[cli] || ""
             if (selectedRegion.selectedWord) {
                 selectedRegion.selectedWord = false
-                selectedRegion.startX = selectedRegion.origStartX
                 // selectedRegion.stopX = selectedRegion.origStopX
+            }
+            if ("origStartX" in selectedRegion) {
+                selectedRegion.startX = selectedRegion.origStartX
             }
             if (selectedRegion.selectedLine) {
                 selectedRegion.selectedLine = false
@@ -10121,11 +10127,10 @@ function onStart(e) {
         endListenerCount += 1
 
         // yay select sub edges white marker
-        // yay selectRegion // yellow marker
+        // yay selectRegion selectArea // yellow marker
         // if (false) {
         if (true) {
             var bbox = c.getBoundingClientRect() // XXXXXXXXXXXX... // XXXXXXXXXX.....
-            // let frac = 0.05
             var leftPipeStart = (bbox.width * selectAreaRatio) - (selectTouchSize/2)
             var leftPipeEnd = leftPipeStart + selectTouchSize
             var rightPipeStart = (bbox.width*(1-selectAreaRatio)) - (selectTouchSize/2)
@@ -10137,7 +10142,8 @@ function onStart(e) {
             // } else if (startTouchX > leftPipeStart && startTouchX < leftPipeEnd) {
             } else if (startTouchX < leftPipeEnd) {
                 clearTimeout(selectTimeout)
-                selectAction(false, true)
+                var leftSideFeature = true
+                selectAction(false, true, leftSideFeature)
             }
             // if (startTouchX > (bbox.width * .8)) {
             //     clearTimeout(selectTimeout)
