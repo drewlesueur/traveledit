@@ -1566,7 +1566,7 @@ var canvasHeightFull
 var canvasHeightKeyboard
 var navTouchSize
 var selectTouchSize = 30
-var selectAreaRatio = .15
+var selectAreaRatio = .1
 // var verticalTouchSize = 120
 // var verticalTouchSize = 100
 // var verticalTouchSize = 80
@@ -1594,6 +1594,7 @@ function doSizing() {
     canvasHeightKeyboard=1060 
     // navTouchSize = 40
     navTouchSize = 50
+    // navTouchSize = 30
     device = "iphone12mini"
 
     // landscape mode
@@ -1612,8 +1613,9 @@ function doSizing() {
         canvasHeightFull=1820 + (oneRow*1)
         canvasHeightKeyboard=1154 
         // navTouchSize = 50
-        navTouchSize = 40
+        // navTouchSize = 40
         // navTouchSize = 30
+        navTouchSize = 35
         if (innerWidth > innerHeight) {
             canvasHeightFull = 900
             canvasHeightKeyboard = 300
@@ -7758,7 +7760,8 @@ function renderInternal() {
     
     var vtsThrice = verticalTouchSize*3
     var halfVTSThrice = vtsThrice/2
-    var dotIndent = 30
+    // var dotIndent = 30
+    var dotIndent = navTouchSize*3 / 2
     var dotSize = 10
     if (!t.mockCanvasContext) {
         drawCircle(lightFontColor, dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
@@ -7786,8 +7789,8 @@ function renderInternal() {
         
         drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        // drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(1*vtsThrice), dotSize/2, theBackgroundColor, 5)
-        // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(1*vtsThrice), dotSize/2, theBackgroundColor, 5)
+        drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
     }
 
     var duration = Date.now() - startRenderTime
@@ -10127,10 +10130,12 @@ function onStart(e) {
             var leftPipeEnd = leftPipeStart + selectTouchSize
             var rightPipeStart = (bbox.width*(1-selectAreaRatio)) - (selectTouchSize/2)
             var rightPipeEnd = rightPipeStart + selectTouchSize
-            if (startTouchX > rightPipeStart && startTouchX < rightPipeEnd) {
+            // if (startTouchX > rightPipeStart && startTouchX < rightPipeEnd) {
+            if (startTouchX > rightPipeStart) {
                 clearTimeout(selectTimeout)
                 selectAction(true, true)
-            } else if (startTouchX > leftPipeStart && startTouchX < leftPipeEnd) {
+            // } else if (startTouchX > leftPipeStart && startTouchX < leftPipeEnd) {
+            } else if (startTouchX < leftPipeEnd) {
                 clearTimeout(selectTimeout)
                 selectAction(false, true)
             }
