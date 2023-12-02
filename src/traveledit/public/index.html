@@ -8353,7 +8353,7 @@ function onStart(e) {
                 // Second row from bottom // lime marker
 
                 // experimenting here
-                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                if (e.changedTouches[0].pageX < (bbox.width * 4/14)) {
                     // Delete to beginning, not sure if I want to keep this
                     copyShenanigans(function () {
                         var theLine = fx.lines[fx.cursorLineIndex]
@@ -8367,11 +8367,10 @@ function onStart(e) {
                         render()
                     })
                     return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                } else if (e.changedTouches[0].pageX < (bbox.width * 10/14)) {
                     selectAction()
                     return
                 } else {
-                    // log("== delete ==") // red marker
                     copyShenanigans(function () {
                         // Delete to end
                         var theLine = fx.lines[fx.cursorLineIndex]
@@ -8387,14 +8386,14 @@ function onStart(e) {
             } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
                 // Bottom row // deepskyblue marker
  
-                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                if (e.changedTouches[0].pageX < (bbox.width * 4/14)) {
                     // join lines, also happens elsewhere #joinlines
                     var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
                     fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
                     docChanged()
                     render()
                     return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                } else if (e.changedTouches[0].pageX < (bbox.width * 10/14)) {
                     selectAction()
                     return 
                 } else {
@@ -9104,7 +9103,6 @@ function onStart(e) {
                     docChanged()
                     render()
                     return
-                    return
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
                     var theLine = fx.lines[fx.cursorLineIndex]
                     theLine = theLine.slice(0, u(fx.cursorColIndex)) + " " + theLine.slice(u(fx.cursorColIndex))
@@ -9149,7 +9147,7 @@ function onStart(e) {
                     clearSearch()
                     // clearSearch happens in long press
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
-                    // wow split it 
+                    // wow split it
                     // 123456789
                     editSearch()
                     // if (e.changedTouches[0].pageX < (bbox.width * 4 / 9)) {
@@ -9159,7 +9157,6 @@ function onStart(e) {
                     // } else {
                     //     clearSearch()
                     // }
-                    
                 } else {
                     // moveCursorDown()
                     clearSearch()
@@ -9169,10 +9166,27 @@ function onStart(e) {
             } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
                 // Second row from bottom // lime marker
                 // not returning on all cases because we want to faltering to some older handling
-                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                if (e.changedTouches[0].pageX < (bbox.width * 4/14)) {
                     comment()
                     return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                } else if (e.changedTouches[0].pageX < (bbox.width * (6/14))) {
+                    // newline
+                    // fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+                    // fx.cursorLineIndex++
+                    // docChanged()
+                    // render()
+                    // return
+
+                    // space
+                    var theLine = fx.lines[fx.cursorLineIndex]
+                    theLine = theLine.slice(0, u(fx.cursorColIndex)) + " " + theLine.slice(u(fx.cursorColIndex))
+                    fx.lines[fx.cursorLineIndex] = theLine
+                    fx.cursorColIndex++
+                    updateCursorXY()
+                    docChanged()
+                    render()
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * (8/14))) {
                     // experiment autocompleteLineV2
                     if (document.activeElement == theText) {
                         // special case for autocomolete entire line #autocompletelinev2
@@ -9182,6 +9196,12 @@ function onStart(e) {
                     } else {
                         // fallthrough
                     }
+                } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
+                    if (fx.cursorColIndex < 0) {
+                    } else {
+                        backspace()
+                    }
+                    return
                 } else {
                     // # duplicateline #duplicatelinefromtop
                     copyBuffer = [fx.lines[fx.cursorLineIndex]]
@@ -10093,7 +10113,7 @@ function onStart(e) {
         // yay something 1 // yellow marker
         // idea: if 2 touches while selected
         // do something else like comment
-        if (e.changedTouches[0].pageX < (bbox.width * 1 / 3)) {
+        if (e.changedTouches[0].pageX < (bbox.width * 4/14)) {
             // select, lift finger, move on ledt side
             // cursorType = "select"
             document.body.addEventListener("touchmove", onMove)
@@ -10101,7 +10121,7 @@ function onStart(e) {
             // document.body.addEventListener("touchend", onEnd)
             document.body.addEventListener("touchend", onEndWhileSelected)
             endListenerCount += 1
-        } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+        } else if (e.changedTouches[0].pageX < (bbox.width * 10/14)) {
             document.body.addEventListener("touchmove", onMoveWhileSelected)
             moveListenerCount += 1
             document.body.addEventListener("touchend", onEndWhileSelected)
