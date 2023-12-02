@@ -8390,7 +8390,6 @@ function onStart(e) {
                 }
             } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
                 // Bottom row // deepskyblue marker
- 
                 if (e.changedTouches[0].pageX < (bbox.width * 4/14)) {
                     // join lines, also happens elsewhere #joinlines
                     var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
@@ -8398,9 +8397,16 @@ function onStart(e) {
                     docChanged()
                     render()
                     return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 10/14)) {
+                } else if (e.changedTouches[0].pageX < (bbox.width * 6/14)) {
+                    // clearTimeout(selectTimeout)
+                    var leftSideFeature = true
+                    selectAction(false, true, leftSideFeature)
+                } else if (e.changedTouches[0].pageX < (bbox.width * 8/14)) {
                     selectAction()
-                    return 
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * 10/14)) {
+                    // clearTimeout(selectTimeout)
+                    selectAction(true, true)
                 } else {
                     // should we do this newline?
                     // make it run, enter.
@@ -8481,6 +8487,12 @@ function onStart(e) {
                 selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
                 selectedRegion.stopped = true
                 selectMode = "line"
+            } else if (leftSideFeature) {
+                selectedRegion.startY = fx.cursorLineIndex
+                selectedRegion.startX = fx.cursorColIndex
+                selectedRegion.stopY = fx.cursorLineIndex
+                selectedRegion.stopX = fx.cursorColIndex + 1
+                selectedRegion.stopped = true
             } else {
                 var w = getWordAtCursor()
                 if (w.word != "") {
@@ -8490,10 +8502,8 @@ function onStart(e) {
                     selectedRegion.stopY = fx.cursorLineIndex
                     selectedRegion.stopX = expandTabIndex(line, w.end)
                     selectedRegion.stopped = true
-                    if (!leftSideFeature) {
-                        //  setting this causes it to unselect on mouse up
-                        selectedRegion.selectedWord = true
-                    }
+                    //  setting this causes it to unselect on mouse up
+                    selectedRegion.selectedWord = true
                     selectedRegion.origStartX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
                     // selectedRegion.origStopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
                     // fx.cursorColIndex = w.end
@@ -8505,9 +8515,7 @@ function onStart(e) {
                     selectedRegion.stopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
                     selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
                 }
-                if (!leftSideFeature) {
-                    expandSelectTimeout = setTimeout(expandSelection, expandSelectTimeoutMillis)
-                }
+                expandSelectTimeout = setTimeout(expandSelection, expandSelectTimeoutMillis)
                 selectMode = "char"
             }
             fx.selectedRegions.push(selectedRegion)
