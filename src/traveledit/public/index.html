@@ -9,7 +9,8 @@ highlight recently changed lines
 you need a button for start select line
 start select char
 last char on prev line button
-
+slowly dragging doesn't trigger move as fasr as I'd think
+is it because I have too much code?
 -->
 <html>
 <head>
@@ -1572,6 +1573,23 @@ var canvasHeightKeyboard
 var navTouchSize
 var selectTouchSize = 30
 var selectAreaRatio = .1
+
+// ratios
+// aa bb cc dd ee ff
+// aa bbb cc ddd ee fff gg
+
+
+var ratioA = 2/15
+var ratioB = 4/15
+var ratioC = 6/15
+var ratioD = 9/15
+var ratioE = 11/15
+var ratioF = 13/15
+
+// abcdefg
+
+
+
 // var verticalTouchSize = 120
 // var verticalTouchSize = 100
 // var verticalTouchSize = 80
@@ -7782,27 +7800,23 @@ function renderInternal() {
         drawCircle(middleCircleColor, canvasWidth - dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
         drawCircle(lightFontColor, dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
         drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        drawCircle(lightFontColor, dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(lightFontColor, dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
 
 
-        // drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight, dotSize, theBackgroundColor, 5)
-        // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight, dotSize, theBackgroundColor, 5)
-        // // drawCircle("royalblue", canvasWidth * selectAreaRatio, 0, dotSize, theBackgroundColor, 5)
-        // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), 0, dotSize, theBackgroundColor, 5)
-        
-        
         drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         
-        
+        // aaaa bb cc dd eeee
+        drawCircle("pink", canvasWidth * (1/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("deepskyblue", canvasWidth * (3/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("red", canvasWidth * (5/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("limegreen", canvasWidth * (7/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("red", canvasWidth * (9/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("deepskyblue", canvasWidth * (11/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        drawCircle("pink", canvasWidth * (13/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         
     }
 
@@ -8321,12 +8335,16 @@ function onStart(e) {
             // also what does fallthrough fo in this case
             if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
                 // Fifth row from bottom // aquamarine marker
-                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                if (e.changedTouches[0].pageX < (bbox.width * ratioB)) {
                     if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
                     } else {
                     }
                     return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                } else if (e.changedTouches[0].pageX < (bbox.width * ratioC)) {
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * ratioD)) {
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * ratioE)) {
                     return
                 } else {
                     return
@@ -8407,6 +8425,7 @@ function onStart(e) {
                 } else if (e.changedTouches[0].pageX < (bbox.width * 10/14)) {
                     // clearTimeout(selectTimeout)
                     selectAction(true, true)
+                    return
                 } else {
                     // should we do this newline?
                     // make it run, enter.
@@ -8456,7 +8475,7 @@ function onStart(e) {
             cursorType = "select"
             var line = fx.lines[fx.cursorLineIndex] || ""
             
-            // yay selectLine vs selectWord white marker
+            // yay selectLine vs selectChar white marker
             if (!preventSelectLine && fx.cursorColIndex >= 0) {
                 var bbox = c.getBoundingClientRect() // deeppink marker
                 if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
@@ -9138,32 +9157,14 @@ function onStart(e) {
                 // touchTopMiddle
                 // left to edit search, right to clear search
                 if (e.changedTouches[0].pageX < (bbox.width * (4/14))) {
-                    // clearSearch()
-                    // newline
-                    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
-                    fx.cursorLineIndex++
-                    docChanged()
-                    render()
-                    return
+                    addDumbNewline()
                 } else if (e.changedTouches[0].pageX < (bbox.width * (6/14))) {
                     // if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
                     if (fx.cursorColIndex < 0) {
-                        // newline
-                        fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
-                        fx.cursorLineIndex++
-                        docChanged()
-                        render()
+                        addDumbNewline()
                         return
                     }
-
-                    // space
-                    var theLine = fx.lines[fx.cursorLineIndex]
-                    theLine = theLine.slice(0, u(fx.cursorColIndex)) + " " + theLine.slice(u(fx.cursorColIndex))
-                    fx.lines[fx.cursorLineIndex] = theLine
-                    fx.cursorColIndex++
-                    updateCursorXY()
-                    docChanged()
-                    render()
+                    addSpace()
                     return
                 } else if (e.changedTouches[0].pageX < (bbox.width * (8/14))) {
                     editSearch()
@@ -9173,7 +9174,6 @@ function onStart(e) {
                         backspace()
                     }
                 } else {
-                    // moveCursorDown()
                     clearSearch()
                 }
                 return
@@ -9195,19 +9195,9 @@ function onStart(e) {
                         // fallthrough
                     }
                 } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
-                    if (fx.cursorColIndex < 0) {
-                    } else {
-                        backspace()
-                    }
                     return
                 } else {
-                    // # duplicateline #duplicatelinefromtop
-                    // but don't change copyBuffer
-                    var prevCopyBuffer = copyBuffer
-                    copyBuffer = [fx.lines[fx.cursorLineIndex]]
-                    selectMode = "line"
-                    paste(true) // true here means unselect
-                    copyBuffer = prevCopyBuffer
+                    duplicateLine()
                     return
                 }
             } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
@@ -9553,7 +9543,7 @@ function onStart(e) {
         overflowY = 0
         touchCount = e.touches.length
         clearTimeout(selectTimeout)
-        
+
         document.body.removeEventListener("touchmove", onMoveWhileSelected)
         document.body.removeEventListener("touchmove", onMove) // because it sometimes can be like this
         moveListenerCount = max(moveListenerCount-1, 0)
@@ -9562,7 +9552,7 @@ function onStart(e) {
         if (isLongPress) {
             return
         }
-        
+
         var sr = fx.selectedRegions[0]
         log("on end while selected")
         if (!moved && sr) {
@@ -9571,10 +9561,10 @@ function onStart(e) {
             // ideas:
             //    run script
             //    chat gpt
-            
+
             // Note, don't return early here!
             var bbox = c.getBoundingClientRect()
-            
+
             // don't return early // red marker
             if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
                 // Fifth row from bottom // aquamarine marker
@@ -9605,9 +9595,7 @@ function onStart(e) {
                     }
                 } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
                 } else {
-                    // #duplicateselection
-                    copy(true)
-                    paste()
+                    duplicateSelection()
                 }
             } else {
                 // Bottom row // deepskyblue marker
@@ -9617,33 +9605,13 @@ function onStart(e) {
                     // nothing yet
                 } else if (e.changedTouches[0].pageX < (bbox.width * (6/14))) {
                     // move selection up
-                    fx.cursorLineIndex -= 1
-                    if (fx.cursorLineIndex < 0) {
-                        fx.cursorLineIndex = 0
-                    }
-                    ensureCursorInScreen()
-                    fx.selectedRegions[0].stopY -= 1
-                    if (fx.selectedRegions[0].stopY < fx.selectedRegions[0].startY) {
-                        fx.selectedRegions[0].stopY = fx.selectedRegions[0].startY
-                    }
-                    var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
-                    fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
+                    moveSelectionUp()
                 } else if (e.changedTouches[0].pageX < (bbox.width * (8/14))) {
                     fx.selectedRegions = []
                     cursorType = "move"
                 } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
                     // move selection down
-                    fx.cursorLineIndex += 1
-                    if (fx.cursorLineIndex >= fx.lines.length) {
-                        fx.cursorLineIndex = fx.lines.length - 1
-                    }
-                    ensureCursorInScreen()
-                    fx.selectedRegions[0].stopY += 1
-                    if (fx.selectedRegions[0].stopY > fx.lines.length - 1) { // stopY is inclusive I think, stopX isn't
-                        fx.selectedRegions[0].stopY = fx.lines.length - 1
-                    }
-                    var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
-                    fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
+                    moveSelectionUp()
                 } else {
                     // nothing yet
                 }
@@ -10063,6 +10031,9 @@ function onStart(e) {
     // scroll right and left and move cursor right and left or up and down
     // TODO: remove some duplication here. especially the bounds checks. Make a setter functions.
     // We divide by 3 because of the whole, points vs pixels
+    // if (false) {
+    // 
+    // }
     if (startTouchX > ((canvasWidth/3) - navTouchSize)) {
         var bbox = c.getBoundingClientRect()
         if (bbox.bottom - startTouchY > (4*verticalTouchSize)) {
@@ -12314,6 +12285,65 @@ async function chatGPTCall(model, content) {
         ]
     }
     return chatGPTCallPayload(payload)
+}
+
+function addDumbNewline() {
+    // newline
+    fx.lines.splice(fx.cursorLineIndex + 1, 0, "")
+    fx.cursorLineIndex++
+    docChanged()
+    render()
+    return
+}
+function addSpace() {
+    // space
+    var theLine = fx.lines[fx.cursorLineIndex]
+    theLine = theLine.slice(0, u(fx.cursorColIndex)) + " " + theLine.slice(u(fx.cursorColIndex))
+    fx.lines[fx.cursorLineIndex] = theLine
+    fx.cursorColIndex++
+    updateCursorXY()
+    docChanged()
+    render()
+}
+function duplicateLine() {
+    // # duplicateline #duplicatelinefromtop
+    // but don't change copyBuffer
+    var prevCopyBuffer = copyBuffer
+    copyBuffer = [fx.lines[fx.cursorLineIndex]]
+    selectMode = "line"
+    paste(true) // true here means unselect
+    copyBuffer = prevCopyBuffer
+}
+function duplicateSelection() {
+    // #duplicateselection
+    copy(true)
+    paste()
+}
+function moveSelectionUp() {
+    fx.cursorLineIndex -= 1
+    if (fx.cursorLineIndex < 0) {
+        fx.cursorLineIndex = 0
+    }
+    ensureCursorInScreen()
+    fx.selectedRegions[0].stopY -= 1
+    if (fx.selectedRegions[0].stopY < fx.selectedRegions[0].startY) {
+        fx.selectedRegions[0].stopY = fx.selectedRegions[0].startY
+    }
+    var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
+    fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
+}
+function moveSelectionDown() {
+    fx.cursorLineIndex += 1
+    if (fx.cursorLineIndex >= fx.lines.length) {
+        fx.cursorLineIndex = fx.lines.length - 1
+    }
+    ensureCursorInScreen()
+    fx.selectedRegions[0].stopY += 1
+    if (fx.selectedRegions[0].stopY > fx.lines.length - 1) { // stopY is inclusive I think, stopX isn't
+        fx.selectedRegions[0].stopY = fx.lines.length - 1
+    }
+    var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
+    fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
 }
 
 </script>
