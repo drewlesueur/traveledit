@@ -7791,6 +7791,14 @@ function renderInternal() {
         drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        
+        
+        drawCircle("deepskyblue", canvasWidth * (3/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        drawCircle("red", canvasWidth * (5/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        drawCircle("limegreen", canvasWidth * (7/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        drawCircle("red", canvasWidth * (9/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        drawCircle("deepskyblue", canvasWidth * (11/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        
     }
 
     var duration = Date.now() - startRenderTime
@@ -9137,12 +9145,24 @@ function onStart(e) {
                 // touchTopMiddle
                 // left to edit search, right to clear search
                 if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    moveCursorUp()
+                    // moveCursorUp()
+                    clearSearch()
                     // clearSearch happens in long press
                 } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                    // wow split it 
+                    // 123456789
                     editSearch()
+                    // if (e.changedTouches[0].pageX < (bbox.width * 4 / 9)) {
+                    //     clearSearch()
+                    // } else if (e.changedTouches[0].pageX < (bbox.width * 5 / 9)) {
+                    //     editSearch()
+                    // } else {
+                    //     clearSearch()
+                    // }
+                    
                 } else {
-                    moveCursorDown()
+                    // moveCursorDown()
+                    clearSearch()
                     // clearSearch happens in long press
                 }
                 return
@@ -9172,7 +9192,10 @@ function onStart(e) {
             } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
                 // Bottom row // deepskyblue marker
                 // not returning on all cases because we want to faltering to some older handling
-                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
+                // xx xxx xx
+                // aa aa bb bb bb cc cc
+                // aaaa bb cc dd eeee
+                if (e.changedTouches[0].pageX < (bbox.width * 4/14)) {
                     // moveCursorLeftSnap()
                     del()
                     // if (fx.cursorLineIndex > 0) {
@@ -9182,10 +9205,18 @@ function onStart(e) {
                     //     ensureCursorInScreen()
                     // }
                     
+                    
                     return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
+                } else if (e.changedTouches[0].pageX < (bbox.width * (6/14))) {
+                    moveCursorUp()
+                    return
+                } else if (e.changedTouches[0].pageX < (bbox.width * (8/14))) {
                     // fallthrough
+                } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
+                    moveCursorDown()
+                    return
                 } else {
+                    
                     // moveCursorRightSnap()
                     if (fx.fileMode == "terminal") {
                         // Paste to terminal
@@ -9496,7 +9527,7 @@ function onStart(e) {
         moveListenerCount = max(moveListenerCount-1, 0)
     }
     var onEndWhileSelected = function(e) {
-        // yay selected white marker
+        // yay selected, yay while selected // white marker
         overflowX = 0
         overflowY = 0
         touchCount = e.touches.length
