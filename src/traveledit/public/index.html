@@ -9042,60 +9042,7 @@ function onStart(e) {
             //    run script
             //    chat gpt
 
-            // Note, don't return early here!
-            var bbox = c.getBoundingClientRect()
-
-            // don't return early // red marker
-            if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
-                // Fifth row from bottom // aquamarine marker
-                if (e.changedTouches[0].pageX < (bbox.width * (4/14))) {
-                } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
-                } else {
-                }
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
-                // Fourth row from bottom // orange marker
-                if (e.changedTouches[0].pageX < (bbox.width * (4/14))) {
-                } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
-                } else {
-                }
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (2*verticalTouchSize)) {
-                // Third row from bottom // red marker
-                if (e.changedTouches[0].pageX < (bbox.width * (4/14))) {
-                } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
-                    editEditorCommandText()
-                } else {
-                }
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
-                // Second row from bottom // lime marker
-                // only if you select the whole line can you comment.
-                // hopefully to  prevent against accidental commenting.
-                if (e.changedTouches[0].pageX < (bbox.width * (4/14))) {
-                    if (selectMode == "line") {
-                        comment()
-                    }
-                } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
-                } else {
-                    duplicateSelection()
-                }
-            } else {
-                // Bottom row // deepskyblue marker
-                // fx.lastSelectedRegions = fx.selectedRegions
-
-                if (e.changedTouches[0].pageX < (bbox.width * (4/14))) {
-                    // nothing yet
-                } else if (e.changedTouches[0].pageX < (bbox.width * (6/14))) {
-                    // move selection up
-                    moveSelectionUp()
-                } else if (e.changedTouches[0].pageX < (bbox.width * (8/14))) {
-                    fx.selectedRegions = []
-                    cursorType = "move"
-                } else if (e.changedTouches[0].pageX < (bbox.width * (10/14))) {
-                    // move selection down
-                    moveSelectionUp()
-                } else {
-                    // nothing yet
-                }
-            }
+            touchAreasPressWhileSelected(e)
         }
         render()
     }
@@ -11835,6 +11782,37 @@ function handleTouchAreas(e, mapping) {
 }
 // if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
 // yay
+
+
+function touchAreasPressWhileSelected(e, state) {
+    handleTouchAreas(e, {
+        "3middle": function() {
+            editEditorCommandText()
+        },
+        "2left": function() {
+            if (selectMode == "line") {
+                // only if you select the whole line can you comment.
+                // hopefully to  prevent against accidental commenting.
+                comment()
+            }
+        },
+        "2right": function() {
+            duplicateSelection()
+        },
+        "1midLeft": function () {
+            moveSelectionUp()
+        },
+        "1middle": function () {
+            fx.selectedRegions = []
+            cursorType = "move"
+        },
+        "1midRight": function () {
+            moveSelectionDown()
+        },
+    }
+}
+
+
 function touchAreasLongPress(e, state) {
     handleTouchAreas(e, {
         "3middle": function() {
