@@ -8323,9 +8323,6 @@ function getSyntaxHighlight(expandedLine) {
 
 // getSyntaxHighlight("GpsiTools::logOutput(")
 
-
-
-
 var overflowX = 0
 var overflowY = 0
 var iframeOverflowX = 0
@@ -8356,6 +8353,7 @@ function onStart(e) {
                 // TODO: I think we can get rid of cursorType ans just use selectedRegions.length
                 return
             }
+            fx.selectedRegions = []
             cursorType = "select"
             var line = fx.lines[fx.cursorLineIndex] || ""
             
@@ -9118,7 +9116,6 @@ function onStart(e) {
             document.body.addEventListener("touchend", onEnd)
             endListenerCount += 1
             return true
-            
         } else {
             // there are other ways to duplicate the line and tapping here while selected
             // # duplicateline #duplicatelinefromtop
@@ -9129,7 +9126,6 @@ function onStart(e) {
             // fx.selectedRegions = oldSelectedRegions
             // render()
             // return
-           
         }
         return false
     }
@@ -11817,7 +11813,7 @@ function touchAreasLongPress(e, state) {
     handleTouchAreas(e, {
         "3middle": function() {
             var doFocus = function () {
-                theText.focus()
+                editEditorCommandText()
                 // focus has to be on touchend or click event it seems
                 // another workaround for something like this is the shouldOpenEditorCommand variable
                 document.body.removeEventListener("touchend", doFocus)
