@@ -9015,7 +9015,6 @@ function onStart(e) {
         moveListenerCount = max(moveListenerCount-1, 0)
     }
     var onEndWhileSelected = function(e) {
-        // yay selected, yay while selected // white marker
         overflowX = 0
         overflowY = 0
         touchCount = e.touches.length
@@ -9307,7 +9306,7 @@ function onStart(e) {
         // do something else like comment
         if (e.changedTouches[0].pageX < (bbox.width * (4/14))) {
             // select, lift finger, move on ledt side
-            // cursorType = "select"
+            cursorType = "move"
             document.body.addEventListener("touchmove", onMove)
             moveListenerCount += 1
             // document.body.addEventListener("touchend", onEnd)
