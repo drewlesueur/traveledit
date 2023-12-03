@@ -1575,17 +1575,26 @@ var selectTouchSize = 30
 var selectAreaRatio = .1
 
 // ratios
-// aa bb cc dd ee ff
 // aa bbb cc ddd ee fff gg
 
-
-var ratioA = 2/15
-var ratioB = 4/15
-var ratioC = 6/15
-var ratioD = 9/15
-var ratioE = 11/15
-var ratioF = 13/15
-
+function makeTouchRatios(layout) {
+    var ratios = []
+    layout = layout.trim().replaceAll(" ", "")
+    var curLetter = ""
+    for (var i=0; i<layout.length; i++) {
+        var letter = layout[i]
+        if (curLetter != letter) {
+            if (curLetter != "") {
+                ratios.push(i/layout.length)
+            }
+            curLetter = letter
+        }
+    }
+    ratios.push(1)
+    return ratios
+}
+var layout = "aa bbb cc ddd ee fff gg"
+var touchRatios = makeTouchRatios(layout)
 // abcdefg
 
 
@@ -7810,13 +7819,23 @@ function renderInternal() {
         drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         
         // aaaa bb cc dd eeee
-        drawCircle("pink", canvasWidth * (1/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("deepskyblue", canvasWidth * (3/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("red", canvasWidth * (5/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("limegreen", canvasWidth * (7/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("red", canvasWidth * (9/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("deepskyblue", canvasWidth * (11/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("pink", canvasWidth * (13/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("pink", canvasWidth * (1/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("deepskyblue", canvasWidth * (3/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("red", canvasWidth * (5/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("limegreen", canvasWidth * (7/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("red", canvasWidth * (9/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("deepskyblue", canvasWidth * (11/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("pink", canvasWidth * (13/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        var prevRatio = 0
+        var colors = ["red", "orange", "yellow", "green", "blue", "deepskyblue", "violet"]
+        for (var i=0; i<touchRatios.length; i++) {
+            var ratio = touchRatios[i]
+            var x = (canvasWidth * ratio) - (canvasWidth * (ratio-prevRatio) / 2)
+            // drawCircle("coral", x, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+            drawCircle(colors[i], x, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+            prevRatio = ratio
+        }
+        
         
     }
 
@@ -8329,141 +8348,7 @@ function onStart(e) {
     if (e.touches.length == 1) {
         longPressAction = function() {
             isLongPress = true // prevents regular onEnd handling from happening.
-            var bbox = c.getBoundingClientRect() // deeppink marker
-            // alert("yay long press not edges") white marker
-            // TODO: add more features here
-            // also what does fallthrough fo in this case
-            if (bbox.bottom - e.changedTouches[0].pageY > (4*verticalTouchSize)) {
-                // Fifth row from bottom // aquamarine marker
-                if (e.changedTouches[0].pageX < (bbox.width * ratioB)) {
-                    if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
-                    } else {
-                    }
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * ratioC)) {
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * ratioD)) {
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * ratioE)) {
-                    return
-                } else {
-                    return
-                }
-                return
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (3*verticalTouchSize)) {
-                // Fourth row from bottom // orange marker
-                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
-                    return
-                } else {
-                    return
-                }
-                return
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (2*verticalTouchSize)) {
-                // Third row from bottom // red marker
-                if (e.changedTouches[0].pageX < (bbox.width / 3)) {
-                    clearSearch()
-                } else if (e.changedTouches[0].pageX < (bbox.width * 2 / 3)) {
-                    editEditorCommandText()
-                    shouldOpenEditorCommand = true
-                    // need to do it like thst because text box doesn't focus on touch start, only touch end
-                } else {
-                    clearSearch()
-                }
-                return
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (1*verticalTouchSize)) {
-                // Second row from bottom // lime marker
-
-                // experimenting here
-                if (e.changedTouches[0].pageX < (bbox.width * 4/14)) {
-                    // Delete to beginning, not sure if I want to keep this
-                    copyShenanigans(function () {
-                        var theLine = fx.lines[fx.cursorLineIndex]
-                        theLine = theLine.slice(u(fx.cursorColIndex))
-                        fx.lines[fx.cursorLineIndex] = theLine
-                        fx.cursorColIndex = 0
-                        updateCursorXY()
-                        selectMode = "char"
-                        copyBuffer = [theLine.slice(0, u(fx.cursorColIndex))]
-                        docChanged()
-                        render()
-                    })
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 10/14)) {
-                    selectAction()
-                    return
-                } else {
-                    copyShenanigans(function () {
-                        // Delete to end
-                        var theLine = fx.lines[fx.cursorLineIndex]
-                        copyBuffer = [theLine.slice(u(fx.cursorColIndex))]
-                        theLine = theLine.slice(0, u(fx.cursorColIndex))
-                        fx.lines[fx.cursorLineIndex] = theLine
-                        selectMode = "char"
-                        docChanged()
-                        render()
-                    })
-                    return
-                }
-            } else if (bbox.bottom - e.changedTouches[0].pageY > (0*verticalTouchSize)) {
-                // Bottom row // deepskyblue marker
-                if (e.changedTouches[0].pageX < (bbox.width * 4/14)) {
-                    // join lines, also happens elsewhere #joinlines
-                    var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
-                    fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
-                    docChanged()
-                    render()
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 6/14)) {
-                    // clearTimeout(selectTimeout)
-                    var leftSideFeature = true
-                    selectAction(false, true, leftSideFeature)
-                } else if (e.changedTouches[0].pageX < (bbox.width * 8/14)) {
-                    selectAction()
-                    return
-                } else if (e.changedTouches[0].pageX < (bbox.width * 10/14)) {
-                    // clearTimeout(selectTimeout)
-                    selectAction(true, true)
-                    return
-                } else {
-                    // should we do this newline?
-                    // make it run, enter.
-                    if (fx.fileMode == "shell" || fx.fileMode == "terminal") {
-                        saveWrapper() // hits enter
-                    } else if (fx.fileMode == "file") {
-                        if (fx.selectedRegions.length) {
-                            runScript()
-                            return
-                        }
-                        var theLine = fx.lines[fx.cursorLineIndex] || ""
-                        var theIndent = getIndent(theLine)
-                        // fx.lines.splice(fx.cursorLineIndex + 1, 0, theIndent)
-                        if (theLine.endsWith("{")) {
-                            theIndent += " ".repeat(4)
-                        }
-                        fx.lines.splice(fx.cursorLineIndex + 1, 0, theIndent)
-                        fx.cursorLineIndex++
-                        fx.cursorColIndex = expandTabIndex(theIndent)
-                        updateCursorXY()
-                        docChanged()
-                        render()
-                        var doFocus = function () {
-                            theText.focus()
-                            // focus has to be on touchend or click event it seems
-                            // another workaroudn for something like this is the shouldOpenEditorCommand variable
-                            document.body.removeEventListener("touchend", doFocus)
-                        }
-                        document.body.removeEventListener("touchmove", onMove)
-                        moveListenerCount -= 1
-                        // document.body.removeEventListener("touchend", onEnd)
-                        // endListenerCount -= 1
-    
-                        document.body.addEventListener("touchend", doFocus)
-                    }
-                    return 
-                }
-            }
+            touchAreasLongPress(e, {onMove:onMove, selectAction: selectAction})
         }
         selectAction = function(forceLines = false, preventSelectLine = false, leftSideFeature = false) {
             // return early in case we are already selecting
@@ -9085,9 +8970,9 @@ function onStart(e) {
         endListenerCount = max(endListenerCount-1, 0)
         
         if (isLongPress) {
-            if (shouldOpenEditorCommand) {
-                editEditorCommandText()
-            }
+            // if (shouldOpenEditorCommand) {
+            //     editEditorCommandText()
+            // }
             return
         }
 
@@ -9550,6 +9435,7 @@ function onStart(e) {
         document.body.removeEventListener("touchend", onEndWhileSelected)
         endListenerCount = max(endListenerCount-1, 0)
         if (isLongPress) {
+            log("longPress so skipping default action")
             return
         }
 
@@ -11148,7 +11034,6 @@ function addFile(fullPath, options, id, name) { // hotpink marker
                 files[i].lines = file.lines
                 files[i].undo = file.undo
                 files[i].marginLeft = file.marginLeft
-                log("the other file cli: " + files[i].cursorColIndex)
                 if (files[i].cursorColIndex < 0) {
                     files[i].cursorColIndex = -file.marginLeft
                     ensureCursorInScreen(files[i])
@@ -11559,17 +11444,9 @@ function setCurrentFile(file) {
     if (lastFile && lastFile.iframe) {
         lastFile.iframeWrapper.style.display = "none"
     }
-    log("margin left is " + fx.marginLeft)
     setCanvasHeightAccordingly()
     updateCursorXY()
     ensureCursorInScreen()
-    log({
-        cursorColIndex: fx.cursorColIndex,
-        offsetX: fx.offsetX,
-        cursorX: cursorX,
-        fontWidth: fontWidth,
-        cursorX_: (fx.cursorColIndex - fx.offsetX) * fontWidth,
-    })
     searchText.setAttribute("placeholder", fx.fullPath + " (search)")
     theText.setAttribute("placeholder", fx.fullPath.split("/").reverse().join(" < "))
     render()
@@ -12344,6 +12221,136 @@ function moveSelectionDown() {
     }
     var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
     fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
+}
+
+var mappingPositions = [
+    "farLeft",
+    "left",
+    "midLeft",
+    "middle",
+    "midRight",
+    "right",
+    "farRight",
+]
+function handleTouchAreas(e, mapping) {
+    // aa bbb cc ddd ee fff gg
+    var bbox = c.getBoundingClientRect() // deeppink marker
+    outer:
+    for (var y=4; y>=0; y--) {
+        if (bbox.bottom - e.changedTouches[0].pageY > (y*verticalTouchSize)) {
+            for (var x=0; x>=0; x++) {
+                if (e.changedTouches[0].pageX < (bbox.width * touchRatios[x])) {
+                    var mappingKey = (y+1) + mappingPositions[x]
+                    // log("yay: " + mappingKey)
+                    break outer
+                    if (mapping[mappingKey]) {
+                        mapping[mappingKey]()
+                    }
+                }
+            }
+        }
+    }
+}
+// if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
+// yay
+function touchAreasLongPress(e, state) {
+    // a b c d e f g
+    // . + - * - + .
+    handleTouchAreas(e, {
+        "3middle": function() {
+            var doFocus = function () {
+                theText.focus()
+                // focus has to be on touchend or click event it seems
+                // another workaround for something like this is the shouldOpenEditorCommand variable
+                document.body.removeEventListener("touchend", doFocus)
+            }
+            document.body.removeEventListener("touchmove", state.onMove)
+            moveListenerCount -= 1
+            document.body.addEventListener("touchend", doFocus)
+        },
+        "2left": function () {
+            // Delete to beginning, not sure if I want to keep this
+            copyShenanigans(function () {
+                var theLine = fx.lines[fx.cursorLineIndex]
+                theLine = theLine.slice(u(fx.cursorColIndex))
+                fx.lines[fx.cursorLineIndex] = theLine
+                fx.cursorColIndex = 0
+                updateCursorXY()
+                selectMode = "char"
+                copyBuffer = [theLine.slice(0, u(fx.cursorColIndex))]
+                docChanged()
+                render()
+            })
+        },
+        "2middle": function () {
+            state.selectAction()
+        },
+        "2right": function () {
+            copyShenanigans(function () {
+                // Delete to end
+                var theLine = fx.lines[fx.cursorLineIndex]
+                copyBuffer = [theLine.slice(u(fx.cursorColIndex))]
+                theLine = theLine.slice(0, u(fx.cursorColIndex))
+                fx.lines[fx.cursorLineIndex] = theLine
+                selectMode = "char"
+                docChanged()
+                render()
+            })
+        },
+        "1left": function () {
+            // join lines, also happens elsewhere #joinlines
+            var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
+            fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
+            docChanged()
+            render()
+        },
+        "1midLeft": function () {
+            var leftSideFeature = true
+            state.selectAction(false, true, leftSideFeature)
+        },
+        "1middle": function () {
+            state.selectAction()
+        },
+        "1midRight": function () {
+            state.selectAction(true, true)
+        },
+        "1right": function () {
+            // should we do this newline?
+            // make it run, enter.
+            if (fx.fileMode == "shell" || fx.fileMode == "terminal") {
+                saveWrapper() // hits enter
+            } else if (fx.fileMode == "file") {
+                if (fx.selectedRegions.length) {
+                    runScript()
+                    return
+                }
+                var theLine = fx.lines[fx.cursorLineIndex] || ""
+                var theIndent = getIndent(theLine)
+                // fx.lines.splice(fx.cursorLineIndex + 1, 0, theIndent)
+                if (theLine.endsWith("{")) {
+                    theIndent += " ".repeat(4)
+                }
+                fx.lines.splice(fx.cursorLineIndex + 1, 0, theIndent)
+                fx.cursorLineIndex++
+                fx.cursorColIndex = expandTabIndex(theIndent)
+                updateCursorXY()
+                docChanged()
+                render()
+                var doFocus = function () {
+                    theText.focus()
+                    // focus has to be on touchend or click event it seems
+                    // another workaroudn for something like this is the shouldOpenEditorCommand variable
+                    document.body.removeEventListener("touchend", doFocus)
+                }
+                document.body.removeEventListener("touchmove", onMove)
+                moveListenerCount -= 1
+                // document.body.removeEventListener("touchend", onEnd)
+                // endListenerCount -= 1
+
+                document.body.addEventListener("touchend", doFocus)
+            }
+        },
+    })
 }
 
 </script>
