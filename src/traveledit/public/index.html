@@ -11,6 +11,8 @@ start select char
 last char on prev line button
 slowly dragging doesn't trigger move as fasr as I'd think
 is it because I have too much code?
+touch area to del() and paste() in one go
+button to tab right and tab left
 -->
 <html>
 <head>
@@ -1591,11 +1593,13 @@ function makeTouchRatios(layout) {
     ratios.push(1)
     return ratios
 }
-var layout = "aaa s bbb cc dddd ee fff s ggg"
+// var layout = "aaa s bbb cc dddd ee fff s ggg"
+var layout = "aa s bbb cc dddd ee fff s gg"
 var touchRatios = makeTouchRatios(layout)
 setTimeout(function () {
     log(touchRatios)
 }, 1000)
+
 
 
 // var verticalTouchSize = 120
@@ -7795,47 +7799,72 @@ function renderInternal() {
     var dotIndent = navTouchSize*3 / 2
     var dotSize = 10
     if (!t.mockCanvasContext) {
-        drawCircle(lightFontColor, dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        drawCircle(lightFontColor, dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        
-        let middleCircleColor = "red"
-        if (searchText.value) {
-            middleCircleColor = "blue"
-        }
-        drawCircle(middleCircleColor, dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        drawCircle(middleCircleColor, canvasWidth - dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        drawCircle(lightFontColor, dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
-        drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(lightFontColor, dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(4*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(lightFontColor, dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(3*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // 
+        // let middleCircleColor = "red"
+        // if (searchText.value) {
+        //     middleCircleColor = "blue"
+        // }
+        // drawCircle(middleCircleColor, dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(middleCircleColor, canvasWidth - dotIndent, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(lightFontColor, dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
+        // drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
         // drawCircle(lightFontColor, dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
         // drawCircle(lightFontColor, canvasWidth - dotIndent, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize, theBackgroundColor, 5)
 
 
-        drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(1*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+        // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         
-        // aaaa bb cc dd eeee
-        // drawCircle("pink", canvasWidth * (1/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        // drawCircle("deepskyblue", canvasWidth * (3/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        // drawCircle("red", canvasWidth * (5/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        // drawCircle("limegreen", canvasWidth * (7/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        // drawCircle("red", canvasWidth * (9/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        // drawCircle("deepskyblue", canvasWidth * (11/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        // drawCircle("pink", canvasWidth * (13/14), canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-        var prevRatio = 0
-        var colors = ["red", "orange", "yellow", "green", "blue", "deepskyblue", "violet"]
-        for (var i=0; i<touchRatios.length; i++) {
-            var ratio = touchRatios[i]
-            var x = (canvasWidth * ratio) - (canvasWidth * (ratio-prevRatio) / 2)
-            // drawCircle("coral", x, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-            drawCircle(colors[i], x, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
-            prevRatio = ratio
+        for (y=0; y<6; y++) {
+            var prevRatio = 0
+            for (var i=0; i<touchRatios.length; i++) {
+                var ratio = touchRatios[i]
+                // if (y > 0) {
+                //     if (i > 0 && i < touchRatios.length -1) {
+                //         prevRatio = ratio
+                //         continue
+                //     }
+                // }
+                if (i > 0 && i < touchRatios.length -1 && document.activeElement == theText) {
+                    prevRatio = ratio
+                    continue
+                }
+                var x = (canvasWidth * ratio) - (canvasWidth * (ratio-prevRatio) / 2)
+                // drawCircle("coral", x, canvasHeight-(0*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+                // drawCircle(colors[i], x, canvasHeight-(y*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
+                var mappingKey = (y+1) + mappingPositions[i]
+                var usedDotSize = dotSize
+                var color = circleColors[mappingKey]
+                if (color) {
+                    if (color == "royalblue" || color == "__") {
+                        usedDotSize = usedDotSize/2
+                    }
+                    if (color == "_") {
+                        color = lightFontColor
+                    } else if (color == "__") {
+                        color = lightFontColor
+                    } else if (color == "?") {
+                        if (searchText.value) {
+                            color = "blue"
+                        } else {
+                            color = "red"
+                        }
+                    }
+                    if (y == 5) {
+                        drawCircle(color, x, 0, usedDotSize, theBackgroundColor, 5)
+                    } else {
+                        drawCircle(color, x, canvasHeight-(y*vtsThrice)-halfVTSThrice, usedDotSize, theBackgroundColor, 5)
+                    }
+                }
+                prevRatio = ratio
+            }
         }
-        
-        
     }
 
     var duration = Date.now() - startRenderTime
@@ -7849,6 +7878,60 @@ function renderInternal() {
         renderCount = 0
         renderDuration = 0
     }
+}
+var rainbowColors = ["white"]
+
+var circleColors = {
+     "1farLeft": "_",
+     "1sliceLeft": "royalblue",
+     "1left": "limegreen",
+     "1midLeft": "__",
+     "1middle": "_",
+     "1midRight": "__",
+     "1right": "limegreen",
+     "1sliceRight": "royalblue",
+     "1farRight": "_",
+
+     "2farLeft": "_",
+     "2sliceLeft": "royalblue",
+     // "2left": "_",
+     // "2midLeft": "red",
+     // "2middle": "",
+     // "2midRight": "red",
+     // "2right": "_",
+     "2sliceRight": "royalblue",
+     "2farRight": "_",
+     
+     "3farLeft": "?",
+     "3sliceLeft": "royalblue",
+     // "3left": "_",
+     // "3midLeft": "red",
+     // "3middle": "",
+     // "3midRight": "red",
+     // "3right": "_",
+     "3sliceRight": "royalblue",
+     "3farRight": "?",
+     
+
+     "4farLeft": "_",
+     // "4sliceLeft": "royalblue",
+     // "4left": "_",
+     // "4midLeft": "red",
+     // "4middle": "",
+     // "4midRight": "red",
+     // "4right": "_",
+     // "4sliceRight": "royalblue",
+     "4farRight": "_",
+     
+     "5farLeft": "_",
+     // "5sliceLeft": "royalblue",
+     // "5left": "_",
+     // "5midLeft": "red",
+     // "5middle": "",
+     // "5midRight": "red",
+     // "5right": "_",
+     // "5sliceRight": "royalblue",
+     "5farRight": "_",
 }
 
 var trailingWhitespaceRegexp = /\s+$/
@@ -11730,6 +11813,9 @@ function touchAreasPressWhileSelected(e, state) {
         "2right": function() {
             duplicateSelection()
         },
+        "1left": function () {
+            del()
+        },
         "1midLeft": function () {
             moveSelectionUp()
         },
@@ -11777,7 +11863,7 @@ function touchAreasLongPress(e, state) {
             cursorType = "select"
             var line = fx.lines[fx.cursorLineIndex] || ""
 
-            if (fx.cursorColIndex >= 0) {
+            // if (fx.cursorColIndex >= 0) {
                 // Second row from bottom // lime marker
                 selectedRegion.startX = 0
                 selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
@@ -11789,7 +11875,7 @@ function touchAreasLongPress(e, state) {
                 fx.selectedRegions.push(selectedRegion)
                 render()
                 return
-            }
+            // }
         },
         "2right": function () {
             copyShenanigans(function () {
@@ -11861,8 +11947,10 @@ function touchAreasLongPress(e, state) {
 
 function touchAreasPress(e, state) {
     handleTouchAreas(e, {
+        "4midRight": function () {
+        },
         "3left": function () {
-            addDumbNewline()
+            clearSearch()
         },
         "3midLeft": function () {
             // if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
@@ -11889,6 +11977,12 @@ function touchAreasPress(e, state) {
             comment()
         },
         "2midLeft": function () {
+            preventRender = true
+            del()
+            // paste(true, false, true) // unselect, pastebefore, smartPaste
+            paste(true, true, true) // unselect, pastebefore, smartPaste
+            preventRender = false
+            render()
         },
         "2middle": function () {
             // experiment autocompleteLineV2
@@ -11909,6 +12003,7 @@ function touchAreasPress(e, state) {
         "2midRight": function () {
             // make this some sort of action button?
             // like complete patterns or curly oor
+            addDumbNewline()
         },
         "2right": function () {
             duplicateLine()
