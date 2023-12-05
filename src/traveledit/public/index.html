@@ -226,6 +226,21 @@ color: magenta;
 opacity: 0.5;
 "></div>
 
+<form onsubmit="">
+    <textarea class=fullWidth type=text id=voiceCommandText
+        style="display: none;
+        font: 16px Courier;
+        height: 24px;
+        outline: none;
+        background-color: lightyellow;
+        "
+        onfocus="focusVoiceCommandText()"
+        oninput="inputVoiceCommandText()"
+        onblur="blurVoiceCommandText()"
+    ></textarea>
+    <input class=dark type=submit style="opacity: 0.01; position: absolute; left: -999px;" value="here">
+</form>
+
 <form onsubmit="runEditorCommand(event)">
     <input class=fullWidth type=text id=editorCommandText
         style="display: none;
@@ -335,7 +350,7 @@ They get changed later on.
 </div>
 <div class="toolbar hidden" id=fileToolbar1 style="--display: none">
     <!--
-    <div class=longButton onclick="editEditorCommandText()" >status</div>
+    <div class=longButton onclick="openEditorCommandText()" >status</div>
     <div class=square onclick=undo()>undo</div>
     <div class=square onclick=redo()>redo</div>
     <div class=square id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
@@ -477,7 +492,7 @@ They get changed later on.
              onlongclick="runScript()"
              class=icon>🐚</div>
         <div onclick="xterm()" 
-             onlongclick="editEditorCommandText()"
+             onlongclick="openEditorCommandText()"
              class=icon>🐢</div>
         <div onclick="backspace()" 
              onlongclick="clearLine()"
@@ -650,7 +665,7 @@ They get changed later on.
         <div class=square onclick="duplicateFile(fx, -1)">dupl file</div>
     -->
     <div class=square onclick="compareSets()">compare sets</div>
-    <div class=square onclick=editEditorCommandText()>editor cmd</div>
+    <div class=square onclick=openEditorCommandText()>editor cmd</div>
     <!--
         <div class=square onclick="deleteBelow();">del below</div>
     -->
@@ -703,7 +718,7 @@ They get changed later on.
 <div class=toolbar>
     <div class=square onclick="copyOneTimeLink()">one-time link</div>
     <div class=square onclick=record()>🎤</div>
-    <div class=square onclick=editEditorCommandText()>editor cmd</div>
+    <div class=square onclick=openEditorCommandText()>editor cmd</div>
     <div class=square onclick="window.open('https://github.com/drewlesueur/traveledit/archive/refs/heads/master.zip')">doenload repo</div>
 </div>
 <div class=toolbar>
@@ -2676,7 +2691,7 @@ function runEditorCommand(e) {
     editorCommandText.blur()
     return false
 }
-function editEditorCommandText() {
+function openEditorCommandText() {
     editorCommandText.style.display = "block"
     editorCommandText.focus()
 }
@@ -2686,6 +2701,7 @@ function focusEditorCommandText() {
     editorCommandText.style.display = "block"
     theText.style.display = "none"
     searchText.style.display = "none"
+    voiceCommandText.style.display = "none"
     setCanvasHeightAccordingly()
 }
 function inputEditorCommandText() {
@@ -2700,8 +2716,44 @@ function blurEditorCommandText() {
     theText.style.display = "block"
     searchText.style.display = "none"
     editorCommandText.style.display = "none"
+    voiceCommandText.style.display = "none"
     setCanvasHeightAccordingly()
 }
+
+// white #color
+function openVoiceCommandText() {
+    voiceCommandText.style.display = "block"
+    voiceCommandText.focus()
+}
+function focusVoiceCommandText() {
+    window.scrollTo(0, 0)
+    voiceCommandText.setSelectionRange(0, voiceCommandText.value.length)
+    voiceCommandText.style.display = "block"
+    theText.style.display = "none"
+    searchText.style.display = "none"
+    editorCommandText.style.display = "none"
+    setCanvasHeightAccordingly()
+}
+function inputVoiceCommandText() {
+}
+function blurVoiceCommandText() {
+    // handle the case where when you collapse the keyboard on iPad
+    // it triggers a blur event, but it's still the activeElement
+    if (document.activeElement == voiceCommandText) {
+        voiceCommandText.blur()
+        return
+    }
+    theText.style.display = "block"
+    searchText.style.display = "none"
+    editorCommandText.style.display = "none"
+    voiceCommandText.style.display = "none"
+    setCanvasHeightAccordingly()
+}
+// end #color
+
+
+
+
 
 function editSearch() {
     searchText.style.display = "block"
@@ -2713,6 +2765,7 @@ function focusSearchText() {
     searchText.style.display = "block"
     theText.style.display = "none"
     editorCommandText.style.display = "none"
+    voiceCommandText.style.display = "none"
     setCanvasHeightAccordingly()
 }
 function inputSearchText() {
@@ -2731,6 +2784,7 @@ function blurSearchText() {
     theText.style.display = "block"
     searchText.style.display = "none"
     editorCommandText.style.display = "none"
+    voiceCommandText.style.display = "none"
     setCanvasHeightAccordingly()
 }
 
@@ -6101,6 +6155,7 @@ function handleBlur() {
 function handleSearchFocusBefore() {
     theText.style.display = "none"
     editorCommandText.style.display = "none"
+    voiceCommandText.style.display = "none"
     searchText.style.display = "block"
     searchText.focus()
     setCanvasHeightAccordingly()
@@ -6110,6 +6165,7 @@ function handleSearchFocusBefore() {
 function handleSearchFocusAfter() {
     theText.style.display = "none"
     editorCommandText.style.display = "none"
+    voiceCommandText.style.display = "none"
     searchText.style.display = "block"
     searchText.focus()
     setCanvasHeightAccordingly()
@@ -8793,6 +8849,7 @@ function onStart(e) {
             }
             if ("origStartX" in selectedRegion) {
                 selectedRegion.startX = selectedRegion.origStartX
+                selectMode = "char"
             }
             if (selectedRegion.selectedLine) {
                 selectedRegion.selectedLine = false
@@ -8910,9 +8967,6 @@ function onStart(e) {
         endListenerCount = max(endListenerCount-1, 0)
         
         if (isLongPress) {
-            // if (shouldOpenEditorCommand) {
-            //     editEditorCommandText()
-            // }
             return
         }
 
@@ -9399,11 +9453,14 @@ function expandSelection() {
             }
         }
     }
+
     if (selectedRegion.startX == 0 && selectedRegion.stopX == expandedLine.length) {
         selectMode = "line"
         selectedRegion.selectedWord = false
         selectedRegion.selectedLine = false
     }
+
+
     // if (i == 0) {
     //     
     // }
@@ -11801,7 +11858,7 @@ function handleTouchAreasXOnly(e, mapping) {
 function touchAreasPressWhileSelected(e, state) {
     handleTouchAreas(e, {
         "3middle": function() {
-            editEditorCommandText()
+            openEditorCommandText()
         },
         "2left": function() {
             if (selectMode == "line") {
@@ -11834,7 +11891,7 @@ function touchAreasLongPress(e, state) {
     handleTouchAreas(e, {
         "3middle": function() {
             var doFocus = function () {
-                editEditorCommandText()
+                openEditorCommandText()
                 // focus has to be on touchend or click event it seems
                 // another workaround for something like this is the shouldOpenEditorCommand variable
                 document.body.removeEventListener("touchend", doFocus)
@@ -11894,6 +11951,7 @@ function touchAreasLongPress(e, state) {
             var line = fx.lines[fx.cursorLineIndex] || ""
 
             selectedRegion.startX = 0
+            selectedRegion.origStartX = fx.cursorColIndex
             selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
             selectedRegion.stopX = expandTabIndex(line, line.length)
             selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
@@ -11955,6 +12013,9 @@ function touchAreasLongPress(e, state) {
 
 function touchAreasPress(e, state) {
     handleTouchAreas(e, {
+        "4middle": function () {
+            openVoiceCommandText()
+        },
         "4midRight": function () {
         },
         "3left": function () {
