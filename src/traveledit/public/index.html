@@ -13,6 +13,22 @@ slowly dragging doesn't trigger move as fasr as I'd think
 is it because I have too much code?
 touch area to del() and paste() in one go
 button to tab right and tab left
+
+voice commands
+next tab
+previous tab
+last tab
+start selection
+slots, put words in slots
+
+
+change start selection
+change end selection
+go to line
+
+where the first word is different start processing there
+
+
 -->
 <html>
 <head>
@@ -229,10 +245,10 @@ opacity: 0.5;
 <form onsubmit="">
     <textarea class=fullWidth type=text id=voiceCommandText
         style="display: none;
-        font: 16px Courier;
+        font: 10px Courier;
         height: 24px;
         outline: none;
-        background-color: lightyellow;
+        background-color: saddlebrown;
         "
         onfocus="focusVoiceCommandText()"
         oninput="inputVoiceCommandText()"
@@ -4610,7 +4626,7 @@ function setCanvasHeightAccordingly() {
     }
     // for the ipad, try to use the floating keyboard
 
-    if (!floatingKeyboard && (document.activeElement == theText || document.activeElement == searchText)) {
+    if (!floatingKeyboard && (document.activeElement == theText || document.activeElement == searchText || document.activeElement == editorCommandText || document.activeElement == voiceCommandText)) {
         if (fx.fileMode == "terminal") {
             setCanvasHeight(canvasHeightKeyboardTerminal - heightReduction)
         } else {
@@ -11951,7 +11967,7 @@ function touchAreasLongPress(e, state) {
             var line = fx.lines[fx.cursorLineIndex] || ""
 
             selectedRegion.startX = 0
-            selectedRegion.origStartX = fx.cursorColIndex
+            selectedRegion.origStartX = fx.cursorColIndex < 0 ? 0 : fx.cursorColIndex
             selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
             selectedRegion.stopX = expandTabIndex(line, line.length)
             selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
@@ -12321,6 +12337,34 @@ function pasteAndToggleStuff() {
     } else {
         acWordToggle() // lime marker
     }
+}
+
+var voiceCommands = [
+    /^go to line (\d+)/, function (c, lineNumber) {
+        fx.cursorLineIndex = lineNumber.replaceAll(",", "") - 1
+        ensureCursorInScreen()
+    },
+
+]
+var voiceCommandTimeout
+
+function inputVoiceCommandText(e) {
+    clearTimeout(voiceCommandTimeout)
+    voiceCommandTimeout = setTimeout(function () {
+        var text = voiceCommandText.value.toLowerCase()
+        for (var i=0; i<voiceCommands.length; i+=2) {
+            var r = voiceCommands[i]
+            var c = voiceCommands[i+1]
+            var matches = text.match(r)
+            if (matches) {
+                c(...matches)
+                // voiceCommandText.value = ""
+                // voiceCommandText.select()
+                // as of now it seems like programmatically changing the input will stop dictation from working
+                break
+            }
+        }
+    }, 500)
 }
 </script>
 <audio id="audio" controls></audio>
