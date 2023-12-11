@@ -28,6 +28,9 @@ go to line
 
 where the first word is different start processing there
 
+top line
+
+
 
 -->
 <html>
@@ -2736,9 +2739,12 @@ function blurEditorCommandText() {
     setCanvasHeightAccordingly()
 }
 
-// white #color
+// coral #color
 function openVoiceCommandText() {
     voiceCommandText.style.display = "block"
+    voiceCommandText.value = ""
+    voiceCommandProcessedIndex = 0
+    voiceCommandLastProcessedWordIndex = 0
     voiceCommandText.focus()
 }
 function focusVoiceCommandText() {
@@ -11841,7 +11847,7 @@ function handleTouchAreas(e, mapping) {
                 if (e.changedTouches[0].pageX < (bbox.width * touchRatios[x])) {
                     var mappingKey = (y+1) + mappingPositions[x]
                     if (mapping[mappingKey]) {
-                        log("yay: " + mappingKey)
+                        // log("yay: " + mappingKey)
                         mapping[mappingKey]()
                         return true
                     }
@@ -11860,7 +11866,7 @@ function handleTouchAreasXOnly(e, mapping) {
         if (e.changedTouches[0].pageX < (bbox.width * touchRatios[x])) {
             var mappingKey = mappingPositions[x]
             if (mapping[mappingKey]) {
-                log("yay: " + mappingKey)
+                // log("yay: " + mappingKey)
                 mapping[mappingKey]()
                 return true
             }
@@ -11905,6 +11911,9 @@ function touchAreasPressWhileSelected(e, state) {
 
 function touchAreasLongPress(e, state) {
     handleTouchAreas(e, {
+        "5middle": function () {
+            doRefresh()
+        },
         "3middle": function() {
             var doFocus = function () {
                 openEditorCommandText()
@@ -11965,7 +11974,7 @@ function touchAreasLongPress(e, state) {
             fx.selectedRegions = []
             cursorType = "select"
             var line = fx.lines[fx.cursorLineIndex] || ""
-
+            selectedRegion = {}
             selectedRegion.startX = 0
             selectedRegion.origStartX = fx.cursorColIndex < 0 ? 0 : fx.cursorColIndex
             selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
@@ -12339,32 +12348,178 @@ function pasteAndToggleStuff() {
     }
 }
 
-var voiceCommands = [
-    /^go to line (\d+)/, function (c, lineNumber) {
+function convertToNumber(x) {
+}
+var voiceCommandTimeout
+
+// async flow... concatenative
+// saying a nunber goes to that line number
+// 243 
+// select will select current line
+// up
+// minus 10
+// 10 go
+// clear
+//
+
+// 7842 and 12419 and 98346 and 76412
+// Is working again 
+// 12408 go select unselect
+
+
+var voiceCommandLastProcessedWordIndex = 0
+var voiceStack = []
+var voiceCommandArgs = {
+    "previous": true,
+    "next": true,
+    "up": true,
+    "down": true,
+    "left": true,
+    "right": true,
+    // up scroll down scroll left scroll, right scroll
+    // Scroll down scroll left scroll, right scroll
+    // up and scroll down and scroll left and scroll right and scroll
+    // Move up move down scroll up up scroll scroll up
+    
+}
+var voiceCommandBuffer = []
+var availableVoiceCommands = {
+    "line": function (n) {
         fx.cursorLineIndex = lineNumber.replaceAll(",", "") - 1
         ensureCursorInScreen()
     },
+    "select": function () {
+        fx.selectedRegions = []
+        cursorType = "select"
+        var line = fx.lines[fx.cursorLineIndex] || ""
+        selectedRegion = {}
+        selectedRegion.startX = 0
+        // selectedRegion.origStartX = fx.cursorColIndex < 0 ? 0 : fx.cursorColIndex
+        selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
+        selectedRegion.stopX = expandTabIndex(line, line.length)
+        selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
+        selectedRegion.stopped = true
+        // selectedRegion.selectedLine = true
+        selectMode = "line"
+        fx.selectedRegions.push(selectedRegion)
+        render()
+    },
+}
 
-]
-var voiceCommandTimeout
-
+var waitingVoiceCommandFunctions = []
 function inputVoiceCommandText(e) {
     clearTimeout(voiceCommandTimeout)
     voiceCommandTimeout = setTimeout(function () {
-        var text = voiceCommandText.value.toLowerCase()
-        for (var i=0; i<voiceCommands.length; i+=2) {
-            var r = voiceCommands[i]
-            var c = voiceCommands[i+1]
-            var matches = text.match(r)
-            if (matches) {
-                c(...matches)
-                // voiceCommandText.value = ""
-                // voiceCommandText.select()
-                // as of now it seems like programmatically changing the input will stop dictation from working
-                break
+        var lowerCased = voiceCommandText.value.toLowerCase()
+        var words = lowerCased.split(" ")
+        // var wordsToProcess = words.slice(voiceCommandLastProcessedWordIndex)
+        for (var voiceCommandLastProcessedWordIndex; voiceCommandLastProcessedWordIndex<words.length; voiceCommandLastProcessedWordIndex++) {
+            var word = words[voiceCommandLastProcessedWordIndex]
+            voiceCommandBuffer.push(word)
+            if (word in availableVoiceCommands) {
+                waiti
+            }
+            if (waitingVoiceCommandFunction) {
+                
             }
         }
-    }, 500)
+    }, 1000)
+}
+var voiceCommandProcessedIndex = 0
+var voiceCommands_old = [
+    /^\s*go to line (\d+)/, function (c, lineNumber) {
+        fx.cursorLineIndex = lineNumber.replaceAll(",", "") - 1
+        ensureCursorInScreen()
+    },
+    /^\s*previous tab/, function (c) {
+        navFileLeft()
+    },
+    /^\s*next tab/, function (c) {
+        navFileRight()
+    },
+    /^\s*go down (\d+) lines/, function (c, d) {
+        fx.cursorLineIndex += ((d-0) || 0)
+        ensureCursorInScreen()
+    },
+    /^\s*go up (\d+) lines/, function (c, d) {
+        fx.cursorLineIndex -= ((d-0) || 0)
+        ensureCursorInScreen()
+    },
+    /^\s*last tab/, function (c) {
+        setCurrentFile(lastFile) // alt tab, alt+tab
+    },
+    /^\s*start selection/, function (c) {
+        fx.selectedRegions = []
+        cursorType = "select"
+        var line = fx.lines[fx.cursorLineIndex] || ""
+        selectedRegion = {}
+        selectedRegion.startX = 0
+        // selectedRegion.origStartX = fx.cursorColIndex < 0 ? 0 : fx.cursorColIndex
+        selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
+        selectedRegion.stopX = expandTabIndex(line, line.length)
+        selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
+        selectedRegion.stopped = true
+        // selectedRegion.selectedLine = true
+        selectMode = "line"
+        fx.selectedRegions.push(selectedRegion)
+        render()
+    },
+    /^\s*end selection/, function (c) {
+        if (fx.selectedRegions.length) {
+            fx.selectedRegions[0].stopY = fx.cursorLineIndex
+        }
+        render()
+    },
+    /^\s*select the next (\d+) lines/, function (c, d) {
+        fx.selectedRegions = []
+        cursorType = "select"
+        var line = fx.lines[fx.cursorLineIndex] || ""
+        selectedRegion = {}
+        selectedRegion.startX = 0
+        // selectedRegion.origStartX = fx.cursorColIndex < 0 ? 0 : fx.cursorColIndex
+        selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
+        // selectedRegion.stopX = expandTabIndex(line, line.length)
+        selectedRegion.stopY = bind(fx.cursorLineIndex + d, 0, fx.lines.length - 1)
+        selectedRegion.stopped = true
+        // selectedRegion.selectedLine = true
+        selectMode = "line"
+        fx.selectedRegions.push(selectedRegion)
+        cursorType = "move"
+        render()
+    },
+
+]
+function inputVoiceCommandText_old(e) {
+    clearTimeout(voiceCommandTimeout)
+    voiceCommandTimeout = setTimeout(function () {
+        outer:
+        while (voiceCommandProcessedIndex < voiceCommandText.value.length) {
+            var lowerCased = voiceCommandText.value.toLowerCase()
+            for (var i=0; i<voiceCommands.length; i+=2) {
+                var text = lowerCased.substr(voiceCommandProcessedIndex)
+                text = text.replaceAll(".", " ")
+                
+                var r = voiceCommands[i]
+                var c = voiceCommands[i+1]
+                var matches = text.match(r)
+                if (matches) {
+                    log("match: " + matches[0])
+                    c(...matches)
+                    // voiceCommandText.value = ""
+                    // voiceCommandText.select()
+                    // as of now it seems like programmatically changing the input will stop dictation from working
+                    
+                    // plan b
+                    voiceCommandProcessedIndex += matches[0].length
+
+                    // break
+                    continue outer
+                }
+            }
+            voiceCommandProcessedIndex = voiceCommandText.value.length
+            log("processed: " + text)
+        }
+    }, 1000)
 }
 </script>
 <audio id="audio" controls></audio>
