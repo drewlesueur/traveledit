@@ -30,7 +30,8 @@ where the first word is different start processing there
 
 top line
 
-
+select block?
+comment block?
 
 -->
 <html>
@@ -2574,6 +2575,9 @@ function runEditorCommand(e) {
     case "uniq":
         uniqSelected()
         break
+    case "sp":
+        stripPrefixes([rest])
+        break
     case "script":
     case "s":
         // see also scriptLines
@@ -3818,19 +3822,30 @@ function comment(prefix) {
 function addPrefix(prefix, region) {
     var r = region || fx.selectedRegions[0] || ghostSelectionComment
     if (r) {
-        var firstIndent = ""
+        var line = fx.lines[r.startY]
+        var firstNonSpace = 0
+        for (var i=0; i<line.length; i++) {
+            var chr = line.charAt(i)
+            if (chr != " " && chr != "\t") {
+                firstNonSpace = i
+                break
+            }
+        }
+        
         for (var y=r.startY; y<=r.stopY; y++) {
             var line = fx.lines[y]
-            var firstNonSpace = 0
+            var myFirstNonSpace = 0
             for (var i=0; i<line.length; i++) {
                 var chr = line.charAt(i)
                 if (chr != " " && chr != "\t") {
-                    firstNonSpace = i
+                    myFirstNonSpace = i
                     break
                 }
             }
-            // fx.lines[y] = fx.lines[y].slice(0, firstNonSpace) + prefix + fx.lines[y].slice(firstNonSpace)
-            updateLine(y, fx.lines[y].slice(0, firstNonSpace) + prefix + fx.lines[y].slice(firstNonSpace))
+            if (myFirstNonSpace > firstNonSpace) {
+                myFirstNonSpace = firstNonSpace
+            }
+            updateLine(y, fx.lines[y].slice(0, myFirstNonSpace) + prefix + fx.lines[y].slice(myFirstNonSpace))
         }
     } else {
         var line = fx.lines[fx.cursorLineIndex]
@@ -4789,7 +4804,6 @@ function bashEscapeSingleQuote(str) {
 
 function paste(unselect, pasteBefore, fromTap, unselectIfCharOneWord) {
     ghostSelection = null
-    ghostSelectionComment = null
     // todo: fromTap really means "smart" paste
     if (fx.fileMode == "directory" && copiedDirectoryFiles.length) {
         var dest = "."
@@ -4835,7 +4849,6 @@ var p = []
 
 function pasteLines(localCopyBuffer, unselect, pasteBefore, fromTap, unselectIfCharOneWord) {
     ghostSelection = null
-    ghostSelectionComment = null
     if (pasteDebug) {
         p.unshift(new Error().stack)
     }
@@ -5093,11 +5106,11 @@ function delinternal(preventCopy, preventDeleteWholeLine, preventUndo) {
             }
         }
         fx.cursorLineIndex = r.startY
-        fx.cursorColIndex = r.startX
+        // fx.cursorColIndex = r.startX // commented out to avoud jerkiness when cutting when scrolled
 
         // if full lines then move cursor up once to paste
         if (fullLines) {
-            fx.cursorColIndex = -fx.marginLeft
+            // fx.cursorColIndex = -fx.marginLeft
             if (fx.cursorLineIndex > 0) {
                 fx.cursorLineIndex -= 1
             }
@@ -7984,11 +7997,11 @@ var circleColors = {
 
      "2farLeft": "_",
      "2sliceLeft": "royalblue",
-     "2left": "__",
+     "2left": "_",
      "2midLeft": "__",
      "2middle": "__",
      "2midRight": "__",
-     "2right": "__",
+     "2right": "_",
      "2sliceRight": "royalblue",
      "2farRight": "_",
      
@@ -11601,6 +11614,8 @@ function duplicateLine() {
 function duplicateSelection() {
     // #duplicateselection
     // copy(true)
+    ghostSelectionComment = fx.selectedRegions[0]
+    // so the duplicate, comment flow also works
     copy()
     paste()
 }
@@ -11912,6 +11927,14 @@ function touchAreasPressWhileSelected(e, state) {
                 // hopefully to  prevent against accidental commenting.
                 comment()
             }
+        },
+        "2midLeft": function () {
+            preventRender = true
+            del()
+            // paste(true, false, true) // unselect, pastebefore, smartPaste
+            paste(true, true, true) // unselect, pastebefore, smartPaste
+            preventRender = false
+            render()
         },
         "2right": function() {
             duplicateSelection()
