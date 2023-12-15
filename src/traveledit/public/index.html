@@ -3771,7 +3771,9 @@ function dedent(region) {
 
 function comment(prefix) {
     var theLine
-    if (fx.selectedRegions.length > 0) {
+    if (ghostSelectionComment) {
+        theLine = fx.lines[ghostSelectionComment.startY]
+    } else if (fx.selectedRegions.length > 0) {
         theLine = fx.lines[fx.selectedRegions[0].startY]
     } else {
         theLine = fx.lines[fx.cursorLineIndex]
@@ -3805,23 +3807,28 @@ function comment(prefix) {
     } else {
         addPrefix(prefix+" ")
     }
+    
+    if (fx.selectedRegions.length) {
+        ghostSelectionComment = fx.selectedRegions[0] // lightblue marker
+        fx.selectedRegions = []
+    }
 }
 
 
 function addPrefix(prefix, region) {
-    var r = region || fx.selectedRegions[0]
+    var r = region || fx.selectedRegions[0] || ghostSelectionComment
     if (r) {
         var firstIndent = ""
-        var line = fx.lines[r.startY]
-        var firstNonSpace = 0
-        for (var i=0; i<line.length; i++) {
-            var chr = line.charAt(i)
-            if (chr != " " && chr != "\t") {
-                firstNonSpace = i
-                break
-            }
-        }
         for (var y=r.startY; y<=r.stopY; y++) {
+            var line = fx.lines[y]
+            var firstNonSpace = 0
+            for (var i=0; i<line.length; i++) {
+                var chr = line.charAt(i)
+                if (chr != " " && chr != "\t") {
+                    firstNonSpace = i
+                    break
+                }
+            }
             // fx.lines[y] = fx.lines[y].slice(0, firstNonSpace) + prefix + fx.lines[y].slice(firstNonSpace)
             updateLine(y, fx.lines[y].slice(0, firstNonSpace) + prefix + fx.lines[y].slice(firstNonSpace))
         }
@@ -3843,7 +3850,7 @@ function addPrefix(prefix, region) {
 }
 
 function stripPrefixes(prefixes, region) {
-    var r = region || fx.selectedRegions[0]
+    var r = region || fx.selectedRegions[0] || ghostSelectionComment
     if (r) {
         for (var y=r.startY; y<=r.stopY; y++) {
             // fx.lines[y] = stripPrefixesInner(fx.lines[y], prefixes)
@@ -4781,7 +4788,8 @@ function bashEscapeSingleQuote(str) {
 }
 
 function paste(unselect, pasteBefore, fromTap, unselectIfCharOneWord) {
-    hasMovedSincePaste = false
+    ghostSelection = null
+    ghostSelectionComment = null
     // todo: fromTap really means "smart" paste
     if (fx.fileMode == "directory" && copiedDirectoryFiles.length) {
         var dest = "."
@@ -4827,6 +4835,7 @@ var p = []
 
 function pasteLines(localCopyBuffer, unselect, pasteBefore, fromTap, unselectIfCharOneWord) {
     ghostSelection = null
+    ghostSelectionComment = null
     if (pasteDebug) {
         p.unshift(new Error().stack)
     }
@@ -4862,7 +4871,7 @@ function pasteLines(localCopyBuffer, unselect, pasteBefore, fromTap, unselectIfC
         if (false && !unselect) {
             fx.selectedRegions = [newSelection]
         } else {
-            ghostSelection = newSelection
+            ghostSelection = newSelection // lightblue marker
         }
         linesPasted = localCopyBuffer.length
     } else if (selectMode == "char") {
@@ -4934,8 +4943,11 @@ var copiedDirectoryFiles = []
 var globalOldCopyBuffer = []
 var hasMovedSinceCut = true
 var lastDeleteWasFromSelection = false
-var hasMovedSincePaste = true
-var ghostSelection = {}
+
+// 2 variables because pasting should not allow next comment action to apply to what we pasted
+// but commenting should allow the left/right to indent and dedent
+var ghostSelection = null
+var ghostSelectionComment = null
 
 function del(preventCopy, preventDeleteWholeLine, preventUndo) {
     // var oldCopyBuffer = copyBuffer
@@ -7935,7 +7947,7 @@ function renderInternal() {
                         }
                     }
                     if (y == 5) {
-                        drawCircle(color, x, 0, usedDotSize, theBackgroundColor, 5)
+                        // drawCircle(color, x, 20, usedDotSize, theBackgroundColor, 5)
                     } else {
                         drawCircle(color, x, canvasHeight-(y*vtsThrice)-halfVTSThrice, usedDotSize, theBackgroundColor, 5)
                     }
@@ -7972,13 +7984,18 @@ var circleColors = {
 
      "2farLeft": "_",
      "2sliceLeft": "royalblue",
-     // "2left": "_",
-     // "2midLeft": "red",
-     // "2middle": "",
-     // "2midRight": "red",
-     // "2right": "_",
+     "2left": "__",
+     "2midLeft": "__",
+     "2middle": "__",
+     "2midRight": "__",
+     "2right": "__",
      "2sliceRight": "royalblue",
      "2farRight": "_",
+     
+     // "2farLeft": "_",
+     // "2sliceLeft": "royalblue",
+     // "2sliceRight": "royalblue",
+     // "2farRight": "_",
      
      "3farLeft": "?",
      "3sliceLeft": "royalblue",
@@ -8578,7 +8595,8 @@ function onStart(e) {
         shouldAutocompleteLine = false
         hasMovedSinceNewLine = true
         hasMovedSinceCut = true
-        hasMovedSincePaste = true
+        ghostSelection = null
+        ghostSelectionComment = null
         wasDelete = false // so a previous delete doesn't cause split line when you don't want
         acWord = null
         aclV2 = null
@@ -9225,8 +9243,10 @@ function onStart(e) {
                 moveSelectionLeft()
             } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
                 goUpFileList()
-            } else if (!hasMovedSincePaste && ghostSelection) {
+            } else if (ghostSelection) {
                 dedent(ghostSelection)
+            } else if (ghostSelectionComment) {
+                dedent(ghostSelectionComment)
             } else {
                 moveCursorLeft()
                 // if (lastDirection == "horizontal") {
@@ -9241,8 +9261,10 @@ function onStart(e) {
                 moveSelectionRight()
             } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
                 goDownFileList()
-            } else if (!hasMovedSincePaste && ghostSelection) {
+            } else if (ghostSelection) {
                 indent(ghostSelection)
+            } else if (ghostSelectionComment) {
+                indent(ghostSelectionComment)
             } else {
                 moveCursorRight()
                 // if (lastDirection == "horizontal") {
@@ -10695,7 +10717,8 @@ function getLinesForFileList() {
                 prefixText += "📍"
             }
             if (files[i].group || files[i].pinned) {
-                flatName = prefixText + ": " + flatName
+                // flatName = prefixText + ": " + flatName
+                flatName = prefixText + " " + flatName
             }
 
             var dirPart = files[i].fullPath.split("/").slice(0, -1).reverse().join(" < ")
@@ -11572,12 +11595,13 @@ function duplicateLine() {
     var prevCopyBuffer = copyBuffer
     copyBuffer = [fx.lines[fx.cursorLineIndex]]
     selectMode = "line"
-    paste(true) // true here means unselect
+    paste(true) // true here means unselect, but it always unselects now
     copyBuffer = prevCopyBuffer
 }
 function duplicateSelection() {
     // #duplicateselection
-    copy(true)
+    // copy(true)
+    copy()
     paste()
 }
 function moveSelectionUp() {
@@ -11645,7 +11669,7 @@ var navFileLeft = function() {
 }
 var moveCursorUp = function() {
     hasMovedSinceCut = true
-    hasMovedSincePaste = true
+    ghostSelection = null
     // TODO:  Are there other  hasMovedSince* variables that we need to clear out?
     var theLine = fx.lines[fx.cursorLineIndex] || ""
     // if it's at the start of the line (not including leading space)
@@ -11674,7 +11698,7 @@ var moveCursorUp = function() {
 }
 var moveCursorDown = function() {
     hasMovedSinceCut = true
-    hasMovedSincePaste = true
+    ghostSelection = null
     // TODO:  Are there other  hasMovedSince* variables that we need to clear out?
     var theLine = fx.lines[fx.cursorLineIndex] || ""
     // if it's at the start of the line (not including leading space)
