@@ -1798,7 +1798,6 @@ var theStatus = {}
 // * fileList
 // * directory
 // * terminal
-var knownContrastingColors = {}
 // if last keyDown is a backspace
 var wasWasDelete = false
 var wasDelete = false
@@ -7715,42 +7714,6 @@ function renderInternal() {
             } else if (theLine.startsWith("-")){
                 textFillStyle = "red"
             // } else if (trimmedLine.startsWith("// mar"+"ker ") || trimmedLine.startsWith("# mar"+"ker ")) {
-            } else if (trimmedLine.endsWith("mar"+"ker")) {
-                // do a fill rect of the color that comes after
-                // Not using save and restore because my mock canvas doesn't support it
-                var oldFillStyle = t.fillStyle
-                // var theFillStyle = doTrimPrefix(trimmedLine, "// mar"+"ker ").split(" ")[0]
-                // var theFillStyle = doTrimPrefix(doTrimPrefix(trimmedLine, "// mar"+"ker "), "# mar"+"ker ").split(" ")[0]
-                // TODO: faster snagging of the color.
-                var theParts = trimmedLine.split(" ")
-                theFillStyle = theParts[theParts.length - 2]
-                t.fillStyle = theFillStyle
-                // go twice as wide as you need, for server rendering purposes
-                // t.fillRect(0, y * fontHeight, c.width*2, fontHeight)
-
-                var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // red marker
-                t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // red marker
-
-                textFillStyle = fontColor
-                // if (knownContrastingColors[t.fillStyle]) {
-                //     textFillStyle = knownContrastingColors[t.fillStyle]
-                // } else {
-                //     colorGetterEl.style.backgroundColor = t.fillStyle
-                //     // I think the t.fillStyle gets normalized as #RRGGBB, so you could have used that.
-                //     var rgbColor = window.getComputedStyle(colorGetterEl).backgroundColor
-                //     var grayed = ll(rgbColor, "n n n", function(r, g, b) {
-                //         // googled this
-                //         return (0.3 * r) + (.59 * g) + (.11 * b)
-                //     })
-                //     if (grayed < 128) {
-                //         textFillStyle = "white"
-                //     } else {
-                //         textFillStyle = "black"
-                //     }
-                //     knownContrastingColors[t.fillStyle] = textFillStyle
-                // }
-                t.fillStyle = oldFillStyle
-
             } else if (trimmedLine.startsWith("//") || trimmedLine.startsWith("#")) {
                 commentLine = true
                 // comments are gray
@@ -7769,6 +7732,20 @@ function renderInternal() {
             textFillStyle = fontColor
         }
         
+        
+        if (trimmedLine.endsWith("mar"+"ker")) {
+            // do a fill rect of the color that comes after
+            // Not using save and restore because my mock canvas doesn't support it
+            var oldFillStyle = t.fillStyle
+            // TODO: faster snagging of the color.
+            var theParts = trimmedLine.split(" ")
+            theFillStyle = theParts[theParts.length - 2]
+            t.fillStyle = theFillStyle
+            var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // red marker
+            t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // red marker
+            t.fillStyle = oldFillStyle
+        }
+
         if (compactRender && !commentLine) {
             var lineAndInfo = compactLine(theLine, y + fx.offsetY)
             theNewLine = lineAndInfo.compactedLine
@@ -11241,7 +11218,9 @@ function processPathDecorator(file) {
     for (var j=0; j<pathDecorators.length; j++) {
         var pd = pathDecorators[j]
         if (file.fullPath.indexOf(pd.Path) != -1) {
-            file.group = pd.Decorator
+            if (!file.group) {
+                file.group = pd.Decorator
+            }
             break
         }
     }
