@@ -79,19 +79,19 @@ line ud del select copy paste indent dedent
 block ud
 file
 
-feature        char word line blok file ()""
-----------     ---- ---- ---- ---- ---- ----
-up             x    x    x    x    x
-down           x    x    x    x    x
-left           x    x    x    x    x
-right          x    x    x    x    x
-del back       x    x    x
-del forward    x    x    x
-del in              x    x    x    x
+feature        char word line blok file ()"" lngr
+----------     ---- ---- ---- ---- ---- ---- ----
+// up             x    x    x    x    x
+// down           x    x    x    x    x
+// left           x    x    x    x    x
+// right          x    x    x    x    x
+// del back       x    x    x
+// del forward    x    x    x
+// del in              x    x    x    x
 dupl (cpy,pst)      x    x    x    x
 repl (cut,pst)      x    x    x    x
-indent                   x    x    x
-dedent                   x    x    x
+// indent                   x    x    x
+// dedent                   x    x    x
 add blank      x         x
 select         x    x    x    x    x
 copy           x    x    x    x    x
@@ -100,9 +100,11 @@ comment
 
 
             c w l b f p
-    o       
-  o x o    
-    o                                                     x    x    x
+            
+  < o >   s s s
+  o x o   / c d
+  { o }   b p r
+
 
 clear search
 edit search
@@ -9238,6 +9240,7 @@ function onStart(e) {
             endListenerCount += 1
             return true
         } else {
+            selectBlock()
             // there are other ways to duplicate the line and tapping here while selected
             // # duplicateline #duplicatelinefromtop
             // #duplicateselection
@@ -9397,6 +9400,16 @@ function onStart(e) {
         // idea: if 2 touches while selected
         // do something else like comment
         // todo: change to
+        let handled = handleTouchAreasXOnly(e, {
+            "sliceLeft": function () {
+            },
+            "sliceRight": function () {
+                selectBlock()
+            },
+        })
+        if (handled) {
+            return
+        }
         if (e.changedTouches[0].pageX < (bbox.width * (1/3))) {
             // select, lift finger, move on ledt side
             cursorType = "move"
@@ -12655,6 +12668,55 @@ function inputVoiceCommandText_old(e) {
         }
     }, 1000)
 }
+
+function selectBlock() {
+    // selectBlock()
+    let sr = fx.selectedRegions[0]
+    let curIndent = getIndent(fx.lines[fx.cursorLineIndex])
+
+    let nextIndent = getIndent(fx.lines[fx.cursorLineIndex + 1])
+    if (nextIndent.length > curIndent.length) {
+        for (let i=fx.cursorLineIndex+1; i < fx.lines.length; i++) {
+            if (fx.lines[i].trim() == "") {
+                continue
+            }
+            let thisIndent = getIndent(fx.lines[i])
+            sr.stopY = i
+            sr.stopX = expandTabIndex(fx.lines[i], fx.lines[i].length, i)
+            fx.cursorLineIndex = sr.stopY
+            updateCursorXY()
+            ensureCursorInScreen()
+            if (thisIndent.length <= curIndent.length) {
+                break
+            }
+        }
+        // for (let i=fx.cursorLineIndex-1; i >= 0; i--) {
+        //     let thisIndent = getIndent(fx.lines[i])
+        //     if (thisIndent < curIndent) {
+        //         break
+        //     }
+        //     sr.startY--
+        // }
+    } else {
+        for (let i=fx.cursorLineIndex+1; i < fx.lines.length; i++) {
+            if (fx.lines[i].trim() == "") {
+                continue
+            }
+            let thisIndent = getIndent(fx.lines[i])
+            if (thisIndent.length < curIndent.length) {
+                break
+            }
+            sr.stopY = i
+            sr.stopX = expandTabIndex(fx.lines[i], fx.lines[i].length, i)
+            fx.cursorLineIndex = sr.stopY
+            updateCursorXY()
+            ensureCursorInScreen()
+        }
+    }
+    render()
+}
+
+
 </script>
 <audio id="audio" controls></audio>
 </body>
