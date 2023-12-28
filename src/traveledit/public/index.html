@@ -1,5 +1,8 @@
 <!doctype html>
 <!--
+
+open html?
+
 syntax highlighting
 select line with one tap
 fonts on screenshare
@@ -33,6 +36,111 @@ top line
 select block?
 comment block?
 
+commands I want
+edit
+edit and insert newline
+move left, right, up, down
+go end of line, beginning of line
+end of file, beginning of file
+up by paragraph, down by paragraph
+? next word, prev word
+paste line
+paste inline
+duplicate line
+replace line (delete and paste)
+replace word
+copy
+cut (note I have smart cut and paste, where cut paste, cut paste will toggle etc)
+delete line
+delete word
+indent, dedent
+select word
+select line
+select in string
+select in quotes
+? select in paragraph
+space, backspace, newline
+join lines
+find down, find up
+clear search
+edit search
+toggle comment
+undo redo
+
+keep search
+
+
+b.   n
+c.   w
+
+char udlr delfwd delback select copy
+word lr delin select copy 
+line ud del select copy paste indent dedent
+block ud
+file
+
+feature        char word line blok file ()""
+----------     ---- ---- ---- ---- ---- ----
+up             x    x    x    x    x
+down           x    x    x    x    x
+left           x    x    x    x    x
+right          x    x    x    x    x
+del back       x    x    x
+del forward    x    x    x
+del in              x    x    x    x
+dupl (cpy,pst)      x    x    x    x
+repl (cut,pst)      x    x    x    x
+indent                   x    x    x
+dedent                   x    x    x
+add blank      x         x
+select         x    x    x    x    x
+copy           x    x    x    x    x
+paste          x         x
+comment    
+
+
+            c w l b f p
+    o       
+  o x o    
+    o                                                     x    x    x
+
+clear search
+edit search
+find down
+find up
+undo redo
+alt tab
+prev tab
+next tab
+dup tab
+up dir
+
+t su - cut line (or selection)
+t sl - dedent
+t sr - indent
+t sd - copy line
+t sd t - duplicate line (or selection)
+t su t - replace line
+t t - paste (or by line depending on selectMode)
+t r - move cursor right
+t l - move cursor left
+t u - move cursor up
+t d - move cursor down
+t R - move cursor right by word
+# t sr sr - comment/uncomment
+t sr sr - space
+t sl sl - backspace
+t sd sd - newline
+t sl sr - comment/uncomment
+t sr sl - join
+t t sl - delete to beginning
+t t sr - delete to end
+t t su - delete word
+t t d - copy word
+t t su t - replace word
+t t sd - copy word
+
+(long swipe, diag swipe, diag Touch, start swiping left)
 -->
 <html>
 <head>
