@@ -1741,9 +1741,9 @@ function makeTouchRatios(layout) {
 // var layout = "aaa s bbb cc dddd ee fff s ggg"
 var layout = "aa s bbb cc dddd ee fff s gg"
 var touchRatios = makeTouchRatios(layout)
-setTimeout(function () {
-    log(touchRatios)
-}, 1000)
+// setTimeout(function () {
+//     log(touchRatios)
+// }, 1000)
 
 
 
@@ -2774,7 +2774,6 @@ function runEditorCommand(e) {
         render()
         break
     case "g":
-        log("g called")
         // runChatGPT('gpt-4', {inline: true, extra: "\n\n" + rest})
         runChatGPT('gpt-4-1106-preview', {inline: true, extra: "\n\n" + rest})
         break
@@ -2981,8 +2980,6 @@ function cleanUpFiles() {
     renderFileDropdown()
     // seeFiles()
     seeFilesForReal()
-    
-    log(seenFiles)
 }
 function closeFile(theFX) {
     var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
@@ -2995,7 +2992,6 @@ function closeFile(theFX) {
     if (theFX.thumbscriptWorld) {
         theFX.thumbscriptWorld.global.stopped = true
     }
-    log("closing " + theFX.fullPath)
     if (theFX.fileMode == "fileList") {
         var fileIndex = files.indexOf(treeFilesShadow[theFX.cursorLineIndex])
         if (fileIndex != -1) {
@@ -4278,14 +4274,12 @@ async function runChatGPT(model, options) {
             "content": content
           },
     ]
-    log(messages)
     // Todo: see if saveWorkspace is heavy
     // only do it if this fx doesn't have an ID?
     //
     if (!fx.ID) {
         await saveWorkspace()
     }
-    log("calling chatgpt")
     // fetch(proxyPath + "/chatgpt?id=" + fx.ID + "&index="+fx.cursorLineIndex+"&messages=" + encodeURIComponent(JSON.stringify(messages)), {
     var formData = new FormData()
     formData.append("model", model)
@@ -4295,7 +4289,6 @@ async function runChatGPT(model, options) {
         cache: "no-cache",
         method: "POST", body: formData
     }).then(r => {
-        log("got response from chatgpt call")
     }).catch(e => {
         alert("There was an error sending to chatgpt: " + e)
     })
@@ -4753,8 +4746,8 @@ function setCanvasHeightAccordingly() {
         // If this is too big then iOS wiLl auto scroll
         // it up so that the text isn't so low I guess
         // an attempt to window.scrollTo(0,0) failed
-        // var statusElHeight = 190
-        var statusElHeight = 100
+        var statusElHeight = 190
+        // var statusElHeight = 100
         statusEl.style.height = statusElHeight + "px"
         logEl.style.height = statusElHeight + "px"
 
@@ -5536,8 +5529,6 @@ function saveName(name) {
 }
 
 function handleChatGPTResponse(file, responses) {
-    log(file.chatGPTCursorLineIndex)
-    log(responses)
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"role":"assistant"},"index":0,"finish_reason":null}]}
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"Ah"},"index":0,"finish_reason":null}]}
     // data: {"id":"chatcmpl-6pgqSqpWR1pXp8gZkqfKru6KLnSgH","object":"chat.completion.chunk","created":1677777444,"model":"gpt-3.5-turbo-0301","choices":[{"delta":{"content":"oy"},"index":0,"finish_reason":null}]}
@@ -5557,7 +5548,6 @@ function handleChatGPTResponse(file, responses) {
         try {
            var response = JSON.parse(responses[i])
            content = response.choices[0].delta.content
-           // log("content:" + JSON.stringify(content))
         } catch (e) {
            content = responses[i]
            if (content == "[DONE]") {
@@ -9182,12 +9172,12 @@ function onStart(e) {
         document.body.removeEventListener("touchend", onEndWhileSelected)
         endListenerCount = max(endListenerCount-1, 0)
         if (isLongPress) {
-            log("longPress so skipping default action")
+            // log("longPress so skipping default action")
             return
         }
 
         var sr = fx.selectedRegions[0]
-        log("on end while selected")
+        // log("on end while selected")
         if (!moved && sr) {
             // Note: add more actions, and try to be consistent-ish
             // note there is no long press here. should I add?
@@ -9472,13 +9462,13 @@ function onStart(e) {
         if (true) {
             handleTouchAreasXOnly(e, {
                 "sliceLeft": function () {
-                    log("sliceLeft")
+                    // log("sliceLeft")
                     clearTimeout(selectTimeout)
                     var leftSideFeature = true
                     selectAction(false, leftSideFeature)
                 },
                 "sliceRight": function () {
-                    log("sliceRight")
+                    // log("sliceRight")
                     clearTimeout(selectTimeout)
                     selectAction(true)
                 },
@@ -9745,7 +9735,7 @@ function autocompleteLineV2Run() {
     for (var _s=0; _s<500;_s++) {
         // TODO: don't process duplicate files 
         if (!a.originatingFileComplete) {
-            log("sesrching original file")
+            // log("sesrching original file")
             fileToCheck = fx
         } else {
             fileToCheck = files[a.fileIndex]
@@ -9753,10 +9743,10 @@ function autocompleteLineV2Run() {
                 a.fileIndex++
                 fileToCheck = files[a.fileIndex]
             }
-            log("searching file at index " + a.fileIndex)
+            // log("searching file at index " + a.fileIndex)
             if (!fileToCheck) {
                 aclV2 = null
-                log("nulling out aclV2")
+                // log("nulling out aclV2")
                 searchText.value = ""
                 render()
                 return
@@ -9782,7 +9772,7 @@ function autocompleteLineV2Run() {
                 a.seen[trimmed] = true
                 fx.lines[fx.cursorLineIndex] = a.indent + trimmed
                 a.fileLineIndex = i+1
-                log("match: " + "("+i+")" + line)
+                // log("match: " + "("+i+")" + line)
                 render()
                 return
             } else {
@@ -11029,7 +11019,7 @@ function downloadFile() {
         var addPath = fx.lines[fx.cursorLineIndex]
         newFullPath = prefix + "/" + addPath
     }
-    log(newFullPath)
+    // log(newFullPath)
     window.open(proxyPath + "/saveload?fullpath=" + encodeURIComponent(newFullPath) + "&raw=1&download=1")
 }
 
@@ -11462,7 +11452,6 @@ function langServer(jsonRPC) {
     }).then(r => {
         return r.json()
     }).then(r => {
-        log(r)
     }).catch(e => {
         alert("error saving calling lang server: " + e)
     })
@@ -11512,9 +11501,7 @@ async function startRecording()
     isRecording = true
     blobs = []
     // stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-    log(1)
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    log(2)
     mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = (event) => {
        // Let's append blobs for now, we could also upload them to the network.
