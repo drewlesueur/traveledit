@@ -518,9 +518,33 @@ thumbscript4.desugar = function(tokens) {
     // log2(tokens)
     tokens = thumbscript4.desugarAtSign(tokens)
     // log2(tokens)
+    tokens = thumbscript4.desugarParens(tokens)
+    // log2(tokens)
     tokens = thumbscript4.someIfMagic(tokens)
     // log2(tokens.anchors)
     return tokens
+}
+
+thumbscript4.desugarParens = function(tokens) {
+    // because parens don't matter at runtime
+    // they are only used to group things for sugar reasons
+    // return tokens
+    var newTokens = []
+    for (let t of tokens) {
+        if (t.th_type == parenType) {
+            if (!t.valueArr) {
+                continue
+                log2("what??!!")
+                log2(t)
+            }
+            for (let t2 of t.valueArr) {
+                newTokens.push(t2)
+            }
+        } else {
+            newTokens.push(t)
+        }
+    }
+    return newTokens
 }
 thumbscript4.someIfMagic = function(tokens) {
     // when if is false, we need to jump to end of the chain
@@ -728,11 +752,13 @@ thumbscript4.squishFuncs = function(tokens) {
         } else if (token.th_type != stringType && token.valueString == ")") {
             var r = newTokens
             newTokens = tokenStack.pop()
+
             newTokens.push({
                 name: "(parens)",
                 th_type: parenType,
                 valueArr: thumbscript4.desugar(r),
             })
+
         } else {
             newTokens.push(token)
         }
@@ -1005,12 +1031,14 @@ thumbscript4.genFunc3 = function(f) {
 thumbscript4.recycledWorlds = []
 thumbscript4.recycle = function (world) {
     return
+    
     if (thumbscript4.recycledWorlds.length < 10000) {
         thumbscript4.recycledWorlds.push(world)
     }
 }
 thumbscript4.getRecycledWorld = function () {
     return {}
+    
     var world = thumbscript4.recycledWorlds.pop() || {}
     return world
 }
@@ -1445,6 +1473,7 @@ thumbscript4.builtIns = {
         // returning the original world
         return world
     },
+    // do (alias)
     call: function(world) {
         var f = world.stack.pop()
         return thumbscript4.builtIns.call_skipstack(world, f)
@@ -1540,7 +1569,7 @@ thumbscript4.builtIns = {
     "goto": function(world) {
         var loc = world.stack.pop()
         var w = world
-        // log2("+ called goto")
+        // log2("+ called goto " + loc)
         while (!w.tokens.anchors || !w.tokens.anchors.hasOwnProperty(loc)) {
             // log2("+ in " + w.name + "; searching above")
             w = w.parent
@@ -1549,7 +1578,6 @@ thumbscript4.builtIns = {
         return w
     },
     "return": function(world) {
-        // same as return, but I like better
         return thumbscript4.continueN(1, world)
     },
     "returnp": function(world) {
@@ -1746,6 +1774,11 @@ thumbscript4.builtIns = {
 thumbscript4.builtIns["if"] = thumbscript4.builtIns["?"]
 thumbscript4.builtIns["elseif"] = thumbscript4.builtIns["??"]
 thumbscript4.builtIns["else"] = thumbscript4.builtIns["?;"]
+
+// do is an alias for call
+thumbscript4.builtIns["do"] = thumbscript4.builtIns["call"]
+
+
 thumbscript4.builtIns.localDateFormat = thumbscript4.genFunc1((unixTimestamp) => {
     // return 2001
     let date = new Date(unixTimestamp * 1000)
@@ -1896,6 +1929,9 @@ thumbscript4.next = function(world) {
                 world.stack.push(closure)
                 break outer
             case parenType:
+                // this is no longer called
+                // it's desugared away
+                
                 // newWorld = {
                 //     parent: world,
                 //     state: {},
@@ -2409,6 +2445,19 @@ thumbscript4.tokenize(`
 // a: [b: 1 2 plus c: 40 3 minus]
 
 // "hell(oyo" split("l")
+
+// 1 2 plus :myvar
+// myvar: 1 2 plus
+// myvar: plus. 1 2
+
+{
+    if. i gt(100_000) {
+        breakp
+    }
+    count: count plus. i
+    i: i plus. 1
+    repeat
+} call
 `, true)
 
 function promiseCheck(name) {
@@ -2873,9 +2922,11 @@ assertempty. "a check0.1" // olive marker
 •say "the name is $name"
 
 #countPart
+say. "we're in the countpart"
+say. lf
 
 
-    {
+    do. {
         0 :count
         nowmillis :start
         100_000 {
@@ -2883,11 +2934,11 @@ assertempty. "a check0.1" // olive marker
         } jsloopn
         nowmillis :end
         end •minus start :total
-        "end: $end; start: $start" say
-        "it took $total ms // pink marker" say
+        "jsloopn: it took $total ms // pink marker" say
         "count is $count" say
-    } call
+    }
 
+say. 
 
     {
         0 :count
@@ -2897,8 +2948,7 @@ assertempty. "a check0.1" // olive marker
         } jsloopn
         nowmillis :end
         end •minus start :total
-        "end: $end; start: $start" say
-        "it took $total ms // pink marker" say
+        "jsloopn again: it took $total ms // pink marker" say
         "count is $count" say
     } call
 
@@ -2915,7 +2965,7 @@ assertempty. "a check0.1" // olive marker
 
     // 100000 { count plus :count } timeit
     100_000 { count+= } timeit
-    "count is $count" say
+    "yea count is $count" say
 
 
     // 70 :count2
@@ -2966,13 +3016,46 @@ say. ""
         nowmillis :end
         end •minus start :total
         "end: $end; start: $start" say
-        "it took $total ms // blue marker" say
+        "(repeat guardlt) it took $total ms // blue marker" say
         "+count is $count" say
     } call
     say. "-------"
     say. ""
 }
 
+3 loopn. {
+    {
+        0 :count
+        0 :i
+        nowmillis :start
+        {
+            // if. i .gt 100_000 {
+            if. i gt(100_000) {
+                breakp
+            }
+            // if. i gt(100_000) ~breakp
+            
+            // i 100_000 gt {
+            //     breakp
+            // } ?
+
+            count: count plus. i
+            i: i plus. 1
+
+            // count 1 plus :count
+            // i 1 plus :i
+
+            repeat
+        } call
+        nowmillis :end
+        end •minus start :total
+        "end: $end; start: $start" say
+        "(manual) it took $total ms // maroon marker" say
+        "+count is $count" say
+    } call
+    say. "-------"
+    say. ""
+}
 
 3 loopn. {
     {
