@@ -1,5 +1,12 @@
 var thumbscript4 = {}
 
+// allow foo["bar"]: 20
+// get rid of foo $bar:: 20
+// get rid of [foo $bar]: 20
+// allow ewual sign as alternate to :
+// a = b means a: b
+
+
 // idea for perf. after desugaring, you can remove the parens
 
 if (typeof log2 == "undefined"){
@@ -98,16 +105,17 @@ thumbscript4.tokenize = function(code, debug) {
                 addToken2(f)
                 return
             } else if (token.endsWith("+=")) {
+                // lime #color
                 var a = token.slice(0, -2)
                 var f = function(world) {
                     var w = thumbscript4.getWorldForKey(world, a, false, true)
-                    // var w = world.parent.parent
                     w.state[a] += world.stack.pop()
                     return world
                 }
                 f.theName = token
                 addToken2(f)
                 return
+                // end #color
             }
         }
         // if (typeof token == "string" && token.startsWith("#")) {
@@ -811,14 +819,16 @@ setTimeout(function () {
 }, 0)
 
 PretendArray = function () {
-    var ret = new Array(1000)
+    var ret = new Array(10000)
     ret._i = 0
     ret.push = function (x) {
+        // log2("// pushing")
         ret[ret._i] = x
         ret._i++
         return ret._i
     }
     ret.pop = function () {
+        // log2("// popping")
         var r = ret[ret._i-1]
         ret._i--
         return r
@@ -1043,6 +1053,21 @@ thumbscript4.getRecycledWorld = function () {
     return world
 }
 
+// not helpful ??
+thumbscript4.recycledClosures = []
+thumbscript4.recycleClosure = function (c) {
+    return
+    
+    if (thumbscript4.recycledClosures.length < 10000) {
+        thumbscript4.recycledClosures.push(c)
+    }
+}
+thumbscript4.getRecycledClosure = function () {
+    return {}
+    var c = thumbscript4.recycledClosures.pop() || {}
+    return c
+}
+
 thumbscript4.continueN = function (n, world) {
     n = n-1
     while (world.isParens) {
@@ -1097,6 +1122,10 @@ thumbscript4.builtIns = {
     lf: thumbscript4.genFunc0(() => "\n"),
     cr: thumbscript4.genFunc0(() => "\r"),
     plus: thumbscript4.genFunc2((a, b) => a + b),
+    // plus: function (world) {
+    //     world.stack.push(world.stack.pop() + world.stack.pop())
+    //     return world
+    // },
     minus: thumbscript4.genFunc2((a, b) => a - b),
     mod: thumbscript4.genFunc2((a, b) => a % b),
     times: thumbscript4.genFunc2((a, b) => a * b),
@@ -1288,7 +1317,17 @@ thumbscript4.builtIns = {
     // },
     dyn: function(world) {
         var a = world.stack.pop()
+        // #closureshortcut
+        // a = thumbscript4.closureify(a, world)
         a.dynamic = true
+        world.stack.push(a)
+        return world
+    },
+    local: function(world) {
+        var a = world.stack.pop()
+        // #closureshortcut
+        // a = thumbscript4.closureify(a, world)
+        a.local = true
         world.stack.push(a)
         return world
     },
@@ -1299,12 +1338,6 @@ thumbscript4.builtIns = {
     },
     clearlog: function(world) {
         world.global.splice(0, debugOutput.length)
-        return world
-    },
-    local: function(world) {
-        var a = world.stack.pop()
-        a.local = true
-        world.stack.push(a)
         return world
     },
     get: function(world) {
@@ -1341,6 +1374,8 @@ thumbscript4.builtIns = {
         }
         var w = thumbscript4.getWorldForKey(world, a, false, true)
         w.state[a] = b
+        // #closureshortcut
+        // w.state[a] = thumbscript4.closureify(b, world)
         return world
     },
     setb: function(world) {
@@ -1348,6 +1383,8 @@ thumbscript4.builtIns = {
         var a = world.stack.pop()
         var w = thumbscript4.getWorldForKey(world, a, false, true)
         w.state[a] = b
+        // #closureshortcut
+        // w.state[a] = thumbscript4.closureify(b, world)
         return world
     },
     setplus1: function(world) {
@@ -1388,23 +1425,41 @@ thumbscript4.builtIns = {
         world.name = a
         return world
     },
+    jsdrop: function(world) {
+        // world.stack.pop()
+        return world
+    },
     jsloopn: function(world) {
         // for some reason this doesn't work unless you preventRender
         // see preventRender assignment
         var f = world.stack.pop()
         var n = world.stack.pop()
+        
+        
+        var fWorld
+        var fTokens
+        if (f.th_type == curlyType) {
+            // #closureshortcut
+            // may remove this attempted optimization
+            fWorld = world
+            fTokens = f.valueArr
+        } else if (f.th_type == closureType) {
+            fWorld = f.world
+            fTokens = f.tokens
+        }
+        
         var loopWorld = {
-            parent: f.world,
+            parent: fWorld,
             state: {},
             stack: world.stack,
-            tokens: f.tokens,
+            tokens: fTokens,
             i: 0,
             dynParent: null,
             runId: ++thumbscript4.runId,
             indent: world.indent + 1,
             // cachedLookupWorld: {},
-            global: f.world.global,
-            asyncGlobal: f.world.asyncGlobal,
+            global: fWorld.global,
+            asyncGlobal: fWorld.asyncGlobal,
             local: f.local,
         }
         for (var i=0; i<n; i++) {
@@ -1445,20 +1500,31 @@ thumbscript4.builtIns = {
     go: function (world) {
         var f = world.stack.pop()
         // see call_skipstack
+        var fWorld
+        var fTokens
+        if (f.th_type == curlyType) {
+            // #closureshortcut
+            // may remove this attempted optimization
+            fWorld = world
+            fTokens = f.valueArr
+        } else if (f.th_type == closureType) {
+            fWorld = f.world
+            fTokens = f.tokens
+        }
         var asyncWorld = {
-            parent: f.world,
+            parent: fWorld,
             state: {},
             // stack: [], // brand new stack
             stack: [...world.stack], // copied stack
-            tokens: f.tokens,
+            tokens: fTokens,
             i: 0,
             dynParent: null,
             asyncParent: world,
             runId: ++thumbscript4.runId,
             indent: world.indent + 1,
             // cachedLookupWorld: {},
-            global: f.world.global,
-            asyncGlobal: f.world.asyncGlobal,
+            global: fWorld.global,
+            asyncGlobal: fWorld.asyncGlobal,
             local: f.local,
         }
 
@@ -1518,19 +1584,29 @@ thumbscript4.builtIns = {
         //     world.i = 0
         //     return world
         // }
-
+        var fWorld
+        var fTokens
+        if (f.th_type == curlyType) {
+            // #closureshortcut
+            // may remove this attempted optimization
+            fWorld = oldWorld
+            fTokens = f.valueArr
+        } else if (f.th_type == closureType) {
+            fWorld = f.world
+            fTokens = f.tokens
+        }
         world = {
-            parent: f.world,
+            parent: fWorld,
             state: {},
             stack: oldWorld.stack,
-            tokens: f.tokens,
+            tokens: fTokens,
             i: 0,
             dynParent: oldWorld,
             runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
             // cachedLookupWorld: {},
-            global: f.world.global,
-            asyncGlobal: f.world.asyncGlobal,
+            global: fWorld.global,
+            asyncGlobal: fWorld.asyncGlobal,
             local: f.local,
         }
 
@@ -1681,6 +1757,9 @@ thumbscript4.builtIns = {
                 world.i = token.endOfIfChainI
             }
             world = thumbscript4.builtIns.call_skipstack(world, block)
+        } else {
+            // there are more places to recycle, this is just an easy one
+            // thumbscript4.recycleClosure(block)
         }
         return world
     },
@@ -1831,6 +1910,18 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
     }
     return w
 }
+
+// #closureshortcut
+thumbscript4.closureify = function (a, world) {
+    if (a && a.th_type == curlyType) {
+        a = {
+            th_type: closureType,
+            tokens: a.valueArr,
+            world: world,
+        }
+    }
+    return a
+} 
 thumbscript4.runId = 0
 
 thumbscript4.next = function(world) {
@@ -1908,11 +1999,19 @@ thumbscript4.next = function(world) {
                 }
                 break outer
             case curlyType:
+                // #closureshortcut
+                // world.stack.push(token); break outer
+
                 var closure = {
                     th_type: closureType,
                     tokens: token.valueArr,
                     world: world,
                 }
+                // var closure = thumbscript4.getRecycledClosure()
+                // closure.th_type = closureType
+                // closure.tokens = token.valueArr,
+                // closure.world = world
+
                 closure.toJSON = function() {
                     return {
                         tokens: closure.tokens,
@@ -1931,7 +2030,7 @@ thumbscript4.next = function(world) {
             case parenType:
                 // this is no longer called
                 // it's desugared away
-                
+
                 // newWorld = {
                 //     parent: world,
                 //     state: {},
@@ -1970,6 +2069,7 @@ thumbscript4.next = function(world) {
                 break outer
             case builtInType:
                 if (!token.preventCall) {
+                    // log2("// yay calling builtin: " + token.name)
                     newWorld = token.valueFunc(world, token)
                 } else {
                     world.stack.push({
@@ -2012,6 +2112,7 @@ thumbscript4.next = function(world) {
 
                 if (x && x.th_type === closureType && !token.preventCall) {
                     // newWorld = thumbscript4.builtIns.call(world)
+                    // log2("yay calling closure: " + JSON.stringify(x.tokens))
                     newWorld = thumbscript4.builtIns.call_skipstack(world, x)
                 } else {
                     if (typeof x === "function" && !token.preventCall) {
@@ -2058,7 +2159,7 @@ thumbscript4.next = function(world) {
 // c b a
 thumbscript4.stdlib = function x() { /*
     swap: •local { :b :a ~b ~a }
-    drop: •local { :a }
+    drop: •local { :droppy }
     dup: •local { :a ~a ~a }
     // todo: look at what's slow with not inlining (object creation? and fix)
     // that said jsloopn is fastest
@@ -2450,15 +2551,20 @@ thumbscript4.tokenize(`
 // myvar: 1 2 plus
 // myvar: plus. 1 2
 
-{
-    if. i gt(100_000) {
-        breakp
-    }
-    count: count plus. i
-    i: i plus. 1
-    repeat
-} call
-`, true)
+// {
+//     if. i gt(100_000) {
+//         breakp
+//     }
+//     count: count plus. i
+//     i: i plus. 1
+//     repeat
+// } call
+// foo["bar"]: 30
+
+
+// 1 count+=
+// 1 count plus :count
+`, true) // aquamarine marker
 
 function promiseCheck(name) {
     return new Promise(function (res, rej) {
@@ -2503,15 +2609,100 @@ log2("js county: " + county)
 thumbscript4.exampleCode = function () { // maroon marker
 /*
 
-say. "hi"
-say. "yo"
+1 loopn. {
+    {
+        0 :count
+        0 :i
+        nowmillis :start
+        {
+            if. i gt(100_000) {
+            // if. i gt(10) {
+                breakp
+            }
+            // if. i gt(100_000) ~breakp
+            
+            // i 100_000 gt {
+            //     breakp
+            // } ?
 
+            // count: count plus. i
+            i count+=
+            
+            // i: i plus. 1
+            i++
+            
+            // "testing how slow" drop
+            // "testing how slow" drop
+            // "testing how slow" drop
+            // "testing how slow" drop
+            // "testing how slow" drop
+            // "testing how slow" drop
+            // "testing how slow" drop
+            // "testing how slow" drop
+            
+            
+            "testing how slow" jsdrop
+            "testing how slow" jsdrop
+            "testing how slow" jsdrop
+            "testing how slow" jsdrop
+            "testing how slow" jsdrop
+            "testing how slow" jsdrop
+            "testing how slow" jsdrop
+            "testing how slow" jsdrop
+            
+            // "testing how slow"
+            // "testing how slow"
+            // "testing how slow"
+            // "testing how slow"
+            
+            // "testing how slow" ~drop
+            // "testing how slow" ~drop
+            // "testing how slow" ~drop
+            // "testing how slow" ~drop
+            // "testing how slow" ~drop
+            // "testing how slow" ~drop
+            // "testing how slow" ~drop
+            // "testing how slow" ~drop
+
+            // count 1 plus :count
+            // i 1 plus :i
+
+            repeat
+        } call
+        nowmillis :end
+        end •minus start :total
+        "end: $end; start: $start" say
+        "(manual) it took $total ms // maroon marker" say
+        "+count is $count" say
+    } call
+    say. "-------"
+    say. ""
+}
+
+// exit
+goto. $countPart
+
+3 loopn. {
+    say. "hiyaya"
+    say. "yo"
+}
+
+exit
+
+loopn. 3 {
+    a: 1
+    if. a is(1) {
+        say. "yay 1 // teal marker"
+    }
+}
 
 #yo
 
+foo: newobj
+// foo["bar"]: 30
+say. foo
 
 
-goto. $countPart
 
 null
 urlencode
@@ -2965,7 +3156,7 @@ say.
 
     // 100000 { count plus :count } timeit
     100_000 { count+= } timeit
-    "yea count is $count" say
+    "ok cool yea count is $count" say
 
 
     // 70 :count2
@@ -3023,39 +3214,6 @@ say. ""
     say. ""
 }
 
-3 loopn. {
-    {
-        0 :count
-        0 :i
-        nowmillis :start
-        {
-            // if. i .gt 100_000 {
-            if. i gt(100_000) {
-                breakp
-            }
-            // if. i gt(100_000) ~breakp
-            
-            // i 100_000 gt {
-            //     breakp
-            // } ?
-
-            count: count plus. i
-            i: i plus. 1
-
-            // count 1 plus :count
-            // i 1 plus :i
-
-            repeat
-        } call
-        nowmillis :end
-        end •minus start :total
-        "end: $end; start: $start" say
-        "(manual) it took $total ms // maroon marker" say
-        "+count is $count" say
-    } call
-    say. "-------"
-    say. ""
-}
 
 3 loopn. {
     {
@@ -3602,7 +3760,7 @@ thumbscript4.eval(code, window) // red marker
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
 // showLog()
-thumbscript4.eval(`
+false && thumbscript4.eval(`
 
 
 
