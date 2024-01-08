@@ -28,6 +28,7 @@ const anchorType = 10;
 const interpolateType = 11;
 const boolType = 12;
 const nullType = 13;
+const propAccessType = 14;
 
 function j(x) {
     return JSON.stringify(x, null, "    ")
@@ -40,6 +41,7 @@ thumbscript4.tokenize = function(code, debug) {
     // var funcFirstSugar = true // say "hello world"
     var funcFirstSugar = false // say "hello world"
     var parensCallSugar = true // str slice(2 3)
+    var propAccessSugar = true // foo[bar]
 
     var freshLine = true
     var currentTokenOnFreshLine = true
@@ -192,6 +194,17 @@ thumbscript4.tokenize = function(code, debug) {
                     }
                 }
                 addToken(chr)
+                
+                var prevChar = code.charAt(i-1)
+                if (")]}".indexOf(prevChar) != -1) {
+                    if (parensCallSugar && "(".indexOf(chr) != -1) {
+                        let leftParen = tokens.pop()
+                        // TODO: make constant
+                        var antiDotToken = {th_type: varType, valueString: "antidot", preventCall: false}
+                        tokens.push(antiDotToken)
+                        tokens.push(leftParen)
+                    }
+                }
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 // some fancy desugaring here and below
@@ -200,6 +213,13 @@ thumbscript4.tokenize = function(code, debug) {
                 // [w x]: y means [w x] <- y
                 // y :[w x] means y -> [w x]
                 // more desugaring happens in desugarArrows
+                
+                // new
+                // some fancy desugaring here and below
+                // x: y means x 1<- y
+                // y :x means y ->1 x
+                // w[x]: y means [w x] <- y
+                // y :w[x] means y -> [w x]
 
                 var nextChar = code.charAt(i+1)
                 if (" \n\t".indexOf(nextChar) != -1) {
@@ -324,6 +344,18 @@ thumbscript4.tokenize = function(code, debug) {
                     tokens.push(dotToken)
                     tokens.push(t)
                     tokens.push(leftParen)
+                } else if (propAccessSugar && "[".indexOf(chr) != -1) {
+                    let leftSquareBracket = tokens.pop()
+                    leftSquareBracket.propAccess = true
+                    let t = tokens.pop()
+                    // addToken("<yay_prop_access>")
+                    // TODO: make constant
+                    
+                    // var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                    // tokens.push(dotToken)
+                    
+                    tokens.push(leftSquareBracket)
+                    tokens.push(t)
                 }
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
@@ -525,6 +557,7 @@ thumbscript4.desugar = function(tokens) {
     tokens = thumbscript4.desugarArrows(tokens)
     // log2(tokens)
     tokens = thumbscript4.desugarAtSign(tokens)
+    tokens = thumbscript4.desugarAntiDot(tokens)
     // log2(tokens)
     tokens = thumbscript4.desugarParens(tokens)
     // log2(tokens)
@@ -670,6 +703,24 @@ thumbscript4.desugarArrows = function(tokens) {
     }
     return newTokens
 }
+thumbscript4.desugarAntiDot = function(tokens) {
+    var newTokens = []
+    var i = 0
+    while (i < tokens.length) {
+        var token = tokens[i]
+        if (token.th_type == varType && token.valueString == "antidot") {
+            var prev = newTokens.pop()
+            var next = tokens[i + 1]
+            i++
+            newTokens.push(next)
+            newTokens.push(prev)
+        } else {
+            newTokens.push(token)
+        }
+        i++
+    }
+    return newTokens
+}
 thumbscript4.desugarAtSign = function(tokens) {
     var newTokens = []
     var stack = []
@@ -738,6 +789,9 @@ thumbscript4.squishFuncs = function(tokens) {
         } else if (token.th_type != stringType && token.valueString == "[") {
             tokenStack.push(newTokens)
             newTokens = []
+            if (token.propAccess) {
+                newTokens.propAccess = true
+            }
         } else if (token.th_type != stringType && token.valueString == "(") {
             tokenStack.push(newTokens)
             newTokens = []
@@ -752,11 +806,19 @@ thumbscript4.squishFuncs = function(tokens) {
         } else if (token.th_type != stringType && token.valueString == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
-            newTokens.push({
-                name: "[obj]",
-                th_type: squareType,
-                valueArr: thumbscript4.desugar(r),
-            })
+            if (r.propAccess) {
+                newTokens.push({
+                    name: "[propAccess]",
+                    th_type: propAccessType,
+                    valueArr: thumbscript4.desugar(r),
+                })
+            } else {
+                newTokens.push({
+                    name: "[obj]",
+                    th_type: squareType,
+                    valueArr: thumbscript4.desugar(r),
+                })
+            }
         } else if (token.th_type != stringType && token.valueString == ")") {
             var r = newTokens
             newTokens = tokenStack.pop()
@@ -2562,8 +2624,18 @@ thumbscript4.tokenize(`
 // foo["bar"]: 30
 
 
+
+
 // 1 count+=
 // 1 count plus :count
+
+// foo[1 plus. 2]: "three"
+// a .plus foo["bar"]
+// 20 :[foo "bar"]
+// 20 :foo["bar"]
+// foo["bar"]["baz"]
+foo("a")("b")(plus. 1 2)
+
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -2641,14 +2713,14 @@ thumbscript4.exampleCode = function () { // maroon marker
             // "testing how slow" drop
             
             
-            "testing how slow" jsdrop
-            "testing how slow" jsdrop
-            "testing how slow" jsdrop
-            "testing how slow" jsdrop
-            "testing how slow" jsdrop
-            "testing how slow" jsdrop
-            "testing how slow" jsdrop
-            "testing how slow" jsdrop
+            // "testing how slow" jsdrop
+            // "testing how slow" jsdrop
+            // "testing how slow" jsdrop
+            // "testing how slow" jsdrop
+            // "testing how slow" jsdrop
+            // "testing how slow" jsdrop
+            // "testing how slow" jsdrop
+            // "testing how slow" jsdrop
             
             // "testing how slow"
             // "testing how slow"
