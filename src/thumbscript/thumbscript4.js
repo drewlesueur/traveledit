@@ -41,7 +41,7 @@ thumbscript4.tokenize = function(code, debug) {
     // var funcFirstSugar = true // say "hello world"
     var funcFirstSugar = false // say "hello world"
     var parensCallSugar = true // str slice(2 3)
-    var propAccessSugar = true // foo[bar]
+    var propAccessSugar = false // foo[bar]
 
     var freshLine = true
     var currentTokenOnFreshLine = true
@@ -55,8 +55,10 @@ thumbscript4.tokenize = function(code, debug) {
     code += "\n" // to simplify last token
     var addToken = function(token) {
         if (quoteNext) {
+            if ("([{".indexOf(token) == -1) {
+                token = "$" + token
+            }
             quoteNext = false
-            token = "$" + token
         }
         // if (!token) {
         //     log2(tokens)
@@ -172,8 +174,10 @@ thumbscript4.tokenize = function(code, debug) {
     }
     for (var i=0; i < code.length; i++) {
         var chr = code.charAt(i)
+        var nextChar = code.charAt(i+1)
 
         if (state == "out") {
+            // log2("+yay state is out and char is " + JSON.stringify(chr))
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 if (leftAssignSugar) {
@@ -199,12 +203,31 @@ thumbscript4.tokenize = function(code, debug) {
                 if (")]}".indexOf(prevChar) != -1) {
                     if (parensCallSugar && "(".indexOf(chr) != -1) {
                         let leftParen = tokens.pop()
-                        // TODO: make constant
-                        var antiDotToken = {th_type: varType, valueString: "antidot", preventCall: false}
-                        tokens.push(antiDotToken)
+                        // kinda hacky but fits with flow.
+                        var storeFunc = {th_type: builtInType, valueFunc: function (world) {return world}, name: "storeFunc", preventCall: false}
+                        var callStored = {th_type: builtInType, valueFunc: function (world) {return world}, name: "callStored", preventCall: false}
+                        var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                        tokens.push(storeFunc)
+                        tokens.push(dotToken)
+                        tokens.push(callStored)
                         tokens.push(leftParen)
+                    } else if (propAccessSugar && "[".indexOf(chr) != -1) {
+                        let leftSquareBracket = tokens.pop()
+                        leftSquareBracket.propAccess = true
+                        var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                        var atToken = {th_type: varType, valueString: "at", preventCall: false}
+                        tokens.push(dotToken)
+                        tokens.push(atToken)
+                        tokens.push(leftSquareBracket)
                     }
                 }
+            // } else if (".".indexOf(chr) != -1 && ")]}".indexOf(code.charAt(i-1)) != -1) {
+            } else if (".".indexOf(chr) != -1) {
+                var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                var atToken = {th_type: varType, valueString: "at", preventCall: false}
+                tokens.push(dotToken)
+                tokens.push(atToken)
+                quoteNext = true
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 // some fancy desugaring here and below
@@ -301,7 +324,7 @@ thumbscript4.tokenize = function(code, debug) {
                 freshLine = false // orange marker
                 state = "string2"
                 string2OpenCount = 1
-            } else if (".•@".indexOf(chr) != -1) {
+            } else if ("•@".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 state = "dot"
                 currentToken = chr
@@ -314,6 +337,7 @@ thumbscript4.tokenize = function(code, debug) {
                 }
             }
         } else if (state == "in") {
+            // log2("+yay state is in and char is " + JSON.stringify(chr))
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 addToken(currentToken)
@@ -337,26 +361,46 @@ thumbscript4.tokenize = function(code, debug) {
                 currentToken = ""
                 state = "out"
                 if (parensCallSugar && "(".indexOf(chr) != -1) {
+                    // let leftParen = tokens.pop()
+                    // let t = tokens.pop()
+                    // // TODO: make constant
+                    // var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                    // tokens.push(dotToken)
+                    // tokens.push(t)
+                    // tokens.push(leftParen)
+                    
                     let leftParen = tokens.pop()
                     let t = tokens.pop()
-                    // TODO: make constant
-                    var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                    tokens.push(dotToken)
+                    t.preventCall = true
                     tokens.push(t)
+                    var storeFunc = {th_type: builtInType, valueFunc: function (world) {return world}, name: "storeFunc", preventCall: false}
+                    var callStored = {th_type: builtInType, valueFunc: function (world) {return world}, name: "callStored", preventCall: false}
+                    var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                    tokens.push(storeFunc)
+                    tokens.push(dotToken)
+                    tokens.push(callStored)
                     tokens.push(leftParen)
                 } else if (propAccessSugar && "[".indexOf(chr) != -1) {
                     let leftSquareBracket = tokens.pop()
                     leftSquareBracket.propAccess = true
-                    let t = tokens.pop()
-                    // addToken("<yay_prop_access>")
-                    // TODO: make constant
-                    
-                    // var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                    // tokens.push(dotToken)
-                    
+                    // TODO:
+                    var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                    var atToken = {th_type: varType, valueString: "at", preventCall: false}
+                    tokens.push(dotToken)
+                    tokens.push(atToken)
                     tokens.push(leftSquareBracket)
-                    tokens.push(t)
                 }
+            } else if (".".indexOf(chr) != -1 && "\n ".indexOf(nextChar) == -1) {
+                log2("+yay for everything")
+                addToken(currentToken)
+                currentToken = ""
+                var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                var atToken = {th_type: varType, valueString: "at", preventCall: false}
+                tokens.push(dotToken)
+                tokens.push(atToken)
+                quoteNext = true
+                state = "out"
+                
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 var nextChar = code.charAt(i+1)
@@ -521,7 +565,7 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "in"
             }
         } else if (state == "dot") {
-            if (".•@".indexOf(chr) != -1) {
+            if ("•@".indexOf(chr) != -1) {
                 currentToken += chr
             } else {
                 i--
@@ -557,7 +601,6 @@ thumbscript4.desugar = function(tokens) {
     tokens = thumbscript4.desugarArrows(tokens)
     // log2(tokens)
     tokens = thumbscript4.desugarAtSign(tokens)
-    tokens = thumbscript4.desugarAntiDot(tokens)
     // log2(tokens)
     tokens = thumbscript4.desugarParens(tokens)
     // log2(tokens)
@@ -703,24 +746,6 @@ thumbscript4.desugarArrows = function(tokens) {
     }
     return newTokens
 }
-thumbscript4.desugarAntiDot = function(tokens) {
-    var newTokens = []
-    var i = 0
-    while (i < tokens.length) {
-        var token = tokens[i]
-        if (token.th_type == varType && token.valueString == "antidot") {
-            var prev = newTokens.pop()
-            var next = tokens[i + 1]
-            i++
-            newTokens.push(next)
-            newTokens.push(prev)
-        } else {
-            newTokens.push(token)
-        }
-        i++
-    }
-    return newTokens
-}
 thumbscript4.desugarAtSign = function(tokens) {
     var newTokens = []
     var stack = []
@@ -745,7 +770,7 @@ thumbscript4.desugarAtSign = function(tokens) {
 
         if (token.th_type == varType) {
             var j = 0
-            while (j < token.valueString.length && ".•@".indexOf(token.valueString.charAt(j)) != -1) {
+            while (j < token.valueString.length && "•@".indexOf(token.valueString.charAt(j)) != -1) {
                 j++
             }
             if (j == 0) {
@@ -807,9 +832,14 @@ thumbscript4.squishFuncs = function(tokens) {
             var r = newTokens
             newTokens = tokenStack.pop()
             if (r.propAccess) {
+                // newTokens.push({
+                //     name: "[propAccess]",
+                //     th_type: propAccessType,
+                //     valueArr: thumbscript4.desugar(r),
+                // })
                 newTokens.push({
-                    name: "[propAccess]",
-                    th_type: propAccessType,
+                    name: "(parens)",
+                    th_type: parenType,
                     valueArr: thumbscript4.desugar(r),
                 })
             } else {
@@ -2596,7 +2626,15 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 //     }
 // } loopn
 
-thumbscript4.tokenize(`
+
+
+
+
+
+
+
+
+
 // nowmillis :foo
 
 // list at(i plus. 1)
@@ -2630,11 +2668,46 @@ thumbscript4.tokenize(`
 // 1 count plus :count
 
 // foo[1 plus. 2]: "three"
-// a .plus foo["bar"]
+// a •plus foo["bar"]
 // 20 :[foo "bar"]
 // 20 :foo["bar"]
-// foo["bar"]["baz"]
-foo("a")("b")(plus. 1 2)
+// foo("a")("b")(plus. 1 2)
+// foo("a")("b")("c")
+
+// foo["bar"]["baz"][1 1 plus]
+// foo[9](100 200)[16](32).ferries
+// foo[9].ferries(toodles and loodles)
+// foo
+
+// foo("baz").bar
+
+// foo.bar(20)
+
+// foo
+// .bar(30)
+
+// foo.bar
+
+// .biz(30)
+
+// 7 plus(1)
+// foo(30)(40)
+// foo(100)[9]
+// foo["bar" cc. "yo"]
+// foo["bar" cc. "yo"]
+// "baz" "bar" foo at at
+// [foo "bar"]
+// 
+// "baz" "bar" 
+
+thumbscript4.tokenize(`
+// foo
+// // .bar(biz)[20]
+// .bar(biz)
+// .(20 @plus 3)
+
+
+foo.bar.baz
 
 `, true) // aquamarine marker
 
@@ -3827,7 +3900,7 @@ var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-thumbscript4.eval(code, window) // red marker
+false && thumbscript4.eval(code, window) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
