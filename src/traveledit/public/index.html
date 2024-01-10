@@ -9254,118 +9254,120 @@ function onStart(e) {
     // 
     // }
     
-    
-    var handled = handleTouchAreas(e, {
-        "5farLeft": undo,
-        "5farRight": redo,
-        "4farLeft": function() {
-            seeFiles()
-            cleanUpFilesTimeout = setTimeout(cleanUpFiles, 300)
-        },
-        "4farRight": function() {
-            setCurrentFile(lastFile) // alt tab, alt+tab
-        },
-        "3farLeft": function () {
-            moveHomeEndDirection = "up"
-            moveHomeEndTimeout = setTimeout(moveHomeEndAction, moveHomeEndTimeoutMillis)
-    
-            // if (fx.highlightText) {
-            if (false && highlightMatchesSingleRegExp) {
-                prevHighlightText()
-            // } else if (searchText.value !== "" && !fx.selectedRegions.length) {
-            } else if (!fx.selectedRegions.length || selectMode == "char") {
-                findUp()
-            } else {
-                fx.cursorLineIndex -= 1
-                if (fx.cursorLineIndex < 0) {
-                    fx.cursorLineIndex = 0
+    var handled
+    if (e.touches.length == 1) {
+        handled = handleTouchAreas(e, {
+            "5farLeft": undo,
+            "5farRight": redo,
+            "4farLeft": function() {
+                seeFiles()
+                cleanUpFilesTimeout = setTimeout(cleanUpFiles, 300)
+            },
+            "4farRight": function() {
+                setCurrentFile(lastFile) // alt tab, alt+tab
+            },
+            "3farLeft": function () {
+                moveHomeEndDirection = "up"
+                moveHomeEndTimeout = setTimeout(moveHomeEndAction, moveHomeEndTimeoutMillis)
+        
+                // if (fx.highlightText) {
+                if (false && highlightMatchesSingleRegExp) {
+                    prevHighlightText()
+                // } else if (searchText.value !== "" && !fx.selectedRegions.length) {
+                } else if (!fx.selectedRegions.length || selectMode == "char") {
+                    findUp()
+                } else {
+                    fx.cursorLineIndex -= 1
+                    if (fx.cursorLineIndex < 0) {
+                        fx.cursorLineIndex = 0
+                    }
+                    ensureCursorInScreen()
+                    if (fx.selectedRegions.length) {
+                        fx.selectedRegions[0].stopY -= 1
+                        if (fx.selectedRegions[0].stopY < fx.selectedRegions[0].startY) {
+                            fx.selectedRegions[0].stopY = fx.selectedRegions[0].startY
+                        }
+                        var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
+                        fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
+                    } else if (document.activeElement != theText) {
+                        // ??
+                        fx.offsetY -= 1
+                        if (fx.offsetY < 0) {
+                            fx.offsetY = 0
+                        }
+                    }
                 }
-                ensureCursorInScreen()
+            },
+            "3farRight": function () {
+                moveHomeEndDirection = "down"
+                moveHomeEndTimeout = setTimeout(moveHomeEndAction, moveHomeEndTimeoutMillis)
+                // if (fx.highlightText) {
+                if (false && highlightMatchesSingleRegExp) {
+                    nextHighlightText()
+                } else if (!fx.selectedRegions.length || selectMode == "char") {
+                    findDown()
+                } else {
+                    fx.cursorLineIndex += 1
+                    if (fx.cursorLineIndex >= fx.lines.length) {
+                        fx.cursorLineIndex = fx.lines.length - 1
+                    }
+                    ensureCursorInScreen()
+                    if (fx.selectedRegions.length) {
+                        fx.selectedRegions[0].stopY += 1
+                        if (fx.selectedRegions[0].stopY > fx.lines.length - 1) { // stopY is inclusive I think, stopX isn't
+                            fx.selectedRegions[0].stopY = fx.lines.length - 1
+                        }
+                        var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
+                        fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
+                    } else if (document.activeElement != theText) {
+                        // ??
+                        fx.offsetY += 1
+                        if (fx.offsetY > fx.lines.length - 10) {
+                            fx.offsetY = lines.length - 10
+                        }
+                    }
+                }
+            },
+            "2farLeft": navFileLeft,
+            "2farRight": navFileRight,
+            "1farLeft": function () {
                 if (fx.selectedRegions.length) {
-                    fx.selectedRegions[0].stopY -= 1
-                    if (fx.selectedRegions[0].stopY < fx.selectedRegions[0].startY) {
-                        fx.selectedRegions[0].stopY = fx.selectedRegions[0].startY
-                    }
-                    var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
-                    fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
-                } else if (document.activeElement != theText) {
-                    // ??
-                    fx.offsetY -= 1
-                    if (fx.offsetY < 0) {
-                        fx.offsetY = 0
-                    }
+                    moveSelectionLeft()
+                } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
+                    goUpFileList()
+                } else if (ghostSelection) {
+                    dedent(ghostSelection)
+                } else if (ghostSelectionComment) {
+                    dedent(ghostSelectionComment)
+                } else {
+                    moveCursorLeft()
+                    // if (lastDirection == "horizontal") {
+                    //     moveCursorLeft()
+                    // } else {
+                    //     moveCursorUp()
+                    // }
                 }
-            }
-        },
-        "3farRight": function () {
-            moveHomeEndDirection = "down"
-            moveHomeEndTimeout = setTimeout(moveHomeEndAction, moveHomeEndTimeoutMillis)
-            // if (fx.highlightText) {
-            if (false && highlightMatchesSingleRegExp) {
-                nextHighlightText()
-            } else if (!fx.selectedRegions.length || selectMode == "char") {
-                findDown()
-            } else {
-                fx.cursorLineIndex += 1
-                if (fx.cursorLineIndex >= fx.lines.length) {
-                    fx.cursorLineIndex = fx.lines.length - 1
-                }
-                ensureCursorInScreen()
+            },
+            "1farRight": function () {
                 if (fx.selectedRegions.length) {
-                    fx.selectedRegions[0].stopY += 1
-                    if (fx.selectedRegions[0].stopY > fx.lines.length - 1) { // stopY is inclusive I think, stopX isn't
-                        fx.selectedRegions[0].stopY = fx.lines.length - 1
-                    }
-                    var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
-                    fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
-                } else if (document.activeElement != theText) {
-                    // ??
-                    fx.offsetY += 1
-                    if (fx.offsetY > fx.lines.length - 10) {
-                        fx.offsetY = lines.length - 10
-                    }
+                    moveSelectionRight()
+                } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
+                    goDownFileList()
+                } else if (ghostSelection) {
+                    indent(ghostSelection)
+                } else if (ghostSelectionComment) {
+                    indent(ghostSelectionComment)
+                } else {
+                    moveCursorRight()
+                    // if (lastDirection == "horizontal") {
+                    //     moveCursorRight()
+                    // } else {
+                    //     moveCursorDown()
+                    // }
                 }
-            }
-        },
-        "2farLeft": navFileLeft,
-        "2farRight": navFileRight,
-        "1farLeft": function () {
-            if (fx.selectedRegions.length) {
-                moveSelectionLeft()
-            } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
-                goUpFileList()
-            } else if (ghostSelection) {
-                dedent(ghostSelection)
-            } else if (ghostSelectionComment) {
-                dedent(ghostSelectionComment)
-            } else {
-                moveCursorLeft()
-                // if (lastDirection == "horizontal") {
-                //     moveCursorLeft()
-                // } else {
-                //     moveCursorUp()
-                // }
-            }
-        },
-        "1farRight": function () {
-            if (fx.selectedRegions.length) {
-                moveSelectionRight()
-            } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
-                goDownFileList()
-            } else if (ghostSelection) {
-                indent(ghostSelection)
-            } else if (ghostSelectionComment) {
-                indent(ghostSelectionComment)
-            } else {
-                moveCursorRight()
-                // if (lastDirection == "horizontal") {
-                //     moveCursorRight()
-                // } else {
-                //     moveCursorDown()
-                // }
-            }
-        },
-    })
+            },
+        })
+    }
     if (handled) {
         document.body.addEventListener("touchend", onEndForEdges)
         updateCursorXY()

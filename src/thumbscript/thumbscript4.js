@@ -55,7 +55,7 @@ thumbscript4.tokenize = function(code, debug) {
     code += "\n" // to simplify last token
     var addToken = function(token) {
         if (quoteNext) {
-            if ("([{".indexOf(token) == -1) {
+            if ("([{".indexOf(token) == -1 && token.charAt(0) != "$") {
                 token = "$" + token
             }
             quoteNext = false
@@ -151,6 +151,8 @@ thumbscript4.tokenize = function(code, debug) {
                 token = {th_type: anchorType, valueString: token.slice(1)}
             } else if (token in thumbscript4.builtIns) {
                 token = {th_type: builtInType, valueFunc: thumbscript4.builtIns[token], name: token, preventCall: preventCall}
+                
+                // todo: don't need this?
                 if (preventCall) {
                     token.nonPreventCallVersion = {th_type: builtInType, valueFunc: token.valueFunc, name: token.name}
                 }
@@ -204,18 +206,18 @@ thumbscript4.tokenize = function(code, debug) {
                     if (parensCallSugar && "(".indexOf(chr) != -1) {
                         let leftParen = tokens.pop()
                         // kinda hacky but fits with flow.
-                        var storeFunc = {th_type: builtInType, valueFunc: function (world) {return world}, name: "storeFunc", preventCall: false}
-                        var callStored = {th_type: builtInType, valueFunc: function (world) {return world}, name: "callStored", preventCall: false}
+                        var storefunc = {th_type: builtInType, valueFunc: thumbscript4.builtIns["storefunc"], name: "storefunc", preventCall: false}
+                        var callstored = {th_type: builtInType, valueFunc: thumbscript4.builtIns["callstored"], name: "callstored", preventCall: false}
                         var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                        tokens.push(storeFunc)
+                        tokens.push(storefunc)
                         tokens.push(dotToken)
-                        tokens.push(callStored)
+                        tokens.push(callstored)
                         tokens.push(leftParen)
                     } else if (propAccessSugar && "[".indexOf(chr) != -1) {
                         let leftSquareBracket = tokens.pop()
                         leftSquareBracket.propAccess = true
                         var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                        var atToken = {th_type: varType, valueString: "at", preventCall: false}
+                        var atToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns["at"], name: "at", preventCall: false}
                         tokens.push(dotToken)
                         tokens.push(atToken)
                         tokens.push(leftSquareBracket)
@@ -224,7 +226,7 @@ thumbscript4.tokenize = function(code, debug) {
             // } else if (".".indexOf(chr) != -1 && ")]}".indexOf(code.charAt(i-1)) != -1) {
             } else if (".".indexOf(chr) != -1) {
                 var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                var atToken = {th_type: varType, valueString: "at", preventCall: false}
+                var atToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns["at"], name: "at", preventCall: false}
                 tokens.push(dotToken)
                 tokens.push(atToken)
                 quoteNext = true
@@ -297,6 +299,13 @@ thumbscript4.tokenize = function(code, debug) {
                     }
                     addToken("->1")
                     quoteNext = true
+                    
+                    // added fresh crimson #color
+                    if (leftAssignSugar) {
+                        addToken("(")
+                        addClosingParensOnNewLine++
+                    }
+                    // end #color
 
                 }
                 currentToken = ""
@@ -373,29 +382,28 @@ thumbscript4.tokenize = function(code, debug) {
                     let t = tokens.pop()
                     t.preventCall = true
                     tokens.push(t)
-                    var storeFunc = {th_type: builtInType, valueFunc: function (world) {return world}, name: "storeFunc", preventCall: false}
-                    var callStored = {th_type: builtInType, valueFunc: function (world) {return world}, name: "callStored", preventCall: false}
+                    var storefunc = {th_type: builtInType, valueFunc: thumbscript4.builtIns["storefunc"], name: "storefunc", preventCall: false}
+                    var callstored = {th_type: builtInType, valueFunc: thumbscript4.builtIns["callstored"], name: "callstored", preventCall: false}
                     var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                    tokens.push(storeFunc)
+                    tokens.push(storefunc)
                     tokens.push(dotToken)
-                    tokens.push(callStored)
+                    tokens.push(callstored)
                     tokens.push(leftParen)
                 } else if (propAccessSugar && "[".indexOf(chr) != -1) {
                     let leftSquareBracket = tokens.pop()
                     leftSquareBracket.propAccess = true
                     // TODO:
                     var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                    var atToken = {th_type: varType, valueString: "at", preventCall: false}
+                    var atToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns["at"], name: "at", preventCall: false}
                     tokens.push(dotToken)
                     tokens.push(atToken)
                     tokens.push(leftSquareBracket)
                 }
             } else if (".".indexOf(chr) != -1 && "\n ".indexOf(nextChar) == -1) {
-                log2("+yay for everything")
                 addToken(currentToken)
                 currentToken = ""
                 var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                var atToken = {th_type: varType, valueString: "at", preventCall: false}
+                var atToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns["at"], name: "at", preventCall: false}
                 tokens.push(dotToken)
                 tokens.push(atToken)
                 quoteNext = true
@@ -590,18 +598,22 @@ thumbscript4.tokenize = function(code, debug) {
         log2("+squished funcs")
         log2(tokens) // red marker
     }
-    tokens = thumbscript4.desugar(tokens)
+    tokens = thumbscript4.desugar(tokens, debug)
     if (debug) {
         log2("+desugared")
         log2(tokens) // red marker
     }
     return tokens
 }
-thumbscript4.desugar = function(tokens) {
+thumbscript4.desugar = function(tokens, debug) {
     tokens = thumbscript4.desugarArrows(tokens)
     // log2(tokens)
     tokens = thumbscript4.desugarAtSign(tokens)
     // log2(tokens)
+    if (debug) {
+        log2("+desugared (before parens)")
+        log2(tokens) // red marker
+    }
     tokens = thumbscript4.desugarParens(tokens)
     // log2(tokens)
     tokens = thumbscript4.someIfMagic(tokens)
@@ -1518,7 +1530,7 @@ thumbscript4.builtIns = {
         return world
     },
     jsdrop: function(world) {
-        // world.stack.pop()
+        world.stack.pop()
         return world
     },
     jsloopn: function(world) {
@@ -1631,10 +1643,54 @@ thumbscript4.builtIns = {
         // returning the original world
         return world
     },
+    storefunc: function(world) {
+        var a = world.stack.pop()
+        if (!world.storedFuncsStack) {
+            world.storedFuncsStack = []
+        }
+        world.storedFuncsStack.push(a)
+        return world
+    },
+    callstored: function(world) {
+        var f = world.storedFuncsStack.pop()
+        return thumbscript4.builtIns.callany_skipstack(world, f)
+    },
+    callany_skipstack: function(world, f, t) {
+        if (!f) {
+            world.stack.push(f)
+            return world
+        }
+        if (t && t.preventCall) {
+            world.stack.push(f)
+            return world
+        }
+        switch (f.th_type) {
+            case closureType:
+                return thumbscript4.builtIns.call_skipstack(world, f)
+            case builtInType:
+                return f.valueFunc(world, f)
+            default:
+                if (typeof f === "function") {
+                    // for calling js, used
+                    newWorld = thumbscript4.builtIns.call_js_skipstack(world, f)
+                } else {
+                    world.stack.push(f)
+                }
+                return world
+        }
+        // if (f.th_type === closureType) {
+        //     return thumbscript4.builtIns.call_skipstack(world, f)
+        // } else if (f.th_type === builtInType) {
+        //     return f.valueFunc(world, f)
+        // } else if (typeof f === "function") {
+        //     return thumbscript4.builtIns.call_js_skipstack(world, f)
+        // }
+        return world
+    },
     // do (alias)
     call: function(world) {
         var f = world.stack.pop()
-        return thumbscript4.builtIns.call_skipstack(world, f)
+        return thumbscript4.builtIns.callany_skipstack(world, f)
     },
     call_skipstack: function(world, f) {
         var oldWorld = world
@@ -1848,7 +1904,7 @@ thumbscript4.builtIns = {
             if (token.endOfIfChainI != -1) {
                 world.i = token.endOfIfChainI
             }
-            world = thumbscript4.builtIns.call_skipstack(world, block)
+            world = thumbscript4.builtIns.callany_skipstack(world, block)
         } else {
             // there are more places to recycle, this is just an easy one
             // thumbscript4.recycleClosure(block)
@@ -1863,14 +1919,14 @@ thumbscript4.builtIns = {
             if (token.endOfIfChainI != -1) {
                 world.i = token.endOfIfChainI
             }
-            world = thumbscript4.builtIns.call_skipstack(world, block)
+            world = thumbscript4.builtIns.callany_skipstack(world, block)
         }
         return world
     },
     // else
     "?;": function(world, token) {
         var block = world.stack.pop()
-        world = thumbscript4.builtIns.call_skipstack(world, block)
+        world = thumbscript4.builtIns.callany_skipstack(world, block)
         return world
     },
     interpolate: function(world) {
@@ -2054,6 +2110,11 @@ thumbscript4.next = function(world) {
         // break
 
         var newWorld = world
+        if (!token) {
+            log2("+no token")
+            log2(world.i)
+            log2(world.tokens)
+        }
         switch (token.th_type) {
             case stringType:
                 world.stack.push(token.valueString)
@@ -2160,60 +2221,65 @@ thumbscript4.next = function(world) {
                 }
                 break outer
             case builtInType:
+                // you could call this, but we don't need to check all the cases
+                // thumbscript4.builtins.callany_skipstack(world, token, token) // the token is the "function" in this case
+                
                 if (!token.preventCall) {
                     // log2("// yay calling builtin: " + token.name)
                     newWorld = token.valueFunc(world, token)
                 } else {
-                    world.stack.push({
-                        th_type: closureType,
-                        tokens: [token.nonPreventCallVersion],
-                        world: world,
-                    })
+                    // world.stack.push(token.nonPreventCallVersion || token)
+                    world.stack.push(token)
+                    // world.stack.push({
+                    //     th_type: closureType,
+                    //     tokens: [token.nonPreventCallVersion],
+                    //     world: world,
+                    // })
                 }
                 break outer
             case varType:
                 // see also set and at
                 var x
-                if (token.valueString.indexOf(".") != -1) {
-                    // see also the "set" builtin
-                    var parts = token.valueString.split(".")
-                    var w = thumbscript4.getWorldForKey(world, parts[0], true, false)
-                    var x = w.state[parts[0]]
-                    for (var i = 1; i < parts.length; i++) {
-                        // kinda feels backwards
-                        var prop = parts[i]
-                        if (prop.startsWith("$")) {
-                            prop = prop.slice(1)
-                            let w2 = thumbscript4.getWorldForKey(world, prop, false, false)
-                            prop = w2.state[prop]
-                        }
-                        if (x) {
-                            var v = x[prop]
-                            if (typeof v == "function") {
-                                var ts = v.toString.bind(v)
-                                v = v.bind(x)
-                                v.toString = ts
-                            }
-                            x = v
-                        }
-                    }
-                } else {
+                // if (token.valueString.indexOf(".") != -1) {
+                //     // see also the "set" builtin
+                //     var parts = token.valueString.split(".")
+                //     var w = thumbscript4.getWorldForKey(world, parts[0], true, false)
+                //     var x = w.state[parts[0]]
+                //     for (var i = 1; i < parts.length; i++) {
+                //         // kinda feels backwards
+                //         var prop = parts[i]
+                //         if (prop.startsWith("$")) {
+                //             prop = prop.slice(1)
+                //             let w2 = thumbscript4.getWorldForKey(world, prop, false, false)
+                //             prop = w2.state[prop]
+                //         }
+                //         if (x) {
+                //             var v = x[prop]
+                //             if (typeof v == "function") {
+                //                 var ts = v.toString.bind(v)
+                //                 v = v.bind(x)
+                //                 v.toString = ts
+                //             }
+                //             x = v
+                //         }
+                //     }
+                // } else {
                     var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
                     x = w.state[token.valueString]
-                }
+                // }
 
-                if (x && x.th_type === closureType && !token.preventCall) {
-                    // newWorld = thumbscript4.builtIns.call(world)
-                    // log2("yay calling closure: " + JSON.stringify(x.tokens))
-                    newWorld = thumbscript4.builtIns.call_skipstack(world, x)
-                } else {
-                    if (typeof x === "function" && !token.preventCall) {
-                        // for calling js, used
-                        newWorld = thumbscript4.builtIns.call_js_skipstack(world, x)
-                    } else {
-                        world.stack.push(x)
-                    }
-                }
+                newWorld = thumbscript4.builtIns.callany_skipstack(world, x, token)
+                // if (x && x.th_type === closureType && !token.preventCall) {
+                //     // log2("yay calling closure: " + JSON.stringify(x.tokens))
+                //     newWorld = thumbscript4.builtIns.call_skipstack(world, x)
+                // } else {
+                //     if (typeof x === "function" && !token.preventCall) {
+                //         // for calling js, used
+                //         newWorld = thumbscript4.builtIns.call_js_skipstack(world, x)
+                //     } else {
+                //         world.stack.push(x)
+                //     }
+                // }
                 break outer
             case incrType:
                 var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
@@ -2700,6 +2766,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // 
 // "baz" "bar" 
 
+
 thumbscript4.tokenize(`
 // foo
 // // .bar(biz)[20]
@@ -2707,7 +2774,52 @@ thumbscript4.tokenize(`
 // .(20 @plus 3)
 
 
-foo.bar.baz
+// foo.bar.baz: 10
+
+// foo.bar baz:: 20
+
+// if. 10 lt(100) {
+//     0
+// }
+// if. lt(10 100) {
+//     say. "yay lt"
+// }
+// a: 100
+// a say
+
+// foo.bar: 10
+// foo.(bar): 10
+// yo.stuff: 3
+// a::
+
+// ->1
+// 100 :a
+// 100 :foo.bar
+// 100 :(foo.bar)
+// 100 :("foo" get).(1 1 plus)
+
+// 1<-
+// a: 100
+// foo.bar: a
+// foo.bar.baz: a
+
+// (foo.bar): 100
+("foo" get).(1 1 plus): 100
+
+
+
+
+// 100 :a
+// foo.(bar) : 100
+
+// foo.bar
+
+
+// a =
+// 100 => foo.bar
+
+
+
 
 `, true) // aquamarine marker
 
@@ -2751,25 +2863,65 @@ for (var i=0; i<100_000; i++) {
 log2("js: it took " + (Date.now(i) - start))
 log2("js county: " + county)
 
+// idea fresh syntax of only =
+// a = 10
+// foo.bar.baz = 30
+// a =
+// foo.(bar).baz = 100
+// :(foo.bar.baz)
+
+
 thumbscript4.exampleCode = function () { // maroon marker
 /*
 
-1 loopn. {
+yo: [
+    stuff: "this is the stuff"
+]
+
+yo.stuff: 3
+say. yo.stuff
+exit
+
+foo: {
+   :a
+   100 a plus
+}
+
+// say. 30 foo
+// say. foo(30)
+// say. foo. 30
+
+// if. 10 lt(100) {
+//     0
+// }
+
+// if. 10 100 lt {
+if. lt(10 100) {
+    say. "yay lt"
+}
+
+// ltt: {
+//     lt
+// }
+// lt(10 100) say
+
+
+3 loopn. {
     {
         0 :count
         0 :i
         nowmillis :start
         {
             if. i gt(100_000) {
-            // if. i gt(10) {
+            // if. i 100_000 gt {
                 breakp
             }
+            
             // if. i gt(100_000) ~breakp
             
             // i 100_000 gt {
             //     breakp
             // } ?
-
             // count: count plus. i
             i count+=
             
@@ -3336,7 +3488,7 @@ say. ""
         {
             i 100_000 guardlt
             // i 100_000 lt guardb
-            // if. i .gt 100_000 {
+            // if. i •gt 100_000 {
             //     breakp
             // }
 
@@ -3895,12 +4047,12 @@ var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n
 // come back to this
 // var world = thumbscript4.eval(thumbscript4.stdlib, {})
 // thumbscript4.defaultState = world.state
-// log2(world.state)
+// log2(world.state.a)
 
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-false && thumbscript4.eval(code, window) // red marker
+thumbscript4.eval(code, window) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
