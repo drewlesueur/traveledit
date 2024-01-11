@@ -256,6 +256,24 @@ thumbscript4.tokenize = function(code, debug) {
                         addToken("(") // addLeftParen
                         addClosingParensOnNewLine++
                     }
+                    
+                    // added crimson #color
+                    // close out
+                    // a: [b: 1 2 plus c: 40 3 minus]
+                    // weirdly this may not be needed but it's more understandable
+                    // if (addClosingParensOnNewLine) {
+                    //     for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                    //         addToken(")") // addedClosingParen pink marker
+                    //     }
+                    //     addClosingParensOnNewLine = 0
+                    // }
+                    // addToken("1<-")
+                    // freshLine = true // darkorange marker
+                    // if (leftAssignSugar) { // maroon marker
+                    //     addToken("(") // addLeftParen
+                    //     addClosingParensOnNewLine++
+                    // }
+                    // end #color
                 } else if ("[".indexOf(nextChar) != -1) {
                     // 500 :[foo bar]
                     if (addClosingParensOnNewLine) {
@@ -606,7 +624,7 @@ thumbscript4.tokenize = function(code, debug) {
     return tokens
 }
 thumbscript4.desugar = function(tokens, debug) {
-    tokens = thumbscript4.desugarArrows(tokens)
+    // tokens = thumbscript4.desugarArrows(tokens)
     // log2(tokens)
     tokens = thumbscript4.desugarAtSign(tokens)
     // log2(tokens)
@@ -2793,18 +2811,20 @@ thumbscript4.tokenize(`
 // a::
 
 // ->1
-// 100 :a
+100 :a
 // 100 :foo.bar
 // 100 :(foo.bar)
 // 100 :("foo" get).(1 1 plus)
 
 // 1<-
 // a: 100
-// foo.bar: a
-// foo.bar.baz: a
+// foo.bar: 100
+// foo.bar.baz: 100
 
+// <-
 // (foo.bar): 100
-("foo" get).(1 1 plus): 100
+// (foo.bar.baz): 100
+// ("foo" get).(1 1 plus): 100
 
 
 
@@ -4052,7 +4072,7 @@ var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-thumbscript4.eval(code, window) // red marker
+false && thumbscript4.eval(code, window) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
