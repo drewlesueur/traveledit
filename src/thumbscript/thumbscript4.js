@@ -256,56 +256,6 @@ thumbscript4.tokenize = function(code, debug) {
                         addToken("(") // addLeftParen
                         addClosingParensOnNewLine++
                     }
-                    
-                    // added crimson #color
-                    // close out
-                    // a: [b: 1 2 plus c: 40 3 minus]
-                    // weirdly this may not be needed but it's more understandable
-                    // if (addClosingParensOnNewLine) {
-                    //     for (let i = 0; i < addClosingParensOnNewLine; i++) {
-                    //         addToken(")") // addedClosingParen pink marker
-                    //     }
-                    //     addClosingParensOnNewLine = 0
-                    // }
-                    // addToken("1<-")
-                    // freshLine = true // darkorange marker
-                    // if (leftAssignSugar) { // maroon marker
-                    //     addToken("(") // addLeftParen
-                    //     addClosingParensOnNewLine++
-                    // }
-                    // end #color
-                } else if ("[".indexOf(nextChar) != -1) {
-                    // 500 :[foo bar]
-                    if (addClosingParensOnNewLine) {
-                        // TODO: this is copy-pasted
-                        for (let i = 0; i < addClosingParensOnNewLine; i++) {
-                            addToken(")") // addedClosingParen pink marker
-                        }
-                        addClosingParensOnNewLine = 0
-                    }
-                    addToken("->")
-                } else if (":".indexOf(nextChar) != -1) {
-                    var nextNextChar = code.charAt(i+2)
-                    if (" \n\t".indexOf(nextNextChar) != -1) {
-                        // t ("fill" "Style" cc):: "red"
-                        i++
-                        addToken("<<-")
-                        freshLine = true // darkorange marker
-                        if (leftAssignSugar) {
-                            addToken("(")
-                            addClosingParensOnNewLine++
-                        }
-                    } else {
-                        i++
-                        // TODO: this is copy-pasted
-                        if (addClosingParensOnNewLine) {
-                            for (let i = 0; i < addClosingParensOnNewLine; i++) {
-                                addToken(")") // addedClosingParen pink marker
-                            }
-                            addClosingParensOnNewLine = 0
-                        }
-                        addToken("->>")
-                    }
                 } else {
                      // 500 :baz
                     // TODO: this is copy-pasted
@@ -430,16 +380,7 @@ thumbscript4.tokenize = function(code, debug) {
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 var nextChar = code.charAt(i+1)
-                if (":".indexOf(nextChar) != -1) {
-                    addToken(currentToken)
-                    i++
-                    addToken("<<-")
-                    freshLine = true // darkorange marker
-                    if (leftAssignSugar) {
-                        addToken("(") // addLeftParen
-                        addClosingParensOnNewLine++
-                    }
-                } else {
+                if (true) {
                     // close out
                     // a: [b: 1 2 plus c: 40 3 minus]
                     // weirdly this may not be needed but it's more understandable
@@ -624,15 +565,17 @@ thumbscript4.tokenize = function(code, debug) {
     return tokens
 }
 thumbscript4.desugar = function(tokens, debug) {
-    // tokens = thumbscript4.desugarArrows(tokens)
-    // log2(tokens)
-    tokens = thumbscript4.desugarAtSign(tokens)
-    // log2(tokens)
+    tokens = thumbscript4.desugarArrows(tokens) // white marker
     if (debug) {
-        log2("+desugared (before parens)")
-        log2(tokens) // red marker
+        log2("+desugared (arrows)")
+        log2(tokens)
     }
-    tokens = thumbscript4.desugarParens(tokens)
+    tokens = thumbscript4.desugarAtSign(tokens)
+    // if (debug) {
+    //     log2("+desugared (before parens)")
+    //     log2(tokens)
+    // }
+    tokens = thumbscript4.desugarParens(tokens) // white marker
     // log2(tokens)
     tokens = thumbscript4.someIfMagic(tokens)
     // log2(tokens.anchors)
@@ -738,8 +681,27 @@ thumbscript4.desugarArrows = function(tokens) {
                 case "->1":
                     // 100 -> a
                     // 100 a set
-                    newTokens.push(dotToken)
-                    newTokens.push(setToken)
+                    // newTokens.push(dotToken)
+                    // newTokens.push(setToken)
+                    
+                    var dotTokenForRightAssign = {
+                        th_type: varType,
+                        valueString: "•",
+                        onProcess: function (ts) {
+                            // log2("+we added set and the token before is: ")
+                            // log2(ts[ts.length - 1])
+                            var path = ts[ts.length - 1]
+                            if (path.valueArr.length > 1 && path.valueArr[path.valueArr.length - 1].name == "at") {
+                                path.valueArr.pop()
+                                // path.valueArr[path.valueArr.length - 1].th_type = stringType
+                                ts.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropKOV, name: "setpropKOV"})
+                            } else {
+                                path.valueArr[0].th_type = stringType
+                                ts.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.set1, name: "set1"})
+                            }
+                        }
+                    }
+                    newTokens.push(dotTokenForRightAssign)
                     break
                 case "<-":
                     // [a $b] <- 100
@@ -787,7 +749,11 @@ thumbscript4.desugarAtSign = function(tokens) {
             // log2("before: " + token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
             state.n--
             if (state.n == 0) {
-                newTokens.push(state.token)
+                if (state.onProcess) {
+                    state.onProcess(newTokens)
+                } else {
+                    newTokens.push(state.token)
+                }
                 state = stack.pop()
             } else {
                 // log2("after: " + token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
@@ -811,7 +777,11 @@ thumbscript4.desugarAtSign = function(tokens) {
                 stack.push(state)
                 state = {
                     n: j,
-                    token: tokens[++i],
+                }
+                if (token.onProcess) {
+                    state.onProcess = token.onProcess
+                } else {
+                    state.token = tokens[++i]
                 }
                 // log2(token + " " + JSON.stringify(state) + ": " + JSON.stringify(stack))
             }
@@ -1474,30 +1444,37 @@ thumbscript4.builtIns = {
 
         // foo.bar.baz: "yo!"
 
-        if (a && a.indexOf && a.indexOf(".") != -1) {
-            var parts = a.split(".")
-            var w = thumbscript4.getWorldForKey(world, parts[0], true, true)
-            var v = w.state[parts[0]]
-            for (var i = 1; i < parts.length; i++) {
-                // kinda feels backwards
-                var prop = parts[i]
-                if (prop.startsWith("$")) {
-                    prop = prop.slice(1)
-                    let w = thumbscript4.getWorldForKey(world, prop, false, false)
-                    prop = w.state[prop]
-                }
-                if (i < parts.length - 1) {
-                    v = v[prop]
-                } else {
-                    v[prop] = b
-                }
-            }
-            return world
-        }
+        // if (a && a.indexOf && a.indexOf(".") != -1) {
+        //     var parts = a.split(".")
+        //     var w = thumbscript4.getWorldForKey(world, parts[0], true, true)
+        //     var v = w.state[parts[0]]
+        //     for (var i = 1; i < parts.length; i++) {
+        //         // kinda feels backwards
+        //         var prop = parts[i]
+        //         if (prop.startsWith("$")) {
+        //             prop = prop.slice(1)
+        //             let w = thumbscript4.getWorldForKey(world, prop, false, false)
+        //             prop = w.state[prop]
+        //         }
+        //         if (i < parts.length - 1) {
+        //             v = v[prop]
+        //         } else {
+        //             v[prop] = b
+        //         }
+        //     }
+        //     return world
+        // }
         var w = thumbscript4.getWorldForKey(world, a, false, true)
         w.state[a] = b
         // #closureshortcut
         // w.state[a] = thumbscript4.closureify(b, world)
+        return world
+    },
+    set1: function(world) {
+        var a = world.stack.pop()
+        var b = world.stack.pop()
+        var w = thumbscript4.getWorldForKey(world, a, false, true)
+        w.state[a] = b
         return world
     },
     setb: function(world) {
@@ -1523,6 +1500,13 @@ thumbscript4.builtIns = {
         return world
     },
     setprop2: function(world) {
+        var k = world.stack.pop()
+        var o = world.stack.pop()
+        var v = world.stack.pop()
+        o[k] = v
+        return world
+    },
+    setpropKOV: function(world) {
         var k = world.stack.pop()
         var o = world.stack.pop()
         var v = world.stack.pop()
@@ -2811,10 +2795,11 @@ thumbscript4.tokenize(`
 // a::
 
 // ->1
-100 :a
+// 100 :a
+// 200 "a" set
 // 100 :foo.bar
-// 100 :(foo.bar)
-// 100 :("foo" get).(1 1 plus)
+// { 100 :(foo.bar) }
+// { 100 :("foo" get).(1 1 plus) }
 
 // 1<-
 // a: 100
@@ -2890,10 +2875,31 @@ log2("js county: " + county)
 // foo.(bar).baz = 100
 // :(foo.bar.baz)
 
+thumbscript4.eval(`
+
+100 :a
+say. a
+
+["yo" :myprop] :myobj
+say. myobj.myprop
+
+"updated" :myobj.myprop
+say. myobj.myprop
+
+"updated2" :myobj.("my" "prop" cc)
+say. myobj.myprop
+
+{ myobj } :getObj
+
+"updated3" :(getObj).("my" "prop" cc)
+say. myobj.myprop
+
+
+`, window)
 
 thumbscript4.exampleCode = function () { // maroon marker
 /*
-
+exit
 yo: [
     stuff: "this is the stuff"
 ]
@@ -4077,15 +4083,6 @@ false && thumbscript4.eval(code, window) // red marker
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
 // showLog()
-false && thumbscript4.eval(`
-
-
-
-
-
-// 200000 say
-// "foo@bar" encodeURIComponent say
-`, window)
 
 
 // setTimeout(function() {
