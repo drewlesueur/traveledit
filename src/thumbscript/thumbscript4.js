@@ -714,13 +714,28 @@ thumbscript4.desugarArrows = function(tokens) {
                     newTokens.push(dotTokenForRightAssign)
                     break
                 case "<-":
+                    // newTokens.push(token)
+                    // break
+
+                    var lastToken = newTokens[newTokens.length - 1]
+                    if (lastToken.name == "at") {
+                        newTokens.pop()
+                        newTokens.push(dotToken)
+                        newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
+                    } else {
+                        // lastToken.th_type = stringType
+                        var setbToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setb, name: "setb"}
+                        newTokens.push(dotToken)
+                        newTokens.push(setbToken)
+                    }
+
                     // [a $b] <- 100
                     // 100 [a $b] setc
-                    var lastToken = newTokens.pop()
-                    newTokens.push(dotToken)
-                    newTokens.push(setcToken)
-                    newTokens.push(dotToken)
-                    newTokens.push(lastToken)
+                    // var lastToken = newTokens.pop()
+                    // newTokens.push(dotToken)
+                    // newTokens.push(setcToken)
+                    // newTokens.push(dotToken)
+                    // newTokens.push(lastToken)
                     break
                 case "<<-":
                     // t $fillStyle <<- $red
@@ -2838,7 +2853,8 @@ thumbscript4.tokenize(`
 // foo.bar.baz: 100
 
 // <-
-// (foo.bar): 100
+// (a): 100
+(foo.bar): 100
 // (foo.bar.baz): 100
 // ("foo" get).(1 1 plus): 100
 
@@ -2855,6 +2871,8 @@ thumbscript4.tokenize(`
 // 100 => foo.bar
 
 
+// myobj.("my" "prop" cc): "updated5"
+// b: "a"
 
 
 `, true) // aquamarine marker
@@ -2930,6 +2948,15 @@ say. myobj.myprop
 
 myobj.myprop: "updated4"
 say. myobj.myprop
+
+myobj.("my" "prop" cc): "updated5"
+say. myobj.myprop
+
+(myobj.myprop): "updated6"
+say. myobj.myprop
+
+a: 102
+say. a
 
 
 `, window)
