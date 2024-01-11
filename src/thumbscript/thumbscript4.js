@@ -269,10 +269,10 @@ thumbscript4.tokenize = function(code, debug) {
                     quoteNext = true
                     
                     // added fresh crimson #color
-                    if (leftAssignSugar) {
-                        addToken("(")
-                        addClosingParensOnNewLine++
-                    }
+                    // if (leftAssignSugar) {
+                    //     addToken("(")
+                    //     addClosingParensOnNewLine++
+                    // }
                     // end #color
 
                 }
@@ -693,7 +693,9 @@ thumbscript4.desugarArrows = function(tokens) {
                     // 100 a set
                     // newTokens.push(dotToken)
                     // newTokens.push(setToken)
+                    // break
                     
+                    // crimson #color
                     var dotTokenForRightAssign = {
                         th_type: varType,
                         valueString: "•",
@@ -701,24 +703,30 @@ thumbscript4.desugarArrows = function(tokens) {
                             // log2("+we added set and the token before is: ")
                             // log2(ts[ts.length - 1])
                             var path = ts[ts.length - 1]
-                            if (path.valueArr.length > 1 && path.valueArr[path.valueArr.length - 1].name == "at") {
+                            if (!path.valueArr) {
+                                ts.push(setToken)
+                            } else if (path.valueArr.length > 1 && path.valueArr[path.valueArr.length - 1].name == "at") {
                                 path.valueArr.pop()
                                 // path.valueArr[path.valueArr.length - 1].th_type = stringType
                                 ts.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropKOV, name: "setpropKOV"})
                             } else {
-                                path.valueArr[0].th_type = stringType
-                                ts.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.set1, name: "set1"})
+                                if (path.valueArr && path.valueArr[0]) {
+                                    path.valueArr[0].th_type = stringType
+                                    ts.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.set1, name: "set1"})
+                                }
                             }
                         }
                     }
                     newTokens.push(dotTokenForRightAssign)
+                    // end #color
+
                     break
                 case "<-":
                     // newTokens.push(token)
                     // break
 
                     var lastToken = newTokens[newTokens.length - 1]
-                    if (lastToken.name == "at") {
+                    if (lastToken && lastToken.name == "at") {
                         newTokens.pop()
                         newTokens.push(dotToken)
                         newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
@@ -2841,10 +2849,9 @@ thumbscript4.tokenize(`
 // a::
 
 // ->1
-// 100 :a
-// 200 "a" set
+100 :a
 // 100 :foo.bar
-// { 100 :(foo.bar) }
+// 100 :(foo.bar)
 // { 100 :("foo" get).(1 1 plus) }
 
 // 1<-
@@ -2854,7 +2861,7 @@ thumbscript4.tokenize(`
 
 // <-
 // (a): 100
-(foo.bar): 100
+// (foo.bar): 100
 // (foo.bar.baz): 100
 // ("foo" get).(1 1 plus): 100
 
@@ -2874,6 +2881,9 @@ thumbscript4.tokenize(`
 // myobj.("my" "prop" cc): "updated5"
 // b: "a"
 
+// 12 :a 13 :b
+
+// a: 20 b: 30
 
 `, true) // aquamarine marker
 
@@ -2925,25 +2935,26 @@ log2("js county: " + county)
 // :(foo.bar.baz)
 
 thumbscript4.eval(`
-
 100 :a
 say. a
 
 a: 101
 say. a
 
+
+
 ["yo" :myprop] :myobj
 say. myobj.myprop
 
-"updated" :myobj.myprop
+"updated" :(myobj.myprop)
 say. myobj.myprop
 
-"updated2" :myobj.("my" "prop" cc)
+"updated2" :(myobj.("my" "prop" cc))
 say. myobj.myprop
 
 { myobj } :getObj
 
-"updated3" :(getObj).("my" "prop" cc)
+"updated3" :((getObj).("my" "prop" cc))
 say. myobj.myprop
 
 myobj.myprop: "updated4"
@@ -2952,25 +2963,28 @@ say. myobj.myprop
 myobj.("my" "prop" cc): "updated5"
 say. myobj.myprop
 
-(myobj.myprop): "updated6"
+myobj.myprop: "updated6"
 say. myobj.myprop
 
 a: 102
 say. a
+
+12 :a 13 :b
+say. "$a and $b"
+
 
 
 `, window)
 
 thumbscript4.exampleCode = function () { // maroon marker
 /*
-exit
 yo: [
     stuff: "this is the stuff"
 ]
 
 yo.stuff: 3
 say. yo.stuff
-exit
+// exit
 
 foo: {
    :a
@@ -4142,7 +4156,7 @@ var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-false && thumbscript4.eval(code, window) // red marker
+thumbscript4.eval(code, window) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
