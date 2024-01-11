@@ -1206,47 +1206,94 @@ thumbscript4.getRecycledClosure = function () {
     var c = thumbscript4.recycledClosures.pop() || {}
     return c
 }
-
-thumbscript4.continueN = function (n, world) {
-    n = n-1
-    while (world.isParens) {
+thumbscript4.stopN = function (n, world) {
+    n = n-0
+    // alert(n)
+    while (world && world.isParens) {
+        alert("should not get here parens 1")
         world = world.parent
     }
     for (var i=0; i<n; i++) {
+        if (!world) {
+            break
+        }
         // i originally had dynParent but it wasn't right
         // like when I wrapped if
         // if (world.onEnd) world.onEnd(world)
         var rWorld = world
         world = world.parent
-        while (world.isParens) {
+        log2(`+world went from ${rWorld.name} to ${world.name}`)
+        while (world && world.isParens) {
+            alert("should not get here parens 2")
             world = world.parent
         }
         thumbscript4.recycle(rWorld)
         // todo: see onend
+    }
+    if (!world) {
+        return world
     }
     world.i = world.tokens.length
     return world
 }
 
-thumbscript4.breakN = function (n, world) {
-    n = n-0
-    while (world.isParens) {
-        world = world.parent
-    }
-    for (var i=0; i<n; i++) {
-        // i originally had dynParent but it wasn't right
-        // like when I wrapped if
-        if (world.onEnd) world.onEnd(world)
-        var rWorld = world
-        world = world.parent
-        while (world.isParens) {
-            world = world.parent
-        }
-        thumbscript4.recycle(rWorld)
-        // todo: see onend
-    }
-    return world
-}
+// thumbscript4.continueN = function (n, world) {
+//     n = n-1
+//     // n = n-0
+//     // alert(n)
+//     while (world && world.isParens) {
+//         alert("should not get here parens 1")
+//         world = world.parent
+//     }
+//     for (var i=0; i<n; i++) {
+//         if (!world) {
+//             break
+//         }
+//         // i originally had dynParent but it wasn't right
+//         // like when I wrapped if
+//         // if (world.onEnd) world.onEnd(world)
+//         var rWorld = world
+//         world = world.parent
+//         log2(`+world went from ${rWorld.name} to ${world.name}`)
+//         while (world && world.isParens) {
+//             alert("should not get here parens 2")
+//             world = world.parent
+//         }
+//         thumbscript4.recycle(rWorld)
+//         // todo: see onend
+//     }
+//     if (!world) {
+//         return world
+//     }
+//     world.i = world.tokens.length
+//     return world
+// }
+
+// thumbscript4.breakN = function (n, world) {
+//     n = n-0
+//     while (world && world.isParens) {
+//         alert("should not get here parens 3")
+//         world = world.parent
+//     }
+//     for (var i=0; i<n; i++) {
+//         if (!world) {
+//             break
+//         }
+//         // i originally had dynParent but it wasn't right
+//         // like when I wrapped if
+//         if (world.onEnd) world.onEnd(world)
+//         var rWorld = world
+//         world = world.parent
+//         log2(`+world went from ${rWorld.name} to ${world.name}`)
+//         while (world && world.isParens) {
+//             alert("should not get here parens 4")
+//             world = world.parent
+//         }
+//         thumbscript4.recycle(rWorld)
+//         // todo: see onend
+//     }
+//     return world
+// }
 
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
@@ -1599,6 +1646,7 @@ thumbscript4.builtIns = {
         var fWorld
         var fTokens
         if (f.th_type == curlyType) {
+            alert("oops curly -1")
             // #closureshortcut
             // may remove this attempted optimization
             fWorld = world
@@ -1663,6 +1711,7 @@ thumbscript4.builtIns = {
         var fWorld
         var fTokens
         if (f.th_type == curlyType) {
+            alert("oops curly 0")
             // #closureshortcut
             // may remove this attempted optimization
             fWorld = world
@@ -1791,6 +1840,7 @@ thumbscript4.builtIns = {
         var fWorld
         var fTokens
         if (f.th_type == curlyType) {
+            alert("oops curly 1")
             // #closureshortcut
             // may remove this attempted optimization
             fWorld = oldWorld
@@ -1836,16 +1886,16 @@ thumbscript4.builtIns = {
             thumbscript4.recycle(rWorld)
         }
     },
-    "break": function(world) {
-        return thumbscript4.breakN(0, world)
-    },
-    "breakp": function(world) {
-        return thumbscript4.breakN(2, world)
-    },
-    "breakn": function(world) {
-        var n = world.stack.pop()
-        return thumbscript4.breakN(n, world)
-    },
+    // "break": function(world) {
+    //     return thumbscript4.breakN(0, world)
+    // },
+    // "breakp": function(world) {
+    //     return thumbscript4.breakN(2, world)
+    // },
+    // "breakn": function(world) {
+    //     var n = world.stack.pop()
+    //     return thumbscript4.breakN(n, world)
+    // },
     "goto": function(world) {
         var loc = world.stack.pop()
         var w = world
@@ -1857,23 +1907,34 @@ thumbscript4.builtIns = {
         w.i = w.tokens.anchors[loc]
         return w
     },
-    "return": function(world) {
-        return thumbscript4.continueN(1, world)
-    },
-    "returnp": function(world) {
-        return thumbscript4.continueN(2, world)
-    },
-    "continue": function(world) {
+    "stop": function(world) {
         // same as return, but I like better
-        return thumbscript4.continueN(1, world)
+        return thumbscript4.stopN(0, world)
     },
-    "continuep": function(world) {
-        return thumbscript4.continueN(2, world)
+    "stopp": function(world) {
+        return thumbscript4.stopN(1, world)
     },
-    "continuen": function(world) {
+    "stopn": function(world) {
         var n = world.stack.pop()
-        return thumbscript4.continueN(n, world)
+        return thumbscript4.stopN(n, world)
     },
+    // "return": function(world) {
+    //     return thumbscript4.continueN(1, world)
+    // },
+    // "returnp": function(world) {
+    //     return thumbscript4.continueN(2, world)
+    // },
+    // "continue": function(world) {
+    //     // same as return, but I like better
+    //     return thumbscript4.continueN(1, world)
+    // },
+    // "continuep": function(world) {
+    //     return thumbscript4.continueN(2, world)
+    // },
+    // "continuen": function(world) {
+    //     var n = world.stack.pop()
+    //     return thumbscript4.continueN(n, world)
+    // },
     "exit": function(world) {
         world = null
         // todo: see onend
@@ -2325,6 +2386,7 @@ thumbscript4.next = function(world) {
                 // }
 
                 newWorld = thumbscript4.builtIns.callany_skipstack(world, x, token)
+                // saddlebrown #color
                 // if (x && x.th_type === closureType && !token.preventCall) {
                 //     // log2("yay calling closure: " + JSON.stringify(x.tokens))
                 //     newWorld = thumbscript4.builtIns.call_skipstack(world, x)
@@ -2336,6 +2398,8 @@ thumbscript4.next = function(world) {
                 //         world.stack.push(x)
                 //     }
                 // }
+                // end #color
+                
                 break outer
             case incrType:
                 var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
@@ -2380,8 +2444,7 @@ thumbscript4.stdlib = function x() { /*
     loopn: •local {
         :block :n 0 :i
         {
-            i •lt n not ~breakp ?
-            // i •lt n not ~break ?
+            i •lt n not ~stop ?
             i block
             i++
             repeat
@@ -2409,7 +2472,7 @@ thumbscript4.stdlib = function x() { /*
                 obj key at :value
                 value block
             } loopn
-            continuep
+            stopp
         } ?
 
         list length :theMax
@@ -2429,7 +2492,7 @@ thumbscript4.stdlib = function x() { /*
                 obj key at :value
                 ~value key block
             } loopn
-            continuep
+            stopp
         } ?
 
         list length :theMax
@@ -2437,11 +2500,11 @@ thumbscript4.stdlib = function x() { /*
             :i list •at i i block
         } loopn
     }
-    guard: •local •dyn { not { 3 breakn } ? }
+    guard: •local •dyn { not { 2 stopn } ? }
     loopmax: •local {
         :theMax :block 0 :i
         {
-            i theMax lt guard
+            i theMax lt ~stop ?
             block
             i++
             repeat
@@ -2471,7 +2534,7 @@ thumbscript4.stdlib = function x() { /*
         c {
             "looping" say
             drop :v2 drop :v1
-            v1 { v2 3 breakn } ?
+            v1 { v2 3 stopn } ?
         } range2
         c •at (m •minus 1) call
     }
@@ -2492,13 +2555,13 @@ thumbscript4.stdlib = function x() { /*
     and: •local {
         :b :a
         a :firstValue
-        ~firstValue not { ~firstValue continuep } ?
+        ~firstValue not { ~firstValue stopp } ?
         b
     }
     or: •local {
         :b :a
         a :firstValue
-        ~firstValue { ~firstValue continuep } ?
+        ~firstValue { ~firstValue stopp } ?
         b
     }
     loop: •local {
@@ -2531,12 +2594,12 @@ thumbscript4.stdlib = function x() { /*
         :prefix :str
         str 0 prefix len slice prefix is {
             prefix len undefined str slice
-            continuep
+            stopp
         } ?
 
         // if. str 0 prefix len slice prefix is {
         //     prefix len undefined str slice
-        //     continuep
+        //     stopp
         // }
         str
     }
@@ -2583,7 +2646,7 @@ thumbscript4.stdlib = function x() { /*
         i: 0
         loop. {
             if. i gte(list len) {
-                breakp
+                stopp
             }
             fn. list at(i) i
             i: i plus(skip)
@@ -2849,7 +2912,7 @@ thumbscript4.tokenize(`
 // a::
 
 // ->1
-100 :a
+// 100 :a
 // 100 :foo.bar
 // 100 :(foo.bar)
 // { 100 :("foo" get).(1 1 plus) }
@@ -2934,7 +2997,65 @@ log2("js county: " + county)
 // foo.(bar).baz = 100
 // :(foo.bar.baz)
 
-thumbscript4.eval(`
+thumbscript4.eval(` // lime marker
+#main
+theInner: {
+    #inner
+    {
+        #inner2
+        say. "before inner"
+        say. "after inner"
+    } call
+    say. "sub here"
+}
+
+theOuter: {
+    #outerFunc
+    say. "Before"
+    theInner
+    say. "After"
+}
+theOuter
+
+say. "done"
+// exit
+
+numbers: [10 20 30]
+
+map. numbers {
+    :n
+    1 n plus
+}
+say
+
+
+
+// map. numbers {
+//     1 plus
+// }
+// say
+// "what??" say
+// exit
+
+person: [
+    name: "drew" age: 39
+    sports: [
+        volleyball: [level: 8]
+        basketball: [level: 1]
+    ]
+    sports.basketball.level: 3
+]
+
+a: 30 b: 40
+say. "$a and $b"
+
+a: 31
+person.name: "Bob"
+say. "$a and $b"
+
+say. person
+
+// exit
 100 :a
 say. a
 
@@ -3018,13 +3139,13 @@ if. lt(10 100) {
         {
             if. i gt(100_000) {
             // if. i 100_000 gt {
-                breakp
+                stopp
             }
             
-            // if. i gt(100_000) ~breakp
+            // if. i gt(100_000) ~stop
             
             // i 100_000 gt {
-            //     breakp
+            //     stopp
             // } ?
             // count: count plus. i
             i count+=
@@ -3147,7 +3268,7 @@ if. 1 1 is {
 10 {
     :i
     i say
-    if. i 5 is { breakp }
+    if. i 5 is { stopp }
 } loopn
 #done
 
@@ -3159,7 +3280,7 @@ loopn. 10 {
     say. "yay $i"
     if. i 5 is {
         say. "tried to break"
-        breakp
+        stopp
     }
 }
 
@@ -3190,11 +3311,11 @@ if. 1 1 is {
     :i
     say. "yay $i"
     // i 5 is {
-    //     breakp
+    //     stopp
     // } ?
     if. i 5 is {
         say. "tried to break"
-        breakp
+        stopp
     }
 } loopn
 
@@ -3204,7 +3325,7 @@ loopn. 10 {
     // yo
     if. i 5 is {
         say. "tried to break"
-        breakp
+        stopp
     }
 }
 
@@ -3221,7 +3342,7 @@ range. window {
             #d
             say. "$k: is not a function!"
             "endy" goto
-            // 3 breakn // this also works
+            // 3 stopn 
         }
         say. "$k: ${typename. ~v}"
         source: v.toString
@@ -3731,7 +3852,8 @@ raw «hello $name» say
     result
 } :factorial
 
-10 factorial say
+"///////" say
+"10 factorial is: " 10 factorial cc say
 
 // 1 1 plus 3 4 plus times
 
@@ -3908,13 +4030,11 @@ mylist sayn
 {
     0 :break // for scope
     { funnywrapper nameworld
-        // { abstractbreak nameworld 1 breakn } :break
-        // ( abstractbreak nameworld 3 breakn ) :break
-        { abstractbreak nameworld 3 breakn } dyn :break
+        { abstractbreak nameworld 3 stopn } dyn :break
         "what is gong on?" say
 
-        // 1 breakn
-        return // same as breakn
+        // 1 stopn
+        stop
 
         // lol we get here if we don't use parens version
         "ok for real" say
@@ -3958,7 +4078,7 @@ mylist sayn
 {
     :i
     // i •lt 5 guard // that works too
-    i •is 6 { 2 breakn } ?
+    i •is 6 { stopp } ?
     "ok number is " i cc say
 } 10 loopn
 
@@ -4103,7 +4223,7 @@ something1
 
     x 10 match {
         200
-        2 breakn
+        stopp
     } { 300 } cond call
 
     500
