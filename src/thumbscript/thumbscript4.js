@@ -565,16 +565,26 @@ thumbscript4.tokenize = function(code, debug) {
     return tokens
 }
 thumbscript4.desugar = function(tokens, debug) {
-    tokens = thumbscript4.desugarArrows(tokens) // white marker
-    if (debug) {
-        log2("+desugared (arrows)")
-        log2(tokens)
-    }
     tokens = thumbscript4.desugarAtSign(tokens)
     // if (debug) {
     //     log2("+desugared (before parens)")
     //     log2(tokens)
     // }
+    
+    // Do it after first desugarAtSign asomwe can check the at sign
+    tokens = thumbscript4.desugarArrows(tokens) // white marker
+    if (debug) {
+        log2("+desugared (arrows)")
+        log2(tokens)
+    }
+    
+    
+    tokens = thumbscript4.desugarAtSign(tokens)
+    // if (debug) {
+    //     log2("+desugared (before parens)")
+    //     log2(tokens)
+    // }
+    
     tokens = thumbscript4.desugarParens(tokens) // white marker
     // log2(tokens)
     tokens = thumbscript4.someIfMagic(tokens)
@@ -721,11 +731,25 @@ thumbscript4.desugarArrows = function(tokens) {
                 case "1<-":
                     // a 1<- 100
                     // 100 a set
-                    var lastToken = newTokens.pop()
-                    newTokens.push(dotToken)
-                    newTokens.push(setToken)
-                    newTokens.push(dotToken)
-                    newTokens.push(lastToken)
+
+                    // newTokens.push(token)
+                    // break
+
+                    var lastToken = newTokens[newTokens.length - 1]
+                    if (lastToken.name == "at") {
+                        newTokens.pop()
+                        newTokens.push(dotToken)
+                        newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
+                    } else {
+                        var setbToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setb, name: "setb"}
+                        newTokens.push(dotToken)
+                        newTokens.push(setbToken)
+                    }
+
+                    // newTokens.push(dotToken)
+                    // newTokens.push(setToken)
+                    // newTokens.push(dotToken)
+                    // newTokens.push(lastToken)
                     break
                 default:
                     newTokens.push(token)
@@ -1510,6 +1534,13 @@ thumbscript4.builtIns = {
         var k = world.stack.pop()
         var o = world.stack.pop()
         var v = world.stack.pop()
+        o[k] = v
+        return world
+    },
+    setpropVKO: function(world) {
+        var v = world.stack.pop()
+        var k = world.stack.pop()
+        var o = world.stack.pop()
         o[k] = v
         return world
     },
@@ -2880,6 +2911,9 @@ thumbscript4.eval(`
 100 :a
 say. a
 
+a: 101
+say. a
+
 ["yo" :myprop] :myobj
 say. myobj.myprop
 
@@ -2892,6 +2926,9 @@ say. myobj.myprop
 { myobj } :getObj
 
 "updated3" :(getObj).("my" "prop" cc)
+say. myobj.myprop
+
+myobj.myprop: "updated4"
 say. myobj.myprop
 
 
