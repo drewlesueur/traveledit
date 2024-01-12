@@ -41,7 +41,8 @@ thumbscript4.tokenize = function(code, debug) {
     // var funcFirstSugar = true // say "hello world"
     var funcFirstSugar = false // say "hello world"
     var parensCallSugar = true // str slice(2 3)
-    var propAccessSugar = false // foo[bar]
+    // var propAccessSugar = false // foo[bar]
+    var propAccessSugar = true // foo[bar]
 
     var freshLine = true
     var currentTokenOnFreshLine = true
@@ -54,6 +55,12 @@ thumbscript4.tokenize = function(code, debug) {
     var addClosingParensOnNewLine = 0
     code += "\n" // to simplify last token
     var addToken = function(token) {
+        if (token == "=" || token == "<") {
+            let prevToken = tokens[tokens.length - 1]
+            if (prevToken.th_type == varType && ")]}".indexOf(prevToken.valueString) == -1) {
+                prevToken.th_type = stringType
+            }
+        }
         if (quoteNext) {
             if ("([{".indexOf(token) == -1 && token.charAt(0) != "$") {
                 token = "$" + token
@@ -274,8 +281,27 @@ thumbscript4.tokenize = function(code, debug) {
                     //     addClosingParensOnNewLine++
                     // }
                     // end #color
-
                 }
+                currentToken = ""
+                state = "out"
+            } else if (">".indexOf(chr) != -1) {
+                // compare with above block
+                freshLine = false // orange marker
+                if (addClosingParensOnNewLine) {
+                    for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                        addToken(")") // addedClosingParen pink marker
+                    }
+                    addClosingParensOnNewLine = 0
+                }
+                addToken("->1")
+                quoteNext = true
+                
+                // added fresh crimson #color
+                if (leftAssignSugar) {
+                    addToken("(")
+                    addClosingParensOnNewLine++
+                }
+                // end #color
                 currentToken = ""
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
@@ -376,7 +402,6 @@ thumbscript4.tokenize = function(code, debug) {
                 tokens.push(atToken)
                 quoteNext = true
                 state = "out"
-                
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 var nextChar = code.charAt(i+1)
@@ -390,7 +415,7 @@ thumbscript4.tokenize = function(code, debug) {
                         }
                         addClosingParensOnNewLine = 0
                     }
-                    
+
                     addToken("$" + currentToken)
                     addToken("1<-")
                     freshLine = true // darkorange marker
@@ -721,17 +746,19 @@ thumbscript4.desugarArrows = function(tokens) {
                     // end #color
 
                     break
+                case "<":
+                case "=":
                 case "<-":
                     // newTokens.push(token)
                     // break
 
+                    // same as 1<- for now
                     var lastToken = newTokens[newTokens.length - 1]
                     if (lastToken && lastToken.name == "at") {
                         newTokens.pop()
                         newTokens.push(dotToken)
                         newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
                     } else {
-                        // lastToken.th_type = stringType
                         var setbToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setb, name: "setb"}
                         newTokens.push(dotToken)
                         newTokens.push(setbToken)
@@ -759,7 +786,7 @@ thumbscript4.desugarArrows = function(tokens) {
                     // break
 
                     var lastToken = newTokens[newTokens.length - 1]
-                    if (lastToken.name == "at") {
+                    if (lastToken && lastToken.name == "at") {
                         newTokens.pop()
                         newTokens.push(dotToken)
                         newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
@@ -2915,10 +2942,11 @@ thumbscript4.tokenize(`
 // 100 :a
 // 100 :foo.bar
 // 100 :(foo.bar)
-// { 100 :("foo" get).(1 1 plus) }
+// 100 :(("foo" get).(1 1 plus))
 
 // 1<-
 // a: 100
+// a = 100
 // foo.bar: 100
 // foo.bar.baz: 100
 
@@ -2929,7 +2957,7 @@ thumbscript4.tokenize(`
 // ("foo" get).(1 1 plus): 100
 
 
-
+// a.(b) = 20
 
 // 100 :a
 // foo.(bar) : 100
@@ -2947,6 +2975,8 @@ thumbscript4.tokenize(`
 // 12 :a 13 :b
 
 // a: 20 b: 30
+
+// a[b] = 3
 
 `, true) // aquamarine marker
 
@@ -2999,6 +3029,30 @@ log2("js county: " + county)
 
 thumbscript4.eval(` // lime marker
 #main
+
+a = 100
+say. "the a is $a"
+person = [ name: "Drew" ]
+say. person
+person.name = "hiya"
+say. person
+theVar = "name"
+person.(theVar) = "ok2"
+say. person
+person[theVar] = "ok3"
+say. person
+"ok4" > person["name"]
+say. person
+person["name"] < "ok5"
+say. person
+person = [name = "Bob"]
+say. person
+
+200 > a
+"a is $a" say
+
+
+
 theInner: {
     #inner
     {
@@ -3018,7 +3072,6 @@ theOuter: {
 theOuter
 
 say. "done"
-// exit
 
 numbers: [10 20 30]
 
@@ -3037,7 +3090,7 @@ say
 // "what??" say
 // exit
 
-person: [
+person = [
     name: "drew" age: 39
     sports: [
         volleyball: [level: 8]
@@ -3050,7 +3103,7 @@ a: 30 b: 40
 say. "$a and $b"
 
 a: 31
-person.name: "Bob"
+person.name = "Bob"
 say. "$a and $b"
 
 say. person
@@ -3078,13 +3131,31 @@ say. myobj.myprop
 "updated3" :((getObj).("my" "prop" cc))
 say. myobj.myprop
 
+"updated3.5" > (getObj).("my" "prop" cc)
+say. myobj.myprop
+"updated3.6" > (getObj)["my" "prop" cc]
+say. myobj.myprop
+
 myobj.myprop: "updated4"
 say. myobj.myprop
 
 myobj.("my" "prop" cc): "updated5"
 say. myobj.myprop
 
+myobj["my" "prop" cc]: "updated5.5"
+say. myobj.myprop
+
 myobj.myprop: "updated6"
+say. myobj.myprop
+myobj.myprop = "updated6.5"
+say. myobj.myprop
+myobj.myprop < "updated6.6"
+say. myobj.myprop
+
+myobj $myprop at < "updated7"
+say. myobj.myprop
+
+"updated8" > myobj $myprop at
 say. myobj.myprop
 
 a: 102
