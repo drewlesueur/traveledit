@@ -759,6 +759,10 @@ thumbscript4.desugarArrows = function(tokens) {
                         newTokens.push(dotToken)
                         newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
                     } else {
+                        if (lastToken && lastToken.name == "[obj]") {
+                            lastToken.th_type = parenType
+                            lastToken.name = "(parens)"
+                        }
                         var setbToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setb, name: "setb"}
                         newTokens.push(dotToken)
                         newTokens.push(setbToken)
@@ -2978,6 +2982,8 @@ thumbscript4.tokenize(`
 
 // a[b] = 3
 
+// 27 [var] = 20
+
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3029,6 +3035,19 @@ log2("js county: " + county)
 
 thumbscript4.eval(` // lime marker
 #main
+
+// TODO:
+// var = "a"
+// [var] = 20
+
+person = [
+    name: [
+        first: "Drew"
+        last: "LeSueur"
+    ]
+]
+person["name"]["last"] = "bob"
+person say
 
 a = 100
 say. "the a is $a"
@@ -3116,6 +3135,10 @@ a: 101
 say. a
 
 
+"what's the length here" say
+"1234" length say
+"1234" length() say
+
 
 ["yo" :myprop] :myobj
 say. myobj.myprop
@@ -3134,6 +3157,8 @@ say. myobj.myprop
 "updated3.5" > (getObj).("my" "prop" cc)
 say. myobj.myprop
 "updated3.6" > (getObj)["my" "prop" cc]
+say. myobj.myprop
+"updated3.7" > getObj["my" "prop" cc]
 say. myobj.myprop
 
 myobj.myprop: "updated4"
