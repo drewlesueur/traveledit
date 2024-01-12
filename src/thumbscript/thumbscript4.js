@@ -189,45 +189,56 @@ thumbscript4.tokenize = function(code, debug) {
             // log2("+yay state is out and char is " + JSON.stringify(chr))
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
-                if (leftAssignSugar) {
-                    if ("([{".indexOf(chr) != -1) {
-                        addClosingParensStack.push(addClosingParensOnNewLine)
-                        addClosingParensOnNewLine = 0
-                    } else if (")]}".indexOf(chr) != -1) {
-                        // attempt!
-                        if (addClosingParensOnNewLine) {
-                            for (let i = 0; i < addClosingParensOnNewLine; i++) {
-                                addToken(")") // addedClosingParen pink marker
-                            }
-                            addClosingParensOnNewLine = 0
-                        }
 
-                        addClosingParensOnNewLine = addClosingParensStack.pop()
-                        
+                // justsugar for empty object
+                if (code.substr(i, 3) == "[:]") {
+                    i+=3
+                    addToken("newobj")
+
+                } else {
+                    if (code.substr(i, i+3) == "[:]") {
+                        // alert("huh?")
                     }
-                }
-                addToken(chr)
-                
-                var prevChar = code.charAt(i-1)
-                if (")]}".indexOf(prevChar) != -1) {
-                    if (parensCallSugar && "(".indexOf(chr) != -1) {
-                        let leftParen = tokens.pop()
-                        // kinda hacky but fits with flow.
-                        var storefunc = {th_type: builtInType, valueFunc: thumbscript4.builtIns["storefunc"], name: "storefunc", preventCall: false}
-                        var callstored = {th_type: builtInType, valueFunc: thumbscript4.builtIns["callstored"], name: "callstored", preventCall: false}
-                        var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                        tokens.push(storefunc)
-                        tokens.push(dotToken)
-                        tokens.push(callstored)
-                        tokens.push(leftParen)
-                    } else if (propAccessSugar && "[".indexOf(chr) != -1) {
-                        let leftSquareBracket = tokens.pop()
-                        leftSquareBracket.propAccess = true
-                        var dotToken = {th_type: varType, valueString: "•", preventCall: false}
-                        var atToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns["at"], name: "at", preventCall: false}
-                        tokens.push(dotToken)
-                        tokens.push(atToken)
-                        tokens.push(leftSquareBracket)
+                    if (leftAssignSugar) {
+                        if ("([{".indexOf(chr) != -1) {
+                            addClosingParensStack.push(addClosingParensOnNewLine)
+                            addClosingParensOnNewLine = 0
+                        } else if (")]}".indexOf(chr) != -1) {
+                            // attempt!
+                            if (addClosingParensOnNewLine) {
+                                for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                                    addToken(")") // addedClosingParen pink marker
+                                }
+                                addClosingParensOnNewLine = 0
+                            }
+    
+                            addClosingParensOnNewLine = addClosingParensStack.pop()
+                            
+                        }
+                    }
+                    addToken(chr)
+                    
+                    var prevChar = code.charAt(i-1)
+                    if (")]}".indexOf(prevChar) != -1) {
+                        if (parensCallSugar && "(".indexOf(chr) != -1) {
+                            let leftParen = tokens.pop()
+                            // kinda hacky but fits with flow.
+                            var storefunc = {th_type: builtInType, valueFunc: thumbscript4.builtIns["storefunc"], name: "storefunc", preventCall: false}
+                            var callstored = {th_type: builtInType, valueFunc: thumbscript4.builtIns["callstored"], name: "callstored", preventCall: false}
+                            var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                            tokens.push(storefunc)
+                            tokens.push(dotToken)
+                            tokens.push(callstored)
+                            tokens.push(leftParen)
+                        } else if (propAccessSugar && "[".indexOf(chr) != -1) {
+                            let leftSquareBracket = tokens.pop()
+                            leftSquareBracket.propAccess = true
+                            var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                            var atToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns["at"], name: "at", preventCall: false}
+                            tokens.push(dotToken)
+                            tokens.push(atToken)
+                            tokens.push(leftSquareBracket)
+                        }
                     }
                 }
             // } else if (".".indexOf(chr) != -1 && ")]}".indexOf(code.charAt(i-1)) != -1) {
@@ -2984,6 +2995,8 @@ thumbscript4.tokenize(`
 
 // 27 [var] = 20
 
+// o = [:]
+
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3036,7 +3049,13 @@ log2("js county: " + county)
 thumbscript4.eval(` // lime marker
 #main
 
-// TODO:
+
+// empty object bs empty array
+say. [
+    [:] []
+]
+
+
 var = "a"
 [var] = 20
 "the value is $a" say
@@ -3052,7 +3071,6 @@ person = [
 
 // person["name"]["last"] = "bob"
 person say
-exit
 
 a = 100
 say. "the a is $a"
@@ -3100,8 +3118,7 @@ say. "done"
 numbers: [10 20 30]
 
 map. numbers {
-    :n
-    1 n plus
+    :n 1 n plus
 }
 say
 
