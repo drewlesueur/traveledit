@@ -3037,17 +3037,22 @@ thumbscript4.eval(` // lime marker
 #main
 
 // TODO:
-// var = "a"
-// [var] = 20
+var = "a"
+[var] = 20
+"the value is $a" say
 
+theLast = "last"
 person = [
     name: [
         first: "Drew"
-        last: "LeSueur"
+        [theLast]: "LeSueur"
     ]
 ]
-person["name"]["last"] = "bob"
+
+
+// person["name"]["last"] = "bob"
 person say
+exit
 
 a = 100
 say. "the a is $a"
