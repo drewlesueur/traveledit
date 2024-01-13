@@ -38,6 +38,7 @@ function j(x) {
 thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true // count: count 1 plus
     var funcFirstWithDotSugar = true // say. "hello world" or .say "hi"
+    var funcFirstWithUpper = true // Say "hello world" or .say "hi"
     // var funcFirstSugar = true // say "hello world"
     var funcFirstSugar = false // say "hello world"
     var parensCallSugar = true // str slice(2 3)
@@ -475,6 +476,17 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine++
+                } else if (funcFirstWithUpper && " ".indexOf(chr) != -1 && (addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0])) { // red marker
+                    let tokenName
+                    tokenName = addedToken[0].toLowerCase() + addedToken.substr(1)
+                    // log2(`token name went from ${addedToken} to ${tokenName}`)
+                    tokens.pop()
+
+
+                    addToken(tokenName)
+                    addToken("<>")
+                    addToken("(")
+                    addClosingParensOnNewLine++
                 } else if (funcFirstWithDotSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
                     for (let i = 0; i < addClosingParensOnNewLine; i++) {
                         addToken(")") // addedClosingParen pink marker
@@ -652,7 +664,7 @@ thumbscript4.desugarParens = function(tokens) {
 thumbscript4.someIfMagic = function(tokens) {
     // when if is false, we need to jump to end of the chain
     // makes syntax a little cleaner
-    // can accomplish same thing woth wrapper func or array (cases) but not as pretty
+    // can accomplish same thing with wrapper func or array (cases) but not as pretty
     var i = 0
     var currentIfs = []
     while (i < tokens.length) {
@@ -2487,6 +2499,7 @@ thumbscript4.stdlib = function x() { /*
         :block :n 0 :i
         {
             i •lt n not ~stop ?
+            // i •lt n not ? ~stop
             i block
             i++
             repeat
@@ -2996,6 +3009,7 @@ thumbscript4.tokenize(`
 // 27 [var] = 20
 
 // o = [:]
+// •not y.a
 
 `, true) // aquamarine marker
 
@@ -3048,6 +3062,31 @@ log2("js county: " + county)
 
 thumbscript4.eval(` // lime marker
 #main
+
+Say "hello world!"
+
+If false {
+    Say "check 1" }
+Elseif true {
+    Say "check 2" }
+Else {
+    Say "check 3"
+}
+
+exit
+x = 1
+if. x is(0) {
+    "it's 0" say
+}
+"not 0 let's keep going" say
+elseif. x 1 is {
+    "it's 1" say
+}
+"hmm we got here" say
+else. {
+    "it's neither" say
+}
+
 
 
 // empty object bs empty array
