@@ -3062,8 +3062,38 @@ log2("js county: " + county)
 
 thumbscript4.eval(` // lime marker
 #main
-
+// Say "+++++++"
 Say "hello world!"
+// Say "+hello world!"
+Say "===="
+// Say "+++"
+
+funcs: []
+Loopn 3 {
+    :i
+    "why hello " i cc say
+    {
+        "afterward " i cc say
+    } funcs push
+}
+Each funcs {
+    call
+}
+
+makeIncr: {
+    x = 0
+    { x++ x }
+}
+
+"here's the incremented numbers" say
+incr = makeIncr
+incr say
+incr say
+"those were the incremented numbers" say
+
+
+
+exit
 
 If false {
     Say "check 1" }
@@ -3260,7 +3290,7 @@ yo: [
     stuff: "this is the stuff"
 ]
 
-yo.stuff: 3
+yo.stuff: 3000
 say. yo.stuff
 // exit
 
