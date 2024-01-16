@@ -109,7 +109,7 @@ thumbscript4.tokenize = function(code, debug) {
                 var a = token.slice(0, -2)
                 var f = function(world) {
                     // var w = world.parent // even  this doesn't seem to help perf
-                    var w = thumbscript4.getWorldForKey(world, a, false, true)
+                    var w = thumbscript4.getWorldForKey(world, a, false, true, false)
                     w.state[a] += 1
                     return world
                 }
@@ -339,7 +339,7 @@ thumbscript4.tokenize = function(code, debug) {
                     }
                     addClosingParensOnNewLine = 0
                 }
-                addToken("->1")
+                addToken(">")
                 quoteNext = true
                 
                 // added fresh crimson #color
@@ -747,6 +747,11 @@ thumbscript4.desugarArrows = function(tokens) {
     var dotToken = {th_type: varType, valueString: "•", preventCall: false}
     var dot2Token = {th_type: varType, valueString: "••", preventCall: false}
     var setToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.set, name: "set"}
+    var setlocalToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setlocal, name: "setlocal"}
+    var setbToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setb, name: "setb"}
+    var setblocalToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setblocal, name: "setblocal"}
+    
+    
     var setPropToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setprop, name: "setprop"}
     var setProp2Token = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setprop2, name: "setprop2"}
     var setcToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setc, name: "setc"}
@@ -764,24 +769,17 @@ thumbscript4.desugarArrows = function(tokens) {
                     newTokens.push(dotToken)
                     newTokens.push(lastToken)
                     break
-                case "->":
-                    // 100 -> [a $b]
-                    // 100 [a $b] setc
-                    newTokens.push(dotToken)
-                    newTokens.push(setcToken)
-                    break
-                case "->>":
-                    // 100 ->> a $b
-                    // 100 a $b setprop2
-                    newTokens.push(dot2Token)
-                    newTokens.push(setProp2Token)
-                    break
+                case ">":
                 case "->1":
                     // 100 -> a
                     // 100 a set
                     // newTokens.push(dotToken)
                     // newTokens.push(setToken)
                     // break
+                    var tokenForSet = setlocalToken
+                    if (token.valueString == ">") {
+                        tokenForSet = setToken
+                    }
                     
                     // crimson #color
                     var dotTokenForRightAssign = {
@@ -792,7 +790,7 @@ thumbscript4.desugarArrows = function(tokens) {
                             // log2(ts[ts.length - 1])
                             var path = ts[ts.length - 1]
                             if (!path.valueArr) {
-                                ts.push(setToken)
+                                ts.push(tokenForSet)
                             } else if (path.valueArr.length > 1 && path.valueArr[path.valueArr.length - 1].name == "at") {
                                 path.valueArr.pop()
                                 // path.valueArr[path.valueArr.length - 1].th_type = stringType
@@ -800,7 +798,7 @@ thumbscript4.desugarArrows = function(tokens) {
                             } else {
                                 if (path.valueArr && path.valueArr[0]) {
                                     path.valueArr[0].th_type = stringType
-                                    ts.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.set1, name: "set1"})
+                                    ts.push(tokenForSet)
                                 }
                             }
                         }
@@ -812,8 +810,10 @@ thumbscript4.desugarArrows = function(tokens) {
                 case "<":
                 case "=":
                 case "<-":
-                    // newTokens.push(token)
-                    // break
+                    var tokenForSet = setbToken
+                    if (token.valueString == "<-") {
+                        tokenForSet = setblocalToken
+                    }
 
                     // same as 1<- for now
                     var lastToken = newTokens[newTokens.length - 1]
@@ -826,31 +826,13 @@ thumbscript4.desugarArrows = function(tokens) {
                             lastToken.th_type = parenType
                             lastToken.name = "(parens)"
                         }
-                        var setbToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setb, name: "setb"}
                         newTokens.push(dotToken)
-                        newTokens.push(setbToken)
+                        newTokens.push(tokenForSet)
                     }
-
-                    // [a $b] <- 100
-                    // 100 [a $b] setc
-                    // var lastToken = newTokens.pop()
-                    // newTokens.push(dotToken)
-                    // newTokens.push(setcToken)
-                    // newTokens.push(dotToken)
-                    // newTokens.push(lastToken)
-                    break
-                case "<<-":
-                    // t $fillStyle <<- $red
-                    // t $fillStyle $red setprop
-                    newTokens.push(dotToken)
-                    newTokens.push(setPropToken)
                     break
                 case "1<-":
                     // a 1<- 100
                     // 100 a set
-
-                    // newTokens.push(token)
-                    // break
 
                     var lastToken = newTokens[newTokens.length - 1]
                     if (lastToken && lastToken.name == "at") {
@@ -858,15 +840,9 @@ thumbscript4.desugarArrows = function(tokens) {
                         newTokens.push(dotToken)
                         newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
                     } else {
-                        var setbToken = {th_type: builtInType, valueFunc: thumbscript4.builtIns.setb, name: "setb"}
                         newTokens.push(dotToken)
-                        newTokens.push(setbToken)
+                        newTokens.push(setblocalToken)
                     }
-
-                    // newTokens.push(dotToken)
-                    // newTokens.push(setToken)
-                    // newTokens.push(dotToken)
-                    // newTokens.push(lastToken)
                     break
                 default:
                     newTokens.push(token)
@@ -1028,7 +1004,6 @@ thumbscript4.evalQuick = function(code, oldWorld, state) {
         // cachedLookupWorld: {},
         global: oldWorld?.global,
         asyncGlobal: oldWorld?.asyncGlobal,
-        local: true,
     }
     if (!world.global) {
         world.global = world
@@ -1603,14 +1578,6 @@ thumbscript4.builtIns = {
         world.stack.push(a)
         return world
     },
-    local: function(world) {
-        var a = world.stack.pop()
-        // #closureshortcut
-        // a = thumbscript4.closureify(a, world)
-        a.local = true
-        world.stack.push(a)
-        return world
-    },
     log: function(world) {
         var a = world.stack.pop()
         world.global.log.push(a)
@@ -1631,7 +1598,6 @@ thumbscript4.builtIns = {
         var b = world.stack.pop()
 
         // foo.bar.baz: "yo!"
-
         // if (a && a.indexOf && a.indexOf(".") != -1) {
         //     var parts = a.split(".")
         //     var w = thumbscript4.getWorldForKey(world, parts[0], true, true)
@@ -1658,17 +1624,28 @@ thumbscript4.builtIns = {
         // w.state[a] = thumbscript4.closureify(b, world)
         return world
     },
-    set1: function(world) {
+    setlocal: function(world) {
         var a = world.stack.pop()
         var b = world.stack.pop()
-        var w = thumbscript4.getWorldForKey(world, a, false, true)
+        var w = thumbscript4.getWorldForKey(world, a, false, true, true)
         w.state[a] = b
+        // #closureshortcut
+        // w.state[a] = thumbscript4.closureify(b, world)
         return world
     },
     setb: function(world) {
         var b = world.stack.pop()
         var a = world.stack.pop()
-        var w = thumbscript4.getWorldForKey(world, a, false, true)
+        var w = thumbscript4.getWorldForKey(world, a, false, true, false)
+        w.state[a] = b
+        // #closureshortcut
+        // w.state[a] = thumbscript4.closureify(b, world)
+        return world
+    },
+    setblocal: function(world) {
+        var b = world.stack.pop()
+        var a = world.stack.pop()
+        var w = thumbscript4.getWorldForKey(world, a, false, true, true)
         w.state[a] = b
         // #closureshortcut
         // w.state[a] = thumbscript4.closureify(b, world)
@@ -1762,7 +1739,6 @@ thumbscript4.builtIns = {
             // cachedLookupWorld: {},
             global: fWorld.global,
             asyncGlobal: fWorld.asyncGlobal,
-            local: f.local,
         }
         for (var i=0; i<n; i++) {
             var pWorld = loopWorld
@@ -1828,7 +1804,6 @@ thumbscript4.builtIns = {
             // cachedLookupWorld: {},
             global: fWorld.global,
             asyncGlobal: fWorld.asyncGlobal,
-            local: f.local,
         }
 
         if (f.dynamic) {
@@ -1907,7 +1882,6 @@ thumbscript4.builtIns = {
         // // world.cachedLookupWorld = {}
         // world.global = f.world.global
         // world.asyncGlobal: f.world.asyncGlobal,
-        // world.local = f.local
         //
         // world.log = null
         // world.name = null
@@ -1955,7 +1929,6 @@ thumbscript4.builtIns = {
             // cachedLookupWorld: {},
             global: fWorld.global,
             asyncGlobal: fWorld.asyncGlobal,
-            local: f.local,
         }
 
         if (f.dynamic) {
@@ -2232,11 +2205,16 @@ thumbscript4.builtIns.localDateFormat = thumbscript4.genFunc1((unixTimestamp) =>
 
 
 
-thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting) {
+thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting, local) {
     // the cachedLookupWorld seems noticeably faster when running jsloopn
     // 19ms vs 38ms on a loopn with somevar+= for 100k loops
 
-    if (world.local && forSetting) {
+    if (local && forSetting) {
+        // this may be what's missing in ijs
+        if (!world.cachedLookupWorld) {
+            world.cachedLookupWorld = {}
+        }
+        world.cachedLookupWorld[key] = world
         return world
     }
     if (!world.cachedLookupWorld) {
@@ -2357,7 +2335,6 @@ thumbscript4.next = function(world) {
                     indent: world.indent + 1,
                     runId: ++thumbscript4.runId,
                     // cachedLookupWorld: {},
-                    local: true,
                     global: world.global,
                     asyncGlobal: world.asyncGlobal,
                 }
@@ -2381,7 +2358,6 @@ thumbscript4.next = function(world) {
                         tokens: closure.tokens,
                         th_type: closure.th_type,
                         dynamic: closure.dynamic,
-                        local: closure.local,
                         // dynamic: "foobar",
                         // not world
                     }
@@ -2496,7 +2472,7 @@ thumbscript4.next = function(world) {
                 
                 break outer
             case incrType:
-                var w = thumbscript4.getWorldForKey(world, token.valueString, true, false)
+                var w = thumbscript4.getWorldForKey(world, token.valueString, true, true, false)
                 w.state[token.valueString]++
                 break outer
             case noOpType:
@@ -2530,12 +2506,12 @@ thumbscript4.next = function(world) {
 
 // c b a
 thumbscript4.stdlib = function x() { /*
-    swap: •local { :b :a ~b ~a }
-    drop: •local { :droppy }
-    dup: •local { :a ~a ~a }
+    swap:  { :b :a ~b ~a }
+    drop: { :droppy }
+    dup: { :a ~a ~a }
     // todo: look at what's slow with not inlining (object creation? and fix)
     // that said jsloopn is fastest
-    loopn: •local {
+    loopn: {
         :block :n 0 :i
         {
             i •lt n not ~stop ?
@@ -2545,7 +2521,7 @@ thumbscript4.stdlib = function x() { /*
             repeat
         } call
     }
-    loopn2: •local {
+    loopn2: {
         :block :n 0 :i
         {
             i •lt (n •minus 1) guard
@@ -2555,7 +2531,7 @@ thumbscript4.stdlib = function x() { /*
         } call
     }
     // like range but just value
-    each: •local {
+    each: {
         :block :list
 
         list typename "object" is {
@@ -2575,7 +2551,7 @@ thumbscript4.stdlib = function x() { /*
             :i list •at i block
         } loopn
     }
-    range: •local {
+    range: {
         :block :list
 
         list typename "object" is {
@@ -2595,8 +2571,8 @@ thumbscript4.stdlib = function x() { /*
             :i list •at i i block
         } loopn
     }
-    guard: •local •dyn { not { 2 stopn } ? }
-    loopmax: •local {
+    guard: •dyn { not { 2 stopn } ? }
+    loopmax: {
         :theMax :block 0 :i
         {
             i theMax lt ~stop ?
@@ -2605,7 +2581,7 @@ thumbscript4.stdlib = function x() { /*
             repeat
         } call
     }
-    range2: •local {
+    range2: {
         :block :list 0 :i
         list len :theMax
         theMax {
@@ -2614,8 +2590,8 @@ thumbscript4.stdlib = function x() { /*
             list •at i i list •at i2 i2 block
         } loopn2
     }
-    sayn: •local { " " join say }
-    take: •local {
+    sayn: { " " join say }
+    take: {
         :n9 [] :a9
         n9 {
             :i
@@ -2623,7 +2599,7 @@ thumbscript4.stdlib = function x() { /*
         } loopn
         a9
     }
-    cases: •local {
+    cases: {
         :c
         c length :m
         c {
@@ -2633,7 +2609,7 @@ thumbscript4.stdlib = function x() { /*
         } range2
         c •at (m •minus 1) call
     }
-    timeit: •local {
+    timeit: {
         :block :n
         // nowmillis :start
         start: nowmillis
@@ -2647,26 +2623,26 @@ thumbscript4.stdlib = function x() { /*
         total: end •minus start
         "it took $total ms" say
     }
-    and: •local {
+    and: {
         :b :a
         a :firstValue
         ~firstValue not { ~firstValue stopp } ?
         b
     }
-    or: •local {
+    or: {
         :b :a
         a :firstValue
         ~firstValue { ~firstValue stopp } ?
         b
     }
-    loop: •local {
+    loop: {
        :block
        {
            block
            repeat
        } call
     }
-    filter: •local {
+    filter: {
         :func :list
         [] :ret
         list {
@@ -2677,7 +2653,7 @@ thumbscript4.stdlib = function x() { /*
         } range
         ret
     }
-    map: •local {
+    map: {
         :func :list
         [] :output
         list {
@@ -2685,7 +2661,7 @@ thumbscript4.stdlib = function x() { /*
         } range
         output
     }
-    trimPrefix: •local {
+    trimPrefix: {
         :prefix :str
         str 0 prefix len slice prefix is {
             prefix len undefined str slice
@@ -2698,7 +2674,7 @@ thumbscript4.stdlib = function x() { /*
         // }
         str
     }
-    ifelse: •local {
+    ifelse: {
         :theElse
         :theThen
         :toCheck
@@ -2710,7 +2686,7 @@ thumbscript4.stdlib = function x() { /*
     //     what {
     //         loc goto
     //     } ?
-    // } dyn local
+    // } dyn
     exec: { runshell drop trim }
     bashStrEscape: {
         "'"
@@ -2720,7 +2696,7 @@ thumbscript4.stdlib = function x() { /*
         "'" cc
     }
     // only does simple types for now
-    formencode: local. {
+    formencode: {
         r: []
         range. { :key :value
             "${urlencode. key}=${urlencode. value}"
@@ -2728,7 +2704,7 @@ thumbscript4.stdlib = function x() { /*
         }
         r join("&")
     }
-    // formencodedisplay: local. {
+    // formencodedisplay: {
     //     r: []
     //     range. { :key :value
     //         "${urlencode. key}=${urlencode. value}"
@@ -2746,8 +2722,8 @@ thumbscript4.stdlib = function x() { /*
             fn. list at(i) i
             i: i plus(skip)
         }
-    } local
-    replacegroup: local. {
+    }
+    replacegroup: {
       :replacerMap :str
       chunks: [str]
       range. replacerMap { :search :toReplace
@@ -2804,7 +2780,7 @@ thumbscript4.stdlib = function x() { /*
             curl ${extraFlags} -s -X $method $headersStr $dataStr $urlStr
         »
         config.debug { trim say "" } ~exec ifelse
-    } local
+    }
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 
 
@@ -2889,7 +2865,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // walrus
 
 // {
-// } local call
+// } call
 // " " "every day is a new day" split :mylist
 // "every day is a new day" " " split :mylist
 // yo: say 3 4 5
@@ -3054,6 +3030,9 @@ thumbscript4.tokenize(`
 // myobj.count: myobj.count 1 plus
 // myobj.count: myobj.count 1 plus
 // myobj.count < 1 2 plus
+// x = 1
+// x: 1
+// 1 x plus :x
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3110,6 +3089,30 @@ Say "hello world!"
 // Say "+hello world!"
 Say "===="
 // Say "+++"
+makeIncr: {
+    x: 0
+    // { x++ x }
+    // {
+    //     x: x 1 plus
+    //     x
+    // }
+    // {
+    //     x = x 1 plus
+    //     x
+    // }
+    {
+        1 x plus > x
+        x
+    }
+}
+
+"here's the incremented numbers" say
+incr = makeIncr
+incr say
+incr say
+incr say
+"those were the incremented numbers" say
+exit
 
 funcs: []
 // Loopn 3 {
@@ -3118,7 +3121,7 @@ funcs: []
 //     {
 //         "afterward " i cc say
 //     } funcs push
-// } local
+// }
 
 // Loopn 3 {
 //     :i45
@@ -3164,21 +3167,14 @@ Each funcs {
 }
 
 
-makeIncr: {
-    x: 0
-    // { x++ x }
-    {
-        x < x 1 plus
-        x
-    }
-}
-
-"here's the incremented numbers" say
-incr = makeIncr
-incr say
-incr say
-incr say
-"those were the incremented numbers" say
+// makeIncr: {
+//     x: 0
+//     // { x++ x }
+//     {
+//         x < x 1 plus
+//         x
+//     }
+// }
 
 
 
@@ -3383,6 +3379,8 @@ say. "$a and $b"
 
 thumbscript4.exampleCode = function () { // maroon marker
 /*
+// something here causes it to go slow
+exit
 yo: [
     stuff: "this is the stuff"
 ]
@@ -3572,7 +3570,7 @@ loopn. 10 {
 
 {
     say. "what"
-} local call
+} call
 
 
 a: 20
@@ -3707,6 +3705,7 @@ funcs.sayHi
 
 addProp: {
     dup
+    // this syntax broken
     (10 1 plus):: "was here"
 
     // alternatively
@@ -3724,8 +3723,7 @@ addProp: {
     ] addProp
     "c is " say
     c say
-// } local call
-} local call
+} call
 
 // assertempty
 
@@ -4173,7 +4171,7 @@ say
    :j
    "j number is $j" say
    25 sleepms
-} local loopn
+} loopn
 
 
 window $xyzzy at "xyzzy is " swap cc say
@@ -4538,7 +4536,7 @@ foo2: •fix •bug 3
 
 200 :a
 50 :b
-{ 900 :a  "b is " b cc say } local :somefunc
+{ 900 :a  "b is " b cc say } :somefunc
 202 :a
 "the value of a is " a cc say
 somefunc
