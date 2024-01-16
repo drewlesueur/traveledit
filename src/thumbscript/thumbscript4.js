@@ -251,12 +251,6 @@ thumbscript4.tokenize = function(code, debug) {
                 quoteNext = true
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
-                // some fancy desugaring here and below
-                // x: y means x 1<- y
-                // y :x means y ->1 x
-                // [w x]: y means [w x] <- y
-                // y :[w x] means y -> [w x]
-                // more desugaring happens in desugarArrows
                 
                 // new
                 // some fancy desugaring here and below
@@ -294,6 +288,46 @@ thumbscript4.tokenize = function(code, debug) {
                     // }
                     // end #color
                 }
+                currentToken = ""
+                state = "out"
+            } else if ("=".indexOf(chr) != -1) {
+                // compare with above block
+                freshLine = false // orange marker
+                if (addClosingParensOnNewLine) {
+                    for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                        addToken(")") // addedClosingParen pink marker
+                    }
+                    addClosingParensOnNewLine = 0
+                }
+                addToken("=")
+                quoteNext = true
+                
+                // added fresh crimson #color
+                if (leftAssignSugar) {
+                    addToken("(")
+                    addClosingParensOnNewLine++
+                }
+                // end #color
+                currentToken = ""
+                state = "out"
+            } else if ("<".indexOf(chr) != -1) {
+                // compare with above block
+                freshLine = false // orange marker
+                if (addClosingParensOnNewLine) {
+                    for (let i = 0; i < addClosingParensOnNewLine; i++) {
+                        addToken(")") // addedClosingParen pink marker
+                    }
+                    addClosingParensOnNewLine = 0
+                }
+                addToken("<")
+                quoteNext = true
+                
+                // added fresh crimson #color
+                if (leftAssignSugar) {
+                    addToken("(")
+                    addClosingParensOnNewLine++
+                }
+                // end #color
                 currentToken = ""
                 state = "out"
             } else if (">".indexOf(chr) != -1) {
@@ -697,7 +731,13 @@ thumbscript4.someIfMagic = function(tokens) {
         i++
     }
     return tokens
-
+}
+thumbscript4.handleDashPoints = function(tokens) {
+    var i = 0
+    while (i < tokens.length) {
+        var token = tokens[i]
+    }
+    return tokens
 }
 thumbscript4.desugarArrows = function(tokens) {
     // return tokens
@@ -1612,7 +1652,7 @@ thumbscript4.builtIns = {
         //     }
         //     return world
         // }
-        var w = thumbscript4.getWorldForKey(world, a, false, true)
+        var w = thumbscript4.getWorldForKey(world, a, false, true, false)
         w.state[a] = b
         // #closureshortcut
         // w.state[a] = thumbscript4.closureify(b, world)
@@ -3011,6 +3051,9 @@ thumbscript4.tokenize(`
 // o = [:]
 // •not y.a
 
+// myobj.count: myobj.count 1 plus
+// myobj.count: myobj.count 1 plus
+// myobj.count < 1 2 plus
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3069,24 +3112,70 @@ Say "===="
 // Say "+++"
 
 funcs: []
-Loopn 3 {
-    :i
-    "why hello " i cc say
+// Loopn 3 {
+//     :i
+//     "why hello " i cc say
+//     {
+//         "afterward " i cc say
+//     } funcs push
+// } local
+
+// Loopn 3 {
+//     :i45
+//     "why hello " i45 cc say
+//     {
+//         "afterward " i45 cc say
+//     } funcs push
+// }
+
+// i44 = 0
+// Call {
+//     #outer42
+//     If i44 3 gte { stopp }
+//     Say "yay $i44"
+//     {
+//         #inner43
+//         "afterward raw " i44 cc say
+//     } funcs push
+//     i44++
+//     repeat
+// }
+
+
+i = 0
+Call {
+    #outer42
+    If i 3 gte { stopp }
+    Say "yay $i"
     {
-        "afterward " i cc say
+        #inner43
+        "afterward raw " i cc say
     } funcs push
+    // i++
+    i = 1 i plus
+    repeat
 }
+// funcs[0]()
+// funcs[1]()
+// funcs[2]()
+
 Each funcs {
     call
 }
 
+
 makeIncr: {
-    x = 0
-    { x++ x }
+    x: 0
+    // { x++ x }
+    {
+        x < x 1 plus
+        x
+    }
 }
 
 "here's the incremented numbers" say
 incr = makeIncr
+incr say
 incr say
 incr say
 "those were the incremented numbers" say
@@ -3102,6 +3191,14 @@ Elseif true {
 Else {
     Say "check 3"
 }
+
+// If false {
+//     Say "check 1"
+// * Elseif true
+//     Say "check 2"
+// * Else
+//     Say "check 3"
+// }
 
 exit
 x = 1
