@@ -458,7 +458,7 @@ thumbscript4.tokenize = function(code, debug) {
                 }
 
 
-                if (funcFirstWithDotSugar && " ".indexOf(chr) != -1 && (addedToken[addedToken.length-1] == ".")) { // red marker
+                if (funcFirstWithDotSugar && " \n".indexOf(chr) != -1 && (addedToken[addedToken.length-1] == ".")) { // red marker
                     let tokenName
                     if (addedToken.endsWith(".")) {
                         tokenName = addedToken.slice(0, -1)
@@ -476,7 +476,7 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine++
-                } else if (funcFirstWithUpper && " ".indexOf(chr) != -1 && (addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0])) { // red marker
+                } else if (funcFirstWithUpper && " \n".indexOf(chr) != -1 && (addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0])) { // red marker
                     let tokenName
                     tokenName = addedToken[0].toLowerCase() + addedToken.substr(1)
                     // log2(`token name went from ${addedToken} to ${tokenName}`)
@@ -2149,7 +2149,6 @@ thumbscript4.builtIns = {
         var a = world.stack.pop()
         runQuickShellCommand(a, function(err, text) {
             thumbscript4.outstandingCallbacks--
-             // log2("debug: " + text)
              world.stack.push(text)
              world.stack.push(err)
              thumbscript4.run(world)

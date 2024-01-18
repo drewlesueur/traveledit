@@ -172,7 +172,7 @@ document.write(`
 <!-- For now not loading in third party diff library. -->
 <!--<script src="`+proxyPath+`/tepublic/diff.js"></scr`+`ipt>-->
 <script src="`+proxyPath+`/tepublic/md52.js"></scr`+`ipt>
-<script src="`+proxyPath+`/tepublic/thumbscript4.js?v=29"></scr`+`ipt>
+<script src="`+proxyPath+`/tepublic/thumbscript4.js?v=`+Date.now()+`"></scr`+`ipt>
 <!-- For now not loading in grapheme splitter to save pageload. -->
 <!-- it means we can't use emojis, other unicode chars for now -->
 <!-- <script src="`+proxyPath+`/tepublic/grapheme-splitter.js"></scr`+`ipt>
@@ -2684,6 +2684,9 @@ function runEditorCommand(e) {
     case "uniq":
         uniqSelected()
         break
+    case "pretty":
+        prettyJsonSelected()
+        break
     case "sp":
         stripPrefixes([rest])
         break
@@ -4431,6 +4434,18 @@ function getSelectedLines(f, shouldDeleteSelected, shouldUnselect) {
     return {
         lines: theLines,
         isWholeFile: isWholeFile,
+    }
+}
+function prettyJsonSelected() {
+    var _t = getSelectedLines(fx, true)
+    var linesToProcess = _t.lines
+    var isWholeFile = _t.isWholeFile
+    var prettied = JSON.stringify(JSON.parse(linesToProcess.join("\n")), null, "    ").split("\n")
+    if (isWholeFile) {
+        setLines(prettied)
+        docChanged()
+    } else {
+        pasteLines(prettied, false, false)
     }
 }
 
@@ -6290,7 +6305,7 @@ function handleBlur() {
         // different that the timed autosave feature
         // this saves when you blur the text input
         if (fx.fileMode == "file") {
-            // save()
+            // save(saveDiffs)
         }
     }
     setCanvasHeightAccordingly()
@@ -6335,18 +6350,18 @@ function saveWrapper() {
         return
     }
     autoSave = false
-    save()
+    save(saveDiffs)
 }
 
 function saveFile(f) {
     var oldFx = fx
     fx = f
-    var p = save()
+    var p = save(saveDiffs)
     fx = oldFx
     
     return p
 }
-function save() {
+function save(saveDiffsLocal) {
     var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
     
     // using a single for loop to
@@ -6362,7 +6377,7 @@ function save() {
         var toSave = fx.lines.join("\n")
         var toSaveHash = md5(toSave)
         var fetchPromise
-        if (saveDiffs) {
+        if (saveDiffsLocal) {
             var theDiff = simpleDiffOld3(fx.undo.lastSavedLines, fx.lines, false).join("\n")
             if (theDiff == "") {
                 fx.savedVersion = fx.savingVersion
@@ -6380,7 +6395,7 @@ function save() {
                 body: "oldmd5="+fx.undo.lastSavedHash+"&newmd5="+toSaveHash+"&diff=" + encodeURIComponent(theDiff)
             })
         } else {
-            fetchPromise = fetch(proxyPath + "/saveload?f=" + encodeURIComponent(fx.fullPath), {
+            fetchPromise = fetch(proxyPath + "/saveload?fullpath=" + encodeURIComponent(fx.fullPath), {
                 method: "POST",
                 cache: "no-cache",
                 headers: { "Content-Type": "application/x-www-form-urlencoded"},
@@ -6397,10 +6412,14 @@ function save() {
                 myFx.undo.lastSavedHash = toSaveHash
                 resolve()
             } else {
-                alert("issue saving: " + v.error)
-                myFx.savingVersion = -1
-                // saveDiffs = false
-                reject()
+                // alert("issue saving: " + v.error)
+                var resp = prompt("issue saving: " + v.error + "\nType yolo if you want to save anyway")
+                if (resp == "yolo") {
+                    return save(false)
+                } else {
+                    myFx.savingVersion = -1
+                    reject()
+                }
             }
             render()
             renderFileDropdown()
