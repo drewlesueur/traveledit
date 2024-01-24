@@ -39,6 +39,7 @@ thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true // count: count 1 plus
     var funcFirstWithDotSugar = true // say. "hello world" or .say "hi"
     var funcFirstWithUpper = true // Say "hello world" or .say "hi"
+    var allUpperSugar = true // 1 PLUS 2
     // var funcFirstSugar = true // say "hello world"
     var funcFirstSugar = false // say "hello world"
     var parensCallSugar = true // str slice(2 3)
@@ -510,6 +511,12 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine++
+                } else if (allUpperSugar && " \n".indexOf(chr) != -1 && (addedToken.toUpperCase() == addedToken && addedToken.toLowerCase() != addedToken)) { // red marker
+                    let tokenName
+                    tokenName = addedToken.toLowerCase()
+                    tokens.pop()
+                    addToken("•")
+                    addToken(tokenName)
                 } else if (funcFirstWithUpper && " \n".indexOf(chr) != -1 && (addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0])) { // red marker
                     let tokenName
                     tokenName = addedToken[0].toLowerCase() + addedToken.substr(1)
@@ -1291,7 +1298,7 @@ thumbscript4.stopN = function (n, world) {
         // if (world.onEnd) world.onEnd(world)
         var rWorld = world
         world = world.parent
-        log2(`+world went from ${rWorld.name} to ${world.name}`)
+        // log2(`+world went from ${rWorld.name} to ${world.name}`)
         while (world && world.isParens) {
             alert("should not get here parens 2")
             world = world.parent
@@ -1375,6 +1382,7 @@ thumbscript4.builtIns = {
     nowmillis: thumbscript4.genFunc0(() => Date.now()),
     now: thumbscript4.genFunc0(() => (Math.floor(Date.now()/1000))),
     lf: thumbscript4.genFunc0(() => "\n"),
+    tab: thumbscript4.genFunc0(() => "\t"),
     cr: thumbscript4.genFunc0(() => "\r"),
     plus: thumbscript4.genFunc2((a, b) => a + b),
     // plus: function (world) {
@@ -2123,14 +2131,14 @@ thumbscript4.builtIns = {
         world.stack.push(r)
         return world
     },
-    sqldate: (world) => {
+    sqldateutc: (world) => {
         var unixTime = world.stack.pop()
         // write js code that takes a unix timestamp
         // and generates a date string in this format:
         // 2006-01-02 15:04:05
         // the timezone will be utc
 
-        let date = new Date(unixTimestamp * 1000)
+        let date = new Date(unixTime * 1000)
         const year = date.getUTCFullYear()
         const month = ("0" + (date.getUTCMonth() + 1)).slice(-2)
         const day = ("0" + date.getUTCDate()).slice(-2)
@@ -2138,7 +2146,9 @@ thumbscript4.builtIns = {
         const minutes = ("0" + date.getUTCMinutes()).slice(-2)
         const seconds = ("0" + date.getUTCSeconds()).slice(-2)
         const formattedTime = year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds
-        thumbscript4.stack.push(formattedTime)
+        world.stack.push(formattedTime)
+        return world
+        
     },
     sleepms: function(world) {
         var a = world.stack.pop()
@@ -3032,6 +3042,8 @@ thumbscript4.tokenize(`
 // x = 1
 // x: 1
 // 1 x plus :x
+
+// 1 IS 3
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3085,6 +3097,10 @@ thumbscript4.eval(` // lime marker
 #main
 // Say "+++++++"
 Say "hello world!"
+
+1 IS 1
+" what was that" cc say
+
 // Say "+hello world!"
 Say "===="
 // Say "+++"
