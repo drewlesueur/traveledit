@@ -204,7 +204,6 @@ thumbscript4.tokenize = function(code, debug) {
         var prevChar = code.charAt(i-1)
 
         if (state == "out") {
-            
             // log2("+yay state is out and char is " + JSON.stringify(chr))
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
@@ -216,7 +215,7 @@ thumbscript4.tokenize = function(code, debug) {
                 } else {
                     if (leftAssignSugar) {
                         if ("([{".indexOf(chr) != -1) {
-                            if (")]}".indexOf(prevChar) != -1) {
+                            if (")]}".indexOf(prevChar) == -1) {
                                 addToken("(") // 🥑 green marker
                             }
                             addClosingParensStack.push(addClosingParensOnNewLine)
@@ -227,7 +226,7 @@ thumbscript4.tokenize = function(code, debug) {
                                 addToken(")") // 🥑 green marker
                             }
                             // attempt!
-                            // TODO: is this needed or wanted?
+                            // end any existing ones if we are done with group
                             if (addClosingParensOnNewLine) {
                                 for (let i = 0; i < addClosingParensOnNewLine; i++) {
                                     addToken(")") // addedClosingParen pink marker
@@ -453,7 +452,7 @@ thumbscript4.tokenize = function(code, debug) {
                         addToken(")") // 🥑 green marker
                         
                         // attempt!
-                        // TODO: Is this if needed? maybe not
+                        // end any existing ones if we are done with group
                         if (addClosingParensOnNewLine) {
                             for (let i = 0; i < addClosingParensOnNewLine; i++) {
                                 addToken(")") // addedClosingParen pink marker
@@ -560,7 +559,13 @@ thumbscript4.tokenize = function(code, debug) {
                     // a: [b: 1 2 plus c: 40 3 minus]
                     // weirdly this may not be needed but it's more understandable
                     
-                    // funkiness requiring colon only for single vars
+                    // funkiness requiring colon only for single vars if multiple on oew line
+                    // example
+                    // this is ok
+                    //     Say "hi" b: 10
+                    // This is not
+                    //     Say "hi" a.b: 10
+                    
                     let t = tokens.pop() // will be a "("
                     
                     if (addClosingParensOnNewLine) {
@@ -3202,7 +3207,15 @@ thumbscript4.tokenize(`
 // c[d] = 20
 // 10 1 plus :b 30 1 plus :c
 // a.b = 1
-c = 3(2)
+// c = 3(2) 
+
+// Say 200 b: 10
+// Say 200
+// a.b: 10
+// a[b]: 10
+// [a] = 20
+// a: 1
+// a = 1
 
 // name: str
 //     this just can't have "stuff in it
