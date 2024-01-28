@@ -72,12 +72,14 @@ thumbscript4.tokenize = function(code, debug) {
     
     code += "\n" // to simplify last token
     var addToken = function(token) {
-        if (token == "=" || token == "<") {
-            let prevToken = tokens[tokens.length - 1]
-            if (prevToken.th_type == varType && ")]}".indexOf(prevToken.valueString) == -1) {
-                prevToken.th_type = stringType
-            }
-        }
+        // because of the wrapper parens around terms, this doesn't apply anymore
+        // see #makeItAString
+        // if (token == "=" || token == "<") {
+        //     let prevToken = tokens[tokens.length - 1]
+        //     if (prevToken.th_type == varType && ")]}".indexOf(prevToken.valueString) == -1) {
+        //         prevToken.th_type = stringType
+        //     }
+        // }
         if (quoteNext) {
             if ("([{".indexOf(token) == -1 && token.charAt(0) != "$") {
                 token = "$" + token
@@ -290,7 +292,7 @@ thumbscript4.tokenize = function(code, debug) {
                 var nextChar = code.charAt(i+1)
                 if (" \n\t".indexOf(nextChar) != -1) {
                     // x[foo]: 100
-                    addToken(")") // 🥑 green marker
+                    // addToken(") rih") // 🥑 green marker
                     // yellow #color
                     // if (addClosingParensOnEndTerm) {
                     //     addClosingParensOnEndTerm = false
@@ -456,8 +458,8 @@ thumbscript4.tokenize = function(code, debug) {
                         addClosingParensStack.push(addClosingParensOnNewLine)
                         addClosingParensOnNewLine = 0
                     } else if (")]}".indexOf(chr) != -1) {
-                        // close out the string
-                        addToken(")") // 🥑 green marker
+                        // close out the word token
+                        addToken(") close word") // 🥑 green marker
                         
                         // attempt!
                         // end any existing ones if we are done with group
@@ -471,7 +473,7 @@ thumbscript4.tokenize = function(code, debug) {
                         if ("([{".indexOf(nextChar) == -1) {
                             addToken(chr)
                             added = true
-                            addToken(")") // 🥑 green marker
+                            addToken(") closey posey") // 🥑 green marker
                         }
                         
                         // this is needed at least
@@ -838,7 +840,11 @@ thumbscript4.desugarParens = function(tokens) {
                 log2("what??!!")
                 log2(t)
             }
-            for (let t2 of t.valueArr) {
+            // is this recursion needed?
+            // I added it for "(parens) but like prop access"
+            let arr = thumbscript4.desugarParens(t.valueArr)
+            // for (let t2 of t.valueArr) {
+            for (let t2 of arr) {
                 newTokens.push(t2)
             }
         } else {
@@ -851,6 +857,9 @@ thumbscript4.removeExtraParens = function(token) {
     // log2("+incoming =====================")
     // log2(token)
     while (true) {
+        // if (!token) {
+        //     return token
+        // }
         if (token.th_type != parenType) {
             // log2(token)
             return token
@@ -993,7 +1002,7 @@ thumbscript4.desugarArrows = function(tokens) {
                     } else {
                         if (lastToken && lastToken.name == "[obj]") {
                             lastToken.th_type = parenType
-                            lastToken.name = "(parens)"
+                            lastToken.name = "(parens) but like prop access"
                             newTokens.push(dotToken)
                             newTokens.push(tokenForSet)
                         } else if (lastToken && lastToken.th_type == parenType) {
@@ -1002,6 +1011,12 @@ thumbscript4.desugarArrows = function(tokens) {
                             newTokens.push(dotToken)
                             newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
                         } else {
+                            // log2("+yay last token")
+                            // log2(lastToken)
+                            // #makeItAString
+                            if (lastToken.th_type != stringType) {
+                                lastToken.th_type = stringType
+                            }
                             newTokens.push(dotToken)
                             newTokens.push(setblocalToken)
                         }
@@ -1108,19 +1123,19 @@ thumbscript4.squishFuncs = function(tokens) {
             log2([tokens.length, i])
             return []
         }
-        if (token.th_type != stringType && token.valueString == "{") {
+        if (token.th_type != stringType && token.valueString?.[0] == "{") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token.th_type != stringType && token.valueString == "[") {
+        } else if (token.th_type != stringType && token.valueString?.[0] == "[") {
             tokenStack.push(newTokens)
             newTokens = []
             if (token.propAccess) {
                 newTokens.propAccess = true
             }
-        } else if (token.th_type != stringType && token.valueString == "(") {
+        } else if (token.th_type != stringType && token.valueString?.[0] == "(") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token.th_type != stringType && token.valueString == "}") {
+        } else if (token.th_type != stringType && token.valueString?.[0] == "}") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
@@ -1128,7 +1143,7 @@ thumbscript4.squishFuncs = function(tokens) {
                 th_type: curlyType,
                 valueArr: thumbscript4.desugar(r),
             })
-        } else if (token.th_type != stringType && token.valueString == "]") {
+        } else if (token.th_type != stringType && token.valueString?.[0] == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
             if (r.propAccess) {
@@ -1149,7 +1164,7 @@ thumbscript4.squishFuncs = function(tokens) {
                     valueArr: thumbscript4.desugar(r),
                 })
             }
-        } else if (token.th_type != stringType && token.valueString == ")") {
+        } else if (token.th_type != stringType && token.valueString?.[0] == ")") {
             var r = newTokens
             newTokens = tokenStack.pop()
 
@@ -3297,7 +3312,22 @@ thumbscript4.tokenize(`
     // }
     // r join("&")
 // }
-a = 1
+// a = 1
+// person = [
+    // [theLast] = "LeSueur"
+// ]
+// [var]: 201
+0 :count
+0 :i
+nowmillis :start
+100_000 jsloopn. {
+    count+=
+}
+nowmillis :end
+end •minus start :total
+"end: $end; start: $start" say
+"it took $total ms // pink marker" say
+"count is $count" say
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3414,12 +3444,10 @@ makeIncr: {
 "here's the incremented numbers" say
 
 incr = makeIncr
-exit
 incr say
 incr say
 incr say
 "those were the incremented numbers" say
-`); false && thumbscript4.eval(` // lime marker
 
 funcs: []
 // Loopn 3 {
@@ -3483,9 +3511,6 @@ Each funcs {
 //     }
 // }
 
-Say here
-
-
 If false {
     Say "check 1" }
 Elseif true {
@@ -3502,7 +3527,6 @@ Else {
 //     Say "check 3"
 // }
 
-exit
 x = 1
 if. x is(0) {
     "it's 0" say
@@ -3524,9 +3548,9 @@ say. [
 ]
 
 
-var = "a"
-[var] = 20
-"the value is $a" say
+var = "b"
+[var] = 201
+"the value is $b" say
 
 theLast = "last"
 person = [
@@ -3667,11 +3691,6 @@ say. myobj.myprop
 myobj.myprop < "updated6.6"
 say. myobj.myprop
 
-myobj $myprop at < "updated7"
-say. myobj.myprop
-
-"updated8" > myobj $myprop at
-say. myobj.myprop
 
 a: 102
 say. a
@@ -3679,17 +3698,47 @@ say. a
 12 :a 13 :b
 say. "$a and $b"
 
+`, window); false && thumbscript4.eval(` // lime marker
 
 
 `, window)
 
 thumbscript4.exampleCode = function () { // maroon marker
 /*
-// something here causes it to go slow
+
+Say "hello"
+Say "this part"
+
+3 loopn. {
+    {
+        0 :count
+        0 :i
+        nowmillis :start
+        100_000 jsloopn. {
+            count+=
+        }
+        nowmillis :end
+        end •minus start :total
+        "end: $end; start: $start" say
+        "it took $total ms // pink marker" say
+        "count is $count" say
+    } call
+    say. "-------"
+    say. ""
+}
+
+*/
+}
+thumbscript4.exampleCode2 = function () { // maroon marker
+/*
+
+
+
 exit
 yo: [
     stuff: "this is the stuff"
 ]
+
 
 yo.stuff: 3000
 say. yo.stuff
@@ -3717,7 +3766,6 @@ if. lt(10 100) {
 //     lt
 // }
 // lt(10 100) say
-
 
 3 loopn. {
     {
@@ -3819,6 +3867,7 @@ urlencode
 tojson
 say
 
+// point 1
 
 // alert plus. 3 4
 // alert 3 •plus 4
@@ -3917,7 +3966,7 @@ loopn. 10 {
     }
 }
 
-
+// point 2
 
 assertempty("prewow") // olive marker
 #a
@@ -3982,13 +4031,14 @@ key: $friend2
 person say
 
 
-
 // x plus(2)
 // "why hello" slice(0 3) say
 
 
 // if. x @lt 20
 
+
+// point 3
 
 
 funcs: [
@@ -4057,6 +4107,8 @@ else. {
 }
 
 
+
+
 // ifelse. {
 //
 // }
@@ -4079,13 +4131,8 @@ else. {
 $hi say
 person: [friend1: [name: $pete] friend2: [name: $tom]]
 person say
-// person $friend1 at $name "Peter" setprop
-person $friend1 at $name:: "Peter"
-"Tom" ::(person $friend2 at) $name
 
-prop: $age
-"38" ::(person $friend2 at) prop
-person say
+
 
 person.friend1.name: "Peterio"
 person say
@@ -4098,6 +4145,8 @@ addProp: {
 p: [name: "drew"]
 p addProp
 p say
+
+// point 4
 
 
 assertempty. "a checky1" // olive marker
@@ -4323,6 +4372,7 @@ say. ""
     say. "-------"
     say. ""
 }
+
 
 
 3 loopn. {
@@ -4864,7 +4914,7 @@ var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-false && thumbscript4.eval(code, window) // red marker
+thumbscript4.eval(code, window) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
