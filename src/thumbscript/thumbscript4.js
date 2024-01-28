@@ -1123,19 +1123,19 @@ thumbscript4.squishFuncs = function(tokens) {
             log2([tokens.length, i])
             return []
         }
-        if (token.th_type != stringType && token.valueString?.[0] == "{") {
+        if (token.th_type == varType && token.valueString?.[0] == "{") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token.th_type != stringType && token.valueString?.[0] == "[") {
+        } else if (token.th_type == varType && token.valueString?.[0] == "[") {
             tokenStack.push(newTokens)
             newTokens = []
             if (token.propAccess) {
                 newTokens.propAccess = true
             }
-        } else if (token.th_type != stringType && token.valueString?.[0] == "(") {
+        } else if (token.th_type == varType && token.valueString?.[0] == "(") {
             tokenStack.push(newTokens)
             newTokens = []
-        } else if (token.th_type != stringType && token.valueString?.[0] == "}") {
+        } else if (token.th_type == varType && token.valueString?.[0] == "}") {
             var r = newTokens
             newTokens = tokenStack.pop()
             newTokens.push({
@@ -1143,7 +1143,7 @@ thumbscript4.squishFuncs = function(tokens) {
                 th_type: curlyType,
                 valueArr: thumbscript4.desugar(r),
             })
-        } else if (token.th_type != stringType && token.valueString?.[0] == "]") {
+        } else if (token.th_type == varType && token.valueString?.[0] == "]") {
             var r = newTokens
             newTokens = tokenStack.pop()
             if (r.propAccess) {
@@ -1164,7 +1164,7 @@ thumbscript4.squishFuncs = function(tokens) {
                     valueArr: thumbscript4.desugar(r),
                 })
             }
-        } else if (token.th_type != stringType && token.valueString?.[0] == ")") {
+        } else if (token.th_type == varType && token.valueString?.[0] == ")") {
             var r = newTokens
             newTokens = tokenStack.pop()
 
@@ -3317,17 +3317,7 @@ thumbscript4.tokenize(`
     // [theLast] = "LeSueur"
 // ]
 // [var]: 201
-0 :count
-0 :i
-nowmillis :start
-100_000 jsloopn. {
-    count+=
-}
-nowmillis :end
-end •minus start :total
-"end: $end; start: $start" say
-"it took $total ms // pink marker" say
-"count is $count" say
+// "(2) it took \${end •minus start} ms"
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3707,37 +3697,18 @@ thumbscript4.exampleCode = function () { // maroon marker
 /*
 
 Say "hello"
-Say "this part"
 
-3 loopn. {
-    {
-        0 :count
-        0 :i
-        nowmillis :start
-        100_000 jsloopn. {
-            count+=
-        }
-        nowmillis :end
-        end •minus start :total
-        "end: $end; start: $start" say
-        "it took $total ms // pink marker" say
-        "count is $count" say
-    } call
-    say. "-------"
-    say. ""
-}
+// commenty gray marker
+"(2) it took ${end •minus start} ms"
+Say "another"
 
-*/
-}
-thumbscript4.exampleCode2 = function () { // maroon marker
-/*
+// stop
 
 
-
-exit
 yo: [
     stuff: "this is the stuff"
 ]
+Say yo
 
 
 yo.stuff: 3000
@@ -4328,52 +4299,57 @@ say. "-------"
 say. ""
 assertempty. "a check0.25" // olive marker
 
+Say "what about here2?"
 
-{
-    0 :count
-    start: nowmillis
-    100_000 { count+= } timeit
-    "count is $count oh boy" say
-    end: nowmillis
-    say. "(2) it took ${end •minus start} ms"
-} call
-say. "-------"
-say. ""
-
-
-
-3 loopn. {
-    {
-        0 :count
-        0 :i
-        nowmillis :start
-        {
-            i 100_000 guardlt
-            // i 100_000 lt guardb
-            // if. i •gt 100_000 {
-            //     breakp
-            // }
-
-            i count+=
-            // count: count plus. i
-            // count+=. i
-
-            // i: i plus. 1
-            // i 1 plus :i
-            i++
-            repeat
-        } call
-        nowmillis :end
-        end •minus start :total
-        "end: $end; start: $start" say
-        "(repeat guardlt) it took $total ms // blue marker" say
-        "+count is $count" say
-    } call
-    say. "-------"
-    say. ""
-}
+// commenty gray marker
+// {
+//     0 :count
+//     start: nowmillis
+//     100_000 { count+= } timeit
+//     "count is $count oh boy" say
+//     end: nowmillis
+//     say. "(2) it took ${end •minus start} ms"
+// } call
+// say. "-------"
+// say. ""
 
 
+Say "what about here?"
+
+// commenty gray marker
+// 3 loopn. {
+//     {
+//         0 :count
+//         0 :i
+//         nowmillis :start
+//         {
+//             i 100_000 guardlt
+//             // i 100_000 lt guardb
+//             // if. i •gt 100_000 {
+//             //     breakp
+//             // }
+// 
+//             i count+=
+//             // count: count plus. i
+//             // count+=. i
+// 
+//             // i: i plus. 1
+//             // i 1 plus :i
+//             i++
+//             repeat
+//         } call
+//         nowmillis :end
+//         end •minus start :total
+//         "end: $end; start: $start" say
+//         "(repeat guardlt) it took $total ms // blue marker" say
+//         "+count is $count" say
+//     } call
+//     say. "-------"
+//     say. ""
+// }
+
+
+Say "how we get here?"
 
 3 loopn. {
     {
@@ -4385,7 +4361,7 @@ say. ""
         }
         nowmillis :end
         end •minus start :total
-        "end: $end; start: $start" say
+        "endy2: $end; start: $start" say
         "it took $total ms // pink marker" say
         "count is $count" say
     } call
