@@ -769,7 +769,7 @@ thumbscript4.tokenize = function(code, debug) {
         log2("+first pass tokens")
         log2(tokens) // red marker
     }
-    return // REMOVE THIS! maroon marker
+    // return // REMOVE THIS! maroon marker
     tokens = thumbscript4.squishFuncs(tokens)
     if (debug) {
         log2("+squished funcs")
@@ -830,6 +830,22 @@ thumbscript4.desugarParens = function(tokens) {
         }
     }
     return newTokens
+}
+thumbscript4.removeExtraParens = function(token) {
+    // log2("+incoming =====================")
+    // log2(token)
+    while (true) {
+        if (token.th_type != parenType) {
+            // log2(token)
+            return token
+        }
+
+        if (token.valueArr.length != 1) {
+            // log2(token)
+            return token
+        }
+        token = token.valueArr[0]
+    }
 }
 thumbscript4.someIfMagic = function(tokens) {
     // when if is false, we need to jump to end of the chain
@@ -953,7 +969,8 @@ thumbscript4.desugarArrows = function(tokens) {
 
                     // same as 1<- for now
                     var lastToken = newTokens[newTokens.length - 1]
-                    if (lastToken && lastToken.name == "at") {
+                    lastToken = thumbscript4.removeExtraParens(lastToken)
+                    if (false && lastToken && lastToken.name == "at") {
                         newTokens.pop()
                         newTokens.push(dotToken)
                         newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
@@ -961,9 +978,14 @@ thumbscript4.desugarArrows = function(tokens) {
                         if (lastToken && lastToken.name == "[obj]") {
                             lastToken.th_type = parenType
                             lastToken.name = "(parens)"
+                            newTokens.push(dotToken)
+                            newTokens.push(tokenForSet)
+                        } else if (lastToken && lastToken.th_type == parenType) {
+                            // assuming this last one is "at"
+                            lastToken.valueArr.pop()
+                            newTokens.push(dotToken)
+                            newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
                         }
-                        newTokens.push(dotToken)
-                        newTokens.push(tokenForSet)
                     }
                     break
                 case "1<-":
@@ -971,8 +993,14 @@ thumbscript4.desugarArrows = function(tokens) {
                     // 100 a set
 
                     var lastToken = newTokens[newTokens.length - 1]
-                    if (lastToken && lastToken.name == "at") {
+                    lastToken = thumbscript4.removeExtraParens(lastToken)
+                    if (false && lastToken && lastToken.name == "at") {
                         newTokens.pop()
+                        newTokens.push(dotToken)
+                        newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
+                    } else if (lastToken.th_type == parenType) {
+                        // assuming this last one is "at"
+                        lastToken.valueArr.pop()
                         newTokens.push(dotToken)
                         newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
                     } else {
@@ -3216,6 +3244,18 @@ thumbscript4.tokenize(`
 // [a] = 20
 // a: 1
 // a = 1
+// a.b = 1
+// a.b: 1
+// a: 1
+// a[b]: 10
+
+// 20 :b
+// 30 :b.a
+30 :b[a]
+
+
+
+// a.(foo) = 3
 
 // name: str
 //     this just can't have "stuff in it
