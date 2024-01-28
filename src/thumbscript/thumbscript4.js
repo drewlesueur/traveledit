@@ -207,7 +207,7 @@ thumbscript4.tokenize = function(code, debug) {
             // log2("+yay state is out and char is " + JSON.stringify(chr))
             if ("()[]{}".indexOf(chr) != -1) {
                 freshLine = false // orange marker
-
+                let added = false
                 // justsugar for empty object
                 if (code.substr(i, 3) == "[:]") {
                     i+=3
@@ -221,10 +221,6 @@ thumbscript4.tokenize = function(code, debug) {
                             addClosingParensStack.push(addClosingParensOnNewLine)
                             addClosingParensOnNewLine = 0
                         } else if (")]}".indexOf(chr) != -1) {
-                            if ("([{".indexOf(nextChar) != -1) {
-                                // closing the term before
-                                addToken(")") // 🥑 green marker
-                            }
                             // attempt!
                             // end any existing ones if we are done with group
                             if (addClosingParensOnNewLine) {
@@ -234,12 +230,20 @@ thumbscript4.tokenize = function(code, debug) {
                                 addClosingParensOnNewLine = 0
                             }
                             
+                            if ("([{".indexOf(nextChar) == -1) {
+                                addToken(chr)
+                                added = true
+                                addToken(")") // 🥑 green marker
+                            }
+                            
                             // This is needed
                             addClosingParensOnNewLine = addClosingParensStack.pop()
                             addClosingParensOnEndTerm = addClosingParensOnEndTermStack.pop()
                         }
                     }
-                    addToken(chr)
+                    if (!added) {
+                        addToken(chr)
+                    }
 
                     if (")]}".indexOf(prevChar) != -1) {
                         if (parensCallSugar && "(".indexOf(chr) != -1) {
@@ -387,8 +391,10 @@ thumbscript4.tokenize = function(code, debug) {
             } else if (" \n\t".indexOf(chr) != -1) {
                 
                 var prevChar = code.charAt(i-1)
-                if (" \n\t:=<>".indexOf(prevChar) == -1) {
-                    addToken(")") // 🥑 green marker
+                
+                // the symbol dance
+                if (" \n\t:=<>{}[]()\"«»".indexOf(prevChar) == -1) { // pink marker
+                    // addToken(")") // 🥑 green marker
                 }
                 // yellow #color
                 // if (addClosingParensOnEndTerm) {
@@ -439,16 +445,18 @@ thumbscript4.tokenize = function(code, debug) {
         } else if (state == "in") {
             // log2("+yay state is in and char is " + JSON.stringify(chr))
             if ("()[]{}".indexOf(chr) != -1) {
+                let added = false
                 freshLine = false // orange marker
                 addToken(currentToken)
+                
                 if (leftAssignSugar) {
                     if ("([{".indexOf(chr) != -1) {
-                        // not adding wrspper here green marker
+                        // not adding wrapper here green marker
                         // this more relates to the parensCallSugar below?
                         addClosingParensStack.push(addClosingParensOnNewLine)
                         addClosingParensOnNewLine = 0
                     } else if (")]}".indexOf(chr) != -1) {
-                        // closing the term before
+                        // close out the string
                         addToken(")") // 🥑 green marker
                         
                         // attempt!
@@ -459,13 +467,21 @@ thumbscript4.tokenize = function(code, debug) {
                             }
                             addClosingParensOnNewLine = 0
                         }
+                        
+                        if ("([{".indexOf(nextChar) == -1) {
+                            addToken(chr)
+                            added = true
+                            addToken(")") // 🥑 green marker
+                        }
+                        
                         // this is needed at least
                         addClosingParensOnNewLine = addClosingParensStack.pop()
                         addClosingParensOnEndTerm = addClosingParensOnEndTermStack.pop()
                     }
                 }
-                
-                addToken(chr)
+                if (!added) {
+                    addToken(chr)
+                }
                 currentToken = ""
                 state = "out"
                 if (parensCallSugar && "(".indexOf(chr) != -1) {
@@ -581,7 +597,7 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("1<-")
                     freshLine = true // darkorange marker
                     // if (leftAssignSugar && tokens[tokens.length - 2]?.onFreshLine) {
-                    if (leftAssignSugar) { // maroon marker
+                    if (leftAssignSugar) {
                         addToken("(") // addLeftParen
                         addClosingParensOnNewLine++
                     }
@@ -985,6 +1001,9 @@ thumbscript4.desugarArrows = function(tokens) {
                             lastToken.valueArr.pop()
                             newTokens.push(dotToken)
                             newTokens.push({th_type: builtInType, valueFunc: thumbscript4.builtIns.setpropVKO, name: "setpropVKO"})
+                        } else {
+                            newTokens.push(dotToken)
+                            newTokens.push(setblocalToken)
                         }
                     }
                     break
@@ -1227,6 +1246,7 @@ thumbscript4.eval = function(code, state) {
     // would be nice to grab the state of the stdlib
     // problem might be some function scope?
     // look later
+    // TODO: uncomment the stdlib addition!!!!
     code = thumbscript4.stdlib + "\n" + code // red marker
 
     var tokens = thumbscript4.tokenize(code)
@@ -2960,6 +2980,8 @@ thumbscript4.stdlib = function x() { /*
         config.debug { trim say "" } ~exec ifelse
     }
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
+thumbscript4.stdlib2 = function x() { /*
+*/}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 
 
 // alert(j(thumbscript4.stdlib))
@@ -3251,15 +3273,31 @@ thumbscript4.tokenize(`
 
 // 20 :b
 // 30 :b.a
-30 :b[a]
-
-
+// 30 :b[a]
 
 // a.(foo) = 3
 
 // name: str
 //     this just can't have "stuff in it
 // 
+// Loopn 3 {{}}
+// a b
+// Loopn 3 {
+//     // :i
+//     // "why hello " i cc say
+//     "yo"
+// }
+// a: [name: "Drew"]
+// chunks: [1]
+
+// formencode: {
+    // range. { :key :value
+    //     "foo"
+    //     r push
+    // }
+    // r join("&")
+// }
+a = 1
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3311,12 +3349,22 @@ log2("js county: " + county)
 
 false && thumbscript4.eval(` // lime marker
 #main
+
+// Say "yo"
+// If 1 {
+//     Say "ok"
+// }
+// a: 1 PLUS 2
+
+a: [name: "Drew"]
+Say a
+
+
+chunks: [1]
+Say chunks
+
 // Say "+++++++"
 
-// Loop 3 {
-//    500 sleepms
-//    "The value is " swap cc say
-// }
 
 Loopn 3 {
     :i
@@ -3359,14 +3407,19 @@ makeIncr: {
     }
 }
 
+// Say makeIncr
+
 
 
 "here's the incremented numbers" say
+
 incr = makeIncr
+exit
 incr say
 incr say
 incr say
 "those were the incremented numbers" say
+`); false && thumbscript4.eval(` // lime marker
 
 funcs: []
 // Loopn 3 {
@@ -3419,7 +3472,6 @@ funcs: []
 Each funcs {
     call
 }
-exit
 
 
 // makeIncr: {
@@ -3431,9 +3483,8 @@ exit
 //     }
 // }
 
+Say here
 
-
-exit
 
 If false {
     Say "check 1" }
