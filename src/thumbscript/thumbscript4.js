@@ -232,10 +232,11 @@ thumbscript4.tokenize = function(code, debug) {
                                 addClosingParensOnNewLine = 0
                             }
                             
-                            if ("([{".indexOf(nextChar) == -1) {
+                            if ("([{.".indexOf(nextChar) == -1) {
+                            // if ("([{".indexOf(nextChar) == -1) {
                                 addToken(chr)
                                 added = true
-                                addToken(")") // 🥑 green marker
+                                addToken(") closing term on brace") // 🥑 green marker
                             }
                             
                             // This is needed
@@ -285,6 +286,7 @@ thumbscript4.tokenize = function(code, debug) {
                 tokens.push(dotToken)
                 tokens.push(atToken)
                 quoteNext = true
+                preventWrapper = true
             } else if (":".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 
@@ -470,7 +472,7 @@ thumbscript4.tokenize = function(code, debug) {
                             addClosingParensOnNewLine = 0
                         }
                         
-                        if ("([{".indexOf(nextChar) == -1) {
+                        if ("([{.".indexOf(nextChar) == -1) {
                             addToken(chr)
                             added = true
                             addToken(") closey posey") // 🥑 green marker
@@ -2746,7 +2748,7 @@ thumbscript4.stdlib = function x() { /*
     // like range but just value
     each: {
         :block :list
-
+    
         list typename "object" is {
             list :obj
             obj keys :theKeys
@@ -2758,7 +2760,7 @@ thumbscript4.stdlib = function x() { /*
             } loopn
             stopp
         } ?
-
+    
         list length :theMax
         theMax {
             :i list •at i block
@@ -2893,13 +2895,13 @@ thumbscript4.stdlib = function x() { /*
         :toCheck
         toCheck ~theThen ~theElse cond call
     }
-    // jumpelse: {
-    //     :loc
-    //     :what
-    //     what {
-    //         loc goto
-    //     } ?
-    // } dyn
+    jumpelse: {
+        :loc
+        :what
+        what {
+            loc goto
+        } ?
+    } dyn
     exec: { runshell drop trim }
     bashStrEscape: {
         "'"
@@ -2917,14 +2919,6 @@ thumbscript4.stdlib = function x() { /*
         }
         r join("&")
     }
-    // formencodedisplay: {
-    //     r: []
-    //     range. { :key :value
-    //         "${urlencode. key}=${urlencode. value}"
-    //         r push
-    //     }
-    //     r join("&")
-    // }
     every: {
         :fn :skip :list
         i: 0
@@ -2948,19 +2942,19 @@ thumbscript4.stdlib = function x() { /*
               loopn. subChunks len {
                   :sI
                   subChunks at(sI) newChunks push
-                  if. sI .ne (subChunks len .minus 1) {
+                  if. sI NE (subChunks len MINUS 1) {
                       toReplace newChunks push
                   }
               }
-              if. i lt(chunks len .minus 1) {
+              if. i lt(chunks len MINUS 1) {
                   chunks at(i plus. 1) push. newChunks
-              }
+                              }
           }
           chunks: newChunks
       }
       chunks join("")
     }
-    
+
     // replacegroup. "a story about a dog" [
     //     a: "A"
     //     s: "S"
@@ -3318,6 +3312,15 @@ thumbscript4.tokenize(`
 // ]
 // [var]: 201
 // "(2) it took \${end •minus start} ms"
+// a["colors"].blue = "ok"
+// 1 •minus foo
+
+// 1 PLUS a[foo].bar(baz)
+
+// [foo].(bar)
+
+
+
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3367,7 +3370,7 @@ log2("js county: " + county)
 // foo.(bar).baz = 100
 // :(foo.bar.baz)
 
-false && thumbscript4.eval(` // lime marker
+thumbscript4.eval(` // lime marker
 #main
 
 // Say "yo"
@@ -3375,6 +3378,21 @@ false && thumbscript4.eval(` // lime marker
 //     Say "ok"
 // }
 // a: 1 PLUS 2
+
+Say "here?"
+a: [name: "yo"]
+20 > a["bar"]
+21 :a["baz" "biz" cc]
+22 > a["boz" "biz" cc]
+
+a["colors"] = [red: "yea"]
+
+color: "green"
+a["colors"]["red"] = "ok"
+a["colors"].blue = "ok"
+a["colors"][color] = "ok"
+Say a
+
 
 a: [name: "Drew"]
 Say a
@@ -3655,8 +3673,8 @@ say. myobj.myprop
 
 { myobj } :getObj
 
-"updated3" :((getObj).("my" "prop" cc))
-say. myobj.myprop
+// "updated3" :((getObj).("my" "prop" cc))
+// say. myobj.myprop
 
 "updated3.5" > (getObj).("my" "prop" cc)
 say. myobj.myprop
@@ -4108,13 +4126,7 @@ person say
 person.friend1.name: "Peterio"
 person say
 
-
-addProp: {
-    (10 1 plus):: "was here"
-}
-
 p: [name: "drew"]
-p addProp
 p say
 
 // point 4
@@ -4853,7 +4865,6 @@ bug: {•plus 1}
 fix: {•times 100}
 foo: [bar: 30]
 
-[foo $bar]: •fix •bug 4
 •say foo
 
 foo2: •fix •bug 3
@@ -4861,7 +4872,6 @@ foo2: •fix •bug 3
 
 7 bug fix :foo2
 •say foo2
-8 bug fix :[foo $bar]
 •say foo
 
 
