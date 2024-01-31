@@ -1255,7 +1255,8 @@ PretendArray = function () {
     // ```
     // This will create an array `[0, 1, 2, 3, 4]` as it uses the current index value (`i`) for each element.
 }
-thumbscript4.eval = function(code, state) {
+thumbscript4.eval = function(code, state, stack, opts) {
+    opts = opts || {}
     // alert("evaling")
     clearTimeout(window.t99)
     // I tried to pass in the state of the stdlib
@@ -1271,7 +1272,7 @@ thumbscript4.eval = function(code, state) {
     // return
     world = {
         state: state || {},
-        stack: [],
+        stack: stack || [],
         // stack: PretendArray(),
         tokens: tokens,
         i: 0,
@@ -1285,7 +1286,7 @@ thumbscript4.eval = function(code, state) {
     world.global = world
     world.asyncGlobal = world
 
-    thumbscript4.run(world)
+    thumbscript4.run(world, opts)
     return world
 
 }
@@ -1333,7 +1334,8 @@ thumbscript4.async = true
 thumbscript4.asyncChunk = 500_000
 // thumbscript4.asyncChunk = 1_000_000_000
 
-thumbscript4.run = function(world) {
+thumbscript4.run = function(world, opts) {
+    opts = opts || {}
     if (world.global.stopped) {
         return
     }
@@ -1345,7 +1347,8 @@ thumbscript4.run = function(world) {
         }
     }
 
-    if (thumbscript4.async) {
+    // if (thumbscript4.async) {
+    if (opts.async) {
         setTimeout(function () {
             thumbscript4.runAsync(world)
         }, 0)
@@ -1370,7 +1373,7 @@ thumbscript4.run = function(world) {
     render()
 }
 
-thumbscript4.runAsync = function(world) {
+thumbscript4.runAsync = function(world, opts) {
     if (world.global.stopped) {
         return
     }
@@ -1539,31 +1542,31 @@ thumbscript4.stopN = function (n, world) {
 //     return world
 // }
 
-// thumbscript4.breakN = function (n, world) {
-//     n = n-0
-//     while (world && world.isParens) {
-//         alert("should not get here parens 3")
-//         world = world.parent
-//     }
-//     for (var i=0; i<n; i++) {
-//         if (!world) {
-//             break
-//         }
-//         // i originally had dynParent but it wasn't right
-//         // like when I wrapped if
-//         if (world.onEnd) world.onEnd(world)
-//         var rWorld = world
-//         world = world.parent
-//         log2(`+world went from ${rWorld.name} to ${world.name}`)
-//         while (world && world.isParens) {
-//             alert("should not get here parens 4")
-//             world = world.parent
-//         }
-//         thumbscript4.recycle(rWorld)
-//         // todo: see onend
-//     }
-//     return world
-// }
+thumbscript4.breakN = function (n, world) {
+    n = n-0
+    while (world && world.isParens) {
+        alert("should not get here parens 3")
+        world = world.parent
+    }
+    for (var i=0; i<n; i++) {
+        if (!world) {
+            break
+        }
+        // i originally had dynParent but it wasn't right
+        // like when I wrapped if
+        if (world.onEnd) world.onEnd(world)
+        var rWorld = world
+        world = world.parent
+        log2(`+world went from ${rWorld.name} to ${world.name}`)
+        while (world && world.isParens) {
+            alert("should not get here parens 4")
+            world = world.parent
+        }
+        thumbscript4.recycle(rWorld)
+        // todo: see onend
+    }
+    return world
+}
 
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
@@ -2155,16 +2158,16 @@ thumbscript4.builtIns = {
             thumbscript4.recycle(rWorld)
         }
     },
-    // "break": function(world) {
-    //     return thumbscript4.breakN(0, world)
-    // },
-    // "breakp": function(world) {
-    //     return thumbscript4.breakN(2, world)
-    // },
-    // "breakn": function(world) {
-    //     var n = world.stack.pop()
-    //     return thumbscript4.breakN(n, world)
-    // },
+    "break": function(world) {
+        return thumbscript4.breakN(1, world)
+    },
+    "breakp": function(world) {
+        return thumbscript4.breakN(2, world)
+    },
+    "breakn": function(world) {
+        var n = world.stack.pop()
+        return thumbscript4.breakN(n+1, world)
+    },
     "goto": function(world) {
         var loc = world.stack.pop()
         var w = world
@@ -3372,6 +3375,13 @@ log2("js county: " + county)
 
 thumbscript4.eval(` // lime marker
 #main
+
+Loopn 3 {
+   Say "hi " swap cc
+   // stop
+   break
+   Say "bye " swap cc
+}
 
 // Say "yo"
 // If 1 {
@@ -4890,6 +4900,31 @@ somefunc
 var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 
 
+thumbscript4.makeJsFunc = function (f) {
+    var lines = f.toString().split("\n").slice(1, -1)
+    var code = lines.join("\n")
+    return function (...args) {
+        var stack = []
+        for (let arg of args) {
+            stack.push(arg)
+        }
+        var world = thumbscript4.eval(code, window, stack, {
+            async: false
+        })
+        // alert(JSON.stringify(world.stack))
+        return world.stack.pop()
+    }
+}
+
+var greet = thumbscript4.makeJsFunc(() => { /*
+    :a
+    "Hello " a cc
+*/ })
+
+// alert(greet("drew"))
+
+
+
 
 
 // come back to this
@@ -4900,7 +4935,7 @@ var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-thumbscript4.eval(code, window) // red marker
+thumbscript4.eval(code, window, [], {async: true}) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.

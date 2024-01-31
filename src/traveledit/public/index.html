@@ -4133,6 +4133,21 @@ function log2Inline(str) {
         alert(e)
     }
 }
+
+var getShellCodeForRunningGoFile = thumbscript4.makeJsFunc(() => { /*
+    :lines
+    :filename
+
+    If lines[0] IS "// How to run:" {
+        // 100 max
+        Loopn 100 {
+        }
+    }
+    Else {
+
+    }
+*/ })
+
 function runScript() {
     clearLog2()
     var sl = getSelectedLines(fx)
@@ -4154,6 +4169,7 @@ function runScript() {
         let filename = fx.fullPath.split("/").slice(-1)
         addTerminalTab()
         fx.terminalLoadPromise.then(function () {
+            getShellCodeForRunningGoFile(filename, theScriptLines)
             sendTerminal("time go run " + filename, function() {
                 saveWrapper() // hits Enter
             })
