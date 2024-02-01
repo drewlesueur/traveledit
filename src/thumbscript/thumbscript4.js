@@ -1,6 +1,8 @@
 var thumbscript4 = {}
 
-// > () not needed
+
+// because of terms, you can get rid of storefunc and callstored
+// func(a b): { } syntax
 
 // a: 10 1 plus b: 30
 // a = 10
@@ -489,6 +491,7 @@ thumbscript4.tokenize = function(code, debug) {
                 currentToken = ""
                 state = "out"
                 if (parensCallSugar && "(".indexOf(chr) != -1) {
+                    
                     // let leftParen = tokens.pop()
                     // let t = tokens.pop()
                     // // TODO: make constant
@@ -1020,7 +1023,7 @@ thumbscript4.desugarArrows = function(tokens) {
                                 lastToken.th_type = stringType
                             }
                             newTokens.push(dotToken)
-                            newTokens.push(setblocalToken)
+                            newTokens.push(tokenForSet)
                         }
                     }
                     break
@@ -2748,10 +2751,8 @@ thumbscript4.stdlib = function x() { /*
             repeat
         } call
     }
-    // like range but just value
-    each: {
+    foreach: {
         :block :list
-    
         list typename "object" is {
             list :obj
             obj keys :theKeys
@@ -2759,19 +2760,18 @@ thumbscript4.stdlib = function x() { /*
             theMax {
                 theKeys swap at :key
                 obj key at :value
-                value block
+                key ~value block
             } loopn
             stopp
         } ?
-    
         list length :theMax
         theMax {
-            :i list •at i block
+            :i
+            i list •at i block
         } loopn
     }
-    range: {
+    each: {
         :block :list
-
         list typename "object" is {
             list :obj
             obj keys :theKeys
@@ -2779,14 +2779,14 @@ thumbscript4.stdlib = function x() { /*
             theMax {
                 theKeys swap at :key
                 obj key at :value
-                ~value key block
+                ~value block
             } loopn
             stopp
         } ?
-
         list length :theMax
         theMax {
-            :i list •at i i block
+            :i
+            list •at i block
         } loopn
     }
     guard: •dyn { not { 2 stopn } ? }
@@ -2798,15 +2798,6 @@ thumbscript4.stdlib = function x() { /*
             i++
             repeat
         } call
-    }
-    range2: {
-        :block :list 0 :i
-        list len :theMax
-        theMax {
-            :i
-            i •plus 1 :i2
-            list •at i i list •at i2 i2 block
-        } loopn2
     }
     sayn: { " " join say }
     take: {
@@ -2820,11 +2811,11 @@ thumbscript4.stdlib = function x() { /*
     cases: {
         :c
         c length :m
-        c {
+        2 c {
             "looping" say
-            drop :v2 drop :v1
+            :v2 drop :v1 drop
             v1 { v2 3 stopn } ?
-        } range2
+        } every
         c •at (m •minus 1) call
     }
     timeit: {
@@ -2864,19 +2855,19 @@ thumbscript4.stdlib = function x() { /*
         :func :list
         [] :ret
         list {
-            drop :v
+            :v
             v func {
                 v ret push
             } ?
-        } range
+        } each
         ret
     }
     map: {
         :func :list
         [] :output
         list {
-            drop func output push
-        } range
+            func output push
+        } each
         output
     }
     trimPrefix: {
@@ -2916,31 +2907,64 @@ thumbscript4.stdlib = function x() { /*
     // only does simple types for now
     formencode: {
         r: []
-        range. { :key :value
+        foreach. { :value :key
             "${urlencode. key}=${urlencode. value}"
             r push
         }
         r join("&")
     }
     every: {
-        :fn :skip :list
+        :fn :list :skip
         i: 0
         loop. {
             if. i gte(list len) {
-                stopp
+                breakp
             }
-            fn. list at(i) i
-            i: i plus(skip)
+            
+            // Loopn skip { :subi
+            //     i PLUS (skip MINUS subi MINUS 1)
+            //     list[i PLUS subi]
+            // }
+            // Looprange skip MINUS 1 0 {
+            //    :subi
+            //    i PLUS
+            // }
+            Loopn skip {
+                :subi
+                i PLUS subi
+                list[i PLUS subi]
+            }
+            fn
+            i = i plus(skip)
         }
+    }
+    looprange: {
+        :fn :to :from
+        
+        If to LT from {
+            n: to MINUS from PLUS 1
+            Loopn n {
+                :i
+                from PLUS i fn
+            }
+            stopp
+        }
+        
+        n: from MINUS to PLUS 1
+        Loopn n {
+            :i
+            to MINUS i fn
+        }
+        
     }
     replacegroup: {
       :replacerMap :str
       chunks: [str]
-      range. replacerMap { :search :toReplace
+      foreach. replacerMap { :toReplace :search
           newChunks: []
-          chunks every. 2 {
-              :i
-              partialStr: chunks i at
+          every. 2 chunks {
+              :nextPartialStr :nextI
+              :partialStr :i
               subChunks: partialStr split(search)
               loopn. subChunks len {
                   :sI
@@ -2950,10 +2974,10 @@ thumbscript4.stdlib = function x() { /*
                   }
               }
               if. i lt(chunks len MINUS 1) {
-                  chunks at(i plus. 1) push. newChunks
-                              }
+                  nextPartialStr push. newChunks
+              }
           }
-          chunks: newChunks
+          chunks = newChunks
       }
       chunks join("")
     }
@@ -2971,10 +2995,10 @@ thumbscript4.stdlib = function x() { /*
             config.headers: []
         } ?
         config $headers at {
-            :k :v
+            :v :k
             "-H " "$k: $v" bashStrEscape cc
             headers push
-        } range
+        } foreach
         headersStr: headers " " join
         dataStr: ""
         data: config $body at
@@ -3302,13 +3326,6 @@ thumbscript4.tokenize(`
 // a: [name: "Drew"]
 // chunks: [1]
 
-// formencode: {
-    // range. { :key :value
-    //     "foo"
-    //     r push
-    // }
-    // r join("&")
-// }
 // a = 1
 // person = [
     // [theLast] = "LeSueur"
@@ -3323,6 +3340,7 @@ thumbscript4.tokenize(`
 // [foo].(bar)
 
 
+// i9 < i9 plus(2)
 
 `, true) // aquamarine marker
 
@@ -3375,6 +3393,27 @@ log2("js county: " + county)
 
 thumbscript4.eval(` // lime marker
 #main
+
+Every 2 [100 200 300 400 500] {
+    :v2 :i2 :v1 :i1
+    "every a: $i1: $v1" say
+    "every b: $i2: $v2" say
+}
+
+exit
+
+i9: 0
+loopn. 10 {
+    if. i9 gte(8) {
+        breakp
+    }
+    // i9 = i9 plus(2)
+    Say "i9 is $i9"
+    i9 = i9 plus(2)
+}
+
+
+
 
 Loopn 3 {
    Say "hi " swap cc
@@ -3717,6 +3756,7 @@ say. a
 say. "$a and $b"
 
 `, window); false && thumbscript4.eval(` // lime marker
+`, window); false && thumbscript4.eval(` // lime marker
 
 
 `, window)
@@ -3727,7 +3767,7 @@ thumbscript4.exampleCode = function () { // maroon marker
 Say "hello"
 
 // commenty gray marker
-"(2) it took ${end •minus start} ms"
+"(2) it took ${a} ms"
 Say "another"
 
 // stop
@@ -3836,7 +3876,6 @@ if. lt(10 100) {
     say. ""
 }
 
-// exit
 goto. $countPart
 
 3 loopn. {
@@ -3969,9 +4008,9 @@ loopn. 10 {
 
 assertempty("prewow") // olive marker
 #a
-range. window {
+foreach. window {
     #b
-    :k :v
+    :v :k
     if. ~v.toString {
         #c
         if. typename(~v) is("function") not {
@@ -4190,22 +4229,17 @@ assertempty. "a checky2" // olive marker
 
 
 
-// [100 200 300 400] {
-//     :i :v
-//     "the i is $i" say
-//     "the v is $v" say
-// } swap range
 
 
 [100 200 300 400] {
-    :i :v
+    :v :i
     "$i: $v" say
-} range
+} foreach
 "" say
 [100 :a 200 :b 300 :c 400 :d] {
-    :k :v
+    :v :k
     "$k: $v" say
-}  range
+}  foreach
 
 
 "yo" say
@@ -4322,6 +4356,7 @@ say. ""
 assertempty. "a check0.25" // olive marker
 
 Say "what about here2?"
+
 
 // commenty gray marker
 // {
@@ -4503,6 +4538,7 @@ n 1 plus
 say
 
 
+// exit washerefeb1 (a)
 
 
 // {
@@ -4566,10 +4602,6 @@ assertempty. "a check" // olive marker
 
 
 
-// •shallowcopylist: {
-//     [] :n
-//     { :i :v n i v set} swap range
-// }
 
 // ["drew" :name] :person
 // "Drew2" [person "name"] setc
@@ -4586,11 +4618,11 @@ assertempty. "a check" // olive marker
     "hello! " swap cc say
 } loopn
 
-[100 200 300 400 500] {
-    :i2 :v2 :i1 :v1
-    "range: $i1: $v1" say
-    "range: $i2: $v2" say
-} range2
+Every 2 [100 200 300 400 500] {
+    :v2 :i2 :v1 :i1
+    "every: $i1: $v1" say
+    "every: $i2: $v2" say
+}
 
 [
     {x 1 match}
@@ -4628,9 +4660,9 @@ assertempty // olive marker
 
 "every day is a new day" " " split :mylist
 
-mylist {
+Every 2 mylist {
     4 take say
-} range2
+} 
 
 
 [] :mylist
@@ -4684,6 +4716,8 @@ mylist sayn
     oook say
 } :interestingTest
 // interestingTest
+//
+
 
 { #incrfunc :name
     "the value is " name get cc say
