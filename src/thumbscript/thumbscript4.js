@@ -3036,7 +3036,7 @@ thumbscript4.stdlib = function x() { /*
         }
         theRows
     }
-    parseTableOutput: {
+    parsetableoutput: {
         :dbOutput
         lines: Split trim(dbOutput) lf
         lines say // white marker
@@ -3050,7 +3050,6 @@ thumbscript4.stdlib = function x() { /*
             If state IS "in_space" {
                 If trim(chr) IS "" { }
                 Else {
-                    Say "we are in word! $chr"
                     state = "in_word"
                     contentIndexes PUSH i
                     
@@ -3063,7 +3062,6 @@ thumbscript4.stdlib = function x() { /*
             }
             Elseif state IS "in_word" {
                 If chr trim "" is {
-                    "+ should be in space now" say
                     state = "in_space"
                 }
             }
