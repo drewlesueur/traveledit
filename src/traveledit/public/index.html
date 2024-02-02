@@ -12249,12 +12249,7 @@ function touchAreasPress(e, state) {
             comment()
         },
         "2midLeft": function () {
-            preventRender = true
-            del()
-            // paste(true, false, true) // unselect, pastebefore, smartPaste
-            paste(true, true, true) // unselect, pastebefore, smartPaste
-            preventRender = false
-            render()
+            addDumbNewline()
         },
         "2middle": function () {
             // experiment autocompleteLineV2
@@ -12275,7 +12270,9 @@ function touchAreasPress(e, state) {
         "2midRight": function () {
             // make this some sort of action button?
             // like complete patterns or curly oor
-            addDumbNewline()
+            // addDumbNewline()
+            
+            moveCursorUp()
         },
         "2right": function () {
             duplicateLine()
@@ -12294,7 +12291,15 @@ function touchAreasPress(e, state) {
             return
         },
         "1midLeft": function () {
-            moveCursorUp()
+            // moveCursorUp()
+            
+            // replace
+            preventRender = true
+            del()
+            // paste(true, false, true) // unselect, pastebefore, smartPaste
+            paste(true, true, true) // unselect, pastebefore, smartPaste
+            preventRender = false
+            render()
         },
         "1middle": function () {
             // fallthrough

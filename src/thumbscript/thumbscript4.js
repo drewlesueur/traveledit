@@ -958,9 +958,9 @@ thumbscript4.desugarArrows = function(tokens) {
                     // newTokens.push(dotToken)
                     // newTokens.push(setToken)
                     // break
-                    var tokenForSet = setlocalToken
+                    let theTokenForSet = setlocalToken
                     if (token.valueString == ">") {
-                        tokenForSet = setToken
+                        theTokenForSet = setToken
                     }
                     
                     // crimson #color
@@ -972,7 +972,7 @@ thumbscript4.desugarArrows = function(tokens) {
                             // log2(ts[ts.length - 1])
                             var path = ts[ts.length - 1]
                             if (!path.valueArr) {
-                                ts.push(tokenForSet)
+                                ts.push(theTokenForSet)
                             } else if (path.valueArr.length > 1 && path.valueArr[path.valueArr.length - 1].name == "at") {
                                 path.valueArr.pop()
                                 // path.valueArr[path.valueArr.length - 1].th_type = stringType
@@ -980,7 +980,7 @@ thumbscript4.desugarArrows = function(tokens) {
                             } else {
                                 if (path.valueArr && path.valueArr[0]) {
                                     path.valueArr[0].th_type = stringType
-                                    ts.push(tokenForSet)
+                                    ts.push(theTokenForSet)
                                 }
                             }
                         }
@@ -1600,10 +1600,11 @@ thumbscript4.builtIns = {
     gte: thumbscript4.genFunc2((a, b) => a >= b),
     match: thumbscript4.genFunc2((a, b) => a == b),
     is: thumbscript4.genFunc2((a, b) => a == b),
+    isnt: thumbscript4.genFunc2((a, b) => a != b),
     eq: thumbscript4.genFunc2((a, b) => a === b),
     ne: thumbscript4.genFunc2((a, b) => a !== b),
-    chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
-    ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
+    // chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
+    // ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
     // at: thumbscript4.genFunc2((a, b) => a[b]),
     at: thumbscript4.genFunc2((a, b) => {
         // try {
@@ -1630,9 +1631,9 @@ thumbscript4.builtIns = {
     "cond": thumbscript4.genFunc3((a, b, c) => (a ? b : c) ),
     length: thumbscript4.genFunc1((a) => a.length),
     len: thumbscript4.genFunc1((a) => a.length),
-    push: thumbscript4.genFunc2NoReturn((b, a) => a.push(b)),
+    push: thumbscript4.genFunc2NoReturn((a, b) => a.push(b)),
     pop: thumbscript4.genFunc1((a) => a.pop()),
-    unshift: thumbscript4.genFunc2NoReturn((b, a) => a.unshift(b)),
+    unshift: thumbscript4.genFunc2NoReturn((a, b) => a.unshift(b)),
     shift: thumbscript4.genFunc1((a) => a.shift()),
     join: thumbscript4.genFunc2((a, b) => a.join(b)),
     slice: thumbscript4.genFunc3((a, b, c) => a.slice(b, c)),
@@ -2803,8 +2804,7 @@ thumbscript4.stdlib = function x() { /*
     take: {
         :n9 [] :a9
         n9 {
-            :i
-            a9 unshift
+            a9 swap unshift
         } loopn
         a9
     }
@@ -2857,7 +2857,7 @@ thumbscript4.stdlib = function x() { /*
         list {
             :v
             v func {
-                v ret push
+                ret v push
             } ?
         } each
         ret
@@ -2866,7 +2866,7 @@ thumbscript4.stdlib = function x() { /*
         :func :list
         [] :output
         list {
-            func output push
+            output func push
         } each
         output
     }
@@ -2908,8 +2908,8 @@ thumbscript4.stdlib = function x() { /*
     formencode: {
         r: []
         foreach. { :value :key
-            "${urlencode. key}=${urlencode. value}"
-            r push
+            r "${urlencode. key}=${urlencode. value}"
+            push
         }
         r join("&")
     }
@@ -2940,8 +2940,7 @@ thumbscript4.stdlib = function x() { /*
     }
     looprange: {
         :fn :to :from
-        
-        If to LT from {
+        If from LT to {
             n: to MINUS from PLUS 1
             Loopn n {
                 :i
@@ -2949,13 +2948,11 @@ thumbscript4.stdlib = function x() { /*
             }
             stopp
         }
-        
         n: from MINUS to PLUS 1
         Loopn n {
             :i
             to MINUS i fn
         }
-        
     }
     replacegroup: {
       :replacerMap :str
@@ -2970,11 +2967,11 @@ thumbscript4.stdlib = function x() { /*
                   :sI
                   subChunks at(sI) newChunks push
                   if. sI NE (subChunks len MINUS 1) {
-                      toReplace newChunks push
+                      newChunks toReplace push
                   }
               }
               if. i lt(chunks len MINUS 1) {
-                  nextPartialStr push. newChunks
+                  newChunks nextPartialStr push
               }
           }
           chunks = newChunks
@@ -2997,7 +2994,7 @@ thumbscript4.stdlib = function x() { /*
         config $headers at {
             :v :k
             "-H " "$k: $v" bashStrEscape cc
-            headers push
+            headers swap push
         } foreach
         headersStr: headers " " join
         dataStr: ""
@@ -3014,6 +3011,76 @@ thumbscript4.stdlib = function x() { /*
             curl ${extraFlags} -s -X $method $headersStr $dataStr $urlStr
         »
         config.debug { trim say "" } ~exec ifelse
+    }
+    parsecsv: {
+        theKeys: []
+        theRows: []
+        trim
+        split(cr CC lf)
+        Foreach {
+            :line :i
+            line split(",")
+    
+            If i IS 0 {
+                > theKeys
+                stopp
+            }
+    
+            r: newobj
+            Foreach {
+                :field :i
+                k: theKeys[i]
+                r[theKeys[i]] = Trim field
+            }
+            theRows r push
+        }
+        theRows
+    }
+    parseTableOutput: {
+        :dbOutput
+        lines: Split trim(dbOutput) lf
+        lines say // white marker
+        headerLine: lines[0] CC " " // add extra space
+        contentIndexes: []
+        theKeys: []
+        rows: []
+        state: "in_space"
+        Loopn headerLine len { :i
+            chr: headerLine[i]
+            If state IS "in_space" {
+                If trim(chr) IS "" { }
+                Else {
+                    Say "we are in word! $chr"
+                    state = "in_word"
+                    contentIndexes PUSH i
+                    
+                    If contentIndexes len GT 1 {
+                        a: contentIndexes[contentIndexes len MINUS 2]
+                        b: contentIndexes[contentIndexes len MINUS 1]
+                        headerLine slice(a b) trim theKeys swap push
+                    }
+                }
+            }
+            Elseif state IS "in_word" {
+                If chr trim "" is {
+                    "+ should be in space now" say
+                    state = "in_space"
+                }
+            }
+        }
+        contentIndexes say
+        
+        Looprange 1 lines len minus(1) { :i
+            line: lines[i] trim
+            row: newobj
+            Looprange 1 contentIndexes len minus(1) { :j
+                a: contentIndexes[j MINUS 1]
+                b: contentIndexes[j]
+                row[theKeys[j MINUS 1]] = line slice(a b) trim
+            }
+            rows row push
+        }
+        rows
     }
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 thumbscript4.stdlib2 = function x() { /*
@@ -3342,6 +3409,22 @@ thumbscript4.tokenize(`
 
 // i9 < i9 plus(2)
 
+// r1: newobj
+// Loopn 3 {
+//     :i1
+//     Say "i1 is $i1"
+//     r1[i1] = 10
+// }
+    // :i1
+    // r1[i1] = 10
+    
+// r1: []
+"foozy" :i1
+// a = 3
+// a = 3
+i1: "foozy"
+// r1[i1] = 10
+
 `, true) // aquamarine marker
 
 function promiseCheck(name) {
@@ -3393,6 +3476,14 @@ log2("js county: " + county)
 
 thumbscript4.eval(` // lime marker
 #main
+
+// r1: []
+// "foozy" :i1
+// i1: "foozy"
+// r1[i1] = 10
+
+
+`, window); false && thumbscript4.eval(` // lime marker
 
 Every 2 [100 200 300 400 500] {
     :v2 :i2 :v1 :i1
@@ -3512,7 +3603,7 @@ funcs: []
 //     "why hello " i cc say
 //     {
 //         "afterward " i cc say
-//     } funcs push
+//     } funcs swap push
 // }
 
 // Loopn 3 {
@@ -3520,7 +3611,7 @@ funcs: []
 //     "why hello " i45 cc say
 //     {
 //         "afterward " i45 cc say
-//     } funcs push
+//     } funcs swap push
 // }
 
 // i44 = 0
@@ -3531,7 +3622,7 @@ funcs: []
 //     {
 //         #inner43
 //         "afterward raw " i44 cc say
-//     } funcs push
+//     } funcs swap push
 //     i44++
 //     repeat
 // }
@@ -3545,7 +3636,7 @@ funcs: []
 //     {
 //         #inner43
 //         "afterward raw " i cc say
-//     } funcs push
+//     } funcs swap push
 //     // i++
 //     i = 1 i plus
 //     repeat
@@ -4666,7 +4757,7 @@ Every 2 mylist {
 
 
 [] :mylist
-// •loopn •20 { mylist push drop }
+// •loopn •20 { mylist swap push }
 mylist sayn
 
 // yellow marker
