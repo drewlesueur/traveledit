@@ -11600,7 +11600,9 @@ function toSnakeCase(str) {
         return "_" + y.toLowerCase();
     }).replace(/^_/, "");
 }
-    
+
+
+// not sure this feature is a good idea
 function checkButtonAction() {
     var w = getWordAtCursor(isHashTag)
     if (w.word in buttonActions) {
@@ -11610,9 +11612,7 @@ function checkButtonAction() {
     return false
 }
 var buttonActions = {
-    "#thumbscript": runScript,
     "#close": closeFile,
-
 }
 
 // compare this to the built in one thet uses server side.

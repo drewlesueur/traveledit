@@ -3080,6 +3080,50 @@ thumbscript4.stdlib = function x() { /*
         }
         rows
     }
+    parsetableoutput: {
+        :dbOutput
+        lines: Split trim(dbOutput) lf
+        lines say // white marker
+        headerLine: lines[0] CC " " // add extra space
+        contentIndexes: []
+        theKeys: []
+        rows: []
+        state: "in_space"
+        Loopn headerLine len { :i
+            chr: headerLine[i]
+            If state IS "in_space" {
+                If trim(chr) IS "" { }
+                Else {
+                    state = "in_word"
+                    contentIndexes PUSH i
+                    
+                    If contentIndexes len GT 1 {
+                        a: contentIndexes[contentIndexes len MINUS 2]
+                        b: contentIndexes[contentIndexes len MINUS 1]
+                        headerLine slice(a b) trim theKeys swap push
+                    }
+                }
+            }
+            Elseif state IS "in_word" {
+                If chr trim "" is {
+                    state = "in_space"
+                }
+            }
+        }
+        contentIndexes say
+        
+        Looprange 1 lines len minus(1) { :i
+            line: lines[i] trim
+            row: newobj
+            Looprange 1 contentIndexes len minus(1) { :j
+                a: contentIndexes[j MINUS 1]
+                b: contentIndexes[j]
+                row[theKeys[j MINUS 1]] = line slice(a b) trim
+            }
+            rows row push
+        }
+        rows
+    }
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 thumbscript4.stdlib2 = function x() { /*
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
