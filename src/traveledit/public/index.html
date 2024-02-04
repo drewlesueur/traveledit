@@ -931,6 +931,10 @@ They get changed later on.
     <input onchange="syntaxHighlight = syntaxHighlightCheckbox.checked" type=checkbox name=syntaxHighlightCheckbox id=syntaxHighlightCheckbox />
     syntax highlight
 </label>
+<label for=caseSensitiveSearchCheckbox>
+    <input onchange="caseSensitiveSearch = caseSensitiveSearchCheckbox.checked" type=checkbox name=caseSensitiveSearchCheckbox id=caseSensitiveSearchCheckbox />
+    case sensitive search
+</label>
 <br>
 <label for=serverViewCheckbox>
     <input onchange="serverViewFeature = serverViewCheckbox.checked" type=checkbox name=serverViewCheckbox id=serverViewCheckbox />
@@ -1691,6 +1695,7 @@ var floatingKeyboard = false
 var fauxMono = false
 var fraktur = false
 var syntaxHighlight = false
+var caseSensitiveSearch = false
 
 var lastFile = fx
 // not using indexes so we can move files around without worrying about the indexes
@@ -8203,16 +8208,21 @@ false && setInterval(function() {
 // also so I don't have to keep track of whenever searchText.value is set (although maybe consider doing it that way in another pass)
 var lastSearchRegexpText = ""
 var lastSearchRegexp = null
+var lastCaseSensitiveSearch = -1
 function cachedSearchRegexp(str) {
-    if (str == lastSearchRegexpText) {
+    if (str == lastSearchRegexpText && caseSensitiveSearch == lastCaseSensitiveSearch) {
         return lastSearchRegexp
     }
     lastSearchRegexpText = str
+    lastCaseSensitiveSearch = caseSensitiveSearch
     try {
-        // lastSearchRegexp = new RegExp(lastSearchRegexpText)
-
         // Case insensitive
-        lastSearchRegexp = new RegExp(lastSearchRegexpText, 'i')
+        if (caseSensitiveSearch) {
+            lastSearchRegexp = new RegExp(lastSearchRegexpText) 
+        } else {
+            lastSearchRegexp = new RegExp(lastSearchRegexpText, 'i')
+        }
+
     } catch (e) {
         lastSearchRegexpText = ""
         lastSearchRegexp = null
@@ -8223,13 +8233,19 @@ function cachedSearchRegexp(str) {
 // just like cachedSearchRegexp but a global regexp for searching backwards
 var lastSearchRegexpGlobalText = ""
 var lastSearchRegexpGlobal = null
+var lastCaseSensitiveSearchGlobal = -1
 function cachedSearchRegexpGlobal(str) {
-    if (str == lastSearchRegexpGlobalText) {
+    if (str == lastSearchRegexpGlobalText && caseSensitiveSearch == lastCaseSensitiveSearchGlobal) {
         return lastSearchRegexpGlobal
     }
     lastSearchRegexpGlobalText = str
+    lastCaseSensitiveSearchGlobal = caseSensitiveSearch
     try {
-        lastSearchRegexpGlobal = new RegExp(lastSearchRegexpGlobalText, 'gi')
+        if (caseSensitiveSearch) {
+            lastSearchRegexpGlobal = new RegExp(lastSearchRegexpGlobalText, 'g')
+        } else {
+            lastSearchRegexpGlobal = new RegExp(lastSearchRegexpGlobalText, 'gi')
+        }
     } catch (e) {
         lastSearchRegexpGlobalText = ""
         lastSearchRegexpGlobal = null

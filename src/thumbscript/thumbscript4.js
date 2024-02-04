@@ -236,14 +236,14 @@ thumbscript4.tokenize = function(code, debug) {
                                 }
                                 addClosingParensOnNewLine = 0
                             }
-                            
+
                             if ("([{.".indexOf(nextChar) == -1) {
                             // if ("([{".indexOf(nextChar) == -1) {
                                 addToken(chr)
                                 added = true
                                 addToken(") closing term on brace") // 🥑 green marker
                             }
-                            
+
                             // This is needed
                             addClosingParensOnNewLine = addClosingParensStack.pop()
                             addClosingParensOnEndTerm = addClosingParensOnEndTermStack.pop()
@@ -669,7 +669,12 @@ thumbscript4.tokenize = function(code, debug) {
                     tokens.pop() // 🥑 green marker
                     addToken("•")
                     addToken(tokenName)
-                } else if (funcFirstWithUpper && " \n".indexOf(chr) != -1 && (addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0])) { // red marker
+                } else if (
+                    // this breaks on foo.Bar = 2
+                    funcFirstWithUpper && 
+                    " \n".indexOf(chr) != -1 &&
+                    (addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0])
+                ) { // red marker
                     let tokenName
                     tokenName = addedToken[0].toLowerCase() + addedToken.substr(1)
                     // log2(`token name went from ${addedToken} to ${tokenName}`)
@@ -745,9 +750,9 @@ thumbscript4.tokenize = function(code, debug) {
                     for (let s=0; s<1; s++) {
                         // if (false && tokens.length >= 3) {
                         if (tokens.length >= 3) {
-                            var prevToken = tokens.pop()
+                            var prevToken = tokens.pop() // 🥑
                             var prevToken1 = tokens.pop()
-                            var prevToken2 = tokens.pop()
+                            var prevToken2 = tokens.pop() // 🥑
                             // 3 tokens because of automatic parens insertion: ( raw )
 
                             if (prevToken1.th_type == varType && prevToken1.valueString == "raw") {
@@ -2972,15 +2977,7 @@ thumbscript4.stdlib = function x() { /*
                 breakp
             }
             
-            // Loopn skip { :subi
-            //     i PLUS (skip MINUS subi MINUS 1)
-            //     list[i PLUS subi]
-            // }
-            // Looprange skip MINUS 1 0 {
-            //    :subi
-            //    i PLUS
-            // }
-            Loopn skip {
+            loopn. skip {
                 :subi
                 i PLUS subi
                 list[i PLUS subi]
@@ -2991,16 +2988,16 @@ thumbscript4.stdlib = function x() { /*
     }
     looprange: {
         :fn :to :from
-        If from LT to {
+        if. from LT to {
             n: to MINUS from PLUS 1
-            Loopn n {
+            loopn. n {
                 :i
                 from PLUS i fn
             }
             stopp
         }
         n: from MINUS to PLUS 1
-        Loopn n {
+        loopn. n {
             :i
             to MINUS i fn
         }
@@ -3062,72 +3059,6 @@ thumbscript4.stdlib = function x() { /*
             curl ${extraFlags} -s -X $method $headersStr $dataStr $urlStr
         »
         config.debug { trim say "" } ~exec ifelse
-    }
-    parsecsv: {
-        theKeys: []
-        theRows: []
-        trim
-        split(cr CC lf)
-        Foreach {
-            :line :i
-            line split(",")
-    
-            If i IS 0 {
-                > theKeys
-                stopp
-            }
-    
-            r: newobj
-            Foreach {
-                :field :i
-                k: theKeys[i]
-                r[theKeys[i]] = Trim field
-            }
-            theRows r push
-        }
-        theRows
-    }
-    parsetableoutput: {
-        :dbOutput
-        lines: Split trim(dbOutput) lf
-        headerLine: lines[0] CC " " // add extra space
-        contentIndexes: []
-        theKeys: []
-        rows: []
-        state: "in_space"
-        Loopn headerLine len { :i
-            chr: headerLine[i]
-            If state IS "in_space" {
-                If trim(chr) IS "" { }
-                Else {
-                    state = "in_word"
-                    contentIndexes PUSH i
-
-                    If contentIndexes len GT 1 {
-                        a: contentIndexes[contentIndexes len MINUS 2]
-                        b: contentIndexes[contentIndexes len MINUS 1]
-                        headerLine slice(a b) trim theKeys swap push
-                    }
-                }
-            }
-            Elseif state IS "in_word" {
-                If chr trim "" is {
-                    state = "in_space"
-                }
-            }
-        }
-
-        Looprange 1 lines len minus(1) { :i
-            line: lines[i] trim
-            row: newobj
-            Looprange 1 contentIndexes len minus(1) { :j
-                a: contentIndexes[j MINUS 1]
-                b: contentIndexes[j]
-                row[theKeys[j MINUS 1]] = line slice(a b) trim
-            }
-            rows row push
-        }
-        rows
     }
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 thumbscript4.stdlib2 = function x() { /*
@@ -3474,7 +3405,14 @@ thumbscript4.tokenize(`
 
 // foo: raw «ok dokay»
 
-`, true) // aquamarine marker
+// d.ExistingDeviceId = 1
+// d.BAR = 1
+// d["BAR"] = 1
+
+// foo.Bar = 1
+// foo.BAR = 1
+
+`, true) // _aquamarine
 
 function promiseCheck(name) {
     return new Promise(function (res, rej) {
@@ -3523,7 +3461,7 @@ log2("js county: " + county)
 // foo.(bar).baz = 100
 // :(foo.bar.baz)
 
-thumbscript4.eval(` // lime marker
+thumbscript4.eval(` // _lime
 #main
 
 a: 101
@@ -3555,7 +3493,7 @@ say. "done"
 
 `, window); false && thumbscript4.eval(` // lime marker
 
-Every 2 [100 200 300 400 500] {
+every. 2 [100 200 300 400 500] {
     :v2 :i2 :v1 :i1
     "every a: $i1: $v1" say
     "every b: $i2: $v2" say
