@@ -7626,6 +7626,7 @@ function renderInternal() {
     }
     
     var textFillStyleOverride
+    var textFillStyleOverride1
     // Highlight search results
     for (var y=minY; y < maxY; y++) {
         // show the end of the document
@@ -7637,15 +7638,27 @@ function renderInternal() {
         // highlight search highlightsearch
         var theLine = fx.lines[y + fx.offsetY] || ""
         var trimmedLine = theLine.trim()
-        if (trimmedLine.endsWith("#color")) {
-            let parts = theLine.split(" ")
-            let color = parts[parts.length - 2]
-            if (color != "end") {
-                textFillStyleOverride = color
-            } else {
-                textFillStyleOverride = ""
+        
+        // no longer doing this block of color feature
+        // if (trimmedLine.endsWith("#color")) {
+        //     let parts = theLine.split(" ")
+        //     let color = parts[parts.length - 2]
+        //     if (color != "end") {
+        //         textFillStyleOverride = color
+        //     } else {
+        //         textFillStyleOverride = ""
+        //     }
+        // }
+        
+        // syntax for coloring a line #cyan
+        var matches = trimmedLine.match(/#[a-z]+\b/)
+        if (matches) {
+            let color = matches[0].slice(1)
+            if (CSS.supports("color", color)) {
+                textFillStyleOverride1 = color
             }
         }
+
         var highlightStartSearch = 0
         var matchLength = 0
         if (theLine && searchText.value.length) {
@@ -7874,18 +7887,31 @@ function renderInternal() {
             textFillStyle = fontColor
         }
         
-        
-        if (trimmedLine.endsWith("mar"+"ker")) {
-            // do a fill rect of the color that comes after
-            // Not using save and restore because my mock canvas doesn't support it
-            var oldFillStyle = t.fillStyle
-            // TODO: faster snagging of the color.
-            var theParts = trimmedLine.split(" ")
-            theFillStyle = theParts[theParts.length - 2]
-            t.fillStyle = theFillStyle
-            var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // red marker
-            t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // red marker
-            t.fillStyle = oldFillStyle
+        // Todo, remove in favor of _red
+        // if (trimmedLine.endsWith("mar"+"ker")) {
+        //     // do a fill rect of the color that comes after
+        //     // Not using save and restore because my mock canvas doesn't support it
+        //     var oldFillStyle = t.fillStyle
+        //     // TODO: faster snagging of the color.
+        //     var theParts = trimmedLine.split(" ")
+        //     theFillStyle = theParts[theParts.length - 2]
+        //     t.fillStyle = theFillStyle
+        //     var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // red marker
+        //     t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // red marker
+        //     t.fillStyle = oldFillStyle
+        // }
+
+        // syntax for underline _green
+        var matches = trimmedLine.match(/\b_[a-z]+\b/)
+        if (matches) {
+            let color = matches[0].slice(1)
+            if (CSS.supports("color", color)) {
+                var oldFillStyle = t.fillStyle
+                t.fillStyle = color
+                var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // _red
+                t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // _red
+                t.fillStyle = oldFillStyle
+            }
         }
 
         if (compactRender && !commentLine) {
@@ -7928,6 +7954,8 @@ function renderInternal() {
                 // red #color
                 if (textFillStyleOverride) {
                     t.fillStyle = textFillStyleOverride
+                } else if (textFillStyleOverride1) {
+                    t.fillStyle = textFillStyleOverride1
                 } else {
                     t.fillStyle = textFillStyle
                 }
@@ -7988,6 +8016,7 @@ function renderInternal() {
                 t.font = fontCSS
             }
         }
+        textFillStyleOverride1 = ""
         
         // if (expandedLine.length > maxCols) {
         //     t.save()
@@ -12060,12 +12089,9 @@ function touchAreasPressWhileSelected(e, state) {
             }
         },
         "2midLeft": function () {
-            preventRender = true
-            del()
-            // paste(true, false, true) // unselect, pastebefore, smartPaste
-            paste(true, true, true) // unselect, pastebefore, smartPaste
-            preventRender = false
-            render()
+        },
+        "2midRight": function () {
+            moveSelectionUp()
         },
         "2right": function() {
             duplicateSelection()
@@ -12074,7 +12100,12 @@ function touchAreasPressWhileSelected(e, state) {
             del()
         },
         "1midLeft": function () {
-            moveSelectionUp()
+            preventRender = true
+            del()
+            // paste(true, false, true) // unselect, pastebefore, smartPaste
+            paste(true, true, true) // unselect, pastebefore, smartPaste
+            preventRender = false
+            render()
         },
         "1middle": function () {
             fx.selectedRegions = []

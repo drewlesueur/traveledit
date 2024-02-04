@@ -1,6 +1,9 @@
 var thumbscript4 = {}
 
 
+// comments are busted when they aren't first thing
+// headerLine: lines[0] CC " " // add extra space
+
 // because of terms, you can get rid of storefunc and callstored
 // func(a b): { } syntax
 
@@ -738,11 +741,29 @@ thumbscript4.tokenize = function(code, debug) {
 
                     // auto interpolate unless prefixed with "raw"
                     // raw is a compiler directive, not function
-                    var prevToken = tokens.pop()
-                    if (prevToken.th_type == varType && prevToken.valueString == "raw") {
-                        addToken("$" + currentToken)
-                    } else {
-                        tokens.push(prevToken)
+
+                    for (let s=0; s<1; s++) {
+                        // if (false && tokens.length >= 3) {
+                        if (tokens.length >= 3) {
+                            var prevToken = tokens.pop()
+                            var prevToken1 = tokens.pop()
+                            var prevToken2 = tokens.pop()
+                            // 3 tokens because of automatic parens insertion: ( raw )
+
+                            if (prevToken1.th_type == varType && prevToken1.valueString == "raw") {
+                                addToken("$" + currentToken)
+                                break
+                            } else if (prevToken1.th_type == varType && prevToken1.valueString == "indented") {
+                                currentToken = thumbscript4.dedent(currentToken)
+                            } else if (prevToken1.th_type == varType && prevToken1.valueString == "rawindented") {
+                                addToken("$" + thumbscript4.dedent(currentToken))
+                                break
+                            } else {
+                                tokens.push(prevToken2)
+                                tokens.push(prevToken1)
+                                tokens.push(prevToken)
+                            }
+                        }
                         if (currentToken.indexOf("$") != -1) {
                             tokens.push({th_type: interpolateType, valueString: currentToken})
                         } else {
@@ -805,6 +826,36 @@ thumbscript4.tokenize = function(code, debug) {
     }
     return tokens
 }
+thumbscript4.dedent = function(str) {
+    lines = str.split("\n")
+    lines = lines.slice(1,-1)
+    var minIndent = Infinity
+    for (let line of lines) {
+        let indent = thumbscript4.getIndent(line).length
+        if (indent < minIndent) {
+            minIndent = indent
+        }
+    }
+    for (let i=0; i<lines.length; i++) {
+        lines[i] = lines[i].slice(minIndent)
+    }
+    
+    return lines.join("\n")
+}
+thumbscript4.getIndent = function (line) {
+    var theIndent = ""
+    for (var i=0; i<line.length; i++) {
+        var theChar = line.charAt(i)
+        if (theChar == " " || theChar == "\t") {
+            theIndent += theChar
+        } else {
+            return theIndent
+        }
+    }
+    return theIndent
+}
+
+
 thumbscript4.desugar = function(tokens, debug) {
     tokens = thumbscript4.desugarAtSign(tokens)
     // if (debug) {
@@ -3039,7 +3090,6 @@ thumbscript4.stdlib = function x() { /*
     parsetableoutput: {
         :dbOutput
         lines: Split trim(dbOutput) lf
-        lines say // white marker
         headerLine: lines[0] CC " " // add extra space
         contentIndexes: []
         theKeys: []
@@ -3052,7 +3102,7 @@ thumbscript4.stdlib = function x() { /*
                 Else {
                     state = "in_word"
                     contentIndexes PUSH i
-                    
+
                     If contentIndexes len GT 1 {
                         a: contentIndexes[contentIndexes len MINUS 2]
                         b: contentIndexes[contentIndexes len MINUS 1]
@@ -3066,52 +3116,7 @@ thumbscript4.stdlib = function x() { /*
                 }
             }
         }
-        contentIndexes say
-        
-        Looprange 1 lines len minus(1) { :i
-            line: lines[i] trim
-            row: newobj
-            Looprange 1 contentIndexes len minus(1) { :j
-                a: contentIndexes[j MINUS 1]
-                b: contentIndexes[j]
-                row[theKeys[j MINUS 1]] = line slice(a b) trim
-            }
-            rows row push
-        }
-        rows
-    }
-    parsetableoutput: {
-        :dbOutput
-        lines: Split trim(dbOutput) lf
-        lines say // white marker
-        headerLine: lines[0] CC " " // add extra space
-        contentIndexes: []
-        theKeys: []
-        rows: []
-        state: "in_space"
-        Loopn headerLine len { :i
-            chr: headerLine[i]
-            If state IS "in_space" {
-                If trim(chr) IS "" { }
-                Else {
-                    state = "in_word"
-                    contentIndexes PUSH i
-                    
-                    If contentIndexes len GT 1 {
-                        a: contentIndexes[contentIndexes len MINUS 2]
-                        b: contentIndexes[contentIndexes len MINUS 1]
-                        headerLine slice(a b) trim theKeys swap push
-                    }
-                }
-            }
-            Elseif state IS "in_word" {
-                If chr trim "" is {
-                    state = "in_space"
-                }
-            }
-        }
-        contentIndexes say
-        
+
         Looprange 1 lines len minus(1) { :i
             line: lines[i] trim
             row: newobj
@@ -3461,11 +3466,13 @@ thumbscript4.tokenize(`
     // r1[i1] = 10
     
 // r1: []
-"foozy" :i1
+// "foozy" :i1
 // a = 3
 // a = 3
-i1: "foozy"
+// i1: "foozy"
 // r1[i1] = 10
+
+// foo: raw «ok dokay»
 
 `, true) // aquamarine marker
 
@@ -3518,6 +3525,27 @@ log2("js county: " + county)
 
 thumbscript4.eval(` // lime marker
 #main
+
+a: 101
+say. "a is $a"
+say. raw «a is $a»
+say. indented «
+    Hello
+    this is an indented string
+    ok? $a
+»
+say. «
+    Hello
+    this is an indented string
+    ok? $a
+»
+say. rawindented «
+    Hello
+    this is an indented string
+    ok? $a
+»
+say. "done"
+
 
 // r1: []
 // "foozy" :i1
