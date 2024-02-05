@@ -588,9 +588,9 @@ thumbscript4.tokenize = function(code, debug) {
                     // funkiness requiring colon only for single vars if multiple on oew line
                     // example
                     // this is ok
-                    //     Say "hi" b: 10
+                    //     say. "hi" b: 10
                     // This is not
-                    //     Say "hi" a.b: 10
+                    //     say. "hi" a.b: 10
                     
                     let t = tokens.pop() // will be a "("
                     
@@ -616,11 +616,15 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "out"
             } else if (" \n\t".indexOf(chr) != -1) {
                 let addedToken = currentToken
+                var oldQuoteNext = quoteNext // basically if a "." is before
                 addToken(currentToken)
                 currentToken = ""
                 state = "out"
                 addToken(")") // 🥑 green marker
-                    
+                if (addedToken == "stopparsing") {
+                    break
+                }
+
                 // yellow #color
                 // if (addCl
                 //     addClosingParensOnEndTerm = false
@@ -661,7 +665,12 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine++
-                } else if (allUpperSugar && " \n".indexOf(chr) != -1 && (addedToken.toUpperCase() == addedToken && addedToken.toLowerCase() != addedToken)) { // red marker
+                } else if (
+                    allUpperSugar &&
+                    " \n".indexOf(chr) != -1 &&
+                    (addedToken.toUpperCase() == addedToken && addedToken.toLowerCase() != addedToken) &&
+                    !oldQuoteNext
+                ) { // red marker
                     let tokenName
                     tokenName = addedToken.toLowerCase()
                     tokens.pop() // 🥑 green marker
@@ -673,8 +682,11 @@ thumbscript4.tokenize = function(code, debug) {
                     // this breaks on foo.Bar = 2
                     funcFirstWithUpper && 
                     " \n".indexOf(chr) != -1 &&
-                    (addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0])
+                    (addedToken[0].toUpperCase() == addedToken[0] && addedToken[0].toLowerCase() != addedToken[0]) &&
+                    !oldQuoteNext
                 ) { // red marker
+                    // log2(tokens)
+                    // log2(`the token is ${addedToken} and quoteNext is ${quoteNext} oldQuoteNext is ${oldQuoteNext} #cyan`)
                     let tokenName
                     tokenName = addedToken[0].toLowerCase() + addedToken.substr(1)
                     // log2(`token name went from ${addedToken} to ${tokenName}`)
@@ -717,12 +729,27 @@ thumbscript4.tokenize = function(code, debug) {
 
                 // auto interpolate unless prefixed with "raw"
                 // raw is a compiler directive, not function
-                var prevToken = tokens.pop()
-                if (prevToken?.th_type == varType && prevToken.valueString == "raw") {
-                    addToken("$" + currentToken)
-                } else {
-                    if (prevToken) {
-                        tokens.push(prevToken)
+                for (let s=0; s<1; s++) {
+                    // if (false && tokens.length >= 3) {
+                    if (tokens.length >= 3) {
+                        var prevToken = tokens.pop() // 🥑
+                        var prevToken1 = tokens.pop()
+                        var prevToken2 = tokens.pop() // 🥑
+                        // 3 tokens because of automatic parens insertion: ( raw )
+
+                        if (prevToken1.th_type == varType && prevToken1.valueString == "raw") {
+                            addToken("$" + currentToken)
+                            break
+                        } else if (prevToken1.th_type == varType && prevToken1.valueString == "indented") {
+                            currentToken = thumbscript4.dedent(currentToken)
+                        } else if (prevToken1.th_type == varType && prevToken1.valueString == "rawindented") {
+                            addToken("$" + thumbscript4.dedent(currentToken))
+                            break
+                        } else {
+                            tokens.push(prevToken2)
+                            tokens.push(prevToken1)
+                            tokens.push(prevToken)
+                        }
                     }
                     if (currentToken.indexOf("$") != -1) {
                         tokens.push({th_type: interpolateType, valueString: currentToken})
@@ -730,6 +757,19 @@ thumbscript4.tokenize = function(code, debug) {
                         addToken("$" + currentToken)
                     }
                 }
+                // var prevToken = tokens.pop()
+                // if (prevToken?.th_type == varType && prevToken.valueString == "raw") {
+                //     addToken("$" + currentToken)
+                // } else {
+                //     if (prevToken) {
+                //         tokens.push(prevToken)
+                //     }
+                //     if (currentToken.indexOf("$") != -1) {
+                //         tokens.push({th_type: interpolateType, valueString: currentToken})
+                //     } else {
+                //         addToken("$" + currentToken)
+                //     }
+                // }
                 currentToken = ""
                 state = "out"
             } else {
@@ -1248,7 +1288,7 @@ thumbscript4.squishFuncs = function(tokens) {
 thumbscript4.evalQuick = function(code, oldWorld, state) {
     var tokens
     if (!oldWorld) {
-        code = thumbscript4.stdlib + "\n" + code // red marker
+        code = thumbscript4.stdlib + "\n" + code + "\n" // red marker
     }
     tokens = thumbscript4.tokenize(code)
     world = {
@@ -3060,6 +3100,72 @@ thumbscript4.stdlib = function x() { /*
         »
         config.debug { trim say "" } ~exec ifelse
     }
+    parsecsv: {
+        theKeys: []
+        theRows: []
+        trim
+        split(lf)
+        foreach. {
+            :line :i
+            line split(",")
+
+            if. i IS 0 {
+                > theKeys
+                stopp
+            }
+
+            r: newobj
+            foreach. {
+                :field :i
+                k: theKeys[i]
+                r[theKeys[i]] = trim. field
+            }
+            theRows r push
+        }
+        theRows
+    }
+    parsetableoutput: {
+        :dbOutput
+        lines: split. trim(dbOutput) lf
+        // add extra space
+        headerLine: lines[0] CC " x" // extra col to close out the previous one
+        contentIndexes: []
+        theKeys: []
+        rows: []
+        state: "in_space"
+        loopn. headerLine len { :i
+            chr: headerLine[i]
+            if. state IS "in_space" {
+                if. trim(chr) IS "" { }
+                else. {
+                    state = "in_word"
+                    contentIndexes PUSH i
+
+                    if. contentIndexes len GT 1 {
+                        a: contentIndexes[contentIndexes len MINUS 2]
+                        b: contentIndexes[contentIndexes len MINUS 1]
+                        headerLine slice(a b) trim theKeys swap push
+                    }
+                }
+            }
+            elseif. state IS "in_word" {
+                if. chr trim "" is {
+                    state = "in_space"
+                }
+            }
+        }
+        looprange. 1 lines len minus(1) { :i
+            line: lines[i] trim
+            row: newobj
+            looprange. 1 contentIndexes len minus(1) { :j
+                a: contentIndexes[j MINUS 1]
+                b: contentIndexes[j]
+                row[theKeys[j MINUS 1]] = line slice(a b) trim
+            }
+            rows row push
+        }
+        rows
+    }
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 thumbscript4.stdlib2 = function x() { /*
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
@@ -3110,7 +3216,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // log2(thumbscript4.tokenize(`If x y
 // hi say
 // `))
-// log2(thumbscript4.tokenize(`Say hi`, true))
+// log2(thumbscript4.tokenize(`say. hi`, true))
 // log2(thumbscript4.tokenize(`If 1 1 is {
 //     Alert "it's 1"
 // }`, true))
@@ -3340,8 +3446,8 @@ thumbscript4.tokenize(`
 // a.b = 1
 // c = 3(2) 
 
-// Say 200 b: 10
-// Say 200
+// say. 200 b: 10
+// say. 200
 // a.b: 10
 // a[b]: 10
 // [a] = 20
@@ -3390,7 +3496,7 @@ thumbscript4.tokenize(`
 // r1: newobj
 // Loopn 3 {
 //     :i1
-//     Say "i1 is $i1"
+//     say. "i1 is $i1"
 //     r1[i1] = 10
 // }
     // :i1
@@ -3462,6 +3568,7 @@ log2("js county: " + county)
 // :(foo.bar.baz)
 
 thumbscript4.eval(` // _lime
+`, window); false && thumbscript4.eval(` // _lime
 #main
 
 a: 101
@@ -3507,7 +3614,7 @@ loopn. 10 {
         breakp
     }
     // i9 = i9 plus(2)
-    Say "i9 is $i9"
+    say. "i9 is $i9"
     i9 = i9 plus(2)
 }
 
@@ -3515,19 +3622,19 @@ loopn. 10 {
 
 
 Loopn 3 {
-   Say "hi " swap cc
+   say. "hi " swap cc
    // stop
    break
-   Say "bye " swap cc
+   say. "bye " swap cc
 }
 
-// Say "yo"
+// say. "yo"
 // If 1 {
-//     Say "ok"
+//     say. "ok"
 // }
 // a: 1 PLUS 2
 
-Say "here?"
+say. "here?"
 a: [name: "yo"]
 20 > a["bar"]
 21 :a["baz" "biz" cc]
@@ -3539,17 +3646,17 @@ color: "green"
 a["colors"]["red"] = "ok"
 a["colors"].blue = "ok"
 a["colors"][color] = "ok"
-Say a
+say. a
 
 
 a: [name: "Drew"]
-Say a
+say. a
 
 
 chunks: [1]
-Say chunks
+say. chunks
 
-// Say "+++++++"
+// say. "+++++++"
 
 
 Loopn 3 {
@@ -3568,14 +3675,14 @@ Loopn 3 {
 //    i "The value is " swap cc say
 // }
 
-Say "hello world!"
+say. "hello world!"
 
 1 IS 1
 " what was that" cc say
 
-// Say "+hello world!"
-Say "===="
-// Say "+++"
+// say. "+hello world!"
+say. "===="
+// say. "+++"
 makeIncr: {
     x: 0
     // { x++ x }
@@ -3593,7 +3700,7 @@ makeIncr: {
     }
 }
 
-// Say makeIncr
+// say. makeIncr
 
 
 
@@ -3626,7 +3733,7 @@ funcs: []
 // Call {
 //     #outer42
 //     If i44 3 gte { stopp }
-//     Say "yay $i44"
+//     say. "yay $i44"
 //     {
 //         #inner43
 //         "afterward raw " i44 cc say
@@ -3640,7 +3747,7 @@ funcs: []
 // Call {
 //     #outer42
 //     If i 3 gte { stopp }
-//     Say "yay $i"
+//     say. "yay $i"
 //     {
 //         #inner43
 //         "afterward raw " i cc say
@@ -3668,19 +3775,19 @@ Each funcs {
 // }
 
 If false {
-    Say "check 1" }
+    say. "check 1" }
 Elseif true {
-    Say "check 2" }
+    say. "check 2" }
 Else {
-    Say "check 3"
+    say. "check 3"
 }
 
 // If false {
-//     Say "check 1"
+//     say. "check 1"
 // * Elseif true
-//     Say "check 2"
+//     say. "check 2"
 // * Else
-//     Say "check 3"
+//     say. "check 3"
 // }
 
 x = 1
@@ -3863,11 +3970,11 @@ say. "$a and $b"
 thumbscript4.exampleCode = function () { // maroon marker
 /*
 
-Say "hello"
+say. "hello"
 
 // commenty gray marker
 "(2) it took ${a} ms"
-Say "another"
+say. "another"
 
 // stop
 
@@ -3875,7 +3982,7 @@ Say "another"
 yo: [
     stuff: "this is the stuff"
 ]
-Say yo
+say. yo
 
 
 yo.stuff: 3000
@@ -4454,7 +4561,7 @@ say. "-------"
 say. ""
 assertempty. "a check0.25" // olive marker
 
-Say "what about here2?"
+say. "what about here2?"
 
 
 // commenty gray marker
@@ -4470,7 +4577,7 @@ Say "what about here2?"
 // say. ""
 
 
-Say "what about here?"
+say. "what about here?"
 
 // commenty gray marker
 // 3 loopn. {
@@ -4505,7 +4612,7 @@ Say "what about here?"
 // }
 
 
-Say "how we get here?"
+say. "how we get here?"
 
 3 loopn. {
     {
@@ -5068,7 +5175,7 @@ var greet = thumbscript4.makeJsFunc(() => { /*
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-thumbscript4.eval(code, window, [], {async: true}) // red marker
+false && thumbscript4.eval(code, window, [], {async: true}) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
