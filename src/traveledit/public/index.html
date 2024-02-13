@@ -4,6 +4,11 @@ need quick button to indent and dedent
 flows, linked files
 easily add color
 at some point better sliced undo?
+better handling of super long lines
+
+
+inline color args? // args:blue
+
 
 open html?
 
@@ -1760,7 +1765,8 @@ var touchRatios = makeTouchRatios(layout)
 // var verticalTouchSize = 120
 // var verticalTouchSize = 100
 // var verticalTouchSize = 80
-var verticalTouchSize = 100
+// var verticalTouchSize = 100
+var verticalTouchSize = 80
 var originalVerticalTouchSize = verticalTouchSize
 var device = "iphone12mini"
 var canvasHeightShell
@@ -8091,7 +8097,8 @@ function renderInternal() {
         // drawCircle("royalblue", canvasWidth * selectAreaRatio, canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         
-        for (y=0; y<6; y++) {
+        // for (y=0; y<6; y++) {
+        for (y=0; y<5; y++) {
             var prevRatio = 0
             for (var i=0; i<touchRatios.length; i++) {
                 var ratio = touchRatios[i]
@@ -8126,11 +8133,11 @@ function renderInternal() {
                             color = "red"
                         }
                     }
-                    if (y == 5) {
+                    // if (y == 5) {
                         // drawCircle(color, x, 20, usedDotSize, theBackgroundColor, 5)
-                    } else {
+                    // } else {
                         drawCircle(color, x, canvasHeight-(y*vtsThrice)-halfVTSThrice, usedDotSize, theBackgroundColor, 5)
-                    }
+                    // }
                 }
                 prevRatio = ratio
             }
@@ -8207,6 +8214,10 @@ var circleColors = {
      // "5right": "_",
      // "5sliceRight": "royalblue",
      "5farRight": "_",
+     
+     
+     "6farLeft": "_",
+     "6farRight": "_",
 }
 
 var trailingWhitespaceRegexp = /\s+$/
@@ -12126,6 +12137,12 @@ function touchAreasPressWhileSelected(e, state) {
         "2right": function() {
             duplicateSelection()
         },
+        "3left": function() {
+            dedent()
+        },
+        "3right": function() {
+            indent()
+        },
         "1left": function () {
             del()
         },
@@ -12283,9 +12300,12 @@ function touchAreasPress(e, state) {
         "4midRight": function () {
         },
         "3left": function () {
-            clearSearch()
+            // clearSearch()
+            dedent()
         },
         "3midLeft": function () {
+            clearSearch()
+            return
             // if (fx.cursorColIndex < 0 || fx.cursorColIndex > expandTabIndex(fx.lines[fx.cursorLineIndex])) {
             if (fx.cursorColIndex < 0) {
                 addDumbNewline()
@@ -12298,13 +12318,16 @@ function touchAreasPress(e, state) {
             editSearch()
         },
         "3midRight": function () {
+            clearSearch()
+            return
             if (fx.cursorColIndex < 0) {
             } else {
                 backspace()
             }
         },
         "3right": function () {
-            clearSearch()
+            // clearSearch()
+            indent()
         },
         "2left": function () {
             comment()
