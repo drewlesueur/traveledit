@@ -1,5 +1,7 @@
 <!doctype html>
 <!--
+need quick button to indent and dedent
+
 
 open html?
 
@@ -539,8 +541,8 @@ They get changed later on.
     <div class=middleButton onclick='saveWrapper()'>run</div>
     <div class=middleButton onclick='runShellCommand("git status")'>status</div>
     <div class=middleButton onclick='runShellCommand("git push origin HEAD")'>push origin H</div>
-    <div class=middleButton onclick='runShellCommand("git log -p -3")'>log -p</div>
-    <div class=middleButton onclick='runShellCommand("git log -10")'>log</div>
+    <div class=middleButton onclick='runShellCommand("TZ=America/Phoenix git log --date=local -p -3")'>log -p</div>
+    <div class=middleButton onclick='runShellCommand("TZ=America/Phoenix git log --date=local -10")'>log</div>
 
 
     <!-- this one tries to make light backgroud, but doesn't work with mac sed.
@@ -796,6 +798,7 @@ They get changed later on.
     -->
     <div class=square onclick="compareSets()">compare sets</div>
     <div class=square onclick=openEditorCommandText()>editor cmd</div>
+    <div class=square onclick=doRefresh()>refresh</div>
     <!--
         <div class=square onclick="deleteBelow();">del below</div>
     -->
@@ -4142,16 +4145,22 @@ function log2Inline(str) {
 var getShellCodeForRunningGoFile = thumbscript4.makeJsFunc(() => { /*
     :lines
     :filename
-
-    If lines[0] IS "// How to run:" {
-        // 100 max
-        Loopn 100 {
+    runCode: []
+    if. lines[0] IS "// How to run:" {
+        // 100 max #darkorange
+        looprange. 1 100 { :i
+            if. lines[i] trim IS "" {
+                breakp
+            }
+            runCode PUSH (lines[i] SLICEFROM 3)
         }
+        runCode JOIN cr // joining on cr because that's how terminal wants it
     }
-    Else {
-
+    else. {
+        "time go run " CC filename
     }
 */ })
+
 
 function runScript() {
     clearLog2()
@@ -4174,8 +4183,11 @@ function runScript() {
         let filename = fx.fullPath.split("/").slice(-1)
         addTerminalTab()
         fx.terminalLoadPromise.then(function () {
-            getShellCodeForRunningGoFile(filename, theScriptLines)
-            sendTerminal("time go run " + filename, function() {
+            // showLog()
+            let code = getShellCodeForRunningGoFile(filename, theScriptLines)
+            // log2(code)
+            // sendTerminal("time go run " + filename, function() {
+            sendTerminal(code, function() {
                 saveWrapper() // hits Enter
             })
         })

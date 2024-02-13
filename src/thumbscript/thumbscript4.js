@@ -1733,6 +1733,7 @@ thumbscript4.builtIns = {
     shift: thumbscript4.genFunc1((a) => a.shift()),
     join: thumbscript4.genFunc2((a, b) => a.join(b)),
     slice: thumbscript4.genFunc3((a, b, c) => a.slice(b, c)),
+    slicefrom: thumbscript4.genFunc2((a, b) => a.slice(b)),
     split: thumbscript4.genFunc2((a, b) => {
         return a.split(b)
     }),
