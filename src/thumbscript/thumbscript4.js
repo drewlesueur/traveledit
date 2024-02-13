@@ -2788,7 +2788,7 @@ thumbscript4.next = function(world) {
                 //     }
                 // }
                 // end #color
-                
+
                 break outer
             case incrType:
                 var w = thumbscript4.getWorldForKey(world, token.valueString, true, true, false)
@@ -3569,6 +3569,9 @@ log2("js county: " + county)
 // :(foo.bar.baz)
 
 thumbscript4.eval(` // _lime
+a: 900
+say. "hello $a"
+
 `, window); false && thumbscript4.eval(` // _lime
 #main
 

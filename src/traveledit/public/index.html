@@ -1,7 +1,9 @@
 <!doctype html>
 <!--
 need quick button to indent and dedent
-
+flows, linked files
+easily add color
+at some point better sliced undo?
 
 open html?
 
@@ -12765,7 +12767,6 @@ function inputVoiceCommandText_old(e) {
 }
 
 function selectBlock() {
-    // selectBlock()
     let sr = fx.selectedRegions[0]
     let curIndent = getIndent(fx.lines[fx.cursorLineIndex])
 
@@ -12793,10 +12794,19 @@ function selectBlock() {
         //     sr.startY--
         // }
     } else {
-        for (let i=fx.cursorLineIndex+1; i < fx.lines.length; i++) {
+        var startI = fx.cursorLineIndex+1
+        var hasGottenNonBlankLine = false
+        for (let i=startI; i < fx.lines.length; i++) {
             if (fx.lines[i].trim() == "") {
-                continue
+                // continue
+
+                if (hasGottenNonBlankLine) {
+                    break
+                } else {
+                    continue
+                }
             }
+            hasGottenNonBlankLine = true
             let thisIndent = getIndent(fx.lines[i])
             if (thisIndent.length < curIndent.length) {
                 break
