@@ -1750,6 +1750,7 @@ thumbscript4.builtIns = {
     }),
     tojson: thumbscript4.genFunc1((a) => JSON.stringify(a)),
     tojsonpretty: thumbscript4.genFunc1((a) => JSON.stringify(a, null, "    ")),
+    formatjson: thumbscript4.genFunc1((a) => JSON.stringify(JSON.parse(a), null, "    ")),
     fromjson: thumbscript4.genFunc1((a) => JSON.parse(a)),
     haskey: thumbscript4.genFunc2((a, b) => Object.hasOwn(a, b)),
     newobj: thumbscript4.genFunc0(() => {
@@ -3087,10 +3088,12 @@ thumbscript4.stdlib = function x() { /*
         } foreach
         headersStr: headers " " join
         dataStr: ""
+        say. "the body is " CC config.body
         data: config $body at
-        data {
+        say. "the data is " CC data
+        if. data {
             dataStr: " -d " data bashStrEscape cc
-        } ?
+        }
         extraFlags: ""
         if. config.extraFlags {
             extraFlags: config.extraFlags

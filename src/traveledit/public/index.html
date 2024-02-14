@@ -12168,7 +12168,7 @@ function touchAreasPressWhileSelected(e, state) {
 function touchAreasLongPress(e, state) {
     handleTouchAreas(e, {
         "5middle": function () {
-            doRefresh()
+            // doRefresh()
         },
         "3middle": function() {
             var doFocus = function () {
@@ -12294,6 +12294,9 @@ function touchAreasLongPress(e, state) {
 
 function touchAreasPress(e, state) {
     handleTouchAreas(e, {
+        "5middle": function () {
+            clearSearch()
+        },
         "4middle": function () {
             openVoiceCommandText()
         },
