@@ -6218,17 +6218,48 @@ function expandTabIndex(theLine, start, index, file, nocache) {
         start = theLine.length
     }
 
-    var expandedLine = expandedLine(theLine, index, file, nocache)
-    return expandedLine.expandedIndexCache[start]
+    var expandedLine = expandLine(theLine, index, file, nocache)
+    var adjustedStart = start
+    // if (adjustedStart >= theLine.length) {
+    //     adjustedStart = theLine.length - 1
+    // }
+    var newRet = expandedLine.expandedIndexCache[adjustedStart]
+    
+    
+    var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
+    if (oldRet != newRet) {
+        log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
+    }  
+    return oldRet 
+    
+    
+    return newRet
 }
 function unExpandTabIndex(theLine, start, index, file, nocache) {
-    var expandedLine = expandedLine(theLine, index, file, nocache)
-    return expandedLine.unexpandedIndexCache[start]
+    var expandedLine = expandLine(theLine, index, file, nocache)
+    
+    var newRet
+    if (start >= expandedLine.length) {
+        newRet = theLine.length
+    } else if (start < 0) {
+        newRet = 0
+    } else {
+        newRet = expandedLine.unexpandedIndexCache[start]
+    }
+    
+    var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
+    if (oldRet != newRet) {
+        log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
+    }  
+    return oldRet
+    
+    return newRet
 }
 
 // expandTabIndexNoCache("\t", 0) => 0
-// expandTabIndexNoCache("\ta", 1) => 4
-
+// expandTabIndexNoCache("\ta", 1)
+// "\t"
+	// a🧠bar
 // expandTabIndexNoCache("👨‍👩‍👧‍👧", 0)
 // expandTabIndexNoCache("👨‍👩‍👧‍👧a", 1)
 // "👨🏻".length
@@ -6240,6 +6271,8 @@ function testStuff() {
     // var theStr = "\tx\ta"
     // var theStr = "abcdefg"
     // var theStr = "†a"
+
+    var theStr = "    }  "
     var results = []
     for (var j=0; j<theStr.length; j++) {
         results.push(j + " => " + expandTabIndexNoCache(theStr, j))
@@ -6252,16 +6285,22 @@ function testStuff() {
     log2([results, results2, expandedLine.expandedIndexCache, expandedLine, expandedLine.unexpandedIndexCache])
 }
 
+var emptyExpandedLine = []
+emptyExpandedLine.expandedIndexCache = [0] // #pastTheEnd
+emptyExpandedLine.unexpandedIndexCache = 1
 function expandLine(theLine, theIndex, file, nocache) {
     var expandedLine
     var tabStop = globalTabStop
     
-    // if (theLine.expandedLineCache) {
-    //     return theLine.expandedLineCache
-    // }
-    // if (theLine == "") {
-    //     return []
-    // }
+    if (theLine.expandedLineCache) {
+        return theLine.expandedLineCache
+    }
+    
+    if (theLine == "") {
+        return emptyExpandedLine
+    }
+    log("not cached expandLine " + Date.now())
+    log({theLine, theIndex, file, nocache})
     
     cachedGraphemes = getCachedGraphemes(theLine, theIndex, file, nocache)
     var expandedLine = []
@@ -6308,15 +6347,15 @@ function expandLine(theLine, theIndex, file, nocache) {
             }
         }
     }
+    // #pastTheEnd, TODO: maybe clean on entry instead
+    expandedIndex.push(expandedLine.length)
     
-    if (typeof theIndex !== "undefined" && theIndex < fx.lines.length) {
-        fx.lines[theIndex].expandedLineCache = expandedLine
-        fx.lines[theIndex].expandedIndexCache = expandedIndex
-        fx.lines[theIndex].unexpandedIndexCache = unexpandedIndex
-    }
-    // for debugging
     expandedLine.expandedIndexCache = expandedIndex
     expandedLine.unexpandedIndexCache = unexpandedIndex
+    
+    if (typeof theIndex !== "undefined" && theIndex < fx.lines.length && theIndex > 0) {
+        fx.lines[theIndex].expandedLineCache = expandedLine
+    }
     return expandedLine
     
 }
@@ -7875,7 +7914,7 @@ function renderInternal() {
                 }
                 _regI -= 1 // because first item is full match then capture groups
 
-
+                // continue
                 // TODO: expanding the same line, we could come up with optimization for that
                 var startHighlightPos = expandTabIndex(theLine, match.index, y + fx.offsetY)
                 var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
