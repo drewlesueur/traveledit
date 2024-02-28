@@ -6224,17 +6224,23 @@ function expandTabIndex(theLine, start, index, file, nocache) {
         index = file.cursorLineIndex
     }
 
+    // workaround that I might be able to handle elsewhere
+    // happens when running "git commit -m" button
     var expandedLine = expandLine(theLine, index, file, nocache)
     var adjustedStart = start
     // if (adjustedStart >= theLine.length) {
     //     adjustedStart = theLine.length - 1
     // }
-    var newRet = expandedLine.expandedIndexCache[adjustedStart]
+    if (adjustedStart >= expandedLine.expandedIndexCache.length) {
+        newRet = 0
+    } else {
+        newRet = expandedLine.expandedIndexCache[adjustedStart]
+    }
     
     
     // var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
     // if (oldRet != newRet) {
-    //     log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
+    //     log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet, expandedLine: expandedLine})    
     // }  
     // return oldRet 
     
@@ -7920,7 +7926,6 @@ function renderInternal() {
                 )
             }
         }
-        
         
         // gray inderline word at cursor #yellow
         if (theLine && wordAtCursorRegexp) {
