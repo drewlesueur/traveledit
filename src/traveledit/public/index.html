@@ -7932,13 +7932,13 @@ function renderInternal() {
             // TODO: regular search can benefit from this matchAll business
             // TODO: you can cache the line and the end result of the matches!
             var matches = theLine.matchAll(wordAtCursorRegexp)
+            // log(matches)
+            let matchI = 0
             for (let match of matches) {
-                // log(match)
-            // for (let _i = 0; _i < 20; _i++) {
-            //     let match = matches[_i]
-            //     if (!match) {
-            //         break
-            //     }
+               matchI++
+               if (matchI == 20) {
+                   break
+               }
                 
                 // first non null index - 1 (first index is total match)
                 var _regI
