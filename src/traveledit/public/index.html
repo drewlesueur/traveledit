@@ -11443,9 +11443,9 @@ function processPathDecorator(file) {
     for (var j=0; j<pathDecorators.length; j++) {
         var pd = pathDecorators[j]
         if (file.fullPath.indexOf(pd.Path) != -1) {
-            if (!file.group) {
+            // if (!file.group) {
                 file.group = pd.Decorator
-            }
+            // }
             break
         }
     }
