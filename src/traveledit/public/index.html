@@ -1,11 +1,16 @@
 <!doctype html>
 <!--
+
+at top show what function we are in
+basically all the indent levels.
+
+
 need quick button to indent and dedent
 flows, linked files
 easily add color
 at some point better sliced undo?
 better handling of super long lines
-
+the "marker" search should change
 
 inline color args? // args:blue
 
@@ -3354,6 +3359,7 @@ function getCachedGraphemes(theLine, index, file, nocache) {
     if (theLine.cachedGraphemes) {
         return theLine.cachedGraphemes
     }
+    // log("getCachedGraphemes not cached: " + Date.now())
     var graphemes = splitGraphemes(theLine)
     if (nocache == "nocache") {
         return graphemes
@@ -3364,7 +3370,7 @@ function getCachedGraphemes(theLine, index, file, nocache) {
     if (typeof index == "undefined" || index == -1) {
         index = file.cursorLineIndex
     }
-    theLine = new String(theLine) // removes tabCache
+    theLine = new String(theLine) // removes tabCache (aka expandedLineCache)
     theLine.cachedGraphemes = graphemes
     // try {
         if (index < file.lines.length) {
@@ -6032,7 +6038,7 @@ function unExpandTabIndexNoCache(theLine, start) {
     return unExpandTabIndex(theLine, start, null, null, "nocache")
 }
 // go from graphical index to string index, at graphical index
-function unExpandTabIndex(theLine, start, index, file, nocache) {
+function unExpandTabIndex_old(theLine, start, index, file, nocache) {
     // small todo: why is this called every touchend when not in edit mode?
     // prob a good reason, I just don't know
     var tabStop = globalTabStop
@@ -6112,7 +6118,7 @@ function expandTabIndexNoCache(theLine, start) {
     return expandTabIndex(theLine, start, null, null, "nocache")
 }
 // go from string index to graphical index, at string index
-function expandTabIndex(theLine, start, index, file, nocache) {
+function expandTabIndex_old(theLine, start, index, file, nocache) {
     // todo: This is called every scroll, even if you don't go to another letter.
     theLine = theLine || ""
     var origLine = theLine
@@ -6202,7 +6208,120 @@ function expandTabIndex(theLine, start, index, file, nocache) {
     return adjustedStart
 }
 
-function expandLine(theLine, theIndex) {
+function expandTabIndex(theLine, start, index, file, nocache) {
+    theLine = theLine || ""
+    if (!theLine.substring) {
+        var err = new Error()
+        log(err.stack)
+    }
+    if (start == -1) {
+        start = theLine.length
+    }
+
+    var expandedLine = expandedLine(theLine, index, file, nocache)
+    return expandedLine.expandedIndexCache[start]
+}
+function unExpandTabIndex(theLine, start, index, file, nocache) {
+    var expandedLine = expandedLine(theLine, index, file, nocache)
+    return expandedLine.unexpandedIndexCache[start]
+}
+
+// expandTabIndexNoCache("\t", 0) => 0
+// expandTabIndexNoCache("\ta", 1) => 4
+
+// expandTabIndexNoCache("👨‍👩‍👧‍👧", 0)
+// expandTabIndexNoCache("👨‍👩‍👧‍👧a", 1)
+// "👨🏻".length
+
+// var  = "\tabc"
+
+function testStuff() {
+    var theStr = "👨🏻abc🧠🧠"
+    // var theStr = "\tx\ta"
+    // var theStr = "abcdefg"
+    // var theStr = "†a"
+    var results = []
+    for (var j=0; j<theStr.length; j++) {
+        results.push(j + " => " + expandTabIndexNoCache(theStr, j))
+    }
+    var results2 = []
+    var expandedLine = expandLineNew(theStr, undefined, undefined, "nocache")
+    for (var j=0; j<expandedLine.length; j++) {
+        results2.push(j + " => " + unExpandTabIndexNoCache(theStr, j))
+    }
+    log2([results, results2, expandedLine.expandedIndexCache, expandedLine, expandedLine.unexpandedIndexCache])
+}
+
+function expandLine(theLine, theIndex, file, nocache) {
+    var expandedLine
+    var tabStop = globalTabStop
+    
+    // if (theLine.expandedLineCache) {
+    //     return theLine.expandedLineCache
+    // }
+    // if (theLine == "") {
+    //     return []
+    // }
+    
+    cachedGraphemes = getCachedGraphemes(theLine, theIndex, file, nocache)
+    var expandedLine = []
+    var expandedIndex = []
+    var unexpandedIndex = []
+    
+    for (var i=0; i<cachedGraphemes.length; i++) {
+        var grapheme = cachedGraphemes[i]
+        if (isEmoji(grapheme)) {
+            expandedLine.push(grapheme)
+            unexpandedIndex.push(expandedIndex.length)
+            for (var j=0; j<emojiWidth-1; j++) {
+                unexpandedIndex.push(expandedIndex.length)
+            }
+            for (var j=0; j<grapheme.length; j++) {
+                if (j == 0) {
+                    expandedIndex.push(expandedLine.length - 1)
+                } else {
+                    // expandedIndex.push(expandedLine.length - 1 + emojiWidth)
+                    expandedIndex.push(expandedLine.length - 1)
+                }
+            }
+            for (var j=0; j<emojiWidth-1; j++) {
+                expandedLine.push(" ")
+            }
+        } else if (grapheme == "\t") {
+            // var tabPos = expandedLine.indexOf("\t", afterLastTabPos)
+            var numberOfSpaces = tabStop - (expandedLine.length % tabStop)
+            expandedIndex.push(expandedLine.length)
+            for (var j=0; j<numberOfSpaces; j++) {
+                expandedLine.push("\t")
+                unexpandedIndex.push(expandedIndex.length - 1)
+            }
+        } else {
+            expandedLine.push(grapheme)
+            unexpandedIndex.push(expandedIndex.length)
+            for (var j=0; j<grapheme.length; j++) {
+                if (j == 0) {
+                    expandedIndex.push(expandedLine.length - 1)
+                } else {
+                    // expandedIndex.push(expandedLine.length - 1 + grapheme.length)
+                    expandedIndex.push(expandedLine.length - 1)
+                }
+            }
+        }
+    }
+    
+    if (typeof theIndex !== "undefined" && theIndex < fx.lines.length) {
+        fx.lines[theIndex].expandedLineCache = expandedLine
+        fx.lines[theIndex].expandedIndexCache = expandedIndex
+        fx.lines[theIndex].unexpandedIndexCache = unexpandedIndex
+    }
+    // for debugging
+    expandedLine.expandedIndexCache = expandedIndex
+    expandedLine.unexpandedIndexCache = unexpandedIndex
+    return expandedLine
+    
+}
+
+function expandLine_old(theLine, theIndex) {
     var expandedLine
     var tabStop = globalTabStop
     var afterLastTabPos = 0
@@ -7686,6 +7805,7 @@ function renderInternal() {
 
         var highlightStartSearch = 0
         var matchLength = 0
+        // search #deepskyblue
         if (theLine && searchText.value.length) {
             // max 20 highlights per line
             for (var _i=0; _i<20; _i++) {
@@ -7736,6 +7856,8 @@ function renderInternal() {
             }
         }
         
+        
+        // gray inderline word at cursor #yellow
         if (theLine && wordAtCursorRegexp) {
             // TODO: regular search can benefit from this matchAll business
             // TODO: you can cache the line and the end result of the matches!
