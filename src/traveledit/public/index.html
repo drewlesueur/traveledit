@@ -13,7 +13,7 @@ better handling of super long lines
 the "marker" search should change
 
 inline color args? // args:blue
-
+ 
 
 open html?
 
@@ -6217,6 +6217,12 @@ function expandTabIndex(theLine, start, index, file, nocache) {
     if (start == -1) {
         start = theLine.length
     }
+    if (typeof file == "undefined") {
+        file = fx
+    }
+    if (typeof index == "undefined" || index == -1) {
+        index = file.cursorLineIndex
+    }
 
     var expandedLine = expandLine(theLine, index, file, nocache)
     var adjustedStart = start
@@ -6226,16 +6232,22 @@ function expandTabIndex(theLine, start, index, file, nocache) {
     var newRet = expandedLine.expandedIndexCache[adjustedStart]
     
     
-    var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
-    if (oldRet != newRet) {
-        log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
-    }  
-    return oldRet 
+    // var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
+    // if (oldRet != newRet) {
+    //     log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
+    // }  
+    // return oldRet 
     
     
     return newRet
 }
 function unExpandTabIndex(theLine, start, index, file, nocache) {
+    if (typeof file == "undefined") {
+        file = fx
+    }
+    if (typeof index == "undefined" || index == -1) {
+        index = file.cursorLineIndex
+    }
     var expandedLine = expandLine(theLine, index, file, nocache)
     
     var newRet
@@ -6247,11 +6259,11 @@ function unExpandTabIndex(theLine, start, index, file, nocache) {
         newRet = expandedLine.unexpandedIndexCache[start]
     }
     
-    var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
-    if (oldRet != newRet) {
-        log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
-    }  
-    return oldRet
+    // var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
+    // if (oldRet != newRet) {
+    //     log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
+    // }  
+    // return oldRet
     
     return newRet
 }
@@ -6289,6 +6301,14 @@ var emptyExpandedLine = []
 emptyExpandedLine.expandedIndexCache = [0] // #pastTheEnd
 emptyExpandedLine.unexpandedIndexCache = 1
 function expandLine(theLine, theIndex, file, nocache) {
+    var start = Date.now()
+    if (typeof file == "undefined") {
+        file = fx
+    }
+    if (typeof index == "undefined" || index == -1) {
+        index = file.cursorLineIndex
+    }
+
     var expandedLine
     var tabStop = globalTabStop
     
@@ -6299,8 +6319,6 @@ function expandLine(theLine, theIndex, file, nocache) {
     if (theLine == "") {
         return emptyExpandedLine
     }
-    log("not cached expandLine " + Date.now())
-    log({theLine, theIndex, file, nocache})
     
     cachedGraphemes = getCachedGraphemes(theLine, theIndex, file, nocache)
     var expandedLine = []
@@ -6353,9 +6371,11 @@ function expandLine(theLine, theIndex, file, nocache) {
     expandedLine.expandedIndexCache = expandedIndex
     expandedLine.unexpandedIndexCache = unexpandedIndex
     
-    if (typeof theIndex !== "undefined" && theIndex < fx.lines.length && theIndex > 0) {
-        fx.lines[theIndex].expandedLineCache = expandedLine
+    if (nocache != "nocache" && theIndex < file.lines.length && theIndex > 0) {
+        file.lines[theIndex].expandedLineCache = expandedLine
     }
+    // var dur = Date.now() - start
+    // log({dur, theLine, theIndex, file, nocache})
     return expandedLine
     
 }
@@ -7614,6 +7634,9 @@ var renderDuration = 0
 var renderCount = 0
 var rendersInLastSecond = 0
 function renderInternal() {
+    // note: any time we call expandTabIndex (should not use theLine but should  use something like `fx.lines[y + fx.offsetY] || ""`)
+    // (the selectedRegions part seems fine)
+    
     // todo, how performant is this?
     // better to do this on initial load and then docChanged or something?
     var startRenderTime = Date.now()
@@ -7882,10 +7905,13 @@ function renderInternal() {
                     t.fillStyle = "rgba(255,255,0,0.7)"
                 }
 
-                // TODO: expanding the same line, we could come up with optimization for that
-                var startHighlightPos = expandTabIndex(theLine, pos, y + fx.offsetY)
+                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                // because it gets replaced with a String object with cached peoperites.
+                // var startHighlightPos = expandTabIndex(theLine, pos, y + fx.offsetY)
+                var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", pos, y + fx.offsetY)
                 var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                var highlightLength = (expandTabIndex(theLine, pos+matchLength, y + fx.offsetY)-startHighlightPos) * fontWidth
+                // var highlightLength = (expandTabIndex(theLine, pos+matchLength, y + fx.offsetY)-startHighlightPos) * fontWidth
+                var highlightLength = (expandTabIndex(fx.lines[y + fx.offsetY] || "", pos+matchLength, y + fx.offsetY)-startHighlightPos) * fontWidth
                 t.fillRect(
                     startFillHighlight,
                     y * fontHeight,
@@ -7901,7 +7927,14 @@ function renderInternal() {
             // TODO: regular search can benefit from this matchAll business
             // TODO: you can cache the line and the end result of the matches!
             var matches = theLine.matchAll(wordAtCursorRegexp)
-            for (const match of matches) {
+            for (let match of matches) {
+                // log(match)
+            // for (let _i = 0; _i < 20; _i++) {
+            //     let match = matches[_i]
+            //     if (!match) {
+            //         break
+            //     }
+                
                 // first non null index - 1 (first index is total match)
                 var _regI
                 var _regLen
@@ -7914,11 +7947,14 @@ function renderInternal() {
                 }
                 _regI -= 1 // because first item is full match then capture groups
 
+                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                // because it gets replaced with a String object with cached peoperites.
+                // var startHighlightPos = expandTabIndex(theLine, match.index, y + fx.offsetY)
+                var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", match.index, y + fx.offsetY)
                 // continue
-                // TODO: expanding the same line, we could come up with optimization for that
-                var startHighlightPos = expandTabIndex(theLine, match.index, y + fx.offsetY)
                 var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                var highlightLengthChars = (expandTabIndex(theLine, match.index+_regLen, y + fx.offsetY)-startHighlightPos)
+                // var highlightLengthChars = (expandTabIndex(theLine, match.index+_regLen, y + fx.offsetY)-startHighlightPos)
+                var highlightLengthChars = (expandTabIndex(fx.lines[y + fx.offsetY] || "", match.index+_regLen, y + fx.offsetY)-startHighlightPos)
                 var highlightLength = highlightLengthChars * fontWidth
                 // this is copied from highlightmatches but there is only one
                 if (_regI >= 1) {
@@ -7953,10 +7989,13 @@ function renderInternal() {
                 _regI -= 1 // because first item is full match then capture groups
 
 
-                // TODO: expanding the same line, we could come up with optimization for that
-                var startHighlightPos = expandTabIndex(theLine, match.index, y + fx.offsetY)
+                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                // because it gets replaced with a String object with cached peoperites.
+                // var startHighlightPos = expandTabIndex(theLine, match.index, y + fx.offsetY)
+                var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", match.index, y + fx.offsetY)
                 var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                var highlightLengthChars = (expandTabIndex(theLine, match.index+_regLen, y + fx.offsetY)-startHighlightPos)
+                // var highlightLengthChars = (expandTabIndex(theLine, match.index+_regLen, y + fx.offsetY)-startHighlightPos)
+                var highlightLengthChars = (expandTabIndex(fx.lines[y + fx.offsetY] || "", match.index+_regLen, y + fx.offsetY)-startHighlightPos)
                 var highlightLength = highlightLengthChars * fontWidth
 
                 if (_regI >= highlightMatches.length) {
@@ -7980,7 +8019,7 @@ function renderInternal() {
         }
         
 
-        // Trailing whitespace
+        // Trailing whitespace    
         var highlightStartSearch = 0
         var matchLength = 0
         if (fx.fileMode == "file" && theLine) {
@@ -8002,9 +8041,14 @@ function renderInternal() {
                     t.fillStyle = "rgb(255, 140, 105, 0.25)"
                 }
 
-                var startHighlightPos = expandTabIndex(theLine, pos, y + fx.offsetY)
+                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                // because it gets replaced with a String object with cached peoperites.
+                // if (!theLine)
+                // var startHighlightPos = expandTabIndex(theLine, pos, y + fx.offsetY)
+                var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", pos, y + fx.offsetY)
                 var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                var highlightLengthChars = (expandTabIndex(theLine, pos+matchLength, y + fx.offsetY)-startHighlightPos)
+                // var highlightLengthChars = (expandTabIndex(theLine, pos+matchLength, y + fx.offsetY)-startHighlightPos)
+                var highlightLengthChars = (expandTabIndex(fx.lines[y + fx.offsetY] || "", pos+matchLength, y + fx.offsetY)-startHighlightPos)
                 var highlightLength = highlightLengthChars * fontWidth
                 if ((y + fx.offsetY == fx.cursorLineIndex) && (startHighlightPos + highlightLengthChars == fx.cursorColIndex)) {
                     // Don't annoy with warning when they are typing
@@ -8095,7 +8139,9 @@ function renderInternal() {
                 var oldFillStyle = t.fillStyle
                 t.fillStyle = color
                 var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // _red
-                t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // _red
+                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                // because it gets replaced with a String object with cached peoperites.
+                t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(fx.lines[y + fx.offsetY] || "", -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // _red
                 t.fillStyle = oldFillStyle
             }
         }
