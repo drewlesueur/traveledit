@@ -3340,6 +3340,7 @@ function updateLineFile(file, index, value) {
 
     var theLine = value
     if (useUnicode) {
+        // TODO; this needs wrangling, compare with what's done in getCachedGraphemes
         theLine = new String(value)
         theLine.cachedGraphemes = splitGraphemes(value)
         file.lines[index] = theLine
@@ -3352,6 +3353,34 @@ function updateLine(index, value) {
     return updateLineFile(fx, index, value)
 }
 var emptyArray = []
+
+
+function cacheLineMeta(theLine, index, file, key, value, nocache) {
+    if (nocache == "nocache") {
+        return
+    }
+    if (typeof file == "undefined") {
+        file = fx
+    }
+    if (typeof index == "undefined" || index == -1) {
+        index = file.cursorLineIndex
+    }
+    if (typeof theLine !== "object") {
+        theLine = new String(theLine) 
+    }
+    theLine[key] = value
+    if (index < file.lines.length) {
+        file.lines[index] = theLine
+    }
+}
+function getCachedTrimmedLine(theLine, index, file, nocache) {
+    if (theLine.trimmedCache) {
+        return theLine.trimmedCache
+    }
+    var trimmed = theLine.trim()
+    cacheLineMeta(theLine, index, file, "trimmedCache", trimmed, nocache)
+    return trimmed
+}
 function getCachedGraphemes(theLine, index, file, nocache) {
     if (theLine.length == 0) {
          return emptyArray
@@ -3361,24 +3390,7 @@ function getCachedGraphemes(theLine, index, file, nocache) {
     }
     // log("getCachedGraphemes not cached: " + Date.now())
     var graphemes = splitGraphemes(theLine)
-    if (nocache == "nocache") {
-        return graphemes
-    }
-    if (typeof file == "undefined") {
-        file = fx
-    }
-    if (typeof index == "undefined" || index == -1) {
-        index = file.cursorLineIndex
-    }
-    theLine = new String(theLine) // removes tabCache (aka expandedLineCache)
-    theLine.cachedGraphemes = graphemes
-    // try {
-        if (index < file.lines.length) {
-            file.lines[index] = theLine
-        }
-    // } catch {
-    //     var err = new Error()
-    // }
+    cacheLineMeta(theLine, index, file, "cachedGraphemes", graphemes, nocache)
     return graphemes
 }
 
@@ -6217,12 +6229,6 @@ function expandTabIndex(theLine, start, index, file, nocache) {
     if (start == -1) {
         start = theLine.length
     }
-    if (typeof file == "undefined") {
-        file = fx
-    }
-    if (typeof index == "undefined" || index == -1) {
-        index = file.cursorLineIndex
-    }
 
     // workaround that I might be able to handle elsewhere
     // happens when running "git commit -m" button
@@ -6248,12 +6254,6 @@ function expandTabIndex(theLine, start, index, file, nocache) {
     return newRet
 }
 function unExpandTabIndex(theLine, start, index, file, nocache) {
-    if (typeof file == "undefined") {
-        file = fx
-    }
-    if (typeof index == "undefined" || index == -1) {
-        index = file.cursorLineIndex
-    }
     var expandedLine = expandLine(theLine, index, file, nocache)
     
     var newRet
@@ -6306,14 +6306,8 @@ function testStuff() {
 var emptyExpandedLine = []
 emptyExpandedLine.expandedIndexCache = [0] // #pastTheEnd
 emptyExpandedLine.unexpandedIndexCache = 1
-function expandLine(theLine, theIndex, file, nocache) {
+function expandLine(theLine, index, file, nocache) {
     var start = Date.now()
-    if (typeof file == "undefined") {
-        file = fx
-    }
-    if (typeof index == "undefined" || index == -1) {
-        index = file.cursorLineIndex
-    }
 
     var expandedLine
     var tabStop = globalTabStop
@@ -6326,7 +6320,7 @@ function expandLine(theLine, theIndex, file, nocache) {
         return emptyExpandedLine
     }
     
-    cachedGraphemes = getCachedGraphemes(theLine, theIndex, file, nocache)
+    cachedGraphemes = getCachedGraphemes(theLine, index, file, nocache)
     var expandedLine = []
     var expandedIndex = []
     var unexpandedIndex = []
@@ -6377,11 +6371,9 @@ function expandLine(theLine, theIndex, file, nocache) {
     expandedLine.expandedIndexCache = expandedIndex
     expandedLine.unexpandedIndexCache = unexpandedIndex
     
-    if (nocache != "nocache" && theIndex < file.lines.length && theIndex > 0) {
-        file.lines[theIndex].expandedLineCache = expandedLine
-    }
+    cacheLineMeta(theLine, index, file, "expandedLineCache", expandedLine, nocache)
     // var dur = Date.now() - start
-    // log({dur, theLine, theIndex, file, nocache})
+    // log({dur, theLine, index, file, nocache})
     return expandedLine
     
 }
@@ -7850,6 +7842,7 @@ function renderInternal() {
         // highlight search highlightsearch
         var theLine = fx.lines[y + fx.offsetY] || ""
         var trimmedLine = theLine.trim()
+        // var trimmedLine = getCachedTrimmedLine()
         
         // no longer doing this block of color feature
         // if (trimmedLine.endsWith("#color")) {
