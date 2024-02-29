@@ -7841,8 +7841,8 @@ function renderInternal() {
 
         // highlight search highlightsearch
         var theLine = fx.lines[y + fx.offsetY] || ""
-        var trimmedLine = theLine.trim()
-        // var trimmedLine = getCachedTrimmedLine()
+        // var trimmedLine = theLine.trim()
+        var trimmedLine = getCachedTrimmedLine(theLine, y + fx.offsetY)
         
         // no longer doing this block of color feature
         // if (trimmedLine.endsWith("#color")) {
@@ -7855,19 +7855,24 @@ function renderInternal() {
         //     }
         // }
         
+        var extras = true // _lime
+        // var extras = false // _lime
+        
         // syntax for coloring a line #cyan
-        var matches = trimmedLine.match(/#[a-z]+\b/)
-        if (matches) {
-            let color = matches[0].slice(1)
-            if (CSS.supports("color", color)) {
-                textFillStyleOverride1 = color
+        if (extras) {
+            var matches = trimmedLine.match(/#[a-z]+\b/)
+            if (matches) {
+                let color = matches[0].slice(1)
+                if (CSS.supports("color", color)) {
+                    textFillStyleOverride1 = color
+                }
             }
         }
 
         var highlightStartSearch = 0
         var matchLength = 0
         // search #deepskyblue
-        if (theLine && searchText.value.length) {
+        if (true && theLine && searchText.value.length) {
             // max 20 highlights per line
             for (var _i=0; _i<20; _i++) {
                 if (false && fx.fileMode == "directory") {
@@ -7921,7 +7926,7 @@ function renderInternal() {
         }
         
         // gray inderline word at cursor #yellow
-        if (theLine && wordAtCursorRegexp) {
+        if (extras && theLine && wordAtCursorRegexp) {
             // TODO: regular search can benefit from this matchAll business
             // TODO: you can cache the line and the end result of the matches!
             var matches = theLine.matchAll(wordAtCursorRegexp)
@@ -7969,7 +7974,7 @@ function renderInternal() {
             }
         }
 
-        if (theLine && highlightMatchesSingleRegExp) {
+        if (extras && theLine && theLine.length < 5000 && highlightMatchesSingleRegExp) {
             // TODO: regular search can benefit from this matchAll business
             // TODO: you can cache the line and the end result of the matches!
             var matches = theLine.matchAll(highlightMatchesSingleRegExp)
@@ -8018,45 +8023,47 @@ function renderInternal() {
         
 
         // Trailing whitespace    
-        var highlightStartSearch = 0
-        var matchLength = 0
-        if (fx.fileMode == "file" && theLine) {
-            for (var _i=0; _i<1; _i++) { // Loop so we can break
-                var theMatch = theLine.match(trailingWhitespaceRegexp)
-                if (theMatch == null) {
-                    break
-                }
-                matchLength = theMatch[0].length
-                pos = highlightStartSearch + theMatch.index
-                // lime
-                if (theMatch[0] == "\r") {
-                    t.fillStyle = "rgba(255,0,0,.05)"
-                } else if (isDark) {
-                    // t.fillStyle = "salmon"
-                    t.fillStyle = "rgb(255, 140, 105, 0.25)"
-                } else {
-                    // t.fillStyle = "salmon"
-                    t.fillStyle = "rgb(255, 140, 105, 0.25)"
-                }
-
-                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
-                // because it gets replaced with a String object with cached peoperites.
-                // if (!theLine)
-                // var startHighlightPos = expandTabIndex(theLine, pos, y + fx.offsetY)
-                var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", pos, y + fx.offsetY)
-                var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                // var highlightLengthChars = (expandTabIndex(theLine, pos+matchLength, y + fx.offsetY)-startHighlightPos)
-                var highlightLengthChars = (expandTabIndex(fx.lines[y + fx.offsetY] || "", pos+matchLength, y + fx.offsetY)-startHighlightPos)
-                var highlightLength = highlightLengthChars * fontWidth
-                if ((y + fx.offsetY == fx.cursorLineIndex) && (startHighlightPos + highlightLengthChars == fx.cursorColIndex)) {
-                    // Don't annoy with warning when they are typing
-                } else {
-                    t.fillRect(
-                        startFillHighlight,
-                        y * fontHeight,
-                        highlightLength,
-                        fontHeight
-                    )
+        if (extras) {
+            var highlightStartSearch = 0
+            var matchLength = 0
+            if (fx.fileMode == "file" && theLine) {
+                for (var _i=0; _i<1; _i++) { // Loop so we can break
+                    var theMatch = theLine.match(trailingWhitespaceRegexp)
+                    if (theMatch == null) {
+                        break
+                    }
+                    matchLength = theMatch[0].length
+                    pos = highlightStartSearch + theMatch.index
+                    // lime
+                    if (theMatch[0] == "\r") {
+                        t.fillStyle = "rgba(255,0,0,.05)"
+                    } else if (isDark) {
+                        // t.fillStyle = "salmon"
+                        t.fillStyle = "rgb(255, 140, 105, 0.25)"
+                    } else {
+                        // t.fillStyle = "salmon"
+                        t.fillStyle = "rgb(255, 140, 105, 0.25)"
+                    }
+    
+                    // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                    // because it gets replaced with a String object with cached peoperites.
+                    // if (!theLine)
+                    // var startHighlightPos = expandTabIndex(theLine, pos, y + fx.offsetY)
+                    var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", pos, y + fx.offsetY)
+                    var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
+                    // var highlightLengthChars = (expandTabIndex(theLine, pos+matchLength, y + fx.offsetY)-startHighlightPos)
+                    var highlightLengthChars = (expandTabIndex(fx.lines[y + fx.offsetY] || "", pos+matchLength, y + fx.offsetY)-startHighlightPos)
+                    var highlightLength = highlightLengthChars * fontWidth
+                    if ((y + fx.offsetY == fx.cursorLineIndex) && (startHighlightPos + highlightLengthChars == fx.cursorColIndex)) {
+                        // Don't annoy with warning when they are typing
+                    } else {
+                        t.fillRect(
+                            startFillHighlight,
+                            y * fontHeight,
+                            highlightLength,
+                            fontHeight
+                        )
+                    }
                 }
             }
         }
@@ -8091,7 +8098,7 @@ function renderInternal() {
         var commentLine = false
         // TODO: maybe pull some of this out of the loop
         // if (fx.fileMode != "terminal") {
-        if (true) {
+        if (extras) {
             if (theLine.startsWith("+")) {
                 textFillStyle = isDark ? "lime" : "green"
             } else if (theLine.startsWith("-")){
@@ -8130,17 +8137,19 @@ function renderInternal() {
         // }
 
         // syntax for underline _green
-        var matches = trimmedLine.match(/\b_[a-z]+\b/)
-        if (matches) {
-            let color = matches[0].slice(1)
-            if (CSS.supports("color", color)) {
-                var oldFillStyle = t.fillStyle
-                t.fillStyle = color
-                var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // _red
-                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
-                // because it gets replaced with a String object with cached peoperites.
-                t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(fx.lines[y + fx.offsetY] || "", -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // _red
-                t.fillStyle = oldFillStyle
+        if (extras) {
+            var matches = trimmedLine.match(/\b_[a-z]+\b/)
+            if (matches) {
+                let color = matches[0].slice(1)
+                if (CSS.supports("color", color)) {
+                    var oldFillStyle = t.fillStyle
+                    t.fillStyle = color
+                    var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // _red
+                    // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                    // because it gets replaced with a String object with cached peoperites.
+                    t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(fx.lines[y + fx.offsetY] || "", -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // _red
+                    t.fillStyle = oldFillStyle
+                }
             }
         }
 
