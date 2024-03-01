@@ -12352,10 +12352,10 @@ function touchAreasPressWhileSelected(e, state) {
             duplicateSelection()
         },
         "3left": function() {
-            dedent()
+            // dedent()
         },
         "3right": function() {
-            indent()
+            // indent()
         },
         "1left": function () {
             del()
@@ -12517,8 +12517,12 @@ function touchAreasPress(e, state) {
         "4midRight": function () {
         },
         "3left": function () {
-            // clearSearch()
-            dedent()
+            if (searchText.value != getWordAtCursor().word) {
+                clearSearch()
+            }
+            findUp()
+            
+            // dedent()
         },
         "3midLeft": function () {
             clearSearch()
@@ -12543,8 +12547,13 @@ function touchAreasPress(e, state) {
             }
         },
         "3right": function () {
-            // clearSearch()
-            indent()
+            if (searchText.value != getWordAtCursor().word) {
+                clearSearch()
+            }
+            findDown()
+            
+            // indent()
+            // TODO: need to figure out easy indent
         },
         "2left": function () {
             comment()
