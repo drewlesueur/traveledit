@@ -8967,6 +8967,7 @@ function onStart(e) {
                 selectedRegion.stopY = fx.cursorLineIndex
                 selectedRegion.stopX = fx.cursorColIndex + 1
                 selectedRegion.stopped = true
+                // TODO: selectMode should go on fx
                 selectMode = "char"
             } else {
                 var w = getWordAtCursor()
@@ -9658,7 +9659,13 @@ function onStart(e) {
             "2farRight": navFileRight,
             "1farLeft": function () {
                 if (fx.selectedRegions.length) {
-                    moveSelectionLeft()
+                    if (selectMode == "char") {
+                        moveSelectionLeft()
+                    } else {
+                        dedent()
+                        ghostSelection = fx.selectedRegions[0]
+                        fx.selectedRegions = []
+                    }
                 } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
                     goUpFileList()
                 } else if (ghostSelection) {
@@ -9676,7 +9683,13 @@ function onStart(e) {
             },
             "1farRight": function () {
                 if (fx.selectedRegions.length) {
-                    moveSelectionRight()
+                    if (selectMode == "char") {
+                        moveSelectionRight()
+                    } else {
+                        indent()
+                        ghostSelection = fx.selectedRegions[0]
+                        fx.selectedRegions = []
+                    }
                 } else if (fx.fileMode == "fileList" || fx.fileMode == "directory") {
                     goDownFileList()
                 } else if (ghostSelection) {
