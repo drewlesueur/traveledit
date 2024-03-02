@@ -509,7 +509,7 @@ They get changed later on.
     <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4-1106-preview')>chatGPT4</div>
     <div class=middleButton onclick=reloadFile(fx)>reload</div>
     <div class=middleButton onclick=goUpDirectory()>⬆️</div>
-    <div class=middleButton onclick="osCopyText()" id=statusBar2>os copy</div>
+    <div class=middleButton onclick="osCopyText()">os copy</div>
     <div id=saveButton class=middleButton onclick=saveWrapper()>save</div>
     <div class=middleButton onclick="runScript()" id=statusBar>run script</div>
     <div class=middleButton onclick="runScript()">action2</div>
@@ -696,7 +696,7 @@ They get changed later on.
         <div class=square onclick=editSearch()>edit search</div>
     -->
     <div class=square onclick="osCopyText()" id=statusBar2>os copy</div>
-    <div class=square onclick="osPasteText()">os paste</div>
+    <div class=square onclick="osPasteText()" id=statusBar3>os paste</div>
     <div class=square onclick=addCmdTab()>cmd</div>
     <div class=square onclick=addTerminalTab()>xterm</div>
     <div class=square onclick=closeFile()>close</div>
@@ -7295,6 +7295,11 @@ function render() {
         // statusBar.innerText = Math.round(verticalTouchSize)
     }
     statusBar2.innerText = fx.cursorColIndex + " os copy"
+    if (fx.selectedRegions.length) {
+        statusBar3.innerText = (fx.selectedRegions[0].stopY - fx.selectedRegions[0].startY + 1) + " os paste"
+    } else {
+        statusBar3.innerText = "os paste"
+    }
     
     // this is commented out because of iphone 12 mini slowness
     // see renderSaves()
