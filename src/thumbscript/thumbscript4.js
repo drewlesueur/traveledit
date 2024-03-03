@@ -858,7 +858,6 @@ thumbscript4.tokenize = function(code, debug) {
         log2("+first pass tokens")
         log2(tokens) // red marker
     }
-    // return // REMOVE THIS! maroon marker
     tokens = thumbscript4.squishFuncs(tokens)
     if (debug) {
         log2("+squished funcs")

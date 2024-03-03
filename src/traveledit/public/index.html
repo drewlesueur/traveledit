@@ -5334,6 +5334,17 @@ function getIndent(line) {
     }
     return theIndent
 }
+function getExpandedIndentLength(theLine, index, file, nocache) {
+    var expandedLine = expandLine(theLine, index, file, nocache)
+    for (var i=0; i<expandedLine.length; i++) {
+        var theChar = expandedLine[i]
+        if (theChar == " " || theChar == "\t") {
+            continue
+        }
+        return i
+    }
+    return 0
+}
 
 function adjustHighlightRanges(index, linesAddedCount, theFile) {
     // splice adds before
@@ -8317,7 +8328,7 @@ function renderInternal() {
         // drawCircle("royalblue", canvasWidth * (1-selectAreaRatio), canvasHeight-(2*vtsThrice)-halfVTSThrice, dotSize/2, theBackgroundColor, 5)
         
         // for (y=0; y<6; y++) {
-        for (y=0; y<5; y++) {
+        for (let y=0; y<5; y++) {
             var prevRatio = 0
             for (var i=0; i<touchRatios.length; i++) {
                 var ratio = touchRatios[i]
@@ -8352,11 +8363,7 @@ function renderInternal() {
                             color = "red"
                         }
                     }
-                    // if (y == 5) {
-                        // drawCircle(color, x, 20, usedDotSize, theBackgroundColor, 5)
-                    // } else {
-                        drawCircle(color, x, canvasHeight-(y*vtsThrice)-halfVTSThrice, usedDotSize, theBackgroundColor, 5)
-                    // }
+                    drawCircle(color, x, canvasHeight-(y*vtsThrice)-halfVTSThrice, usedDotSize, theBackgroundColor, 5)
                 }
                 prevRatio = ratio
             }
@@ -9678,7 +9685,11 @@ function onStart(e) {
                 } else if (ghostSelectionComment) {
                     dedent(ghostSelectionComment)
                 } else {
-                    moveCursorLeft()
+                    if (fx.cursorColIndex <= getExpandedIndentLength(fx.lines[fx.cursorLineIndex])) {
+                        dedent()
+                    } else {
+                        moveCursorLeft()
+                    }
                     // if (lastDirection == "horizontal") {
                     //     moveCursorLeft()
                     // } else {
@@ -9702,7 +9713,11 @@ function onStart(e) {
                 } else if (ghostSelectionComment) {
                     indent(ghostSelectionComment)
                 } else {
-                    moveCursorRight()
+                    if (fx.cursorColIndex < getExpandedIndentLength(fx.lines[fx.cursorLineIndex])) {
+                        indent()
+                    } else {
+                        moveCursorRight()
+                    }
                     // if (lastDirection == "horizontal") {
                     //     moveCursorRight()
                     // } else {
@@ -13088,6 +13103,24 @@ function selectBlock() {
     render()
 }
 
+function downloadBytes(byteArray, filename, type) {
+    // Create a blob from the byte array
+    let typedArray = new Uint8Array(byteArray);
+    let file = new Blob([typedArray], { type: type });
+
+    // Create an anchor element and trigger the download
+    let a = document.createElement("a"),
+        url = URL.createObjectURL(file);
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    // We should revoke the URL after the download
+    setTimeout(function() {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+    }, 0);
+}
 
 </script>
 <audio id="audio" controls></audio>
