@@ -981,14 +981,14 @@ thumbscript4.someIfMagic = function(tokens) {
     while (i < tokens.length) {
         var token = tokens[i]
         if (token.th_type == builtInType) {
-            if (token.name == "?" || token.name == "if") {
+            if (token.name == "?" || token.name == "if" || token.name == "?!" || token.name == "ifnot") {
                 // hmm if I used a linked list for tokens,
                 // then it moght be easier to point to thr end node, instead of end index
                 // that might make inlining easier.
                 token.endOfIfChainI = -1
                 currentIfs = []
                 currentIfs.push(token)
-            } else if (token.name == "??" || token.name == "elseif") {
+            } else if (token.name == "??" || token.name == "elseif" || token.name == "??!" || token.name == "elseifnot") {
                 token.endOfIfChainI = -1
                 for (var j=0; j < currentIfs.length; j++) {
                     currentIfs[j].endOfIfChainI = i
@@ -1655,7 +1655,7 @@ thumbscript4.breakN = function (n, world) {
         if (world.onEnd) world.onEnd(world)
         var rWorld = world
         world = world.parent
-        log2(`+world went from ${rWorld.name} to ${world.name}`)
+        // log2(`+world went from ${rWorld.name} to ${world.name}`)
         while (world && world.isParens) {
             alert("should not get here parens 4")
             world = world.parent
@@ -1698,8 +1698,8 @@ thumbscript4.builtIns = {
     isnt: thumbscript4.genFunc2((a, b) => a != b),
     eq: thumbscript4.genFunc2((a, b) => a === b),
     ne: thumbscript4.genFunc2((a, b) => a !== b),
-    // chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
-    // ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
+    chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
+    ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
     // at: thumbscript4.genFunc2((a, b) => a[b]),
     at: thumbscript4.genFunc2((a, b) => {
         // try {
@@ -1727,6 +1727,9 @@ thumbscript4.builtIns = {
     length: thumbscript4.genFunc1((a) => a.length),
     len: thumbscript4.genFunc1((a) => a.length),
     push: thumbscript4.genFunc2NoReturn((a, b) => a.push(b)),
+    blobfrombytes: thumbscript4.genFunc2((bytes, type) => new Blob([new Uint8Array(bytes)], { type: type })),
+    blobfromstrings: thumbscript4.genFunc2((strings, type) => new Blob(strings, { type: type })),
+    pushto: thumbscript4.genFunc2NoReturn((a, b) => b.push(a)),
     pop: thumbscript4.genFunc1((a) => a.pop()),
     unshift: thumbscript4.genFunc2NoReturn((a, b) => a.unshift(b)),
     shift: thumbscript4.genFunc1((a) => a.shift()),
@@ -1736,6 +1739,8 @@ thumbscript4.builtIns = {
     split: thumbscript4.genFunc2((a, b) => {
         return a.split(b)
     }),
+    upper: thumbscript4.genFunc1((a) => a.toUpperCase()),
+    lower: thumbscript4.genFunc1((a) => a.toLowerCase()),
     trim: thumbscript4.genFunc1((a) => a.trim()),
     indexof: thumbscript4.genFunc2((a, b) => a.indexOf(b)),
     contains: thumbscript4.genFunc2((a, b) => a && a?.indexOf(b) !== -1),
@@ -1802,7 +1807,8 @@ thumbscript4.builtIns = {
                         returned = true
                         thumbscript4.outstandingCallbacks--
                         world.stack.push(r)
-                        world.state.lastError = null
+                        world.stack.push(null)
+                        // world.state.lastError = null
                         thumbscript4.run(world)
                     } catch (e) {
                         alert(e)
@@ -1813,7 +1819,8 @@ thumbscript4.builtIns = {
                     returned = true
                     thumbscript4.outstandingCallbacks--
                     world.stack.push(null)
-                    world.state.lastError = err
+                    world.stack.push(err)
+                    // world.state.lastError = err
                     thumbscript4.run(world)
                 }
             })
@@ -2007,6 +2014,11 @@ thumbscript4.builtIns = {
     nameworld: function(world) {
         var a = world.stack.pop()
         world.name = a
+        return world
+    },
+    jseval: function(world) {
+        var code = world.stack.pop()
+        world.stack.push(window.eval(code))
         return world
     },
     jsdrop: function(world) {
@@ -2401,11 +2413,36 @@ thumbscript4.builtIns = {
         }
         return world
     },
+    "?!": function(world, token) {
+        var block = world.stack.pop()
+        var cond = world.stack.pop()
+        if (!cond) {
+            if (token.endOfIfChainI != -1) {
+                world.i = token.endOfIfChainI
+            }
+            world = thumbscript4.builtIns.callany_skipstack(world, block)
+        } else {
+            // there are more places to recycle, this is just an easy one
+            // thumbscript4.recycleClosure(block)
+        }
+        return world
+    },
     // elseif (same as if, but token name needs to be different, see someIfMagic)
     "??": function(world, token) {
         var block = world.stack.pop()
         var cond = world.stack.pop()
         if (cond) {
+            if (token.endOfIfChainI != -1) {
+                world.i = token.endOfIfChainI
+            }
+            world = thumbscript4.builtIns.callany_skipstack(world, block)
+        }
+        return world
+    },
+    "??!": function(world, token) {
+        var block = world.stack.pop()
+        var cond = world.stack.pop()
+        if (!cond) {
             if (token.endOfIfChainI != -1) {
                 world.i = token.endOfIfChainI
             }
@@ -2502,7 +2539,9 @@ thumbscript4.builtIns = {
     }
 }
 thumbscript4.builtIns["if"] = thumbscript4.builtIns["?"]
+thumbscript4.builtIns["ifnot"] = thumbscript4.builtIns["?!"]
 thumbscript4.builtIns["elseif"] = thumbscript4.builtIns["??"]
+thumbscript4.builtIns["elseifnot"] = thumbscript4.builtIns["??!"]
 thumbscript4.builtIns["else"] = thumbscript4.builtIns["?;"]
 
 // do is an alias for call
@@ -3137,9 +3176,9 @@ thumbscript4.stdlib = function x() { /*
         rows: []
         state: "in_space"
         loopn. headerLine len { :i
-            chr: headerLine[i]
+            theChr: headerLine[i]
             if. state IS "in_space" {
-                if. trim(chr) IS "" { }
+                if. trim(theChr) IS "" { }
                 else. {
                     state = "in_word"
                     contentIndexes PUSH i
@@ -3152,7 +3191,7 @@ thumbscript4.stdlib = function x() { /*
                 }
             }
             elseif. state IS "in_word" {
-                if. chr trim "" is {
+                if. theChr trim "" is {
                     state = "in_space"
                 }
             }

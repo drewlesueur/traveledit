@@ -5452,14 +5452,18 @@ function insertLine(closeCurly, oMode) {
     render()
     renderTheText(fx.lines[fx.cursorLineIndex])
 }
+
+
+function getDirOfFile() {
+    if (fx.fileMode == "directory") {
+        return fx.fullPath.split("/").join("/")
+    }
+    return fx.fullPath.split("/").slice(0, -1).join("/")
+}
 function uploadFile(e) {
     e.preventDefault()
     let formData = new FormData();
-    if (fx.fileMode == "directory") {
-        formData.append("thedirectory", fx.fullPath.split("/").join("/"));
-    } else {
-        formData.append("thedirectory", fx.fullPath.split("/").slice(0, -1).join("/"));
-    }
+    formData.append("thedirectory", getDirOfFile());
     for (var i=0; i<filesToUpload.files.length; i++) {
         formData.append("thefiles", filesToUpload.files[i]);
     }
@@ -5472,6 +5476,19 @@ function uploadFile(e) {
     })
     return false
 }
+function uploadBlob(blob, filename) {
+    let formData = new FormData();
+    formData.append("thedirectory", getDirOfFile());
+    formData.append("thefiles", blob, filename);
+    return fetch(proxyPath + '/myuploadfiles', {
+        method: "POST", body: formData
+    }).then(() => {
+        alert("done uploading blob")
+    }).catch(e => {
+        alert("error uploading blob:" + e)
+    })
+}
+
 
 // See other places where we simply splice an empty string 
 // like when calling chatGPT
@@ -13103,24 +13120,22 @@ function selectBlock() {
     render()
 }
 
-function downloadBytes(byteArray, filename, type) {
-    // Create a blob from the byte array
-    let typedArray = new Uint8Array(byteArray);
-    let file = new Blob([typedArray], { type: type });
-
-    // Create an anchor element and trigger the download
-    let a = document.createElement("a"),
-        url = URL.createObjectURL(file);
+function downloadFile(bytes, type, filename) {
+    var file = new Blob([new Uint8Array(bytes)], { type: type });
+    var url = URL.createObjectURL(file);
+    var a = document.createElement("a");
     a.href = url;
     a.download = filename;
     document.body.appendChild(a);
     a.click();
-    // We should revoke the URL after the download
     setTimeout(function() {
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
     }, 0);
 }
+// df([65, 66], "text/plain", "test.txt")
+
+
 
 </script>
 <audio id="audio" controls></audio>
