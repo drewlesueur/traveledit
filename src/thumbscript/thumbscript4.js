@@ -48,6 +48,9 @@ function j(x) {
     return JSON.stringify(x, null, "    ")
 }
 
+thumbscript4.isNumeric = function (x) {
+    return x.replaceAll("_", "") - 0 == x
+}
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true // count: count 1 plus
@@ -550,7 +553,7 @@ thumbscript4.tokenize = function(code, debug) {
                     tokens.push(atToken)
                     tokens.push(leftSquareBracket)
                 }
-            } else if (".".indexOf(chr) != -1 && "\n ".indexOf(nextChar) == -1) {
+            } else if (".".indexOf(chr) != -1 && !thumbscript4.isNumeric(currentToken) && "\n ".indexOf(nextChar) == -1) {
                 
                 // yellow #color
                 // let word = tokens.pop()
@@ -3559,7 +3562,7 @@ thumbscript4.tokenize(`
 
 // foo.Bar = 1
 // foo.BAR = 1
-
+1.2
 `, true) // _aquamarine
 
 function promiseCheck(name) {
