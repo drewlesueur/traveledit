@@ -275,8 +275,8 @@ thumbscript4.tokenize = function(code, debug) {
                         }
                     }
                 }
-            // } else if (".".indexOf(chr) != -1 && ")]}".indexOf(code.charAt(i-1)) != -1) {
-            } else if (".".indexOf(chr) != -1) {
+            } else if (".".indexOf(chr) != -1 && ")]}".indexOf(code.charAt(i-1)) != -1) {
+            // } else if (".".indexOf(chr) != -1) {
                 
                 // this broken
                 // yellow #color
@@ -434,7 +434,7 @@ thumbscript4.tokenize = function(code, debug) {
                 freshLine = false // orange marker
                 state = "string2"
                 string2OpenCount = 1
-            } else if ("•@".indexOf(chr) != -1) {
+            } else if (".•@".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 state = "dot"
                 currentToken = chr
@@ -838,7 +838,7 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "in"
             }
         } else if (state == "dot") {
-            if ("•@".indexOf(chr) != -1) {
+            if (".•@".indexOf(chr) != -1) {
                 currentToken += chr
             } else {
                 i--
@@ -1181,7 +1181,7 @@ thumbscript4.desugarAtSign = function(tokens) {
 
         if (token.th_type == varType) {
             var j = 0
-            while (j < token.valueString.length && "•@".indexOf(token.valueString.charAt(j)) != -1) {
+            while (j < token.valueString.length && ".•@".indexOf(token.valueString.charAt(j)) != -1) {
                 j++
             }
             if (j == 0) {
@@ -3559,7 +3559,15 @@ thumbscript4.tokenize(`
 
 // foo.Bar = 1
 // foo.BAR = 1
+// foo
+// .bar
+// yo
 
+// yo foo. bar [
+//     bizzy
+// ] bazzy
+
+a .b c
 `, true) // _aquamarine
 
 function promiseCheck(name) {
