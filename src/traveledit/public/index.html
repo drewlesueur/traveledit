@@ -9712,7 +9712,7 @@ function onStart(e) {
                 } else if (ghostSelectionComment) {
                     dedent(ghostSelectionComment)
                 } else {
-                    if (fx.cursorColIndex <= getExpandedIndentLength(fx.lines[fx.cursorLineIndex])) {
+                    if (fx.cursorColIndex <= getExpandedIndentLength(fx.lines[fx.cursorLineIndex]) - globalTabStop) {
                         dedent()
                     } else {
                         moveCursorLeft()
@@ -9740,7 +9740,7 @@ function onStart(e) {
                 } else if (ghostSelectionComment) {
                     indent(ghostSelectionComment)
                 } else {
-                    if (fx.cursorColIndex < getExpandedIndentLength(fx.lines[fx.cursorLineIndex])) {
+                    if (fx.cursorColIndex <= getExpandedIndentLength(fx.lines[fx.cursorLineIndex]) - globalTabStop) {
                         indent()
                     } else {
                         moveCursorRight()
