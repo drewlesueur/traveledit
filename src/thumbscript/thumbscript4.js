@@ -55,8 +55,8 @@ thumbscript4.isNumeric = function (x) {
 thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true // count: count 1 plus
     var funcFirstWithDotSugar = true // say. "hello world" or .say "hi"
-    var funcFirstWithUpper = true // Say "hello world" or .say "hi"
-    var allUpperSugar = true // 1 PLUS 2
+    var funcFirstWithUpper = false // Say "hello world" or .say "hi"
+    var allUpperSugar = false // 1 PLUS 2
     // var funcFirstSugar = true // say "hello world"
     var funcFirstSugar = false // say "hello world"
     var parensCallSugar = true // str slice(2 3)
@@ -1749,6 +1749,8 @@ thumbscript4.builtIns = {
     contains: thumbscript4.genFunc2((a, b) => a && a?.indexOf(b) !== -1),
     replace: thumbscript4.genFunc3((a, b, c) => a.replaceAll(b, c)),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
+    padStart: thumbscript4.genFunc3((s, len, c) => s.padStart(len, c)),
+    padEnd: thumbscript4.genFunc3((s, len, c) => s.padEnd(len, c)),
     urlencode: thumbscript4.genFunc1((a) => {
         if (a === null) {
             return ""
@@ -3062,8 +3064,8 @@ thumbscript4.stdlib = function x() { /*
             
             loopn. skip {
                 :subi
-                i PLUS subi
-                list[i PLUS subi]
+                i .plus subi
+                list[i .plus subi]
             }
             fn
             i = i plus(skip)
@@ -3071,18 +3073,18 @@ thumbscript4.stdlib = function x() { /*
     }
     looprange: {
         :fn :to :from
-        if. from LT to {
-            n: to MINUS from PLUS 1
+        if. from .lt to {
+            n: to .minus from .plus 1
             loopn. n {
                 :i
-                from PLUS i fn
+                from .plus i fn
             }
             stopp
         }
-        n: from MINUS to PLUS 1
+        n: from .minus to .plus 1
         loopn. n {
             :i
-            to MINUS i fn
+            to .minus i fn
         }
     }
     replacegroup: {
@@ -3097,11 +3099,11 @@ thumbscript4.stdlib = function x() { /*
               loopn. subChunks len {
                   :sI
                   subChunks at(sI) newChunks push
-                  if. sI NE (subChunks len MINUS 1) {
+                  if. sI .ne (subChunks len .minus 1) {
                       newChunks toReplace push
                   }
               }
-              if. i lt(chunks len MINUS 1) {
+              if. i lt(chunks len .minus 1) {
                   newChunks nextPartialStr push
               }
           }
@@ -3124,16 +3126,16 @@ thumbscript4.stdlib = function x() { /*
         } ?
         config $headers at {
             :v :k
-            "-H " "$k: $v" bashStrEscape cc
+            "-H " "$k: $v" bashStrEscape .cc
             headers swap push
         } foreach
         headersStr: headers " " join
         dataStr: ""
-        say. "the body is " CC config.body
+        say. "the body is " .cc config.body
         data: config $body at
-        say. "the data is " CC data
+        say. "the data is " .cc data
         if. data {
-            dataStr: " -d " data bashStrEscape cc
+            dataStr: " -d " data bashStrEscape .cc
         }
         extraFlags: ""
         if. config.extraFlags {
@@ -3154,7 +3156,7 @@ thumbscript4.stdlib = function x() { /*
             :line :i
             line split(",")
 
-            if. i IS 0 {
+            if. i .is 0 {
                 > theKeys
                 stopp
             }
@@ -3173,27 +3175,27 @@ thumbscript4.stdlib = function x() { /*
         :dbOutput
         lines: split. trim(dbOutput) lf
         // add extra space
-        headerLine: lines[0] CC " x" // extra col to close out the previous one
+        headerLine: lines[0] .cc " x" // extra col to close out the previous one
         contentIndexes: []
         theKeys: []
         rows: []
         state: "in_space"
         loopn. headerLine len { :i
             theChr: headerLine[i]
-            if. state IS "in_space" {
-                if. trim(theChr) IS "" { }
+            if. state .is "in_space" {
+                if. trim(theChr) .is "" { }
                 else. {
                     state = "in_word"
-                    contentIndexes PUSH i
+                    contentIndexes .push i
 
-                    if. contentIndexes len GT 1 {
-                        a: contentIndexes[contentIndexes len MINUS 2]
-                        b: contentIndexes[contentIndexes len MINUS 1]
+                    if. contentIndexes len .gt 1 {
+                        a: contentIndexes[contentIndexes len .minus 2]
+                        b: contentIndexes[contentIndexes len .minus 1]
                         headerLine slice(a b) trim theKeys swap push
                     }
                 }
             }
-            elseif. state IS "in_word" {
+            elseif. state .is "in_word" {
                 if. theChr trim "" is {
                     state = "in_space"
                 }
@@ -3203,9 +3205,9 @@ thumbscript4.stdlib = function x() { /*
             line: lines[i] trim
             row: newobj
             looprange. 1 contentIndexes len minus(1) { :j
-                a: contentIndexes[j MINUS 1]
+                a: contentIndexes[j .minus 1]
                 b: contentIndexes[j]
-                row[theKeys[j MINUS 1]] = line slice(a b) trim
+                row[theKeys[j .minus 1]] = line slice(a b) trim
             }
             rows row push
         }
@@ -3570,8 +3572,8 @@ thumbscript4.tokenize(`
 //     bizzy
 // ] bazzy
 
-a .b c
-1.2
+// a .b c
+// 1.2
 `, true) // _aquamarine
 
 function promiseCheck(name) {
@@ -3621,11 +3623,13 @@ log2("js county: " + county)
 // foo.(bar).baz = 100
 // :(foo.bar.baz)
 
+// `, window); false && thumbscript4.eval(` // _lime
 thumbscript4.eval(` // _lime
+
+
 a: 900
 say. "hello $a"
 
-`, window); false && thumbscript4.eval(` // _lime
 #main
 
 a: 101
@@ -3663,7 +3667,6 @@ every. 2 [100 200 300 400 500] {
     "every b: $i2: $v2" say
 }
 
-exit
 
 i9: 0
 loopn. 10 {
@@ -3678,7 +3681,7 @@ loopn. 10 {
 
 
 
-Loopn 3 {
+loopn. 3 {
    say. "hi " swap cc
    // stop
    break
@@ -3716,7 +3719,7 @@ say. chunks
 // say. "+++++++"
 
 
-Loopn 3 {
+loopn. 3 {
     :i
     "why hello " i cc say
 }
@@ -3734,7 +3737,7 @@ Loopn 3 {
 
 say. "hello world!"
 
-1 IS 1
+1 .is 1
 " what was that" cc say
 
 // say. "+hello world!"
@@ -3817,7 +3820,7 @@ funcs: []
 // funcs[1]()
 // funcs[2]()
 
-Each funcs {
+each. funcs {
     call
 }
 
@@ -3831,11 +3834,11 @@ Each funcs {
 //     }
 // }
 
-If false {
+if. false {
     say. "check 1" }
-Elseif true {
+elseif. true {
     say. "check 2" }
-Else {
+elseif. {
     say. "check 3"
 }
 
@@ -4018,15 +4021,12 @@ say. a
 12 :a 13 :b
 say. "$a and $b"
 
-`, window); false && thumbscript4.eval(` // lime marker
-`, window); false && thumbscript4.eval(` // lime marker
+`, window);  // _lime
 
-
-`, window)
-
-thumbscript4.exampleCode = function () { // maroon marker
+thumbscript4.exampleCode = function () { // _maroon
 /*
 
+say. "🫐🫐🫐🫐🫐🫐🫐🫐🫐"
 say. "hello"
 
 // commenty gray marker
@@ -4881,7 +4881,7 @@ assertempty. "a check" // olive marker
     "hello! " swap cc say
 } loopn
 
-Every 2 [100 200 300 400 500] {
+every. 2 [100 200 300 400 500] {
     :v2 :i2 :v1 :i1
     "every: $i1: $v1" say
     "every: $i2: $v2" say
@@ -4923,7 +4923,7 @@ assertempty // olive marker
 
 "every day is a new day" " " split :mylist
 
-Every 2 mylist {
+every. 2 mylist {
     4 take say
 } 
 
@@ -5197,6 +5197,30 @@ somefunc
 var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n")
 
 
+
+// alert(greet("drew"))
+
+
+
+// come back to this
+// var world = thumbscript4.eval(thumbscript4.stdlib, {})
+// thumbscript4.defaultState = world.state
+// log2(world.state.a)
+
+
+ // mid 70 ms for the onenperf check
+// thumbscript4.eval(code, {})
+thumbscript4.eval(code, window, [], {async: true}) // red marker
+// window makes my test a bit slower (in 80s) interesting
+// actuallt down to sub 60 ms now. with inlining
+// was mis 60s before.
+// showLog()
+
+
+// setTimeout(function() {
+//     showLog()
+// }, 1001)
+
 thumbscript4.makeJsFunc = function (f) {
     var lines = f.toString().split("\n").slice(1, -1)
     var code = lines.join("\n")
@@ -5217,32 +5241,6 @@ var greet = thumbscript4.makeJsFunc(() => { /*
     :a
     "Hello " a cc
 */ })
-
-// alert(greet("drew"))
-
-
-
-
-
-// come back to this
-// var world = thumbscript4.eval(thumbscript4.stdlib, {})
-// thumbscript4.defaultState = world.state
-// log2(world.state.a)
-
-
- // mid 70 ms for the onenperf check
-// thumbscript4.eval(code, {})
-false && thumbscript4.eval(code, window, [], {async: true}) // red marker
-// window makes my test a bit slower (in 80s) interesting
-// actuallt down to sub 60 ms now. with inlining
-// was mis 60s before.
-// showLog()
-
-
-// setTimeout(function() {
-//     showLog()
-// }, 1001)
-
 /*
 
 
