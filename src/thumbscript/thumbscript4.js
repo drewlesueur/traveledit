@@ -5,20 +5,25 @@ var thumbscript4 = {}
 // headerLine: lines[0] CC " " // add extra space
 
 // because of terms, you can get rid of storefunc and callstored
-// func(a b): { } syntax
+
+// func(a b): { } syntax, maybe. not
 
 // a: 10 1 plus b: 30
 // a = 10
 // foo.bar < 300
 // 10 1 plus :b 30 1 plus :c
-
-
 // allow foo["bar"]: 20
-// get rid of foo $bar:: 20
-// get rid of [foo $bar]: 20
-// allow ewual sign as alternate to :
-// a = b means a: b
-// auto parens around a.b[c PLUS d] or foo(biz)
+
+/*
+Maybe ok but inconsistent
+
+    these work
+        foo. "hi" "yo"
+        "hi" .foo "yo"
+     these don't
+        foo.bar. "hi" "yo"
+        "hi" .foo.bar "yo"
+*/
 
 
 // idea for perf. after desugaring, you can remove the parens
@@ -400,7 +405,7 @@ thumbscript4.tokenize = function(code, debug) {
                 // end #color
                 currentToken = ""
                 state = "out"
-            } else if (" \n\t".indexOf(chr) != -1) {
+            } else if (" \n\t;".indexOf(chr) != -1) {
                 
                 var prevChar = code.charAt(i-1)
                 
@@ -416,7 +421,7 @@ thumbscript4.tokenize = function(code, debug) {
                 // end #color
                 
                 // TODO: this is copy-pasted
-                if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                if (leftAssignSugar && addClosingParensOnNewLine && "\n;".indexOf(chr) != -1) {
                     // TODO: I check for close too much
                     // also should not check leftAssignSugar just addClosingParensOnNewLine
                     for (let i = 0; i < addClosingParensOnNewLine; i++) {
@@ -424,7 +429,7 @@ thumbscript4.tokenize = function(code, debug) {
                     }
                     addClosingParensOnNewLine = 0
                 }
-                if (leftAssignSugar && "\n".indexOf(chr) != -1) {
+                if (leftAssignSugar && "\n;".indexOf(chr) != -1) {
                     freshLine = true
                 }
             } else if ("/".indexOf(chr) != -1) {
@@ -525,6 +530,7 @@ thumbscript4.tokenize = function(code, debug) {
                     var storefunc = {th_type: builtInType, valueFunc: thumbscript4.builtIns["storefunc"], name: "storefunc", preventCall: false}
                     var callstored = {th_type: builtInType, valueFunc: thumbscript4.builtIns["callstored"], name: "callstored", preventCall: false}
                     var dotToken = {th_type: varType, valueString: "•", preventCall: false}
+                    
                     tokens.push(storefunc)
                     tokens.push(dotToken)
                     tokens.push(callstored)
@@ -617,7 +623,7 @@ thumbscript4.tokenize = function(code, debug) {
                 }
                 currentToken = ""
                 state = "out"
-            } else if (" \n\t".indexOf(chr) != -1) {
+            } else if (" \n\t;".indexOf(chr) != -1) {
                 let addedToken = currentToken
                 var oldQuoteNext = quoteNext // basically if a "." is before
                 addToken(currentToken)
@@ -640,7 +646,7 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine++
-                } else if (funcFirstSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                } else if (funcFirstSugar && addClosingParensOnNewLine && "\n;".indexOf(chr) != -1) {
                     for (let i = 0; i < addClosingParensOnNewLine; i++) {
                         addToken(")") // addedClosingParen pink marker
                     }
@@ -663,6 +669,11 @@ thumbscript4.tokenize = function(code, debug) {
                     //     addToken(")") // addedClosingParen pink marker
                     //     addClosingParensOnNewLine = false
                     // }
+
+                    // #orangered unfinished experiment
+                    if (tokenName == "elif") {
+                        addToken("beforeelse")
+                    }
 
                     addToken(tokenName)
                     addToken("<>")
@@ -702,20 +713,20 @@ thumbscript4.tokenize = function(code, debug) {
                     addToken("<>")
                     addToken("(")
                     addClosingParensOnNewLine++
-                } else if (funcFirstWithDotSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                } else if (funcFirstWithDotSugar && addClosingParensOnNewLine && "\n;".indexOf(chr) != -1) {
                     for (let i = 0; i < addClosingParensOnNewLine; i++) {
                         addToken(")") // addedClosingParen pink marker
                     }
                     addClosingParensOnNewLine = 0
                 }
 
-                if (leftAssignSugar && addClosingParensOnNewLine && "\n".indexOf(chr) != -1) {
+                if (leftAssignSugar && addClosingParensOnNewLine && "\n;".indexOf(chr) != -1) {
                     for (let i = 0; i < addClosingParensOnNewLine; i++) {
                         addToken(")") // addedClosingParen pink marker
                     }
                     addClosingParensOnNewLine = 0
                 }
-                if (leftAssignSugar && "\n".indexOf(chr) != -1) {
+                if (leftAssignSugar && "\n;".indexOf(chr) != -1) {
                     freshLine = true
                 }
             } else {
@@ -981,6 +992,14 @@ thumbscript4.someIfMagic = function(tokens) {
     // can accomplish same thing with wrapper func or array (cases) but not as pretty
     var i = 0
     var currentIfs = []
+    
+    
+    // #orangered unfinished experiment
+    var currentIfso = null
+    var ifsoStack = []
+    var final = []
+    
+    
     while (i < tokens.length) {
         var token = tokens[i]
         if (token.th_type == builtInType) {
@@ -1001,6 +1020,29 @@ thumbscript4.someIfMagic = function(tokens) {
                 for (var j=0; j < currentIfs.length; j++) {
                     currentIfs[j].endOfIfChainI = i
                 }
+
+            // #orangered unfinished experiment
+            } else if (token.name == "ifso") {
+                ifsoStack.push(currentIfso)
+                currentIfso = {
+                    ifso: token,
+                    beforeelses: []
+                }
+                token.theSubEnd = -1
+            } else if (token.name == "elif") {
+                currentIfso.ifso = token
+                token.theSubEnd = -1
+            } else if (token.name == "beforeelse" || token.name == "otherwise") {
+                currentIfso.ifso.theSubEnd = i
+                currentIfso.beforeelses.push(token)
+            } else if (token.name == "endif") {
+                if (currentIfso.theSubEnd == -1) {
+                    currentIfso.theSubEnd = 1
+                }
+                currentIfso = ifsoStack.pop()
+                for (let beforeelse of currentIfso.beforeelses) {
+                    beforeelse.theEnd = i
+                }
             }
         } else if (token.th_type == anchorType) {
             if (!tokens.anchors) {
@@ -1012,6 +1054,7 @@ thumbscript4.someIfMagic = function(tokens) {
     }
     return tokens
 }
+
 thumbscript4.handleDashPoints = function(tokens) {
     var i = 0
     while (i < tokens.length) {
@@ -2418,6 +2461,7 @@ thumbscript4.builtIns = {
         }
         return world
     },
+    // ifnot
     "?!": function(world, token) {
         var block = world.stack.pop()
         var cond = world.stack.pop()
@@ -2444,6 +2488,7 @@ thumbscript4.builtIns = {
         }
         return world
     },
+    // elseifnot
     "??!": function(world, token) {
         var block = world.stack.pop()
         var cond = world.stack.pop()
@@ -3574,6 +3619,33 @@ thumbscript4.tokenize(`
 
 // a .b c
 // 1.2
+// 1 .plus a.b(c d)
+
+// foo.bar 
+
+
+// a .math.plus b
+// . 10
+// elif. x y
+// a : 3
+// a: 3
+
+// hi. {}; foo. bar
+// if. 1 {
+// 
+// }
+// else. {
+// 
+// }
+
+
+if. 1 {
+
+}; elseif. 0 {
+}; else. {
+
+}
+
 `, true) // _aquamarine
 
 function promiseCheck(name) {
@@ -3625,6 +3697,25 @@ log2("js county: " + county)
 
 // `, window); false && thumbscript4.eval(` // _lime
 thumbscript4.eval(` // _lime
+
+x: 3
+
+
+
+// ifso. x .is 3
+//     say. "yay it's 3"
+// endif.
+
+
+if. 1 {
+
+}; else. {
+
+}
+
+// trim. 3;
+
+
 
 
 a: 900
