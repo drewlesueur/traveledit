@@ -94,8 +94,8 @@ thumbscript4.tokenize = function(code, debug) {
         //     }
         // }
         if (quoteNext) {
-            if ("([{".indexOf(token) == -1 && token.charAt(0) != "$") {
-                token = "$" + token
+            if ("([{".indexOf(token) == -1 && token.charAt(0) != "@") {
+                token = "@" + token
             }
             quoteNext = false
         }
@@ -132,7 +132,7 @@ thumbscript4.tokenize = function(code, debug) {
                 // }
 
                 // keeping this old way in comments for reference
-                // addToken2("$" + token.slice(0, -2))
+                // addToken2("@" + token.slice(0, -2))
                 // addToken2("setplus1")
                 // return
 
@@ -162,7 +162,7 @@ thumbscript4.tokenize = function(code, debug) {
             }
         }
         // if (typeof token == "string" && token.startsWith("#")) {
-        //     addToken2("$" + token.slice(0, -1))
+        //     addToken2("@" + token.slice(0, -1))
         //     addToken2("nameworld")
         //     return
         // }
@@ -184,7 +184,7 @@ thumbscript4.tokenize = function(code, debug) {
             }
 
             // not sure if faster
-            if (token.charAt(0) == "$") {
+            if (token.charAt(0) == "@") {
                 token = {th_type: stringType, valueString: token.slice(1)}
             } else if (token.charAt(0) == "#") {
                 token = {th_type: anchorType, valueString: token.slice(1)}
@@ -442,7 +442,7 @@ thumbscript4.tokenize = function(code, debug) {
                 freshLine = false // orange marker
                 state = "string2"
                 string2OpenCount = 1
-            } else if (".•@".indexOf(chr) != -1) {
+            } else if (".•".indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 state = "dot"
                 currentToken = chr
@@ -611,7 +611,7 @@ thumbscript4.tokenize = function(code, debug) {
                     }
                     tokens.push(t) // funkiness
 
-                    addToken("$" + currentToken)
+                    addToken("@" + currentToken)
                     addToken(")") // 🥑 green marker
                     addToken("1<-")
                     freshLine = true // darkorange marker
@@ -752,12 +752,12 @@ thumbscript4.tokenize = function(code, debug) {
                         // 3 tokens because of automatic parens insertion: ( raw )
 
                         if (prevToken1.th_type == varType && prevToken1.valueString == "raw") {
-                            addToken("$" + currentToken)
+                            addToken("@" + currentToken)
                             break
                         } else if (prevToken1.th_type == varType && prevToken1.valueString == "indented") {
                             currentToken = thumbscript4.dedent(currentToken)
                         } else if (prevToken1.th_type == varType && prevToken1.valueString == "rawindented") {
-                            addToken("$" + thumbscript4.dedent(currentToken))
+                            addToken("@" + thumbscript4.dedent(currentToken))
                             break
                         } else {
                             tokens.push(prevToken2)
@@ -768,20 +768,20 @@ thumbscript4.tokenize = function(code, debug) {
                     if (currentToken.indexOf("$") != -1) {
                         tokens.push({th_type: interpolateType, valueString: currentToken})
                     } else {
-                        addToken("$" + currentToken)
+                        addToken("@" + currentToken)
                     }
                 }
                 // var prevToken = tokens.pop()
                 // if (prevToken?.th_type == varType && prevToken.valueString == "raw") {
-                //     addToken("$" + currentToken)
+                //     addToken("@" + currentToken)
                 // } else {
                 //     if (prevToken) {
                 //         tokens.push(prevToken)
                 //     }
-                //     if (currentToken.indexOf("$") != -1) {
+                //     if (currentToken.indexOf("@") != -1) {
                 //         tokens.push({th_type: interpolateType, valueString: currentToken})
                 //     } else {
-                //         addToken("$" + currentToken)
+                //         addToken("@" + currentToken)
                 //     }
                 // }
                 currentToken = ""
@@ -810,12 +810,12 @@ thumbscript4.tokenize = function(code, debug) {
                             // 3 tokens because of automatic parens insertion: ( raw )
 
                             if (prevToken1.th_type == varType && prevToken1.valueString == "raw") {
-                                addToken("$" + currentToken)
+                                addToken("@" + currentToken)
                                 break
                             } else if (prevToken1.th_type == varType && prevToken1.valueString == "indented") {
                                 currentToken = thumbscript4.dedent(currentToken)
                             } else if (prevToken1.th_type == varType && prevToken1.valueString == "rawindented") {
-                                addToken("$" + thumbscript4.dedent(currentToken))
+                                addToken("@" + thumbscript4.dedent(currentToken))
                                 break
                             } else {
                                 tokens.push(prevToken2)
@@ -852,7 +852,7 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "in"
             }
         } else if (state == "dot") {
-            if (".•@".indexOf(chr) != -1) {
+            if (".•".indexOf(chr) != -1) {
                 currentToken += chr
             } else {
                 i--
@@ -915,13 +915,13 @@ thumbscript4.getIndent = function (line) {
 
 
 thumbscript4.desugar = function(tokens, debug) {
-    tokens = thumbscript4.desugarAtSign(tokens)
+    tokens = thumbscript4.desugarDot(tokens)
     // if (debug) {
     //     log2("+desugared (before parens)")
     //     log2(tokens)
     // }
     
-    // Do it after first desugarAtSign asomwe can check the at sign
+    // Do it after first desugarDot asomwe can check the at sign
     tokens = thumbscript4.desugarArrows(tokens) // white marker
     if (debug) {
         log2("+desugared (arrows)")
@@ -929,7 +929,7 @@ thumbscript4.desugar = function(tokens, debug) {
     }
     
     
-    tokens = thumbscript4.desugarAtSign(tokens)
+    tokens = thumbscript4.desugarDot(tokens)
     // if (debug) {
     //     log2("+desugared (before parens)")
     //     log2(tokens)
@@ -1199,7 +1199,7 @@ thumbscript4.desugarArrows = function(tokens) {
     }
     return newTokens
 }
-thumbscript4.desugarAtSign = function(tokens) {
+thumbscript4.desugarDot = function(tokens) {
     var newTokens = []
     var stack = []
     var state = null
@@ -1227,7 +1227,7 @@ thumbscript4.desugarAtSign = function(tokens) {
 
         if (token.th_type == varType) {
             var j = 0
-            while (j < token.valueString.length && ".•@".indexOf(token.valueString.charAt(j)) != -1) {
+            while (j < token.valueString.length && ".•".indexOf(token.valueString.charAt(j)) != -1) {
                 j++
             }
             if (j == 0) {
@@ -1966,7 +1966,7 @@ thumbscript4.builtIns = {
         //     for (var i = 1; i < parts.length; i++) {
         //         // kinda feels backwards
         //         var prop = parts[i]
-        //         if (prop.startsWith("$")) {
+        //         if (prop.startsWith("@")) {
         //             prop = prop.slice(1)
         //             let w = thumbscript4.getWorldForKey(world, prop, false, false)
         //             prop = w.state[prop]
@@ -2843,7 +2843,7 @@ thumbscript4.next = function(world) {
                 //     for (var i = 1; i < parts.length; i++) {
                 //         // kinda feels backwards
                 //         var prop = parts[i]
-                //         if (prop.startsWith("$")) {
+                //         if (prop.startsWith("@")) {
                 //             prop = prop.slice(1)
                 //             let w2 = thumbscript4.getWorldForKey(world, prop, false, false)
                 //             prop = w2.state[prop]
@@ -3164,12 +3164,12 @@ thumbscript4.stdlib = function x() { /*
     // say
     httpreq: {
         :config
-        config $method at :method
+        config @method at :method
         headers: []
         config.headers not {
             config.headers: []
         } ?
-        config $headers at {
+        config @headers at {
             :v :k
             "-H " "$k: $v" bashStrEscape .cc
             headers swap push
@@ -3177,7 +3177,7 @@ thumbscript4.stdlib = function x() { /*
         headersStr: headers " " join
         dataStr: ""
         say. "the body is " .cc config.body
-        data: config $body at
+        data: config @body at
         say. "the data is " .cc data
         if. data {
             dataStr: " -d " data bashStrEscape .cc
@@ -3186,7 +3186,7 @@ thumbscript4.stdlib = function x() { /*
         if. config.extraFlags {
             extraFlags: config.extraFlags
         }
-        urlStr: config $url at bashStrEscape
+        urlStr: config @url at bashStrEscape
         «
             curl ${extraFlags} -s -X $method $headersStr $dataStr $urlStr
         »
@@ -3328,7 +3328,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // log2(thumbscript4.tokenize(`
 // yo.man: 10
 // 10 :yo.man
-// person: [friend1: [name: $pete] friend2: [name: $tom]]
+// person: [friend1: [name: @pete] friend2: [name: @tom]]
 // person: [
 //     [score: 10]
 // ]
@@ -3376,7 +3376,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // 1 (i plus. 1)
 
 // a: [b: 1 2 plus]
-// [person 0 $score] props say
+// [person 0 @score] props say
 // a: [b: 1]
 // a: [b: 1 2 plus c: 40 3 minus]
 
@@ -3639,12 +3639,12 @@ thumbscript4.tokenize(`
 // }
 
 
-if. 1 {
-
-}; elseif. 0 {
-}; else. {
-
-}
+// if. 1 {
+// 
+// }; elseif. 0 {
+// }; else. {
+// 
+// }
 
 `, true) // _aquamarine
 
@@ -4230,7 +4230,7 @@ if. lt(10 100) {
     say. ""
 }
 
-goto. $countPart
+goto. @countPart
 
 3 loopn. {
     say. "hiyaya"
@@ -4274,15 +4274,15 @@ person tojson say
 assertempty. "a check" // olive marker
 
 
-// [person 0 $score] props say
+// [person 0 @score] props say
 person 0 at say
-// person.$0.score say
+// person.0.score say
 
 list: ["drew" "cristi"]
 list at(0 plus. 1) say
 
 
-window $xyzzy at "xyzzy is " swap cc say
+window @xyzzy at "xyzzy is " swap cc say
 
 if. 1 1 is {
     say. "it's 1"
@@ -4305,7 +4305,6 @@ say. "done"
 
 loopn. 10 {
     :i
-    // say. "yay $i"
     say. "yay $i"
     if. i 5 is {
         say. "tried to break"
@@ -4411,15 +4410,15 @@ str: "some random string"
 say. lastError
 say. v
 
-person: [friend1: [name: $pete] friend2: [name: $tom]]
+person: [friend1: [name: @pete] friend2: [name: @tom]]
 person.friend1.name: "Peterio"
-key: $friend2
-person.$key.name: "Tomio"
+key: @friend2
+person[key].name: "Tomio"
 person say
 
 "Repeter" :person.friend1.name
-key: $friend2
-"Retom" :person.$key.name
+key: @friend2
+"Retom" :person[key].name
 person say
 
 
@@ -4479,7 +4478,7 @@ say. "yo world"
 
 
 x: 1
-x 20 lt $end1 jumpelse
+x 20 lt @end1 jumpelse
 "WOW" say
 #end1
 
@@ -4520,8 +4519,8 @@ else. {
 // }
 
 
-$hi say
-person: [friend1: [name: $pete] friend2: [name: $tom]]
+@hi say
+person: [friend1: [name: @pete] friend2: [name: @tom]]
 person say
 
 
@@ -4538,10 +4537,10 @@ p say
 assertempty. "a checky1" // olive marker
 
 
-$yo say
+@yo say
 
 v: 1 2 plus
-"v is $v" say
+"v is @v" say
 3 4 plus say
 
 
@@ -4628,18 +4627,18 @@ assertempty. "a check -1" // olive marker
 foo: [bar: [baz: 3]]
 foo say
 
-[foo $bar $baz] props say
+[foo @bar @baz] props say
 
 // assertempty. "a check0" // olive marker
 10 :[foo "bar" "baz"]
 
 
-[foo $bar $baz] props say
+[foo @bar @baz] props say
 
 [foo "bar" "baz"]: 30
-[foo $bar $baz] props say
+[foo @bar @baz] props say
 
-foo $bar at $bat at say
+foo @bar at @bat at say
 
 assertempty. "a check0.1" // olive marker
 
@@ -4870,8 +4869,8 @@ raw «hello $name» say
     1 :result
     {
         n 1 gte guard
-        result n times :result
-        n 1 minus :n
+        result n times > result
+        n 1 minus > n
         repeat
     } call
     result
@@ -4910,7 +4909,6 @@ say
 // 1 sleep
 // "I waited" say
 
-
 10 {
    :j
    "j number is $j" say
@@ -4918,7 +4916,7 @@ say
 } loopn
 
 
-window $xyzzy at "xyzzy is " swap cc say
+window @xyzzy at "xyzzy is " swap cc say
 
 100 :count
 count say
@@ -4933,13 +4931,13 @@ person say
 assertempty. "a check" // olive marker
 
 
-[person 0 $score] props say
+[person 0 @score] props say
 
-500 :[person 0 $score]
-[person 0 $score] props say
+500 :[person 0 @score]
+[person 0 @score] props say
 
-[person 0 $score]: 600
-[person 0 $score] props say
+[person 0 @score]: 600
+[person 0 @score] props say
 "🍅" say
 "🍅" encodeURIComponent say
 
@@ -4965,8 +4963,8 @@ assertempty. "a check" // olive marker
 // •name : "Drew"
 
 
-[$hi $my •$is $name $drew] sayn
-[$hi $my •"is" $name $drew] sayn
+[@hi @my •@is @name @drew] sayn
+[@hi @my •"is" @name @drew] sayn
 
 10 {
     "hello! " swap cc say
@@ -5080,7 +5078,7 @@ mylist sayn
 {
     #testwrapper
     99 :foo
-    $foo incr1
+    @foo incr1
     "after calling incr1, foo is " foo cc say
 } call
 
@@ -5109,7 +5107,7 @@ mylist sayn
 {
     0 :i {
         i •lt 4 guard
-        $looping say
+        @looping say
         i++
     } 1000 loopmax
     "i is " i cc say
@@ -5133,30 +5131,30 @@ mylist sayn
 } call
 
 
-$Drew :name
+@Drew :name
 name say
 [999 2 3 4] :mylist
 
 "the first item is " mylist 0 at cc say
-[$blue :eyes $brown :hair] :info
+[@blue :eyes @brown :hair] :info
 
 info say
 
-info $eyes at say
+info @eyes at say
 
-info $hair at say
+info @hair at say
 
-info $ha $ir cc at say
+info @ha @ir cc at say
 
-$ha $ir cc :key
+@ha @ir cc :key
 info key at
 say
 
 [
-    $Drew :name
+    @Drew :name
     38 :age
     [
-        $programming $volleybal $family
+        @programming @volleybal @family
     ] :hobbies
     [
         [
@@ -5171,13 +5169,13 @@ say
 person say
 
 1 :x
-"The selected b is " [person $work $secondary $b] props cc say
+"The selected b is " [person @work @secondary @b] props cc say
 
 
 "how on earth??? 🌍" say
-2011 [person $work $secondary $b] setc
-"The selected b is " [person $work $secondary $b] props cc say
-"The selected b is " [person $work x 1 match $main $secondary cond $b] props cc say
+2011 [person @work @secondary @b] setc
+"The selected b is " [person @work @secondary @b] props cc say
+"The selected b is " [person @work x 1 match @main @secondary cond @b] props cc say
 
 "hello world" :message
 
@@ -5189,12 +5187,12 @@ person say
 «The list has » mylist length cc « elements» cc say
 
 
-$hi :name2
+@hi :name2
 name2 say
 
 
 
-$Why $hello cc name cc
+@Why @hello cc name cc
 say
 
 3 1 plus say
@@ -5214,26 +5212,26 @@ x y plus say
 
 { drop incr2 say } 22 loopn
 
-{ $! cc } :exclaim
+{ @! cc } :exclaim
 
 
 {say} :sayo
-$foobar sayo
+@foobar sayo
 
-$hi exclaim
-$bye exclaim
+@hi exclaim
+@bye exclaim
 cc say
 
 { cc } :b
-$foo $bow b say
+@foo @bow b say
 
 
 {
-    $hello say
-    $goodbye say
+    @hello say
+    @goodbye say
     return
-    $goodday say
-    $sir say
+    @goodday say
+    @sir say
 } :something1
 something1
 
