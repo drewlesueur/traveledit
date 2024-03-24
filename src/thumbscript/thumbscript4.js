@@ -103,6 +103,8 @@ thumbscript4.tokenize = function(code, debug) {
         //     log2(tokens)
         //     return
         // }
+        
+        // see also thumbscript4.isNumeric
         var sinUnderscores = token.replaceAll("_", "")
         if (sinUnderscores - 0 == sinUnderscores) {
             addToken2(sinUnderscores-0)
@@ -2897,8 +2899,9 @@ thumbscript4.next = function(world) {
                 })
                 var r = r.replace(/\$[\w]+/g, function(x) {
                     x = x.slice(1)
-                    var w = thumbscript4.getWorldForKey(world, x, true, false)
-                    return w.state[x]
+                    // var w = thumbscript4.getWorldForKey(world, x, true, false)
+                    // return w.state[x]
+                    return thumbscript4.evalQuick(x, world)
                 })
                 world.stack.push(r)
                 break outer
@@ -2914,6 +2917,8 @@ thumbscript4.next = function(world) {
 
 // c b a
 thumbscript4.stdlib = function x() { /*
+    // for use in interpolation
+    it: { :a ~a }
     swap:  { :b :a ~b ~a }
     drop: { :droppy }
     dup: { :a ~a ~a }
@@ -3646,6 +3651,7 @@ thumbscript4.tokenize(`
 // 
 // }
 
+// 1.2
 `, true) // _aquamarine
 
 function promiseCheck(name) {
