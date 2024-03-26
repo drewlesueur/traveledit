@@ -4182,18 +4182,19 @@ function log2Inline(str) {
 var getShellCodeForRunningGoFile = thumbscript4.makeJsFunc(() => { /*
     :lines :filename
     runCode: []
-    if. lines[0] IS "// How to run:" {
+    if. lines[0] •is "// How to run:" {
         // 100 max #darkorange
         looprange. 1 100 { :i
-            if. lines[i] trim IS "" {
+            if. lines[i] trim •is "" {
                 breakp
             }
-            runCode PUSH (lines[i] SLICEFROM 3)
+            runCode •push (lines[i] •slicefrom 3)
         }
-        runCode JOIN cr // joining on cr because that's how terminal wants it
+        // joining on cr because that's how terminal wants it
+        runCode •join cr
     }
     else. {
-        "time go run " CC filename
+        "time go run " •cc filename
     }
 */ })
 
@@ -4215,6 +4216,7 @@ function runScript() {
             return
         }
     }
+    
     if (isWholeFile && fx.fullPath.endsWith(".go")) {
         let filename = fx.fullPath.split("/").slice(-1)
         addTerminalTab()
