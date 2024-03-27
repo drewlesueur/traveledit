@@ -9,6 +9,8 @@ notes
 a: 1
 a 1
 
+header functions
+zoom
 
 
 
@@ -1241,7 +1243,8 @@ var fonts = {
         fontName: "Courier New",
     },
     "Menlo": {
-        fontHeightPre: 36,
+        // fontHeightPre: 36,
+        fontHeightPre: 38,
         fontWidthPre: 18,
         fontSize: 30,
         fontName: "Menlo",
@@ -8624,6 +8627,8 @@ function getQuoteRanges(expandedLine) {
 
 var keywords = {
     "function": true,
+    "async": true,
+    "await": true,
     "of": true,
     "in": true,
     "class": true,
@@ -8709,6 +8714,7 @@ var syntaxColorMap = [
         // quote: "orangered",
         quote: "coral",
         keyword: "deepskyblue",
+        // keyword: "skyblue",
         symbol: "orange",
         key: "cyan",
         comment: "rgba(255, 255, 255, 0.5)",
@@ -9583,6 +9589,25 @@ function onStart(e) {
         // for select, lift finger, move on right side
         selectedRegion = fx.selectedRegions[0]
     }
+
+    var touchTopTopTopTopMiddle_Left = function() {
+        var startFontScale = fontScale
+        var onMoveForZoom = function (e) {
+            var diffTouchX = e.touches[0].pageX - startTouchX
+            var diffTouchY = e.touches[0].pageY - startTouchY
+            fontScale = startFontScale * (1 + (diffTouchY/100))
+            updateFontScale()
+            ensureCursorInScreen()
+            updateCursorXY()
+        }
+        var onEndForZoom = function (e) {
+            document.body.removeEventListener("touchmove", onMoveForZoom)
+            document.body.removeEventListener("touchmove", onEndForZoom)
+        }
+        document.body.addEventListener("touchmove", onMoveForZoom)
+        document.body.addEventListener("touchend", onEndForZoom)
+        return true
+    }
     var touchTopTopTopTopMiddle_Right = function() {
         if (fx.selectedRegions.length == 0) {
             isSelectedFromTopThird = true
@@ -9590,6 +9615,7 @@ function onStart(e) {
             selectAction(true)
     
             // TODO: maybe figure out how to not copy paste this?
+            // See where this is called for an idea
             document.body.addEventListener("touchmove", onMove)
             moveListenerCount += 1
             document.body.addEventListener("touchend", onEnd)
@@ -9769,6 +9795,11 @@ function onStart(e) {
         if (e.changedTouches[0].pageX > (bbox.width * 2 / 3)) {
             // this can be moved down below and you won't have to also set event handlers again
             if (touchTopTopTopTopMiddle_Right()) {
+                return
+            }
+        } else if (e.changedTouches[0].pageX < (bbox.width * 1 / 3)) {
+            // this can be moved down below and you won't have to also set event handlers again
+            if (touchTopTopTopTopMiddle_Left()) {
                 return
             }
         }
