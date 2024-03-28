@@ -1795,6 +1795,7 @@ var canvasHeightKeyboardTerminal
 var maxLines
 var maxCols
 var canvasHeight
+var isMoving = false
 
 var clientId = Math.floor((Math.random() * 100000))
 
@@ -7881,6 +7882,33 @@ function renderInternal() {
     var textFillStyleOverride
     var textFillStyleOverride1
     // Highlight search results
+    
+    var headers = []
+    // if (!isMoving && (!document.activeElement || document.activeElement.nodeName != "INPUT")) {
+    if (true) {
+        // TODO: also not if is typing?
+        var indentLength = Infinity
+        // for (_y = minY + fx.offsetY - 1; _y > 0; _y--) {
+        for (_y = fx.cursorLineIndex - 1; _y > 0; _y--) {
+            var prevLine = fx.lines[_y] || ""
+            if (prevLine.trim() == "") {
+                continue
+            }
+            var prevIndentLength = getIndent(prevLine).length
+            if (prevIndentLength < indentLength) {
+                indentLength = prevIndentLength
+                if (_y < fx.offsetY) {
+                    headers.unshift(prevLine)
+                }
+                if (indentLength == 0) {
+                    break
+                }
+            }
+        }
+    }
+    
+    // Y loop #yellow
+    // minY isn't really a thing anymore, always 0 I think
     for (var y=minY; y < maxY; y++) {
         // show the end of the document
         // if (y + fx.offsetY >= fx.lines.length) {
@@ -7890,8 +7918,15 @@ function renderInternal() {
 
         // highlight search highlightsearch
         var theLine = fx.lines[y + fx.offsetY] || ""
-        // var trimmedLine = theLine.trim()
         var trimmedLine = getCachedTrimmedLine(theLine, y + fx.offsetY)
+        
+        // if (y < headers.length) {
+        //     // Warning! setting these values bad! (somehow it can update the actual line! because of caching or something)
+        //     // theLine = headers[y]
+        //     // trimmedLine = theLine.trim()
+        //     t.fillStyle = "lightgray"
+        //     t.fillRect(0, (fx.cursorLineIndex - fx.offsetY) * fontHeight, c.width*3, fontHeight)
+        // }
         
         // no longer doing this block of color feature
         // if (trimmedLine.endsWith("#color")) {
@@ -7974,7 +8009,7 @@ function renderInternal() {
             }
         }
         
-        // gray inderline word at cursor #yellow
+        // gray underline word at cursor #yellow
         if (extras && theLine && wordAtCursorRegexp) {
             // TODO: regular search can benefit from this matchAll business
             // TODO: you can cache the line and the end result of the matches!
@@ -8312,6 +8347,23 @@ function renderInternal() {
         //     t.fillText(trimmedLine, marginLeft*fontWidth, (y+1)*fontHeight - (0.2*fontHeight))
         //     t.restore()
         // }
+    }
+    
+    if (headers.length) {
+        // headers = headers.slice(0, 3)
+        for (let headerI = 0; headerI < headers.length; headerI++) {
+            if (fx.cursorLineIndex - fx.offsetY <= headerI) {
+                continue
+            }
+            let header = headers[headerI]
+            // Warning! setting these values bad! (somehow it can update the actual line! because of caching or something)
+            // theLine = headers[y]
+            // trimmedLine = theLine.trim()
+            t.fillStyle = "navy"
+            t.fillRect(0, headerI * fontHeight, c.width*3, Math.ceil(fontHeight))
+            t.fillStyle = "gray"
+            t.fillText(header, 0, headerI*fontHeight + fontOffsetY)
+        }
     }
 
     // red ghost cursor
@@ -8974,6 +9026,7 @@ var isLongPress = false
 var shouldOpenEditorCommand = false
 
 function onStart(e) {
+    isMoving = true
     touchCount = e.touches.length
     e.preventDefault()
     // this handles all the touch interactions
@@ -9054,6 +9107,7 @@ function onStart(e) {
     var startCursorLineIndex = fx.cursorLineIndex
 
     var onMove = function(e) {
+        isMoving = true
         lastFindWasHighlightText = false
         lastAction = "move"
         lastSearchDirForSameTerm = ""
@@ -9404,6 +9458,7 @@ function onStart(e) {
         return false
     }
     var onEnd = function(e) {
+        isMoving = false
         overflowX = 0
         overflowY = 0
         touchCount = e.touches.length
