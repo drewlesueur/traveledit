@@ -511,7 +511,7 @@ They get changed later on.
     <div class=square onclick=undo()>undo</div>
     <div class=square onclick=redo()>redo</div>
     <div class=square id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
-    <div class=square id="gptButton" onclick=runChatGPT('gpt-4-1106-preview')>chatGPT4</div>
+    <div class=square id="gptButton" onclick=runChatGPT('gpt-4-turbo-preview')>chatGPT4</div>
     <div class=square onclick=reloadFile(fx)>reload</div>
     <div class=square onclick=goUpDirectory()>⬆️</div>
     <div class=square id="gptButton2" onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
@@ -519,7 +519,7 @@ They get changed later on.
     <div class=square onclick="runScript()" id=statusBar>run script</div>
     -->
     
-    <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4-1106-preview')>chatGPT4</div>
+    <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4-turbo-preview')>chatGPT4</div>
     <div class=middleButton onclick=reloadFile(fx)>reload</div>
     <div class=middleButton onclick=goUpDirectory()>⬆️</div>
     <div class=middleButton onclick="osCopyText()">os copy</div>
@@ -2813,7 +2813,7 @@ function runEditorCommand(e) {
         break
     case "g":
         // runChatGPT('gpt-4', {inline: true, extra: "\n\n" + rest})
-        runChatGPT('gpt-4-1106-preview', {inline: true, extra: "\n\n" + rest})
+        runChatGPT('gpt-4-turbo-preview', {inline: true, extra: "\n\n" + rest})
         break
     case "g3":
         runChatGPT('gpt-3.5-turbo', {inline: true, extra: "\n\n" + rest})
@@ -12074,7 +12074,6 @@ async function chatGPTCallPayload(payload) {
     return p
 }
 
-// gpt-4-1106-preview
 async function chatGPTCall(model, content) {
     let payload = {
         model: model || "gpt-3.5-turbo",
