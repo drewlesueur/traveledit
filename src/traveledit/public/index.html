@@ -7884,6 +7884,7 @@ function renderInternal() {
     // Highlight search results
     
     var headers = []
+    var headerIndexes = []
     // if (!isMoving && (!document.activeElement || document.activeElement.nodeName != "INPUT")) {
     if (true) {
         // TODO: also not if is typing?
@@ -7899,6 +7900,7 @@ function renderInternal() {
                 indentLength = prevIndentLength
                 if (_y < fx.offsetY) {
                     headers.unshift(prevLine)
+                    headerIndexes.unshift(_y)
                 }
                 if (indentLength == 0) {
                     break
@@ -8356,13 +8358,68 @@ function renderInternal() {
                 continue
             }
             let header = headers[headerI]
-            // Warning! setting these values bad! (somehow it can update the actual line! because of caching or something)
-            // theLine = headers[y]
-            // trimmedLine = theLine.trim()
-            t.fillStyle = "navy"
+            let headerIndex = headerIndexes[headerI]
+            
+            theLine = theLine || ""
+            let expandedLine = expandLine(header, headerIndex)
+            let syntaxColors
+            if (syntaxHighlight) {
+                syntaxColors = getSyntaxHighlight(expandedLine)
+            }
+            
+            t.fillStyle = "#222"
             t.fillRect(0, headerI * fontHeight, c.width*3, Math.ceil(fontHeight))
-            t.fillStyle = "gray"
-            t.fillText(header, 0, headerI*fontHeight + fontOffsetY)
+            // t.fillText(header, 0, headerI*fontHeight + fontOffsetY)
+            let textFillStyleOverride = "#666"
+            for (let x=0; x < maxCols; x++) {
+                if ((x+fx.offsetX) >= expandedLine.length) {
+                    break
+                }
+                let chr = expandedLine[x+fx.offsetX] || ""
+                if (chr == "\t") {
+                    if (shouldSeeTabs) {
+                        t.fillStyle = veryLightFontColor
+                        t.fillText("•", x*fontWidth, headerI*fontHeight + fontOffsetY)
+                    }
+                } else if (chr != "" && chr != " ") {
+                    // TODO: do we need to assign every time?
+                    // red #color
+                    if (textFillStyleOverride) {
+                        t.fillStyle = textFillStyleOverride
+                    } else if (textFillStyleOverride1) {
+                        t.fillStyle = textFillStyleOverride1
+                    } else {
+                        t.fillStyle = textFillStyle
+                    }
+                    // end #color
+    
+                    if (useUnicode) {
+                        // if (chr.length > 1) {
+                        if (isEmoji(chr)) {
+                            t.font = fontCSSEmoji
+                            extraY = extraYEmoji
+                            // chr = "?"
+                        } else {
+                            t.font = fontCSS
+                            extraY = 0
+                        }
+                        if (syntaxHighlight) {
+                            // t.fillStyle = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
+                            let f = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
+                            if (f) {
+                                t.fillStyle = f
+                            }
+                        }
+                        t.fillText(chr, x*fontWidth, headerI*fontHeight + extraY + fontOffsetY)
+                    } else {
+                        t.fillText(chr, x*fontWidth, headerI*fontHeight + fontOffsetY)
+                    }
+                }
+                if (useUnicode) {
+                    // revert back
+                    t.font = fontCSS
+                }
+            }
         }
     }
 
