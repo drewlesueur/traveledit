@@ -828,7 +828,7 @@ thumbscript4.tokenize = function(code, debug) {
                         if (currentToken.indexOf("$") != -1) {
                             tokens.push({th_type: interpolateType, valueString: currentToken})
                         } else {
-                            addToken("$" + currentToken)
+                            addToken("@" + currentToken)
                         }
                     }
 
