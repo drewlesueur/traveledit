@@ -3465,7 +3465,7 @@ function clearLog() {
         fx.cursorLineIndex = 0
         fx.cursorColIndex = 0
         updateCursorXY()
-        fx.offsetY = 0
+        fx.offsetY = -minSpaceForHeader
         ensureCursorInScreen()
     }
     logEl.innerHTML = ""
@@ -3775,7 +3775,7 @@ function ensureCursorInScreen(file) {
     if (!file) {
         file = fx
     }
-    if (file.cursorLineIndex < file.offsetY - minSpaceForHeader) {
+    if (file.cursorLineIndex < file.offsetY + minSpaceForHeader) {
         file.offsetY = file.cursorLineIndex - minSpaceForHeader
     } else if (file.cursorLineIndex >= file.offsetY+maxLines) {
         file.offsetY = file.cursorLineIndex-maxLines +1
@@ -5564,7 +5564,7 @@ function runShellCommand(line) {
             fx.cursorLineIndex = 0
             fx.cursorColIndex = 0
             updateCursorXY()
-            fx.offsetY = 0
+            fx.offsetY = -minSpaceForHeader
             // render()
             // return
             line = "p"
@@ -6328,11 +6328,11 @@ function unExpandTabIndex(theLine, start, index, file, nocache) {
         newRet = expandedLine.unexpandedIndexCache[start]
     }
     
-    var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
-    if (oldRet != newRet) {
-        log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
-    }  
-    return oldRet
+    // var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
+    // if (oldRet != newRet) {
+    //     log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
+    // }  
+    // return oldRet
     
     return newRet
 }
@@ -9839,7 +9839,7 @@ function onStart(e) {
                         // ??
                         fx.offsetY -= 1
                         if (fx.offsetY < 0) {
-                            fx.offsetY = 0
+                            fx.offsetY = -minSpaceForHeader
                         }
                     }
                 }
@@ -10965,7 +10965,8 @@ function makeFile(fullPath, cursorLineIndex, contents) {
         marginLeft: calcMarginLeft(theLines.length),
         cursorColIndex: -calcMarginLeft(theLines.length),
         // offsetY: cursorLineIndex, // you could get smarter about this
-        offsetY: max(cursorLineIndex - Math.floor(maxLines/2), 0), // you can still clean this up a bit, not sure if maxLines is ready?
+        // offsetY: max(cursorLineIndex - Math.floor(maxLines/2), 0), // you can still clean this up a bit, not sure if maxLines is ready?
+        offsetY: -minSpaceForHeader,
         offsetX: 0,
         fileMode: "file",
         shellCWD: "",
