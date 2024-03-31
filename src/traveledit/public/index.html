@@ -3775,8 +3775,8 @@ function ensureCursorInScreen(file) {
     if (!file) {
         file = fx
     }
-    if (file.cursorLineIndex < file.offsetY) {
-        file.offsetY = file.cursorLineIndex
+    if (file.cursorLineIndex < file.offsetY - minSpaceForHeader) {
+        file.offsetY = file.cursorLineIndex - minSpaceForHeader
     } else if (file.cursorLineIndex >= file.offsetY+maxLines) {
         file.offsetY = file.cursorLineIndex-maxLines +1
     }
@@ -7930,7 +7930,7 @@ function renderInternal() {
         var theLine = fx.lines[theIndex] || ""
         var trimmedLine = getCachedTrimmedLine(theLine, theIndex)
         
-        if (y < headers.length) {
+        if (y < headers.length && y < fx.cursorLineIndex - fx.offsetY) {
             // Warning! setting these values bad! (somehow it can update the actual line! because of caching or something)
             theLine = headers[y]
             trimmedLine = theLine.trim()
@@ -8168,7 +8168,7 @@ function renderInternal() {
 
         if (true) {
             if (theIndex < fx.lines.length) {
-                var lineNumber = (y+fx.offsetY+1).toString().padStart(fx.marginLeft-1, " ")
+                var lineNumber = (theIndex+1).toString().padStart(fx.marginLeft-1, " ")
                 if (fx.offsetX < -1) {
                     // Line numbers
 
@@ -8230,7 +8230,7 @@ function renderInternal() {
         //     theFillStyle = theParts[theParts.length - 2]
         //     t.fillStyle = theFillStyle
         //     var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, theIndex, fx) // red marker
-        //     t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // red marker
+        //     t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, theIndex)-adjustment)*fontWidth, underlineHeight) // red marker
         //     t.fillStyle = oldFillStyle
         // }
 
@@ -9093,6 +9093,7 @@ var touchCount = 0
 var isSelectedFromTopThird = false
 var isLongPress = false
 var shouldOpenEditorCommand = false
+var minSpaceForHeader = 2
 
 function onStart(e) {
     isMoving = true
@@ -9353,7 +9354,6 @@ function onStart(e) {
         var maxHeight = (maxLines -1 ) * fontHeight
         // var minAllowedY = headers.length * fontHeight
         
-        var minSpaceForHeader = 2
         var minAllowedY = minSpaceForHeader * fontHeight
         
         
