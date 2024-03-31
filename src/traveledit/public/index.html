@@ -6288,11 +6288,11 @@ function expandTabIndex(theLine, start, index, file, nocache) {
     }
     
     
-    // var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
-    // if (oldRet != newRet) {
-    //     log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet, expandedLine: expandedLine})    
-    // }  
-    // return oldRet 
+    var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
+    if (oldRet != newRet) {
+        log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet, expandedLine: expandedLine})    
+    }  
+    return oldRet 
     
     
     return newRet
@@ -6309,11 +6309,11 @@ function unExpandTabIndex(theLine, start, index, file, nocache) {
         newRet = expandedLine.unexpandedIndexCache[start]
     }
     
-    // var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
-    // if (oldRet != newRet) {
-    //     log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
-    // }  
-    // return oldRet
+    var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
+    if (oldRet != newRet) {
+        log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
+    }  
+    return oldRet
     
     return newRet
 }
@@ -7678,6 +7678,8 @@ function drawCircle(color, x, y, r, lineColor, lineWidth) {
     // t.restore()
 }
 
+var headers = []
+var headerIndexes = []
 var renderDuration = 0
 var renderCount = 0
 var rendersInLastSecond = 0
@@ -7883,8 +7885,8 @@ function renderInternal() {
     var textFillStyleOverride1
     // Highlight search results
     
-    var headers = []
-    var headerIndexes = []
+    headers = []
+    headerIndexes = []
     // if (!isMoving && (!document.activeElement || document.activeElement.nodeName != "INPUT")) {
     if (true) {
         // TODO: also not if is typing?
@@ -7898,7 +7900,7 @@ function renderInternal() {
             var prevIndentLength = getIndent(prevLine).length
             if (prevIndentLength < indentLength) {
                 indentLength = prevIndentLength
-                if (_y < fx.offsetY) {
+                if (_y < fx.offsetY + headers.length) {
                     headers.unshift(prevLine)
                     headerIndexes.unshift(_y)
                 }
@@ -9339,6 +9341,13 @@ function onStart(e) {
         var changedY = false
         //var maxHeight = canvasHeight
         var maxHeight = (maxLines -1 ) * fontHeight
+        // var minAllowedY = headers.length * fontHeight
+        
+        var minSpaceForHeader = 2
+        var minAllowedY = minSpaceForHeader * fontHeight
+        
+        
+        // var minAllowedY = 0
         if (cursorY > maxHeight) {
             var extendY = cursorY - maxHeight
             cursorY = maxHeight
@@ -9356,14 +9365,15 @@ function onStart(e) {
                 hasDoneOverflowYAction = true
                 overflowY = 0
             }
-        } else if (cursorY < 0) {
-            var extendY = cursorY
-            cursorY = 0
+        // } else if (cursorY < 0) {
+        } else if (cursorY < minAllowedY) {
+            var extendY = cursorY - minAllowedY
+            cursorY = minAllowedY
             fx.offsetY += Math.floor(extendY/fontHeight)
             changedY = true
-            if (fx.offsetY < 0) {
+            if (fx.offsetY < -minSpaceForHeader) {
                 overflowY += fx.offsetY
-                fx.offsetY = 0
+                fx.offsetY = -minSpaceForHeader
             }
             if (overflowY < -50 && !hasDoneOverflowYAction && startCursorLineIndex == 0) {
                 if (fx.fileMode == "shell") {
