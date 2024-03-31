@@ -1780,6 +1780,7 @@ thumbscript4.builtIns = {
     pushto: thumbscript4.genFunc2NoReturn((a, b) => b.push(a)),
     pop: thumbscript4.genFunc1((a) => a.pop()),
     unshift: thumbscript4.genFunc2NoReturn((a, b) => a.unshift(b)),
+    unshiftto: thumbscript4.genFunc2NoReturn((a, b) => b.unshift(a)),
     shift: thumbscript4.genFunc1((a) => a.shift()),
     join: thumbscript4.genFunc2((a, b) => a.join(b)),
     slice: thumbscript4.genFunc3((a, b, c) => a.slice(b, c)),
