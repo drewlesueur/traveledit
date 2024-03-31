@@ -6265,6 +6265,11 @@ function expandTabIndex_old(theLine, start, index, file, nocache) {
 }
 
 function expandTabIndex(theLine, start, index, file, nocache) {
+    if (typeof start == "undefined") {
+        // we get here whe long press 1right
+        // not sure why tho
+        start = -1
+    }
     theLine = theLine || ""
     if (!theLine.substring) {
         var err = new Error()
@@ -6287,12 +6292,26 @@ function expandTabIndex(theLine, start, index, file, nocache) {
         newRet = expandedLine.expandedIndexCache[adjustedStart]
     }
     
+    // var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
+    // if (oldRet != newRet) {
+    //     log({
+    //         type: "exp",
+    //         line: theLine,
+    //         start: start,
+    //         len: theLine.length,
+    //         index: index,
+    //         old: oldRet,
+    //         new: newRet,
+    //         newType: typeof newRet,
+    //         expandedLine: expandedLine,
+    //         expandedIndexCache: expandedLine.expandedIndexCache,
+    //         adjustedStart: adjustedStart,
+    //         start: start,
+    //         startType: typeof start,
+    //     })
+    // }  
+    // return oldRet 
     
-    var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
-    if (oldRet != newRet) {
-        log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet, expandedLine: expandedLine})    
-    }  
-    return oldRet 
     
     
     return newRet
