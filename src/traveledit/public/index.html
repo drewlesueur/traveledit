@@ -3775,8 +3775,8 @@ function ensureCursorInScreen(file) {
     if (!file) {
         file = fx
     }
-    if (file.cursorLineIndex < file.offsetY) {
-        file.offsetY = file.cursorLineIndex
+    if (file.cursorLineIndex < file.offsetY - minSpaceForHeader) {
+        file.offsetY = file.cursorLineIndex - minSpaceForHeader
     } else if (file.cursorLineIndex >= file.offsetY+maxLines) {
         file.offsetY = file.cursorLineIndex-maxLines +1
     }
@@ -6288,11 +6288,11 @@ function expandTabIndex(theLine, start, index, file, nocache) {
     }
     
     
-    // var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
-    // if (oldRet != newRet) {
-    //     log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet, expandedLine: expandedLine})    
-    // }  
-    // return oldRet 
+    var oldRet = expandTabIndex_old(theLine, start, index, file, nocache)  
+    if (oldRet != newRet) {
+        log({type: "exp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet, expandedLine: expandedLine})    
+    }  
+    return oldRet 
     
     
     return newRet
@@ -6309,11 +6309,11 @@ function unExpandTabIndex(theLine, start, index, file, nocache) {
         newRet = expandedLine.unexpandedIndexCache[start]
     }
     
-    // var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
-    // if (oldRet != newRet) {
-    //     log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
-    // }  
-    // return oldRet
+    var oldRet = unExpandTabIndex_old(theLine, start, index, file, nocache)  
+    if (oldRet != newRet) {
+        log({type: "unexp", line: theLine, start: start, len: theLine.length, index: index, old: oldRet, new: newRet})    
+    }  
+    return oldRet
     
     return newRet
 }
@@ -7678,6 +7678,8 @@ function drawCircle(color, x, y, r, lineColor, lineWidth) {
     // t.restore()
 }
 
+var headers = []
+var headerIndexes = []
 var renderDuration = 0
 var renderCount = 0
 var rendersInLastSecond = 0
@@ -7883,8 +7885,8 @@ function renderInternal() {
     var textFillStyleOverride1
     // Highlight search results
     
-    var headers = []
-    var headerIndexes = []
+    headers = []
+    headerIndexes = []
     // if (!isMoving && (!document.activeElement || document.activeElement.nodeName != "INPUT")) {
     if (true) {
         // TODO: also not if is typing?
@@ -7898,7 +7900,7 @@ function renderInternal() {
             var prevIndentLength = getIndent(prevLine).length
             if (prevIndentLength < indentLength) {
                 indentLength = prevIndentLength
-                if (_y < fx.offsetY) {
+                if (_y < fx.offsetY + headers.length) {
                     headers.unshift(prevLine)
                     headerIndexes.unshift(_y)
                 }
@@ -7913,23 +7915,32 @@ function renderInternal() {
     // minY isn't really a thing anymore, always 0 I think
     for (var y=minY; y < maxY; y++) {
         // show the end of the document
-        // if (y + fx.offsetY >= fx.lines.length) {
+        // if (theIndex >= fx.lines.length) {
         //   t.fillStyle = "#222"
         //   t.fillRect(0, y*fontHeight, canvasWidth, fontHeight)
         // }
 
         // highlight search highlightsearch
-        var theLine = fx.lines[y + fx.offsetY] || ""
-        var trimmedLine = getCachedTrimmedLine(theLine, y + fx.offsetY)
+        var theIndex = y + fx.offsetY
+        if (theIndex < 0) {
+            continue
+        }
+        // TODO: use theIndex everywhere below. if we do, we maybe able to uncomment that headers section
+        // without that, setting theLine without setting theIndex can cause caching issue and wrong lines to be changed
+        var theLine = fx.lines[theIndex] || ""
+        var trimmedLine = getCachedTrimmedLine(theLine, theIndex)
         
-        // if (y < headers.length) {
-        //     // Warning! setting these values bad! (somehow it can update the actual line! because of caching or something)
-        //     // theLine = headers[y]
-        //     // trimmedLine = theLine.trim()
-        //     // However if we also set the y we may be able to escape the issue?!
-        //     t.fillStyle = "lightgray"
-        //     t.fillRect(0, (fx.cursorLineIndex - fx.offsetY) * fontHeight, c.width*3, fontHeight)
-        // }
+        if (y < headers.length && y < fx.cursorLineIndex - fx.offsetY) {
+            // Warning! setting these values bad! (somehow it can update the actual line! because of caching or something)
+            theLine = headers[y]
+            trimmedLine = theLine.trim()
+            theIndex = headerIndexes[y]
+            t.fillStyle = "#222"
+            t.fillRect(0, y * fontHeight, c.width*3, fontHeight)
+            textFillStyleOverride = "#aaa"
+        } else {
+            textFillStyleOverride = ""
+        }
         
         // no longer doing this block of color feature
         // if (trimmedLine.endsWith("#color")) {
@@ -7996,13 +8007,13 @@ function renderInternal() {
                     t.fillStyle = "rgba(255,255,0,0.7)"
                 }
 
-                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                // using `fx.lines[theIndex] || ""` instead of theLine
                 // because it gets replaced with a String object with cached peoperites.
-                // var startHighlightPos = expandTabIndex(theLine, pos, y + fx.offsetY)
-                var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", pos, y + fx.offsetY)
+                // var startHighlightPos = expandTabIndex(theLine, pos, theIndex)
+                var startHighlightPos = expandTabIndex(fx.lines[theIndex] || "", pos, theIndex)
                 var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                // var highlightLength = (expandTabIndex(theLine, pos+matchLength, y + fx.offsetY)-startHighlightPos) * fontWidth
-                var highlightLength = (expandTabIndex(fx.lines[y + fx.offsetY] || "", pos+matchLength, y + fx.offsetY)-startHighlightPos) * fontWidth
+                // var highlightLength = (expandTabIndex(theLine, pos+matchLength, theIndex)-startHighlightPos) * fontWidth
+                var highlightLength = (expandTabIndex(fx.lines[theIndex] || "", pos+matchLength, theIndex)-startHighlightPos) * fontWidth
                 t.fillRect(
                     startFillHighlight,
                     y * fontHeight,
@@ -8037,14 +8048,14 @@ function renderInternal() {
                 }
                 _regI -= 1 // because first item is full match then capture groups
 
-                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                // using `fx.lines[theIndex] || ""` instead of theLine
                 // because it gets replaced with a String object with cached peoperites.
-                // var startHighlightPos = expandTabIndex(theLine, match.index, y + fx.offsetY)
-                var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", match.index, y + fx.offsetY)
+                // var startHighlightPos = expandTabIndex(theLine, match.index, theIndex)
+                var startHighlightPos = expandTabIndex(fx.lines[theIndex] || "", match.index, theIndex)
                 // continue
                 var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                // var highlightLengthChars = (expandTabIndex(theLine, match.index+_regLen, y + fx.offsetY)-startHighlightPos)
-                var highlightLengthChars = (expandTabIndex(fx.lines[y + fx.offsetY] || "", match.index+_regLen, y + fx.offsetY)-startHighlightPos)
+                // var highlightLengthChars = (expandTabIndex(theLine, match.index+_regLen, theIndex)-startHighlightPos)
+                var highlightLengthChars = (expandTabIndex(fx.lines[theIndex] || "", match.index+_regLen, theIndex)-startHighlightPos)
                 var highlightLength = highlightLengthChars * fontWidth
                 // this is copied from highlightmatches but there is only one
                 if (_regI >= 1) {
@@ -8079,13 +8090,13 @@ function renderInternal() {
                 _regI -= 1 // because first item is full match then capture groups
 
 
-                // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                // using `fx.lines[theIndex] || ""` instead of theLine
                 // because it gets replaced with a String object with cached peoperites.
-                // var startHighlightPos = expandTabIndex(theLine, match.index, y + fx.offsetY)
-                var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", match.index, y + fx.offsetY)
+                // var startHighlightPos = expandTabIndex(theLine, match.index, theIndex)
+                var startHighlightPos = expandTabIndex(fx.lines[theIndex] || "", match.index, theIndex)
                 var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                // var highlightLengthChars = (expandTabIndex(theLine, match.index+_regLen, y + fx.offsetY)-startHighlightPos)
-                var highlightLengthChars = (expandTabIndex(fx.lines[y + fx.offsetY] || "", match.index+_regLen, y + fx.offsetY)-startHighlightPos)
+                // var highlightLengthChars = (expandTabIndex(theLine, match.index+_regLen, theIndex)-startHighlightPos)
+                var highlightLengthChars = (expandTabIndex(fx.lines[theIndex] || "", match.index+_regLen, theIndex)-startHighlightPos)
                 var highlightLength = highlightLengthChars * fontWidth
 
                 if (_regI >= highlightMatches.length) {
@@ -8132,16 +8143,16 @@ function renderInternal() {
                         t.fillStyle = "rgb(255, 140, 105, 0.25)"
                     }
     
-                    // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                    // using `fx.lines[theIndex] || ""` instead of theLine
                     // because it gets replaced with a String object with cached peoperites.
                     // if (!theLine)
-                    // var startHighlightPos = expandTabIndex(theLine, pos, y + fx.offsetY)
-                    var startHighlightPos = expandTabIndex(fx.lines[y + fx.offsetY] || "", pos, y + fx.offsetY)
+                    // var startHighlightPos = expandTabIndex(theLine, pos, theIndex)
+                    var startHighlightPos = expandTabIndex(fx.lines[theIndex] || "", pos, theIndex)
                     var startFillHighlight = (startHighlightPos - fx.offsetX) * fontWidth
-                    // var highlightLengthChars = (expandTabIndex(theLine, pos+matchLength, y + fx.offsetY)-startHighlightPos)
-                    var highlightLengthChars = (expandTabIndex(fx.lines[y + fx.offsetY] || "", pos+matchLength, y + fx.offsetY)-startHighlightPos)
+                    // var highlightLengthChars = (expandTabIndex(theLine, pos+matchLength, theIndex)-startHighlightPos)
+                    var highlightLengthChars = (expandTabIndex(fx.lines[theIndex] || "", pos+matchLength, theIndex)-startHighlightPos)
                     var highlightLength = highlightLengthChars * fontWidth
-                    if ((y + fx.offsetY == fx.cursorLineIndex) && (startHighlightPos + highlightLengthChars == fx.cursorColIndex)) {
+                    if ((theIndex == fx.cursorLineIndex) && (startHighlightPos + highlightLengthChars == fx.cursorColIndex)) {
                         // Don't annoy with warning when they are typing
                     } else {
                         t.fillRect(
@@ -8156,13 +8167,13 @@ function renderInternal() {
         }
 
         if (true) {
-            if (y + fx.offsetY < fx.lines.length) {
-                var lineNumber = (y+fx.offsetY+1).toString().padStart(fx.marginLeft-1, " ")
+            if (theIndex < fx.lines.length) {
+                var lineNumber = (theIndex+1).toString().padStart(fx.marginLeft-1, " ")
                 if (fx.offsetX < -1) {
                     // Line numbers
 
-                    var stringedLine = (fx.lines[y + fx.offsetY] || "").toString()
-                    var stringedLinePrev = (fx.lines[y + fx.offsetY - 1] || "").toString()
+                    var stringedLine = (fx.lines[theIndex] || "").toString()
+                    var stringedLinePrev = (fx.lines[theIndex - 1] || "").toString()
                     // we use toString because of the new String() hack
                     if (stringedLine != "" && stringedLinePrev == stringedLine) {
                         // handy feature to see if lines are same
@@ -8198,7 +8209,7 @@ function renderInternal() {
             } else {
                 // feature to gray out lines before where you are scrolled to
                 // var spaceCount = getSpaceCount(theLine)
-                // if (spaceCount < fx.offsetX && (y + fx.offsetY) != fx.cursorLineIndex) {
+                // if (spaceCount < fx.offsetX && (theIndex) != fx.cursorLineIndex) {
                 //     t.fillStyle = lightFontColor
                 // } else {
                 //     t.fillStyle = fontColor
@@ -8218,8 +8229,8 @@ function renderInternal() {
         //     var theParts = trimmedLine.split(" ")
         //     theFillStyle = theParts[theParts.length - 2]
         //     t.fillStyle = theFillStyle
-        //     var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // red marker
-        //     t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // red marker
+        //     var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, theIndex, fx) // red marker
+        //     t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(theLine, -1, theIndex)-adjustment)*fontWidth, underlineHeight) // red marker
         //     t.fillStyle = oldFillStyle
         // }
 
@@ -8231,17 +8242,17 @@ function renderInternal() {
                 if (CSS.supports("color", color)) {
                     var oldFillStyle = t.fillStyle
                     t.fillStyle = color
-                    var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, y + fx.offsetY, fx) // _red
-                    // using `fx.lines[y + fx.offsetY] || ""` instead of theLine
+                    var [newStartX, adjustment] = skipLeadingSace(theLine, 0, fx.offsetX, theIndex, fx) // _red
+                    // using `fx.lines[theIndex] || ""` instead of theLine
                     // because it gets replaced with a String object with cached peoperites.
-                    t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(fx.lines[y + fx.offsetY] || "", -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // _red
+                    t.fillRect(newStartX*fontWidth, y*fontHeight + underlineOffset, (expandTabIndex(fx.lines[theIndex] || "", -1, y+fx.offsetY)-adjustment)*fontWidth, underlineHeight) // _red
                     t.fillStyle = oldFillStyle
                 }
             }
         }
 
         if (compactRender && !commentLine) {
-            var lineAndInfo = compactLine(theLine, y + fx.offsetY)
+            var lineAndInfo = compactLine(theLine, theIndex)
             theNewLine = lineAndInfo.compactedLine
     
             if (theNewLine != theLine) {
@@ -8252,7 +8263,7 @@ function renderInternal() {
         }
 
         theLine = theLine || ""
-        var expandedLine = expandLine(theLine, (y + fx.offsetY))
+        var expandedLine = expandLine(theLine, (theIndex))
         var syntaxColors
         if (syntaxHighlight) {
             syntaxColors = getSyntaxHighlight(expandedLine)
@@ -8352,77 +8363,77 @@ function renderInternal() {
         // }
     }
     
-    if (headers.length) {
-        // headers = headers.slice(0, 3)
-        for (let headerI = 0; headerI < headers.length; headerI++) {
-            if (fx.cursorLineIndex - fx.offsetY <= headerI) {
-                continue
-            }
-            let header = headers[headerI]
-            let headerIndex = headerIndexes[headerI]
-            
-            theLine = theLine || ""
-            let expandedLine = expandLine(header, headerIndex)
-            let syntaxColors
-            if (syntaxHighlight) {
-                syntaxColors = getSyntaxHighlight(expandedLine)
-            }
-            
-            t.fillStyle = "#222"
-            t.fillRect(0, headerI * fontHeight, c.width*3, Math.ceil(fontHeight))
-            // t.fillText(header, 0, headerI*fontHeight + fontOffsetY)
-            let textFillStyleOverride = "#aaa"
-            for (let x=0; x < maxCols; x++) {
-                if ((x+fx.offsetX) >= expandedLine.length) {
-                    break
-                }
-                let chr = expandedLine[x+fx.offsetX] || ""
-                if (chr == "\t") {
-                    if (shouldSeeTabs) {
-                        t.fillStyle = veryLightFontColor
-                        t.fillText("•", x*fontWidth, headerI*fontHeight + fontOffsetY)
-                    }
-                } else if (chr != "" && chr != " ") {
-                    // TODO: do we need to assign every time?
-                    // red #color
-                    if (textFillStyleOverride) {
-                        t.fillStyle = textFillStyleOverride
-                    } else if (textFillStyleOverride1) {
-                        t.fillStyle = textFillStyleOverride1
-                    } else {
-                        t.fillStyle = textFillStyle
-                    }
-                    // end #color
-    
-                    if (useUnicode) {
-                        // if (chr.length > 1) {
-                        if (isEmoji(chr)) {
-                            t.font = fontCSSEmoji
-                            extraY = extraYEmoji
-                            // chr = "?"
-                        } else {
-                            t.font = fontCSS
-                            extraY = 0
-                        }
-                        if (syntaxHighlight) {
-                            // t.fillStyle = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
-                            let f = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
-                            if (f) {
-                                t.fillStyle = f
-                            }
-                        }
-                        t.fillText(chr, x*fontWidth, headerI*fontHeight + extraY + fontOffsetY)
-                    } else {
-                        t.fillText(chr, x*fontWidth, headerI*fontHeight + fontOffsetY)
-                    }
-                }
-                if (useUnicode) {
-                    // revert back
-                    t.font = fontCSS
-                }
-            }
-        }
-    }
+    // if (headers.length) {
+    //     // headers = headers.slice(0, 3)
+    //     for (let headerI = 0; headerI < headers.length; headerI++) {
+    //         if (fx.cursorLineIndex - fx.offsetY <= headerI) {
+    //             continue
+    //         }
+    //         let header = headers[headerI]
+    //         let headerIndex = headerIndexes[headerI]
+//             
+    //         theLine = theLine || ""
+    //         let expandedLine = expandLine(header, headerIndex)
+    //         let syntaxColors
+    //         if (syntaxHighlight) {
+    //             syntaxColors = getSyntaxHighlight(expandedLine)
+    //         }
+//             
+    //         t.fillStyle = "#222"
+    //         t.fillRect(0, headerI * fontHeight, c.width*3, Math.ceil(fontHeight))
+    //         // t.fillText(header, 0, headerI*fontHeight + fontOffsetY)
+    //         let textFillStyleOverride = "#aaa"
+    //         for (let x=0; x < maxCols; x++) {
+    //             if ((x+fx.offsetX) >= expandedLine.length) {
+    //                 break
+    //             }
+    //             let chr = expandedLine[x+fx.offsetX] || ""
+    //             if (chr == "\t") {
+    //                 if (shouldSeeTabs) {
+    //                     t.fillStyle = veryLightFontColor
+    //                     t.fillText("•", x*fontWidth, headerI*fontHeight + fontOffsetY)
+    //                 }
+    //             } else if (chr != "" && chr != " ") {
+    //                 // TODO: do we need to assign every time?
+    //                 // red #color
+    //                 if (textFillStyleOverride) {
+    //                     t.fillStyle = textFillStyleOverride
+    //                 } else if (textFillStyleOverride1) {
+    //                     t.fillStyle = textFillStyleOverride1
+    //                 } else {
+    //                     t.fillStyle = textFillStyle
+    //                 }
+    //                 // end #color
+//     
+    //                 if (useUnicode) {
+    //                     // if (chr.length > 1) {
+    //                     if (isEmoji(chr)) {
+    //                         t.font = fontCSSEmoji
+    //                         extraY = extraYEmoji
+    //                         // chr = "?"
+    //                     } else {
+    //                         t.font = fontCSS
+    //                         extraY = 0
+    //                     }
+    //                     if (syntaxHighlight) {
+    //                         // t.fillStyle = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
+    //                         let f = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
+    //                         if (f) {
+    //                             t.fillStyle = f
+    //                         }
+    //                     }
+    //                     t.fillText(chr, x*fontWidth, headerI*fontHeight + extraY + fontOffsetY)
+    //                 } else {
+    //                     t.fillText(chr, x*fontWidth, headerI*fontHeight + fontOffsetY)
+    //                 }
+    //             }
+    //             if (useUnicode) {
+    //                 // revert back
+    //                 t.font = fontCSS
+    //             }
+    //         }
+    //     }
+    // }
 
     // red ghost cursor
     t.fillStyle = "rgba(255, 0, 0, 0.5)"
@@ -9082,6 +9093,7 @@ var touchCount = 0
 var isSelectedFromTopThird = false
 var isLongPress = false
 var shouldOpenEditorCommand = false
+var minSpaceForHeader = 2
 
 function onStart(e) {
     isMoving = true
@@ -9340,6 +9352,12 @@ function onStart(e) {
         var changedY = false
         //var maxHeight = canvasHeight
         var maxHeight = (maxLines -1 ) * fontHeight
+        // var minAllowedY = headers.length * fontHeight
+        
+        var minAllowedY = minSpaceForHeader * fontHeight
+        
+        
+        // var minAllowedY = 0
         if (cursorY > maxHeight) {
             var extendY = cursorY - maxHeight
             cursorY = maxHeight
@@ -9357,14 +9375,15 @@ function onStart(e) {
                 hasDoneOverflowYAction = true
                 overflowY = 0
             }
-        } else if (cursorY < 0) {
-            var extendY = cursorY
-            cursorY = 0
+        // } else if (cursorY < 0) {
+        } else if (cursorY < minAllowedY) {
+            var extendY = cursorY - minAllowedY
+            cursorY = minAllowedY
             fx.offsetY += Math.floor(extendY/fontHeight)
             changedY = true
-            if (fx.offsetY < 0) {
+            if (fx.offsetY < -minSpaceForHeader) {
                 overflowY += fx.offsetY
-                fx.offsetY = 0
+                fx.offsetY = -minSpaceForHeader
             }
             if (overflowY < -50 && !hasDoneOverflowYAction && startCursorLineIndex == 0) {
                 if (fx.fileMode == "shell") {
