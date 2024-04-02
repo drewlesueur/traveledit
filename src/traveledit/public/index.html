@@ -2472,14 +2472,22 @@ function updateFontScale() {
         fontScale = 1
     }
     setFontVars()
+
     setCanvasHeightAccordingly()
     setCanvasWidth(canvasWidth)
+
     render()
 }
 
 function setFontVars() {
     fontHeight = currentFont.fontHeightPre * fontScale
     fontWidth = currentFont.fontWidthPre * fontScale
+    
+    // this makes scaling text more jaggedy
+    fontHeight = Math.ceil(fontHeight)
+    fontWidth = Math.ceil(fontWidth)
+    
+    
     fontOffsetY = (currentFont.fontOffsetYPre || 0) * fontScale
     // fontCSS = (currentFont.fontSize * fontScale) + "px '"+currentFont.fontName+"', ui-monospace"
     // fontCSS = (currentFont.fontSize * fontScale) + "px 'Courier', ui-monospace"
@@ -4828,9 +4836,13 @@ number is -34.2 and 400.123 === forever young
 function setCanvasHeight(h) {
     canvasHeight = h
 
-    // these 2 lines are new
-    c.height = canvasHeight
-    c.style.height = (canvasHeight/3)+"px"
+    // maybe rearrange this so you don't always have to do the if checks
+    if (c.height != canvasHeight) {
+        c.height = canvasHeight
+    }
+    if (c.style.height != (canvasHeight/3)+"px") {
+        c.style.height = (canvasHeight/3)+"px"
+    }
 
     maxLines = Math.floor(canvasHeight / fontHeight)
     
