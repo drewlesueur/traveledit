@@ -2723,6 +2723,24 @@ function runEditorCommand(e) {
     case "pretty":
         prettyJsonSelected()
         break
+    case "lower":
+        var _t = getSelectedLines(fx, true)
+        var linesToProcess = _t.lines
+        if (_t.isWholeFile) {
+            break
+        }
+        let lowered = linesToProcess.map(l => l.toLowerCase())
+        pasteLines(lowered, false, false)
+        break
+    case "upper":
+        var _t = getSelectedLines(fx, true)
+        var linesToProcess = _t.lines
+        if (_t.isWholeFile) {
+            break
+        }
+        let uppered = linesToProcess.map(l => l.toUpperCase())
+        pasteLines(uppered, false, false)
+        break
     case "sp":
         stripPrefixes([rest])
         break
@@ -4836,8 +4854,9 @@ function setCanvasHeightAccordingly() {
         // If this is too big then iOS wiLl auto scroll
         // it up so that the text isn't so low I guess
         // an attempt to window.scrollTo(0,0) failed
-        var statusElHeight = 190
         // var statusElHeight = 100
+        // var statusElHeight = 190
+        var statusElHeight = 150
         statusEl.style.height = statusElHeight + "px"
         logEl.style.height = statusElHeight + "px"
 
