@@ -28,9 +28,16 @@ Maybe ok but inconsistent
 
 // idea for perf. after desugaring, you can remove the parens
 
+var globalVar
+if (typeof global != "undefined") {
+    globalVar = global
+} else {
+    globalVar = window
+}
+
 if (typeof log2 == "undefined"){
-    log2 = function (x) {
-        console.log(x)
+    globalVar.log2 = function (...x) {
+        console.log(...x)
     }
 }
 const stringType = 0;
@@ -887,7 +894,7 @@ thumbscript4.tokenize = function(code, debug) {
     return tokens
 }
 thumbscript4.dedent = function(str) {
-    lines = str.split("\n")
+    var lines = str.split("\n")
     lines = lines.slice(1,-1)
     var minIndent = Infinity
     for (let line of lines) {
@@ -1338,7 +1345,7 @@ thumbscript4.evalQuick = function(code, oldWorld, state) {
         code = thumbscript4.stdlib + "\n" + code + "\n" // red marker
     }
     tokens = thumbscript4.tokenize(code)
-    world = {
+    var world = {
         parent: oldWorld?.parent,
         state: oldWorld?.state || state || {},
         stack: oldWorld?.stack || [],
@@ -1358,7 +1365,7 @@ thumbscript4.evalQuick = function(code, oldWorld, state) {
         world.asyncGlobal = world
     }
     while (true) {
-        newWorld = thumbscript4.next(world)
+        var newWorld = thumbscript4.next(world)
         if (!newWorld) {
             // return world.stack[world.stack.length - 1]
             let ret = world.stack.pop()
@@ -1372,7 +1379,7 @@ setTimeout(function () {
     // alert(thumbscript4.evalQuick("plus 1 30"))
 }, 0)
 
-PretendArray = function () {
+var PretendArray = function () {
     var ret = new Array(10000)
     ret._i = 0
     ret.push = function (x) {
@@ -1404,7 +1411,7 @@ PretendArray = function () {
 thumbscript4.eval = function(code, state, stack, opts) {
     opts = opts || {}
     // alert("evaling")
-    clearTimeout(window.t99)
+    clearTimeout(globalVar.t99)
     // I tried to pass in the state of the stdlib
     // wasn't working, so just doing this hacky string concat.
     // would be nice to grab the state of the stdlib
@@ -1416,7 +1423,7 @@ thumbscript4.eval = function(code, state, stack, opts) {
     var tokens = thumbscript4.tokenize(code)
     // log2(tokens)
     // return
-    world = {
+    var world = {
         state: state || {},
         stack: stack || [],
         // stack: PretendArray(),
@@ -1504,7 +1511,7 @@ thumbscript4.run = function(world, opts) {
     // var oldPreventRender = preventRender
     // preventRender = true
     while (true) {
-        newWorld = thumbscript4.next(world)
+        var newWorld = thumbscript4.next(world)
         if (!newWorld) {
             return world
         }
@@ -1545,7 +1552,7 @@ thumbscript4.runAsync = function(world, opts) {
     // render()
 
     if (world) {
-        window.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 0)
+        globalVar.t99 = setTimeout(function() { thumbscript4.runAsync(world) }, 0)
     }
 }
 
@@ -2075,7 +2082,7 @@ thumbscript4.builtIns = {
     },
     jseval: function(world) {
         var code = world.stack.pop()
-        world.stack.push(window.eval(code))
+        world.stack.push(globalVar.eval(code))
         return world
     },
     jsdrop: function(world) {
@@ -2893,7 +2900,6 @@ thumbscript4.next = function(world) {
                 w.state[token.valueString]++
                 break outer
             case noOpType:
-                window.xyzzy++
                 break outer
             case anchorType:
                 world.name = token.valueString
@@ -3448,7 +3454,7 @@ thumbscript4.stdlib.split("\n").forEach(function (line) {
 // "baz" "bar" 
 
 
-thumbscript4.tokenize(`
+false && thumbscript4.tokenize(`
 // foo
 // // .bar(biz)[20]
 // .bar(biz)
@@ -3672,11 +3678,11 @@ function promiseCheck(name) {
         }, 10)
     })
 }
-window.promiseCheck = promiseCheck
+globalVar.promiseCheck = promiseCheck
 
-window.xyzzy = 123
+globalVar.xyzzy = 123
 
-window.gulp = {
+globalVar.gulp = {
     yo: function () {
         alert("yo")
     },
@@ -3693,13 +3699,13 @@ window.gulp = {
 // `; var code2 = `
 
 
-var county = 0
-var start = Date.now()
-for (var i=0; i<100_000; i++) {
-    county += i
-}
-log2("js: it took " + (Date.now(i) - start))
-log2("js county: " + county)
+// var county = 0
+// var start = Date.now()
+// for (var i=0; i<100_000; i++) {
+//     county += i
+// }
+// log2("js: it took " + (Date.now(i) - start))
+// log2("js county: " + county)
 
 // idea fresh syntax of only =
 // a = 10
@@ -3709,7 +3715,7 @@ log2("js county: " + county)
 // :(foo.bar.baz)
 
 // `, window); false && thumbscript4.eval(` // _lime
-thumbscript4.eval(` // _lime
+false && thumbscript4.eval(` // _lime
 
 x: 3
 
@@ -3763,7 +3769,7 @@ say. "done"
 // r1[i1] = 10
 
 
-`, window); false && thumbscript4.eval(` // lime marker
+`, globalVar); false && thumbscript4.eval(` // lime marker
 
 every. 2 [100 200 300 400 500] {
     :v2 :i2 :v1 :i1
@@ -4125,7 +4131,7 @@ say. a
 12 :a 13 :b
 say. "$a and $b"
 
-`, window);  // _lime
+`, globalVar);  // _lime
 
 thumbscript4.exampleCode = function () { // _maroon
 /*
@@ -4374,7 +4380,7 @@ loopn. 10 {
 
 assertempty("prewow") // olive marker
 #a
-foreach. window {
+foreach. globalVar {
     #b
     :v :k
     if. ~v.toString {
@@ -5312,7 +5318,7 @@ var code = thumbscript4.exampleCode.toString().split("\n").slice(2, -2).join("\n
 
  // mid 70 ms for the onenperf check
 // thumbscript4.eval(code, {})
-thumbscript4.eval(code, window, [], {async: true}) // red marker
+thumbscript4.eval(code, globalVar, [], {async: true}) // red marker
 // window makes my test a bit slower (in 80s) interesting
 // actuallt down to sub 60 ms now. with inlining
 // was mis 60s before.
@@ -5331,7 +5337,7 @@ thumbscript4.makeJsFunc = function (f) {
         for (let arg of args) {
             stack.push(arg)
         }
-        var world = thumbscript4.eval(code, window, stack, {
+        var world = thumbscript4.eval(code, globalVar, stack, {
             async: false
         })
         // alert(JSON.stringify(world.stack))
