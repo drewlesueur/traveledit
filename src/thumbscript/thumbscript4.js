@@ -1717,7 +1717,13 @@ thumbscript4.breakN = function (n, world) {
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
     rand: thumbscript4.genFunc1((a) => Math.floor(Math.random() * a)),
-    say: thumbscript4.genFunc1NoReturn(a => { log2(a) }),
+    say: thumbscript4.genFunc1NoReturn(a => {
+        if (typeof log2 != "undefined") {
+            log2(a)
+            return
+        }
+        console.log(a)
+    }),
     alert: thumbscript4.genFunc1NoReturn(a => { alert(a) }),
     cc: thumbscript4.genFunc2((a, b) => a + b),
     // nowmillis: thumbscript4.genFunc0(() => Date.now()),
@@ -5343,3 +5349,6 @@ var greet = thumbscript4.makeJsFunc(() => { /*
 
 
 */
+if (typeof global != "undefined") {
+    global.thumbscript4 = thumbscript4
+}
