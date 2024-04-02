@@ -5345,6 +5345,21 @@ thumbscript4.makeJsFunc = function (f) {
     }
 }
 
+thumbscript4.makeJsFuncString = function (code, state) {
+    return function (...args) {
+        var stack = []
+        for (let arg of args) {
+            stack.push(arg)
+        }
+        var world = thumbscript4.eval(code, state || globalVar, stack, {
+            async: false
+        })
+        // alert(JSON.stringify(world.stack))
+        return world.stack.pop()
+    }
+}
+globalVar.ths = thumbscript4.makeJsFuncString
+
 var greet = thumbscript4.makeJsFunc(() => { /*
     :a
     "Hello " a cc
