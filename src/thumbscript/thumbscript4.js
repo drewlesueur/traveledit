@@ -1,5 +1,7 @@
 var thumbscript4 = {}
 
+// TODO: only parse stdlib once!
+// then keep the state of it
 
 // comments are busted when they aren't first thing
 // headerLine: lines[0] CC " " // add extra space
@@ -20,9 +22,11 @@ Maybe ok but inconsistent
     these work
         foo. "hi" "yo"
         "hi" .foo "yo"
+        1 add1
      these don't
         foo.bar. "hi" "yo"
         "hi" .foo.bar "yo"
+        1 funcs.add1
 */
 
 
@@ -61,8 +65,14 @@ function j(x) {
 }
 
 thumbscript4.isNumeric = function (x) {
+    if (x === "") {
+        return false
+    }
     return x.replaceAll("_", "") - 0 == x
 }
+
+
+thumbscript4.dots = ".•-"
 // thumbscript2 parser was cool with optional significant indenting
 thumbscript4.tokenize = function(code, debug) {
     var leftAssignSugar = true // count: count 1 plus
@@ -324,7 +334,7 @@ thumbscript4.tokenize = function(code, debug) {
                     // }
                     // end #color
                     
-                    addToken("<-")
+                    addToken("<=")
                     freshLine = true // darkorange marker
                     // not checking fresh line
                     if (leftAssignSugar) {
@@ -340,7 +350,7 @@ thumbscript4.tokenize = function(code, debug) {
                         }
                         addClosingParensOnNewLine = 0
                     }
-                    addToken("->1")
+                    addToken("=>1")
                     quoteNext = true
                     
                     // added fresh crimson #color
@@ -451,7 +461,7 @@ thumbscript4.tokenize = function(code, debug) {
                 freshLine = false // orange marker
                 state = "string2"
                 string2OpenCount = 1
-            } else if (".•".indexOf(chr) != -1) {
+            } else if (thumbscript4.dots.indexOf(chr) != -1) {
                 freshLine = false // orange marker
                 state = "dot"
                 currentToken = chr
@@ -622,7 +632,7 @@ thumbscript4.tokenize = function(code, debug) {
 
                     addToken("@" + currentToken)
                     addToken(")") // 🥑 green marker
-                    addToken("1<-")
+                    addToken("1<=")
                     freshLine = true // darkorange marker
                     // if (leftAssignSugar && tokens[tokens.length - 2]?.onFreshLine) {
                     if (leftAssignSugar) {
@@ -861,13 +871,21 @@ thumbscript4.tokenize = function(code, debug) {
                 state = "in"
             }
         } else if (state == "dot") {
-            if (".•".indexOf(chr) != -1) {
+            if (thumbscript4.dots.indexOf(chr) != -1) {
                 currentToken += chr
             } else {
-                i--
-                addToken(currentToken)
-                currentToken = ""
-                state = "out"
+                if (thumbscript4.isNumeric(chr)) {
+                    // -4 etc
+                    // this little conditiion started when we allowed minus sign as skip prefix (.•-)
+                    addToken("(") // 🥑
+                    currentToken += chr
+                    state = "in"
+                } else {
+                    i--
+                    addToken(currentToken)
+                    currentToken = ""
+                    state = "out"
+                }
             }
         } else if (state == "comment") {
             if ("\n".indexOf(chr) != -1) {
@@ -1102,8 +1120,8 @@ thumbscript4.desugarArrows = function(tokens) {
                     newTokens.push(lastToken)
                     break
                 case ">":
-                case "->1":
-                    // 100 -> a
+                case "=>1":
+                    // 100 => a
                     // 100 a set
                     // newTokens.push(dotToken)
                     // newTokens.push(setToken)
@@ -1141,13 +1159,13 @@ thumbscript4.desugarArrows = function(tokens) {
                     break
                 case "<":
                 case "=":
-                case "<-":
+                case "<=":
                     var tokenForSet = setbToken
-                    if (token.valueString == "<-") {
+                    if (token.valueString == "<=") {
                         tokenForSet = setblocalToken
                     }
 
-                    // same as 1<- for now
+                    // same as 1<= for now
                     var lastToken = newTokens[newTokens.length - 1]
                     lastToken = thumbscript4.removeExtraParens(lastToken)
                     if (false && lastToken && lastToken.name == "at") {
@@ -1177,8 +1195,8 @@ thumbscript4.desugarArrows = function(tokens) {
                         }
                     }
                     break
-                case "1<-":
-                    // a 1<- 100
+                case "1<=":
+                    // a 1<= 100
                     // 100 a set
 
                     var lastToken = newTokens[newTokens.length - 1]
@@ -1236,8 +1254,11 @@ thumbscript4.desugarDot = function(tokens) {
 
         if (token.th_type == varType) {
             var j = 0
-            while (j < token.valueString.length && ".•".indexOf(token.valueString.charAt(j)) != -1) {
-                j++
+            if (!thumbscript4.isNumeric(token.valueString.replaceAll("-", ""))) {
+                // case where -1 etc doesn't mean •1
+                while (j < token.valueString.length && thumbscript4.dots.indexOf(token.valueString.charAt(j)) != -1) {
+                    j++
+                }
             }
             if (j == 0) {
                 newTokens.push(token)
@@ -1419,6 +1440,7 @@ thumbscript4.eval = function(code, state, stack, opts) {
     // look later
     // TODO: uncomment the stdlib addition!!!!
     code = thumbscript4.stdlib + "\n" + code // red marker
+    // log2(code)
 
     var tokens = thumbscript4.tokenize(code)
     // log2(tokens)
@@ -1798,6 +1820,7 @@ thumbscript4.builtIns = {
     join: thumbscript4.genFunc2((a, b) => a.join(b)),
     slice: thumbscript4.genFunc3((a, b, c) => a.slice(b, c)),
     slicefrom: thumbscript4.genFunc2((a, b) => a.slice(b)),
+    sliceto: thumbscript4.genFunc2((a, b) => a.slice(0, b)),
     split: thumbscript4.genFunc2((a, b) => {
         return a.split(b)
     }),
@@ -1808,8 +1831,8 @@ thumbscript4.builtIns = {
     contains: thumbscript4.genFunc2((a, b) => a && a?.indexOf(b) !== -1),
     replace: thumbscript4.genFunc3((a, b, c) => a.replaceAll(b, c)),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
-    padStart: thumbscript4.genFunc3((s, len, c) => s.padStart(len, c)),
-    padEnd: thumbscript4.genFunc3((s, len, c) => s.padEnd(len, c)),
+    padstart: thumbscript4.genFunc3((s, len, c) => s.padStart(len, c)),
+    padend: thumbscript4.genFunc3((s, len, c) => s.padEnd(len, c)),
     urlencode: thumbscript4.genFunc1((a) => {
         if (a === null) {
             return ""
@@ -2228,7 +2251,8 @@ thumbscript4.builtIns = {
             default:
                 if (typeof f === "function") {
                     // for calling js, used
-                    newWorld = thumbscript4.builtIns.call_js_skipstack(world, f)
+                    // newWorld = thumbscript4.builtIns.call_js_skipstack(world, f)
+                    thumbscript4.builtIns.call_js_skipstack(world, f)
                 } else {
                     world.stack.push(f)
                 }
@@ -2906,7 +2930,7 @@ thumbscript4.next = function(world) {
                 break outer
             case interpolateType:
                 var r = token.valueString
-                var r = r.replace(/\$\{([^}]+)\}/g, function(x, code) {
+                var r = r.replace(/\$\[([^\]]+)\]/g, function(x, code) {
                     // hacky
                     return thumbscript4.evalQuick(code, world)
                 })
@@ -2929,8 +2953,10 @@ thumbscript4.next = function(world) {
 
 
 // c b a
-thumbscript4.stdlib = function x() { /*
+// thumbscript4.stdlib = function x() { /*
+thumbscript4.stdlib = String.raw`
     // for use in interpolation
+    bob: "200lol"
     it: { :a ~a }
     swap:  { :b :a ~b ~a }
     drop: { :droppy }
@@ -2994,7 +3020,7 @@ thumbscript4.stdlib = function x() { /*
             list •at i block
         } loopn
     }
-    guard: •dyn { not { 2 stopn } ? }
+    guard: { not { 2 stopn } ? } dyn
     loopmax: {
         :theMax :block 0 :i
         {
@@ -3112,7 +3138,7 @@ thumbscript4.stdlib = function x() { /*
     formencode: {
         r: []
         foreach. { :value :key
-            r "${urlencode. key}=${urlencode. value}"
+            r "$[urlencode. key]=$[urlencode. value]"
             push
         }
         r join("&")
@@ -3206,7 +3232,7 @@ thumbscript4.stdlib = function x() { /*
         }
         urlStr: config @url at bashStrEscape
         «
-            curl ${extraFlags} -s -X $method $headersStr $dataStr $urlStr
+            curl $[extraFlags] -s -X $method $headersStr $dataStr $urlStr
         »
         config.debug { trim say "" } ~exec ifelse
     }
@@ -3276,9 +3302,109 @@ thumbscript4.stdlib = function x() { /*
         }
         rows
     }
-*/}.toString().split("\n").slice(1, -1).join("\n") + "\n"
+`
+// */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
 thumbscript4.stdlib2 = function x() { /*
 */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
+
+// See other spot where we do this
+// total hacky tradeoff because of a bug with Bun
+if (globalVar.Bun) {
+    thumbscript4.stdlib = unescapeUnicodeChars(thumbscript4.stdlib)
+}
+
+// use of this is a total hack
+// we call this for bun because it wrongly escapes things, like "•»🧑🏻‍❤️‍🧑🏼" passed to String.raw will give back the escaped version, not the actual raw string
+// it will break it if ths source code actually has \u stuff in it
+function unescapeUnicodeChars(inputString) {
+    return inputString.replace(/\\u(?:\{([0-9A-Fa-f]+)\}|([\dA-Fa-f]{4}))/g, (_, hex1, hex2) => {
+        // Decide if the match was in \u{...} format (hex1) or \uXXXX format (hex2)
+        const hex = hex1 || hex2;
+        // Convert hex to code point value before creating the character
+        const codePoint = parseInt(hex, 16);
+        // Return the actual character corresponding to the Unicode code point
+        return String.fromCodePoint(codePoint);
+    });
+}
+
+// func main() {
+// 	fmt.Printf("%q","•»🧑🏻‍❤️‍🧑🏼")
+// }
+// "•»🧑🏻\u200d❤️\u200d🧑🏼"
+
+// alter this to handle the \u{} flow too
+// for example \u{1f9d1}\u{1f3fb}\u200D\u2764\uFE0F\u200D\u{1f9d1}\u{1f3fc}
+// 
+// To modify the given code snippet to handle Unicode escape sequences in the format `\u{...}`, in addition to the already handled `\uXXXX`, we need to update the regular expression (regex) to match both formats and slightly adjust the logic for converting the hexadecimal values to characters. We can accomplish this by using a compatible regex pattern that captures both `\uXXXX` and `\u{...}` formats and by adjusting the parsing conditionally based on the detected format.
+// Here's how you could alter the given code snippet to handle both scenarios:
+// ```javascript
+// if (globalVar.Bun) {
+//     thumbscript4.stdlib = thumbscript4.stdlib.replace(/\\u(?:\{([0-9A-Fa-f]+)\}|([\dA-Fa-f]{4}))/g, (_, hex1, hex2) => {
+//         // Decide if the match was in \u{...} format (hex1) or \uXXXX format (hex2)
+//         const hex = hex1 || hex2;
+//         // Convert hex to code point value before creating the character
+//         const codePoint = parseInt(hex, 16);
+//         // Return the actual character corresponding to the Unicode code point
+//         return String.fromCodePoint(codePoint);
+//     });
+// }
+// ```
+// covert the replace part to an isolated function
+// 
+// To convert the replace functionality within the `if` block to an isolated function, you can define a function that accepts the string to be transformed (`inputString`) as an argument. This function can then be called with `thumbscript4.stdlib` as its argument, or any other string you wish to process in the same manner. Here's how you can do it:
+// ```javascript
+// function replaceUnicodeChars(inputString) {
+//     return inputString.replace(/\\u(?:\{([0-9A-Fa-f]+)\}|([\dA-Fa-f]{4}))/g, (_, hex1, hex2) => {
+//         // Decide if the match was in \u{...} format (hex1) or \uXXXX format (hex2)
+//         const hex = hex1 || hex2;
+//         // Convert hex to code point value before creating the character
+//         const codePoint = parseInt(hex, 16);
+//         // Return the actual character corresponding to the Unicode code point
+//         return String.fromCodePoint(codePoint);
+//     });
+// }
+// // Usage
+// if (globalVar.Bun) {
+//     thumbscript4.stdlib = replaceUnicodeChars(thumbscript4.stdlib);
+// }
+// ```
+// This approach encapsulates the replace functionality into a reusable function, `replaceUnicodeChars`, which can be easily tested and maintained separately from the rest of your code.
+// 
+// explain the difference between javascript strings and utf-8 strings
+// 
+// The distinction between JavaScript strings and UTF-8 strings primarily lies in how they are encoded and represented internally, along with their use in programming contexts. Here's a breakdown of the differences:
+// ### JavaScript Strings
+// 1. **Encoding**: JavaScript strings are encoded as UTF-16, which means each code unit is 16 bits (2 bytes). This encoding allows JavaScript to represent a wide range of characters from various languages, as well as symbols, emojis, and other special characters. Most common characters are represented by a single 16-bit unit, while some characters (especially those outside the Basic Multilingual Plane) are represented using a pair of 16-bit units known as "surrogates."
+// 2. **Internals**: In JavaScript, a string is a sequence of 16-bit code units, not bytes. When you work with strings in JavaScript (e.g., creating strings, manipulating them with various string methods), you are working at an abstraction level where you don't have to worry about the specific bytes that make up the characters.
+// 3. **Usage**: JavaScript strings are used for text manipulation and storage within JavaScript programs. They can be used for creating dynamic HTML content, handling form inputs, processing text, and more.
+// ### UTF-8 Strings
+// 1. **Encoding**: UTF-8 is a variable-width character encoding that uses one to four 8-bit bytes to encode all possible Unicode characters. UTF-8 is designed to be backward compatible with ASCII, meaning the first 128 characters of Unicode, which correspond to ASCII, are encoded in UTF-8 using a single byte that matches the ASCII representation.
+// 2. **Internals**: UTF-8 Strings directly deal with bytes rather than code units. When dealing with UTF-8, understanding the byte representation of characters is more crucial, especially in environments like filesystems or network protocols, where data is transmitted or stored as bytes.
+// 3. **Usage**: UTF-8 strings are often used in file storage, web pages, and data transmission over the Internet, where efficient and compact representation of a wide range of characters from different languages is needed. UTF-8 has become the dominant encoding for the web due to its efficiency and compatibility with ASCII.
+// ### Key Differences
+// - **Encoding and Internals**: JavaScript strings use UTF-16 encoding and deal with 16-bit code units, while UTF-8 strings use a variable-width encoding scheme and deal with bytes.
+// - **Use Context**: JavaScript strings are primarily used within the context of JavaScript programming, whereas UTF-8 strings are used for storing and transferring text data across different systems and networks.
+// - **Compatibility**: UTF-8 is widely used in file encoding, web content, and protocols due to its efficiency and ASCII compatibility, but JavaScript handles text as UTF-16 to support a wide range of characters directly in the language.
+// Understanding these differences can help developers choose the right encoding scheme and work effectively with text data in various programming and data
+// 
+// Explanation:
+// - The updated regex `\\u(?:\{([0-9A-Fa-f]+)\}|([\dA-Fa-f]{4}))` makes use of a non-capturing group `(?: ... )` with two alternatives: `\{([0-9A-Fa-f]+)\}` for matching `\u{...}` style sequences where `...` can be one or more hexadecimal digits, and `([\dA-Fa-f]{4})` for matching `\uXXXX` style sequences where `XXXX` is exactly four hexadecimal digits. outside the Basic Multilingual Plane (BMP) via surrogate pairs.
+// - **UTF-8 Strings:** UTF-8 is a variable-width character encoding used for electronic communication. It encodes each Unicode character as a sequence of one to four bytes, focusing on minimizing the byte size for characters that are common in the ASCII standard. UTF-8 is backward compatible with ASCII but can represent any Unicode character, making it a widely adopted encoding standard, especially on the web.
+// ### Key Differences
+// 1. **Encoding Efficiency:**
+//    - JavaScript strings, being UTF-16 encoded, typically use 2 bytes for characters within the BMP and 4 bytes for characters outside the BMP (via surrogate pairs).
+//    - UTF-8 strings vary in size, using 1 byte for ASCII characters and up to 4 bytes for characters outside the Basic Latin Unicode block, optimizing for ASCII text.
+// 2. **Compatibility:**
+//    - JavaScript strings' UTF-16 encoding makes them straightforward for representing a wide range of Unicode characters directly in string literals and handling text in programming constructs.
+//    - UTF-8 is the dominant encoding for web content and files, ensuring compatibility across different systems and platforms, particularly important for the internet and file storage.
+// 3. **Usage Context:**
+//    - JavaScript strings are primarily used within the JavaScript programming language, making them ideal for web scripts, server-side Node.js code, and applications developed within the JavaScript ecosystem.
+//    - UTF-8 strings are used in a broader context, including HTML files, JSON data, and system file encoding, making them essential for data interchange and web communications.
+// ### Conclusion
+// The distinction between JavaScript strings and UTF-8 strings is mainly around their encoding (UTF-16 for JavaScript strings and UTF-8 for UTF-8 strings) and their usage context (programming within JavaScript vs. broader data representation and communication). Understanding these differences is crucial when dealing with internationalization, storage, and transmission of text data across different platforms and technologies.
+// - By using capturing groups for the hexadecimal digits inside both alternatives (`([0-9A-Fa-f]+)` for the first and `([\dA-Fa-f]{4})` for the second), the `replace` function's callback gets `hex1` for matches of the first kind and `hex2` for matches of the second kind, with the non-matched kind being `undefined`.
+// - The code then unifies the handling by defining `const hex = hex1 || hex2`, which selects the non-`undefined` value.
+// - Finally, it uses `parseInt(hex, 16)` to parse the hexadecimal string to an integer and `String.fromCodePoint(codePoint)` to convert the Unicode code point value to a string. Notably, `String.fromCharCode()` is replaced with `String.fromCodePoint()` as the former can't handle all possible values in the `\u{...}` notation, such as emoji or supplementary characters which are outside the Basic Multilingual Plane (BMP).
 
 
 // alert(j(thumbscript4.stdlib))
@@ -3479,19 +3605,19 @@ false && thumbscript4.tokenize(`
 // yo.stuff: 3
 // a::
 
-// ->1
+// =>1
 // 100 :a
 // 100 :foo.bar
 // 100 :(foo.bar)
 // 100 :(("foo" get).(1 1 plus))
 
-// 1<-
+// 1<=
 // a: 100
 // a = 100
 // foo.bar: 100
 // foo.bar.baz: 100
 
-// <-
+// <=
 // (a): 100
 // (foo.bar): 100
 // (foo.bar.baz): 100
@@ -3592,7 +3718,7 @@ false && thumbscript4.tokenize(`
     // [theLast] = "LeSueur"
 // ]
 // [var]: 201
-// "(2) it took \${end •minus start} ms"
+// "(2) it took \$[end •minus start] ms"
 // a["colors"].blue = "ok"
 // 1 •minus foo
 
@@ -3665,6 +3791,13 @@ false && thumbscript4.tokenize(`
 // }
 
 // 1.2
+// "foobar" --slice 1 -4
+// nowmillis :start
+
+// if. yo { // hi
+// }
+// and -thing 3 // ok
+// foo bar.baz
 `, true) // _aquamarine
 
 function promiseCheck(name) {
@@ -4135,12 +4268,22 @@ say. "$a and $b"
 
 thumbscript4.exampleCode = function () { // _maroon
 /*
+0 :count
+"count is $count" say
+nowmillis :start
+"start is $start" say
+numbers: [1 2]
+each. numbers {
+    "number is " swap cc say
+}
+ exit
 
+a: 101
 say. "🫐🫐🫐🫐🫐🫐🫐🫐🫐"
 say. "hello"
 
 // commenty gray marker
-"(2) it took ${a} ms"
+"(2) it took $[a] ms" say
 say. "another"
 
 // stop
@@ -4340,7 +4483,7 @@ loopn. 10 {
 
 a: 20
 say. "hello $a"
-say. "hello ${a 1 plus}"
+say. "hello $[a 1 plus]"
 
 assertempty. "first assert" // olive marker
 
@@ -4391,7 +4534,7 @@ foreach. globalVar {
             "endy" goto
             // 3 stopn 
         }
-        say. "$k: ${typename. ~v}"
+        say. "$k: $[typename. ~v]"
         source: v.toString
         if. source contains("native code") {
             say. v.length
@@ -4675,17 +4818,17 @@ say. "we're in the countpart"
 say. lf
 
 
-    do. {
-        0 :count
-        nowmillis :start
-        100_000 {
-            count+=
-        } jsloopn
-        nowmillis :end
-        end •minus start :total
-        "jsloopn: it took $total ms // pink marker" say
-        "count is $count" say
-    }
+do. {
+    0 :count
+    nowmillis :start
+    100_000 {
+        count+=
+    } jsloopn
+    nowmillis :end
+    end •minus start :total
+    "jsloopn: it took $total ms // pink marker" say
+    "count is $count" say
+}
 
 say. 
 
@@ -4737,7 +4880,7 @@ say. "what about here2?"
 //     100_000 { count+= } timeit
 //     "count is $count oh boy" say
 //     end: nowmillis
-//     say. "(2) it took ${end •minus start} ms"
+//     say. "(2) it took $[end •minus start} ms"
 // } call
 // say. "-------"
 // say. ""
@@ -5345,6 +5488,7 @@ thumbscript4.makeJsFunc = function (f) {
     }
 }
 
+
 thumbscript4.makeJsFuncString = function (code, state) {
     return function (...args) {
         var stack = []
@@ -5354,12 +5498,44 @@ thumbscript4.makeJsFuncString = function (code, state) {
         var world = thumbscript4.eval(code, state || globalVar, stack, {
             async: false
         })
+        // log2("state is: ")
+        // log2(world.state)
         // alert(JSON.stringify(world.stack))
         return world.stack.pop()
     }
 }
-globalVar.ths = thumbscript4.makeJsFuncString
 
+// template tag business
+globalVar.ths = function (strings, ...values) {
+    // Start with the raw string part
+    var rawStrings = strings.raw
+    
+    if (globalVar.Bun) {
+        // bun broken here
+        // console.log(String.raw`•»`)
+        
+        // Bun Output:
+        // \u2022\u00BB
+
+        // Node.js output
+        // •»
+
+        // this fix will break if someone actually wanted the escaped unicode
+        // hopefully Bun fixes their bug
+        // https://github.com/oven-sh/bun/issues/9891
+        rawStrings = rawStrings.map(str => {
+            return unescapeUnicodeChars(str)
+        })
+    }
+    let result = rawStrings[0];
+    // Loop over the values (the interpolated expressions)
+    for (let i = 0; i < values.length; i++) {
+        // Add the current value and the next raw string part
+        result += values[i] + rawStrings[i + 1];
+    }
+    var f = thumbscript4.makeJsFuncString(result)
+    return f;
+}
 var greet = thumbscript4.makeJsFunc(() => { /*
     :a
     "Hello " a cc

@@ -13346,7 +13346,7 @@ function selectBlock() {
     render()
 }
 
-function downloadFile(bytes, type, filename) {
+function xdownloadFile(bytes, type, filename) {
     var file = new Blob([new Uint8Array(bytes)], { type: type });
     var url = URL.createObjectURL(file);
     var a = document.createElement("a");
