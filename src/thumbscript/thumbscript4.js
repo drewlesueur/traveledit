@@ -1742,6 +1742,10 @@ thumbscript4.breakN = function (n, world) {
     }
     return world
 }
+function trace() {
+    var err = new Error();
+    return err.stack;
+}
 
 // built in funcs have to have func call last?
 thumbscript4.builtIns = {
@@ -1781,6 +1785,7 @@ thumbscript4.builtIns = {
     isnt: thumbscript4.genFunc2((a, b) => a != b),
     eq: thumbscript4.genFunc2((a, b) => a === b),
     ne: thumbscript4.genFunc2((a, b) => a !== b),
+    contains: thumbscript4.genFunc2((a, b) => a && a?.indexOf(b) !== -1),
     chr: thumbscript4.genFunc1((a) => String.fromCharCode(a)),
     ord: thumbscript4.genFunc1((a) => a.charCodeAt(0)),
     // at: thumbscript4.genFunc2((a, b) => a[b]),
@@ -1793,6 +1798,15 @@ thumbscript4.builtIns = {
         //     return
         // }
         // js hack.
+        if (typeof ret == "function") {
+            var ts = ret.toString.bind(ret)
+            ret = ret.bind(a)
+            ret.toString = ts
+        }
+        return ret
+    }),
+    of: thumbscript4.genFunc2((b, a) => {
+        var ret = a && a[b]
         if (typeof ret == "function") {
             var ts = ret.toString.bind(ret)
             ret = ret.bind(a)
@@ -1822,13 +1836,16 @@ thumbscript4.builtIns = {
     slicefrom: thumbscript4.genFunc2((a, b) => a.slice(b)),
     sliceto: thumbscript4.genFunc2((a, b) => a.slice(0, b)),
     split: thumbscript4.genFunc2((a, b) => {
-        return a.split(b)
+        if (!a) {
+            log2(trace())
+        } else {
+            return a.split(b)
+        }
     }),
     upper: thumbscript4.genFunc1((a) => a.toUpperCase()),
     lower: thumbscript4.genFunc1((a) => a.toLowerCase()),
     trim: thumbscript4.genFunc1((a) => a.trim()),
     indexof: thumbscript4.genFunc2((a, b) => a.indexOf(b)),
-    contains: thumbscript4.genFunc2((a, b) => a && a?.indexOf(b) !== -1),
     replace: thumbscript4.genFunc3((a, b, c) => a.replaceAll(b, c)),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
     padstart: thumbscript4.genFunc3((s, len, c) => s.padStart(len, c)),
@@ -2158,6 +2175,21 @@ thumbscript4.builtIns = {
         }
         return world
     },
+    thisworld: function (world) {
+        world.stack.push(world)
+        return world
+    },
+    pause: function (world) {
+        return null
+    },
+    resume: function (world) {
+        var a = world.stack.pop()
+        // log2("resuming!")
+        // for (key in a) {
+        //     log2("resuming key: " + key)
+        // }
+        thumbscript4.run(a)
+    },
     wait: function (world) {
         var asyncWorld = world.stack.pop()
         // alert(asyncWorld.i + " " + asyncWorld.tokens.length)
@@ -2215,6 +2247,9 @@ thumbscript4.builtIns = {
             asyncWorld.parent = world
             // asyncWorld.cachedLookupWorld = {}
         }
+        
+        // this can break if you are running asynchronously
+        // instead you can have your own event loop?
         setTimeout(function () {
             thumbscript4.run(asyncWorld)
         }, 1)
@@ -2409,6 +2444,8 @@ thumbscript4.builtIns = {
     //     return thumbscript4.continueN(n, world)
     // },
     "exit": function(world) {
+        log2("exiting!!!")
+        // world.global.stopped = true
         world = null
         // todo: see onend
         return world
@@ -3020,6 +3057,20 @@ thumbscript4.stdlib = String.raw`
             list •at i block
         } loopn
     }
+    eachn: {
+        :block :skip :list
+        i: 0
+        loop. {
+            loopn. skip {
+                -plus i -of list
+            }
+            block
+            i = i -plus skip
+            if. i -gte -length list {
+                breakp
+            }
+        }
+    }
     guard: { not { 2 stopn } ? } dyn
     loopmax: {
         :theMax :block 0 :i
@@ -3041,7 +3092,7 @@ thumbscript4.stdlib = String.raw`
     cases: {
         :c
         c length :m
-        2 c {
+        c 2 {
             "looping" say
             :v2 drop :v1 drop
             v1 { v2 3 stopn } ?
@@ -3144,7 +3195,7 @@ thumbscript4.stdlib = String.raw`
         r join("&")
     }
     every: {
-        :fn :list :skip
+        :fn :skip :list
         i: 0
         loop. {
             if. i gte(list len) {
@@ -3181,7 +3232,7 @@ thumbscript4.stdlib = String.raw`
       chunks: [str]
       foreach. replacerMap { :toReplace :search
           newChunks: []
-          every. 2 chunks {
+          every. chunks 2 {
               :nextPartialStr :nextI
               :partialStr :i
               subChunks: partialStr split(search)
@@ -3301,6 +3352,31 @@ thumbscript4.stdlib = String.raw`
             rows row push
         }
         rows
+    }
+    makesemaphore: { :count
+        [count: count max: count]
+    }
+    acquire: { :s
+        if. s.count -eq 0 {
+            s.pausedWorld = thisworld
+            pause
+        }
+        s.count = s.count -minus 1
+    }
+    waitsemafore: { :s
+        loopn. s.max { drop
+           acquire. s
+        }
+    }
+    release: { :s
+        s.count = s.count -plus 1
+        if. s.count -eq 1 {
+            if. s.pausedWorld {
+                pw: s.pausedWorld
+                s.pausedWorld = ""
+                resume. pw
+            }
+        }
     }
 `
 // */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
@@ -3904,7 +3980,7 @@ say. "done"
 
 `, globalVar); false && thumbscript4.eval(` // lime marker
 
-every. 2 [100 200 300 400 500] {
+every. [100 200 300 400 500] 2 {
     :v2 :i2 :v1 :i1
     "every a: $i1: $v1" say
     "every b: $i2: $v2" say
@@ -5132,7 +5208,7 @@ assertempty. "a check" // olive marker
     "hello! " swap cc say
 } loopn
 
-every. 2 [100 200 300 400 500] {
+every. [100 200 300 400 500] 2 {
     :v2 :i2 :v1 :i1
     "every: $i1: $v1" say
     "every: $i2: $v2" say
@@ -5174,7 +5250,7 @@ assertempty // olive marker
 
 "every day is a new day" " " split :mylist
 
-every. 2 mylist {
+every. mylist 2 {
     4 take say
 } 
 

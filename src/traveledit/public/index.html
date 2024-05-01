@@ -4197,6 +4197,9 @@ function log2() {
     for (var i=0; i<logLines.length; i++) {
         debugOutput.push(logLines[i])
     }
+    if (logFile) {
+        logFile.marginLeft = calcMarginLeft(logFile.lines.length)
+    }
     render()
 }
 function log2Inline(str) {
