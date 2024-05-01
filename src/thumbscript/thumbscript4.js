@@ -1378,6 +1378,7 @@ thumbscript4.evalQuick = function(code, oldWorld, state) {
         // cachedLookupWorld: {},
         global: oldWorld?.global,
         asyncGlobal: oldWorld?.asyncGlobal,
+        onEnds: [],
     }
     if (!world.global) {
         world.global = world
@@ -1457,6 +1458,7 @@ thumbscript4.eval = function(code, state, stack, opts) {
         name: "main",
         // cachedLookupWorld: {},
         log: [], // for concenience
+        onEnds: [],
     }
     world.global = world
     world.asyncGlobal = world
@@ -1667,7 +1669,8 @@ thumbscript4.stopN = function (n, world) {
         }
         // i originally had dynParent but it wasn't right
         // like when I wrapped if
-        // if (world.onEnd) world.onEnd(world)
+        // TODO (onend) !! do I need this here?!
+        thumbscript4.callOnEnds(world)
         var rWorld = world
         world = world.parent
         // log2(`+world went from ${rWorld.name} to ${world.name}`)
@@ -1729,7 +1732,7 @@ thumbscript4.breakN = function (n, world) {
         }
         // i originally had dynParent but it wasn't right
         // like when I wrapped if
-        if (world.onEnd) world.onEnd(world)
+        thumbscript4.callOnEnds(world)
         var rWorld = world
         world = world.parent
         // log2(`+world went from ${rWorld.name} to ${world.name}`)
@@ -2161,6 +2164,7 @@ thumbscript4.builtIns = {
             // cachedLookupWorld: {},
             global: fWorld.global,
             asyncGlobal: fWorld.asyncGlobal,
+            onEnds: [],
         }
         for (var i=0; i<n; i++) {
             var pWorld = loopWorld
@@ -2180,25 +2184,65 @@ thumbscript4.builtIns = {
         return world
     },
     pause: function (world) {
+        // world.global.paused = world
+        
+        log2("pausing world " + world.name)
+        world.paused = world
         return null
     },
     resume: function (world) {
+        var i = 0
+        log2("resuming starting with: " + world.name)
+        for (var p = world.asyncParent || world.parent; p; p = p.asyncParent || p.parent) {
+            i++
+            log2("resuming jump: " + p.name)
+            if (i > 100) {
+                log2("more than 100")
+                return world
+                break
+            }
+            // if (p.global.paused) {
+            //     var pausedWorld = p.global.paused
+            //     p.global.paused = null
+            //     thumbscript4.run(pausedWorld)
+            //     break
+            // }
+            if (p.paused) {
+                var pausedWorld = p.paused
+                p.paused = null
+                thumbscript4.run(pausedWorld)
+                break
+            }
+        }
+        log2("failed resuming starting with: " + world.name)
+    },
+    resumex: function (world) {
         var a = world.stack.pop()
-        // log2("resuming!")
-        // for (key in a) {
-        //     log2("resuming key: " + key)
-        // }
         thumbscript4.run(a)
     },
     wait: function (world) {
         var asyncWorld = world.stack.pop()
         // alert(asyncWorld.i + " " + asyncWorld.tokens.length)
-        asyncWorld.onEnd = function () {
+        
+        if (!asyncWorld.foofoo) {
+            log2("what??! " + asyncWorld.foofoo)
+            for (let key in asyncWorld) {
+                log2("key: " + key)
+            }
+        }
+        if (asyncWorld.done) {
+            for (let item of asyncWorld.stack) {
+                world.stack.push(item)
+            }
+            return world
+        }
+
+        asyncWorld.onEnds.push(function () {
             for (let item of asyncWorld.stack) {
                 world.stack.push(item)
             }
             thumbscript4.run(world)
-        }
+        })
         return null
     },
     cancel: function (world) {
@@ -2206,9 +2250,7 @@ thumbscript4.builtIns = {
         if (!asyncWorld.stopped) {
             asyncWorld.stopped = true
             // if we don't call now we'd have to wait for next callback
-            if (asyncWorld.onEnd) {
-                asyncWorld.onEnd(asyncWorld)
-            }
+            thumbscript4.callOnEnds(asyncWorld)
         }
         return world
     },
@@ -2234,13 +2276,16 @@ thumbscript4.builtIns = {
             stack: [...world.stack], // copied stack
             tokens: fTokens,
             i: 0,
-            dynParent: null,
+            dynParent: null, // so it stops
             asyncParent: world,
             runId: ++thumbscript4.runId,
             indent: world.indent + 1,
             // cachedLookupWorld: {},
             global: fWorld.global,
             asyncGlobal: fWorld.asyncGlobal,
+            done: false,
+            onEnds: [],
+            foofoo: "banana",
         }
 
         if (f.dynamic) {
@@ -2327,7 +2372,6 @@ thumbscript4.builtIns = {
         // world.log = null
         // world.name = null
         // world.repeatCount = 0
-        // world.onEnd = null
         
         
         // if (f.local && f.world == world) { // not exactly the meaning of local, not handling dynamic yet
@@ -2370,6 +2414,7 @@ thumbscript4.builtIns = {
             // cachedLookupWorld: {},
             global: fWorld.global,
             asyncGlobal: fWorld.asyncGlobal,
+            onEnds: [],
         }
 
         if (f.dynamic) {
@@ -2456,7 +2501,7 @@ thumbscript4.builtIns = {
         // see onend
         var a = world.stack.pop()
         if (!a) {
-            if (world.onEnd) world.onEnd(world)
+            thumbscript4.callOnEnds(world)
             var rWorld = world
             world = world.parent
             thumbscript4.recycle(rWorld)
@@ -2468,7 +2513,7 @@ thumbscript4.builtIns = {
         var b = world.stack.pop()
         var a = world.stack.pop()
         if (!(a<b)) {
-            if (world.onEnd) world.onEnd(world)
+            thumbscript4.callOnEnds(world)
             var rWorld = world
             world = world.parent
             thumbscript4.recycle(rWorld)
@@ -2733,6 +2778,15 @@ thumbscript4.getWorldForKey = function(world, key, errOnNotFound, forSetting, lo
     return w
 }
 
+thumbscript4.callOnEnds = function (world) {
+    world.done = true
+    if (world.onEnds) {
+        for (let onEnd of world.onEnds) {
+            onEnd(world)
+        }
+    }
+}
+
 // #closureshortcut
 thumbscript4.closureify = function (a, world) {
     if (a && a.th_type == curlyType) {
@@ -2761,9 +2815,7 @@ thumbscript4.next = function(world) {
             //    world.i = world.iStack.pop()
             //    return world
             // }
-            if (world.onEnd) {
-                world.onEnd(world)
-            }
+            thumbscript4.callOnEnds(world)
             if (world.dynParent) {
                 var rWorld = world
                 world = world.dynParent
@@ -2810,18 +2862,18 @@ thumbscript4.next = function(world) {
                     tokens: token.valueArr,
                     i: 0,
                     dynParent: world,
-                    onEnd: function(world) {
-                        if (Object.keys(world.state).length) {
-                            world.dynParent.stack.push(world.state)
-                        } else {
-                            world.dynParent.stack.push(world.stack)
-                        }
-                    },
                     indent: world.indent + 1,
                     runId: ++thumbscript4.runId,
                     // cachedLookupWorld: {},
                     global: world.global,
                     asyncGlobal: world.asyncGlobal,
+                    onEnds: [function(world) {
+                        if (Object.keys(world.state).length) {
+                            world.dynParent.stack.push(world.state)
+                        } else {
+                            world.dynParent.stack.push(world.stack)
+                        }
+                    }],
                 }
                 break outer
             case curlyType:
@@ -2853,8 +2905,9 @@ thumbscript4.next = function(world) {
                 world.stack.push(closure)
                 break outer
             case parenType:
-                // this is no longer called
+                // TODO: this is no longer called
                 // it's desugared away
+                // we can remove this
 
                 // newWorld = {
                 //     parent: world,
@@ -2890,6 +2943,7 @@ thumbscript4.next = function(world) {
                     global: world.global,
                     asyncGlobal: world.asyncGlobal,
                     isParens: true,
+                    onEnds: [],
                 }
                 break outer
             case builtInType:
@@ -3374,7 +3428,7 @@ thumbscript4.stdlib = String.raw`
             if. s.pausedWorld {
                 pw: s.pausedWorld
                 s.pausedWorld = ""
-                resume. pw
+                resumex. pw
             }
         }
     }
