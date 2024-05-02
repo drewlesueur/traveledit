@@ -1379,6 +1379,7 @@ thumbscript4.evalQuick = function(code, oldWorld, state) {
         global: oldWorld?.global,
         asyncGlobal: oldWorld?.asyncGlobal,
         onEnds: [],
+        pauseds: [],
     }
     if (!world.global) {
         world.global = world
@@ -1459,6 +1460,7 @@ thumbscript4.eval = function(code, state, stack, opts) {
         // cachedLookupWorld: {},
         log: [], // for concenience
         onEnds: [],
+        pauseds: [],
     }
     world.global = world
     world.asyncGlobal = world
@@ -2165,6 +2167,7 @@ thumbscript4.builtIns = {
             global: fWorld.global,
             asyncGlobal: fWorld.asyncGlobal,
             onEnds: [],
+            pauseds: [],
         }
         for (var i=0; i<n; i++) {
             var pWorld = loopWorld
@@ -2184,37 +2187,61 @@ thumbscript4.builtIns = {
         return world
     },
     pause: function (world) {
-        // world.global.paused = world
+        world.global.paused = world
+        // world.global.pauseds.push(world)
+        // world.paused = world
         
-        log2("pausing world " + world.name)
-        world.paused = world
+        if (world.name) {
+            log2("pausing world " + world.name)
+        }
         return null
     },
     resume: function (world) {
         var i = 0
-        log2("resuming starting with: " + world.name)
+        
+        if (world.name) {
+            log2("resuming starting with: " + world.name)
+        }
         for (var p = world.asyncParent || world.parent; p; p = p.asyncParent || p.parent) {
             i++
-            log2("resuming jump: " + p.name)
+            if (world.name) {
+                log2("resuming jump: " + p.name)
+            }
             if (i > 100) {
                 log2("more than 100")
                 return world
                 break
             }
-            // if (p.global.paused) {
-            //     var pausedWorld = p.global.paused
-            //     p.global.paused = null
+            // if (p.global.pauseds.length) {
+            //     var pausedWorld = p.global.pauseds.pop()
+            //     // var pausedWorld = p.global.pauseds.shift()
+            //     if (pausedWorld.name) {
+            //         log2("resuming world: " + pausedWorld.name)
+            //     }
             //     thumbscript4.run(pausedWorld)
-            //     break
+            //     return
             // }
-            if (p.paused) {
-                var pausedWorld = p.paused
-                p.paused = null
+
+            if (p.global.paused) {
+                var pausedWorld = p.global.paused
+                p.global.paused = null
+                if (pausedWorld.name) {
+                    log2("resuming world: " + p.name)
+                }
                 thumbscript4.run(pausedWorld)
-                break
+                return
             }
+            // if (p.paused) {
+            //     var pausedWorld = p.paused
+            //     p.paused = null
+            //     thumbscript4.run(pausedWorld)
+            //     return
+            // }
         }
         log2("failed resuming starting with: " + world.name)
+    },
+    pausex: function (world) {
+        return null
     },
     resumex: function (world) {
         var a = world.stack.pop()
@@ -2285,6 +2312,7 @@ thumbscript4.builtIns = {
             asyncGlobal: fWorld.asyncGlobal,
             done: false,
             onEnds: [],
+            pauseds: [],
             foofoo: "banana",
         }
 
@@ -2415,6 +2443,7 @@ thumbscript4.builtIns = {
             global: fWorld.global,
             asyncGlobal: fWorld.asyncGlobal,
             onEnds: [],
+            pauseds: [],
         }
 
         if (f.dynamic) {
@@ -2874,6 +2903,7 @@ thumbscript4.next = function(world) {
                             world.dynParent.stack.push(world.stack)
                         }
                     }],
+                    pauseds: [],
                 }
                 break outer
             case curlyType:
@@ -2944,6 +2974,7 @@ thumbscript4.next = function(world) {
                     asyncGlobal: world.asyncGlobal,
                     isParens: true,
                     onEnds: [],
+                    pauseds: [],
                 }
                 break outer
             case builtInType:
@@ -3413,7 +3444,7 @@ thumbscript4.stdlib = String.raw`
     acquire: { :s
         if. s.count -eq 0 {
             s.pausedWorld = thisworld
-            pause
+            pausex
         }
         s.count = s.count -minus 1
     }
