@@ -3468,13 +3468,37 @@ thumbscript4.stdlib = String.raw`
         }
         rows
     }
+    makesemaphore_old: { :count
+        [count: count max: count]
+    }
+    acquire_old: { :s
+        if. s.count -eq 0 {
+            s.pausedWorld = thisworld
+            pausex
+        }
+        s.count = s.count -minus 1
+    }
+    waitsemafore_old: { :s
+        loopn. s.max { drop
+           acquire. s
+        }
+    }
+    release_old: { :s
+        s.count = s.count -plus 1
+        if. s.count -eq 1 {
+            if. s.pausedWorld {
+                pw: s.pausedWorld
+                s.pausedWorld = ""
+                resumex. pw
+            }
+        }
+    }
     makesemaphore: { :count
         [count: count max: count]
     }
     acquire: { :s
         if. s.count -eq 0 {
-            s.pausedWorld = thisworld
-            pausex
+            pause
         }
         s.count = s.count -minus 1
     }
@@ -3486,12 +3510,39 @@ thumbscript4.stdlib = String.raw`
     release: { :s
         s.count = s.count -plus 1
         if. s.count -eq 1 {
-            if. s.pausedWorld {
-                pw: s.pausedWorld
-                s.pausedWorld = ""
-                resumex. pw
+            resume
+        }
+    }
+    waitfirst: { :futures
+        anyFinished: false
+        futures each. { :f
+            drop. go. {
+                #thegoroutine
+                wait. f
+                if. anyFinished ~stop
+                anyFinished = true
+                futures each. { :f2
+                    if. f2 -eq f ~stop
+                    cancel. f2
+                }
+                resume
             }
         }
+        pause
+    }
+    waitall: { :futures
+        doneCount: 0
+        futures each. { :f
+            drop. go. {
+                wait. f
+                doneCount = doneCount -plus 1
+                if. doneCount -eq -len futures {
+                    resume
+                }
+            }
+        }
+        log2("pausing for wait all")
+        pause
     }
 `
 // */}.toString().split("\n").slice(1, -1).join("\n") + "\n"
