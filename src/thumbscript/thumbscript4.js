@@ -1379,7 +1379,7 @@ thumbscript4.evalQuick = function(code, oldWorld, state) {
         global: oldWorld?.global,
         asyncTop: oldWorld?.asyncTop,
         onEnds: [],
-        pauseds: [],
+        waitingWorlds: [],
     }
     if (!world.global) {
         world.global = world
@@ -1460,7 +1460,7 @@ thumbscript4.eval = function(code, state, stack, opts) {
         // cachedLookupWorld: {},
         log: [], // for concenience
         onEnds: [],
-        pauseds: [],
+        waitingWorlds: [],
     }
     world.global = world
     world.asyncTop = world
@@ -2172,7 +2172,7 @@ thumbscript4.builtIns = {
             global: fWorld.global,
             asyncTop: world.asyncTop,
             onEnds: [],
-            pauseds: [],
+            waitingWorlds: [],
         }
         for (var i=0; i<n; i++) {
             var pWorld = loopWorld
@@ -2196,76 +2196,26 @@ thumbscript4.builtIns = {
         return null
     },
     resume: function (world) {
-        for (let theTop = world.asyncTop.asyncParent.asyncTop; theTop.paused != null; theTop = theTop.asyncTop) {
-            let toResume = theTop.paused
-            if (toResume) {
-                theTop.paused = null
-                return toResume
-            } else {
-                continue
+        let theTop = world.asyncTop.asyncParent.asyncTop;
+        while (true) {
+            if (theTop && theTop.paused) {
+                break
             }
-            return null
+            if (theTop == theTop.asyncParent) {
+                return null
+            }
+            theTop = theTop.asyncParent.asyncTop
         }
-        return null
-        
-        
+        var toResume = theTop.paused
+        theTop.paused = null
+        return toResume
+        // ---
         var toResume = world.asyncTop.asyncParent.asyncTop.paused
         if (toResume) {
             world.asyncTop.asyncParent.asyncTop.paused = null
             return toResume
         }
         return null
-        
-        // log2("resuming, asyncTop name:" + world.asyncTop.name)
-        // log2("parenty name:" + world.asyncTop.asyncParent.name)
-        // if (toResume.name) {
-        //     log2("resuming world " + toResume.name)
-        // } else {
-        //     log2("not resuming from" + world.name)
-        // }
-        // log2("nay to resume!")
-        var i = 0
-        
-        if (world.name) {
-            log2("resuming starting with: " + world.name)
-        }
-        for (var p = world.asyncParent || world.parent; p; p = p.asyncParent || p.parent) {
-            i++
-            if (world.name) {
-                log2("resuming jump: " + p.name)
-            }
-            if (i > 100) {
-                log2("more than 100")
-                return world
-                break
-            }
-            // if (p.global.pauseds.length) {
-            //     var pausedWorld = p.global.pauseds.pop()
-            //     // var pausedWorld = p.global.pauseds.shift()
-            //     if (pausedWorld.name) {
-            //         log2("resuming world: " + pausedWorld.name)
-            //     }
-            //     thumbscript4.run(pausedWorld)
-            //     return
-            // }
-
-            if (p.global.paused) {
-                var pausedWorld = p.global.paused
-                p.global.paused = null
-                if (pausedWorld.name) {
-                    log2("resuming world: " + p.name)
-                }
-                thumbscript4.run(pausedWorld)
-                return
-            }
-            // if (p.paused) {
-            //     var pausedWorld = p.paused
-            //     p.paused = null
-            //     thumbscript4.run(pausedWorld)
-            //     return
-            // }
-        }
-        log2("failed resuming starting with: " + world.name)
     },
     pausex: function (world) {
         return null
@@ -2339,7 +2289,7 @@ thumbscript4.builtIns = {
             global: world.global,
             done: false,
             onEnds: [],
-            pauseds: [],
+            waitingWorlds: [],
             foofoo: "banana",
         }
         // spawning a new async world (aka goroutine), we set itself to the asyncTop.
@@ -2473,7 +2423,7 @@ thumbscript4.builtIns = {
             global: oldWorld.global,
             asyncTop: oldWorld.asyncTop,
             onEnds: [],
-            pauseds: [],
+            waitingWorlds: [],
         }
 
         if (f.dynamic) {
@@ -2844,6 +2794,11 @@ thumbscript4.callOnEnds = function (world) {
             onEnd(world)
         }
     }
+    if (world.waitingWorlds) {
+        for (let w of world.waitingWorlds) {
+            thumbscript4.run(w)
+        }
+    }
 }
 
 // #closureshortcut
@@ -2933,7 +2888,7 @@ thumbscript4.next = function(world) {
                             world.dynParent.stack.push(world.stack)
                         }
                     }],
-                    pauseds: [],
+                    waitingWorlds: [],
                 }
                 break outer
             case curlyType:
@@ -3004,7 +2959,7 @@ thumbscript4.next = function(world) {
                     asyncTop: world.asyncTop,
                     isParens: true,
                     onEnds: [],
-                    pauseds: [],
+                    waitingWorlds: [],
                 }
                 break outer
             case builtInType:
@@ -3512,6 +3467,14 @@ thumbscript4.stdlib = String.raw`
         if. s.count -eq 1 {
             resume
         }
+    }
+    wait2: { :w
+        if. w.done {
+            each. w.stack {}
+            stopp
+        }
+        w.waitingWorlds -push thisworld
+        pause
     }
     waitfirst: { :futures
         anyFinished: false
