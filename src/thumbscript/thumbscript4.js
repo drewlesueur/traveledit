@@ -2193,27 +2193,37 @@ thumbscript4.builtIns = {
     },
     pause: function (world) {
         world.asyncTop.paused = world
-        // if (world.name) {
-        //     log2("pausing world " + world.name)
-        // }
         return null
     },
     resume: function (world) {
+        for (let theTop = world.asyncTop.asyncParent.asyncTop; theTop.paused != null; theTop = theTop.asyncTop) {
+            let toResume = theTop.paused
+            if (toResume) {
+                theTop.paused = null
+                return toResume
+            } else {
+                continue
+            }
+            return null
+        }
+        return null
+        
+        
         var toResume = world.asyncTop.asyncParent.asyncTop.paused
-        // log2("resuming, asyncTop name:" + world.asyncTop.name)
-        // log2("parenty name:" + world.asyncTop.asyncParent.name)
         if (toResume) {
-            // if (toResume.name) {
-            //     log2("resuming world " + toResume.name)
-            // } else {
-            //     log2("not resuming from" + world.name)
-            // }
             world.asyncTop.asyncParent.asyncTop.paused = null
             return toResume
         }
-        // log2("nay to resume!")
         return null
         
+        // log2("resuming, asyncTop name:" + world.asyncTop.name)
+        // log2("parenty name:" + world.asyncTop.asyncParent.name)
+        // if (toResume.name) {
+        //     log2("resuming world " + toResume.name)
+        // } else {
+        //     log2("not resuming from" + world.name)
+        // }
+        // log2("nay to resume!")
         var i = 0
         
         if (world.name) {

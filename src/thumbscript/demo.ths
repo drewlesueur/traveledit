@@ -1,4 +1,219 @@
 #thumbscript
+
+
+drop. go. {
+    #inner
+    say. "sleeping"
+    sleepms. 100
+    say. "done sleeping"
+    drop. go. {
+        #inner2
+        say. "sleeping 2"
+        sleepms. 100
+        say. "done sleeping 2"
+        resume
+    }
+    pause
+    say. "🐰"
+    resume
+}
+pause
+say. "🫡"
+
+c1: go. {
+    say. "sleeping c1"
+    sleep. 1
+    say. "yay c1"
+    drop. go. {
+        // will not get called
+        say. "sub c1"
+    }
+}
+drop. go. {
+    sleepms. 500
+    cancel. c1
+}
+wait. c1
+
+f: go. {
+    sleepms. 100
+    700
+}
+say. wait. f
+say. wait. f
+sleepms. 200
+say. wait. f
+
+drop. go.  {
+    sleep. 1
+    say. "Yo!"
+    resume
+}
+pause
+say. "done pausing!"
+
+waitfirst: { :futures
+    anyFinished: false
+    futures each. { :f
+        drop. go. {
+            #thegoroutine
+            wait. f
+            if. anyFinished ~stop
+            anyFinished = true
+            futures each. { :f2
+                if. f2 -eq f ~stop
+                cancel. f2
+            }
+            resume
+        }
+    }
+    pause
+}
+
+waitall: { :futures
+    doneCount: 0
+    futures each. { :f
+        drop. go. {
+            wait. f
+            doneCount = doneCount -plus 1
+            if. doneCount -eq -len futures {
+                resume
+            }
+        }
+    }
+    log2("pausing for wait all")
+    pause
+}
+
+
+#aa
+
+
+futures: []
+loopn. 10 { :i
+    futures push. go. {
+        if. i -eq 7 {
+            sleepms. 100
+        }
+        else. {
+            sleepms. 500
+        }
+        say. "first $i"
+    }
+}
+waitfirst. futures
+say. "yay we got the first one"
+
+futures: []
+loopn. 10 { :i
+    // say. "hello $i"
+    futures push. go. {
+        sleepms. 100
+        say. "all $i"
+    }
+}
+waitall. futures
+say. "yay we got all"
+
+
+
+makesemaphore: { :count
+    [count: count max: count]
+}
+acquire: { :s
+    if. s.count -eq 0 {
+        pause
+    }
+    s.count = s.count -minus 1
+}
+waitsemafore: { :s
+    loopn. s.max { drop
+       acquire. s
+    }
+}
+release: { :s
+    s.count = s.count -plus 1
+    if. s.count -eq 1 {
+        resume
+    }
+}
+
+s: makesemaphore. 5
+loopn. 12 { :i
+    acquire. s
+    drop. go. {
+       // sleepms. rand. 1000
+       sleepms. 500
+       say. i
+       release. s
+    }
+}
+waitsemafore. s
+
+// exit
+say. "-------nested----"
+
+waitall. [
+// waitfirst. [
+    #bb
+    go. {
+        #cc
+        drop. go. {
+            #dd
+            sleepms. 200
+            say. "howdy a"
+            resume
+        }
+        pause
+    }
+    go. {
+        say. "howdy b"
+    }
+    go. {
+        drop. go. {
+            say. "okdokey"
+            resume
+        }
+        pause
+    }
+    go. {
+        s: makesemaphore. 5
+        loopn. 17 { :i
+            acquire. s
+            drop. go. {
+                sleepms. 250
+                say. "ok $i"
+                release. s
+            }
+        }
+        say. "waiting"
+        waitsemafore. s
+        say. "done waiting"
+    }
+    go. {
+        drop. go. {
+            drop. go. {
+                drop. go. {
+                    say. "nested"
+                    resume
+                }
+                // pause
+                // resume
+            }
+            pause
+            resume
+        }
+        pause
+    }
+]
+
+say. "we waited"
+say. "----"
+
+
+
+
+
 // {
 //     f: {
 //         500 sleepms
