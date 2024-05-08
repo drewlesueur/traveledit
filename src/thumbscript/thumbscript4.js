@@ -1359,7 +1359,7 @@ thumbscript4.squishFuncs = function(tokens) {
 }
 
 // alert("woa!")
-
+// Todo pre-compile stdlib
 thumbscript4.evalQuick = function(code, oldWorld, state) {
     var tokens
     if (!oldWorld) {
@@ -1377,15 +1377,15 @@ thumbscript4.evalQuick = function(code, oldWorld, state) {
         indent: (oldWorld?.indent || 0) + 1,
         // cachedLookupWorld: {},
         global: oldWorld?.global,
-        asyncGlobal: oldWorld?.asyncGlobal,
+        asyncTop: oldWorld?.asyncTop,
         onEnds: [],
         pauseds: [],
     }
     if (!world.global) {
         world.global = world
     }
-    if (!world.asyncGlobal) {
-        world.asyncGlobal = world
+    if (!world.asyncTop) {
+        world.asyncTop = world
     }
     while (true) {
         var newWorld = thumbscript4.next(world)
@@ -1463,7 +1463,7 @@ thumbscript4.eval = function(code, state, stack, opts) {
         pauseds: [],
     }
     world.global = world
-    world.asyncGlobal = world
+    world.asyncTop = world
 
     thumbscript4.run(world, opts)
     return world
@@ -1524,6 +1524,11 @@ thumbscript4.run = function(world, opts) {
         if (w.stopped) {
             return
         }
+    }
+    
+    // can replace the dynParent check above?
+    if (world.asyncTop.stopped) {
+        return
     }
 
     // if (thumbscript4.async) {
@@ -2165,7 +2170,7 @@ thumbscript4.builtIns = {
             indent: world.indent + 1,
             // cachedLookupWorld: {},
             global: fWorld.global,
-            asyncGlobal: fWorld.asyncGlobal,
+            asyncTop: world.asyncTop,
             onEnds: [],
             pauseds: [],
         }
@@ -2187,16 +2192,28 @@ thumbscript4.builtIns = {
         return world
     },
     pause: function (world) {
-        world.global.paused = world
-        // world.global.pauseds.push(world)
-        // world.paused = world
-        
-        if (world.name) {
-            log2("pausing world " + world.name)
-        }
+        world.asyncTop.paused = world
+        // if (world.name) {
+        //     log2("pausing world " + world.name)
+        // }
         return null
     },
     resume: function (world) {
+        var toResume = world.asyncTop.asyncParent.asyncTop.paused
+        // log2("resuming, asyncTop name:" + world.asyncTop.name)
+        // log2("parenty name:" + world.asyncTop.asyncParent.name)
+        if (toResume) {
+            // if (toResume.name) {
+            //     log2("resuming world " + toResume.name)
+            // } else {
+            //     log2("not resuming from" + world.name)
+            // }
+            world.asyncTop.asyncParent.asyncTop.paused = null
+            return toResume
+        }
+        // log2("nay to resume!")
+        return null
+        
         var i = 0
         
         if (world.name) {
@@ -2273,6 +2290,7 @@ thumbscript4.builtIns = {
         return null
     },
     cancel: function (world) {
+        // TODO, (elsewhere) when we check for stopped we should check asyncTop in addition to global?
         var asyncWorld = world.stack.pop()
         if (!asyncWorld.stopped) {
             asyncWorld.stopped = true
@@ -2308,13 +2326,15 @@ thumbscript4.builtIns = {
             runId: ++thumbscript4.runId,
             indent: world.indent + 1,
             // cachedLookupWorld: {},
-            global: fWorld.global,
-            asyncGlobal: fWorld.asyncGlobal,
+            global: world.global,
             done: false,
             onEnds: [],
             pauseds: [],
             foofoo: "banana",
         }
+        // spawning a new async world (aka goroutine), we set itself to the asyncTop.
+        // any new worlds genersted have this as its top, except new async worlds have their own.
+        asyncWorld.asyncTop = asyncWorld
 
         if (f.dynamic) {
             asyncWorld.parent = world
@@ -2395,7 +2415,7 @@ thumbscript4.builtIns = {
         // world.indent = oldWorld.indent + 1
         // // world.cachedLookupWorld = {}
         // world.global = f.world.global
-        // world.asyncGlobal: f.world.asyncGlobal,
+        // world.asyncTop: f.world.asyncTop,
         //
         // world.log = null
         // world.name = null
@@ -2440,8 +2460,8 @@ thumbscript4.builtIns = {
             runId: ++thumbscript4.runId,
             indent: oldWorld.indent + 1,
             // cachedLookupWorld: {},
-            global: fWorld.global,
-            asyncGlobal: fWorld.asyncGlobal,
+            global: oldWorld.global,
+            asyncTop: oldWorld.asyncTop,
             onEnds: [],
             pauseds: [],
         }
@@ -2895,7 +2915,7 @@ thumbscript4.next = function(world) {
                     runId: ++thumbscript4.runId,
                     // cachedLookupWorld: {},
                     global: world.global,
-                    asyncGlobal: world.asyncGlobal,
+                    asyncTop: world.asyncTop,
                     onEnds: [function(world) {
                         if (Object.keys(world.state).length) {
                             world.dynParent.stack.push(world.state)
@@ -2955,7 +2975,7 @@ thumbscript4.next = function(world) {
                 //     runId: ++thumbscript4.runId,
                 //     cachedLookupWorld: {},
                 //     global: world.global,
-                //     asyncGlobal: world.asyncGlobal,
+                //     asyncTop: world.asyncTop,
                 // }
                 // break outer
 
@@ -2971,7 +2991,7 @@ thumbscript4.next = function(world) {
                     runId: ++thumbscript4.runId,
                     // cachedLookupWorld: {},
                     global: world.global,
-                    asyncGlobal: world.asyncGlobal,
+                    asyncTop: world.asyncTop,
                     isParens: true,
                     onEnds: [],
                     pauseds: [],
