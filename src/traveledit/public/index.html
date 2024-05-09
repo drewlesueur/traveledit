@@ -2734,6 +2734,9 @@ function runEditorCommand(e) {
     case "pretty":
         prettyJsonSelected()
         break
+    case "wr":
+        wordWrapSelected()
+        break
     case "lower":
         var _t = getSelectedLines(fx, true)
         var linesToProcess = _t.lines
@@ -4554,6 +4557,55 @@ function prettyJsonSelected() {
     } else {
         pasteLines(prettied, false, false)
     }
+}
+function wordWrapSelected() {
+    var _t = getSelectedLines(fx, true)
+    var linesToProcess = _t.lines
+    var isWholeFile = _t.isWholeFile
+    var wordWrapped = wordWrap(linesToProcess)
+    if (isWholeFile) {
+        setLines(wordWrapped)
+        docChanged()
+    } else {
+        pasteLines(wordWrapped, false, false)
+    }
+}
+function wordWrap(lines) {
+    let width = maxCols - fx.marginLeft
+    let newLines = []
+    var newLine = ""
+    for (let line of lines) {
+        let words = line.split(" ")
+        // for (let word of words) {
+        for (let i = 0; i < words.length; i++) {
+            let word = words[i]
+            // if (newLine == "") {
+            if (i == 0) {
+                if (word.length > width) {
+                    newLines.push(word)
+                } else {
+                    newLine = word
+                }
+            } else {
+                // TODO: don't split quote (see quote parsing elsewhere in this file)
+                if (newLine.length + word.length + 1 >= width) {
+                    newLines.push(newLine)
+                    var prefix = getIndent(line) + "    "
+                    if (line.trim().startsWith("//")) {
+                        prefix = getIndent(line) + "//     "
+                    } else if (newLine.indexOf("//") != -1) {
+                        prefix = getIndent(line) + "    // "
+                    }
+                    newLine = prefix +  word
+                } else {
+                    newLine += " " + word
+                }
+            }
+        }
+        newLines.push(newLine)
+        newLine = ""
+    }
+    return newLines
 }
 
 function sortSelected() {
@@ -8342,6 +8394,9 @@ function renderInternal() {
                     t.fillStyle = veryLightFontColor
                     t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
                 }
+            } else if (chr == "\r") {
+                t.fillStyle = "orangered"
+                t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
             } else if (chr != "" && chr != " ") {
                 // TODO: do we need to assign every time?
                 // red #color
