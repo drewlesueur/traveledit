@@ -1,6 +1,8 @@
 <!doctype html>
 <!--
 
+
+TODO: seems like long files have per issues finding header, when scrolled to bottom
 need to run on :443... proxy.
 global http proxy.
 
@@ -513,8 +515,6 @@ They get changed later on.
     <div class=longButton onclick="openEditorCommandText()" >status</div>
     <div class=square onclick=undo()>undo</div>
     <div class=square onclick=redo()>redo</div>
-    <div class=square id="gptButton" onclick=runChatGPT('gpt-4')>chatGPT4</div>
-    <div class=square id="gptButton" onclick=runChatGPT('gpt-4-turbo-preview')>chatGPT4</div>
     <div class=square onclick=reloadFile(fx)>reload</div>
     <div class=square onclick=goUpDirectory()>⬆️</div>
     <div class=square id="gptButton2" onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
@@ -522,7 +522,7 @@ They get changed later on.
     <div class=square onclick="runScript()" id=statusBar>run script</div>
     -->
     
-    <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4-turbo-preview')>chatGPT4</div>
+    <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4o')>chatGPT-4o</div>
     <div class=middleButton onclick=reloadFile(fx)>reload</div>
     <div class=middleButton onclick=goUpDirectory()>⬆️</div>
     <div class=middleButton onclick="osCopyText()">os copy</div>
@@ -2846,7 +2846,7 @@ function runEditorCommand(e) {
         break
     case "g":
         // runChatGPT('gpt-4', {inline: true, extra: "\n\n" + rest})
-        runChatGPT('gpt-4-turbo-preview', {inline: true, extra: "\n\n" + rest})
+        runChatGPT('gpt-4o', {inline: true, extra: "\n\n" + rest})
         break
     case "g3":
         runChatGPT('gpt-3.5-turbo', {inline: true, extra: "\n\n" + rest})
@@ -8000,7 +8000,10 @@ function renderInternal() {
         // TODO: also not if is typing?
         var indentLength = Infinity
         // for (_y = minY + fx.offsetY - 1; _y > 0; _y--) {
-        for (_y = fx.cursorLineIndex - 1; _y > 0; _y--) {
+        // for (_y = fx.cursorLineIndex - 1; _y > 0; _y--) {
+        // only looks up max 5000 lines for perf reasons
+        // TODO; you can cache this and incalidate it.
+        for (_y = fx.cursorLineIndex - 1; _y > 0 && _y > (fx.cursorLineIndex - 5000); _y--) {
             var prevLine = fx.lines[_y] || ""
             if (prevLine.trim() == "") {
                 continue
