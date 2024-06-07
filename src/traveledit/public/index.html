@@ -7116,7 +7116,7 @@ function bind(v, min, max) {
     return v
 }
 
-function r(x) {
+function round(x) {
     return Math.round(x)
 }
 function rW(x) {
@@ -7189,7 +7189,7 @@ var mockCanvasContext = {
           return
       }
       this.checkFillStyle()
-      this.commands.push([1, r(x), r(y), r(w), r(h)])
+      this.commands.push([1, round(x), round(y), round(w), round(h)])
     },
     fillText: function(str, x, y) {
       if (this.lastFillStyle != this.fillStyle)  {
