@@ -37,6 +37,20 @@ type SaveResponse struct {
 	Error string `json:"error"`
 }
 
+// func setCookieHandler(w http.ResponseWriter, r *http.Request) {
+//     // Create a new cookie
+//     cookie := &http.Cookie{
+//         Name:     "exampleCookie",
+//         Value:    "this is a test cookie",
+//         Path:     "/",
+//         Expires:  time.Now().Add(24 * time.Hour), // Cookie expires in 24 hours
+//         HttpOnly: true,
+//     }
+//     // Set the cookie in the response
+//     http.SetCookie(w, cookie)
+//     // Inform the client that the cookie has been set
+//     w.Write([]byte("Cookie has been set!"))
+// }
 func PretendBasicAuth(r *http.Request) (string, string, bool) {
 	cookie, err := r.Cookie("pretendba")
 	if err != nil {

@@ -1088,14 +1088,14 @@ var fonts = {
         // fontOffsetYPre: 3,
         url: proxyPath + "/tepublic/BerkeleyMonoTrial-Regular.otf"
     },
-    "Martha": {
-        fontHeightPre: 36,
-        fontWidthPre: 18,
-        fontSize: 30,
-        fontName: "Martha",
-        fontOffsetYPre: 3,
-        url: proxyPath + "/tepublic/martha.otf"
-    },
+    // "Martha": {
+    //     fontHeightPre: 36,
+    //     fontWidthPre: 18,
+    //     fontSize: 30,
+    //     fontName: "Martha",
+    //     fontOffsetYPre: 3,
+    //     url: proxyPath + "/tepublic/martha.otf"
+    // },
     "IosevkaTermExtended": {
         // this font is crazy slow!
         // but my other ones aren't?
@@ -1776,7 +1776,11 @@ function makeTouchRatios(layout) {
     return ratios
 }
 // var layout = "aaa s bbb cc dddd ee fff s ggg"
+// var layout = "aa ss bbbb cc ddddd ee ffff ss gg"
+
+// var layout = "aa ss bb cc dddd ee ff ss gg"
 var layout = "aa s bbb cc dddd ee fff s gg"
+
 var touchRatios = makeTouchRatios(layout)
 // setTimeout(function () {
 //     log(touchRatios)

@@ -1458,7 +1458,7 @@ thumbscript4.eval = function(code, state, stack, opts) {
         runId: 0,
         name: "main",
         // cachedLookupWorld: {},
-        log: [], // for concenience
+        log: [], // for convenience
         onEnds: [],
         waitingWorlds: [],
     }
