@@ -7120,7 +7120,7 @@ function bind(v, min, max) {
     return v
 }
 
-function r(x) {
+function round(x) {
     return Math.round(x)
 }
 function rW(x) {
@@ -7193,7 +7193,7 @@ var mockCanvasContext = {
           return
       }
       this.checkFillStyle()
-      this.commands.push([1, r(x), r(y), r(w), r(h)])
+      this.commands.push([1, round(x), round(y), round(w), round(h)])
     },
     fillText: function(str, x, y) {
       if (this.lastFillStyle != this.fillStyle)  {
@@ -8928,6 +8928,7 @@ var keywords3 = {
     "any": true,
     "string": true,
     "int": true,
+    "int64": true,
     "float64": true,
     "interface": true,
     "byte": true,
@@ -8954,7 +8955,12 @@ var syntaxColorMap = [
     {
         // darkmode
         // quote: "orangered",
-        quote: "coral",
+        // quote: "coral", // * last one
+        // quote: "lightsalmon",
+        // quote: "darksalmon",
+        // quote: "rosybrown",
+        // quote: "palevioletred",
+        quote: "salmon",
         keyword: "deepskyblue",
         // keyword: "skyblue",
         symbol: "orange",
@@ -8974,7 +8980,8 @@ var syntaxColorMap = [
         // uppercase: "cornflowerblue",
         // uppercasefirst: "gold",
         uppercase: "lightskyblue",
-        keyword2: "plum",
+        // keyword2: "plum",
+        keyword2: "lightpink",
         keyword3: "yellowgreen",
         number: "yellow",
     },
@@ -8986,6 +8993,7 @@ function getSyntaxHighlight(expandedLine) {
     var quoteType = ""
     var syntaxColors = []
     var curWord = ""
+    var quoteStart = -1
     if (expandedLine.syntaxColors) {
         return expandedLine.syntaxColors
     }
@@ -8997,6 +9005,7 @@ function getSyntaxHighlight(expandedLine) {
                 state = "inQuote"
                 quoteType = quoties[theIndex]
                 syntaxColors.push("quote")
+                quoteStart = i
             } else if (" \t\r\n".indexOf(chr) != -1) {
                 syntaxColors.push("space")
             } else if (isWordyChar(chr, true)) {
@@ -9189,6 +9198,12 @@ function getSyntaxHighlight(expandedLine) {
                 state = "out"
                 quoteType = ""
                 syntaxColors.push("quote")
+                // peek ahead
+                if (":".indexOf(expandedLine[i+1]) != -1) {
+                    for (let j = quoteStart; j <= i; j++) {
+                        syntaxColors[j] = "key"
+                    }
+                }
             } else {
                 syntaxColors.push("quote")
             }

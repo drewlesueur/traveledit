@@ -3341,9 +3341,9 @@ thumbscript4.stdlib = String.raw`
         } foreach
         headersStr: headers " " join
         dataStr: ""
-        say. "the body is " .cc config.body
+        // say. "the body is " .cc config.body
         data: config @body at
-        say. "the data is " .cc data
+        // say. "the data is " .cc data
         if. data {
             dataStr: " -d " data bashStrEscape .cc
         }
