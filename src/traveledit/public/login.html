@@ -19,7 +19,10 @@ input {
 <script>
 function saveCookie() {
     // document.cookie = "pretendba=" + encodeURIComponent(btoa(usernameEl.value + ":" + passwordEl.value)) + "; Secure; SameSite=Strict"    
-    document.cookie = "pretendba=" + encodeURIComponent(btoa(usernameEl.value + ":" + passwordEl.value)) + "; SameSite=Strict"    
+    // update this cookie to add a max-age of 7 days
+    // document.cookie = "pretendba=" + encodeURIComponent(btoa(usernameEl.value + ":" + passwordEl.value)) + "; SameSite=Strict"    
+    document.cookie = "pretendba=" + encodeURIComponent(btoa(usernameEl.value + ":" + passwordEl.value)) + "; SameSite=Strict; max-age=604800";
+
     var theNew = window.location.href.split("/").slice(0, -1).join("/")
     window.location = theNew
     //alert(document.cookie)
