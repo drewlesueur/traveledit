@@ -4012,6 +4012,7 @@ function comment(prefix) {
 }
 
 
+
 function addPrefix(prefix, region) {
     var r = region || fx.selectedRegions[0] || ghostSelectionComment
     if (r) {
@@ -4026,6 +4027,7 @@ function addPrefix(prefix, region) {
         }
         
         for (var y=r.startY; y<=r.stopY; y++) {
+            var myPrefix = prefix
             var line = fx.lines[y]
             var myFirstNonSpace = 0
             for (var i=0; i<line.length; i++) {
@@ -4037,8 +4039,14 @@ function addPrefix(prefix, region) {
             }
             if (myFirstNonSpace > firstNonSpace) {
                 myFirstNonSpace = firstNonSpace
+            } else if (myFirstNonSpace < firstNonSpace) {
+                if (line.trim() == "") {
+                    line = " ".repeat(firstNonSpace)
+                    myFirstNonSpace = firstNonSpace
+                    myPrefix = prefix.trimEnd()
+                }
             }
-            updateLine(y, fx.lines[y].slice(0, myFirstNonSpace) + prefix + fx.lines[y].slice(myFirstNonSpace))
+            updateLine(y, line.slice(0, myFirstNonSpace) + myPrefix + line.slice(myFirstNonSpace))
         }
     } else {
         var line = fx.lines[fx.cursorLineIndex]
