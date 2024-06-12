@@ -2727,7 +2727,9 @@ function runEditorCommand(e) {
         break
     case "e":
         var resp = eval(rest)
-        alert(resp)
+        if (resp != undefined) {
+            alert(JSON.stringify(resp, null, "  "))
+        }
         break
     case "sort":
         sortSelected()
@@ -10517,6 +10519,7 @@ function fuzzyMatch(fuzzyWord, word) {
     return true
 }
 var fuzzyAutocomplete = true
+
 
 var shouldAutocompleteLine = false
 // NEW FIND WORD
