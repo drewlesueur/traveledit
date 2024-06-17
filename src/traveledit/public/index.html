@@ -525,7 +525,7 @@ They get changed later on.
     <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4o')>chatGPT-4o</div>
     <div class=middleButton onclick=reloadFile(fx)>reload</div>
     <div class=middleButton onclick=goUpDirectory()>⬆️</div>
-    <div class=middleButton onclick="osCopyText()">os copy</div>
+    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o', {extra: 'Only give me code, no explanation, no markdown wrapper. Just the code.'})">chatGPT-4o code</div>
     <div id=saveButton class=middleButton onclick=saveWrapper()>save</div>
     <div class=middleButton onclick="runScript()" id=statusBar>run script</div>
     <div class=middleButton onclick="runScript()">action2</div>
@@ -4940,7 +4940,8 @@ function setCanvasHeightAccordingly() {
         // an attempt to window.scrollTo(0,0) failed
         // var statusElHeight = 100
         // var statusElHeight = 190
-        var statusElHeight = 150
+        // var statusElHeight = 150
+        var statusElHeight = 200
         statusEl.style.height = statusElHeight + "px"
         logEl.style.height = statusElHeight + "px"
 
@@ -12929,7 +12930,11 @@ function touchAreasPress(e, state) {
             comment()
         },
         "2midLeft": function () {
-            addDumbNewline()
+            // addDumbNewline()
+            comment()
+            duplicateLine()
+            moveCursorDown()
+            comment()
         },
         "2middle": function () {
             // experiment autocompleteLineV2
@@ -12956,6 +12961,8 @@ function touchAreasPress(e, state) {
         },
         "2right": function () {
             duplicateLine()
+            // experimenting with moving cursor down after
+            moveCursorDown()
             return
         },
         
