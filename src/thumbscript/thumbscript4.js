@@ -1856,6 +1856,7 @@ thumbscript4.builtIns = {
     lower: thumbscript4.genFunc1((a) => a.toLowerCase()),
     trim: thumbscript4.genFunc1((a) => a.trim()),
     indexof: thumbscript4.genFunc2((a, b) => a.indexOf(b)),
+    startswith: thumbscript4.genFunc2((a, b) => a.startsWith(b)),
     replace: thumbscript4.genFunc3((a, b, c) => a.replaceAll(b, c)),
     tonumber: thumbscript4.genFunc1((a) => a - 0),
     padstart: thumbscript4.genFunc3((s, len, c) => s.padStart(len, c)),
