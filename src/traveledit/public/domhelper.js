@@ -49,7 +49,7 @@ var domhelper = (function () {
         stack.push(currNode)
         return currNode = node
     }   
-    var tags = ["div", "span", "table", "tr", "td", "th", "img", "a", "text", "input", "form", "button", "pre", "h1", "h2", "h3", "iframe"]
+    var tags = ["div", "span", "table", "tr", "td", "th", "img", "a", "text", "input", "form", "button", "pre", "h1", "h2", "h3", "iframe", "br", "textarea"]
     var ret = { 
         s: s,
         setNode: function(n) { currNode = n },
@@ -67,4 +67,4 @@ var domhelper = (function () {
     return ret 
 })()
 
-var {s, div, span, end, text, table, tr, td, input, form, button, frag, pre, h1, h2, h3, iframe} = domhelper
+var {s, div, span, end, text, table, tr, td, th, img, input, form, button, frag, pre, h1, h2, h3, iframe, br, textarea} = domhelper
