@@ -12882,10 +12882,18 @@ function touchAreasPress(e, state) {
         "5middle": function () {
             clearSearch()
         },
+        "4left": function () {
+            // openVoiceCommandText()
+            backspace()
+        },
         "4middle": function () {
-            openVoiceCommandText()
+            // openVoiceCommandText()
+            addSpace()
         },
         "4midRight": function () {
+        },
+        "4right": function () {
+            addDumbNewline()
         },
         "3left": function () {
             if (searchText.value != getWordAtCursor().word) {
