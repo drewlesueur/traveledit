@@ -4847,6 +4847,9 @@ function ll(line, script, replacement) {
         case "z":
             findCurrentOrNext(true, regexer(/[\w\-]/), notRegexer(/[\w\-]/))
             break
+        case "f":
+            findCurrentOrNext(true, regexer(/[\w\-\.]/), notRegexer(/[\w\-\.]/))
+            break
         case "x":
             findCurrentOrNext(false, regexer(/[\w]/), notRegexer(/[\w]/))
             break
