@@ -1,6 +1,8 @@
 <!doctype html>
 <!--
 
+next feature:
+expanding and collapsing indents
 
 TODO: seems like long files have per issues finding header, when scrolled to bottom
 need to run on :443... proxy.
@@ -3148,6 +3150,7 @@ var shellHelpers = [
     // "git apply --cached gitdiff",
     // "go doc -all ''",
     "git stash show -p stash@{0}",
+    'git for-each-ref --sort=-committerdate refs/heads/ --format="%(refname:short)" | head -n 10',
     "clear",
     "git branch",
     "git status",
@@ -6944,9 +6947,12 @@ function handleKeydown(e) {
         render()
         return false
     }
+    log(e.keyCode + " " + Date.now())
+    // if (e.keyCode == 20) { // caps lock experiment
+    //     acWordToggle()
+    // }
     return true
 }
-
 var closingMap = {
     "[": "]",
     "(": ")",
@@ -11193,9 +11199,9 @@ function addFile(fullPath, options, id, name) { // hotpink marker
     var parts = fullPath.split(":")
     
     // forgetting files with colons for now
-    if (parts.length > 2) {
-        parts = parts.slice(0, 2)
-    }
+    // if (parts.length > 2) {
+    //     parts = parts.slice(0, 2)
+    // }
     
     // ./lib/foo.php:1310:
     if (parts[parts.length - 1] == "") {
