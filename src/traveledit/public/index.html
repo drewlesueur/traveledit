@@ -4,6 +4,9 @@
 next feature:
 expanding and collapsing indents
 
+plop , . ; }  at end
+navigating directory on second from left file has flashes
+
 TODO: seems like long files have per issues finding header, when scrolled to bottom
 need to run on :443... proxy.
 global http proxy.
@@ -527,7 +530,7 @@ They get changed later on.
     <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4o')>chatGPT-4o</div>
     <div class=middleButton onclick=reloadFile(fx)>reload</div>
     <div class=middleButton onclick=goUpDirectory()>⬆️</div>
-    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o', {extra: 'Only give me code, no explanation, no markdown wrapper. Just the code.'})">chatGPT-4o code</div>
+    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o', {extra: '\nOnly give me code, no explanation, no markdown wrapper. Just the code.'})">chatGPT-4o code</div>
     <div id=saveButton class=middleButton onclick=saveWrapper()>save</div>
     <div class=middleButton onclick="runScript()" id=statusBar>run script</div>
     <div class=middleButton onclick="runScript()">action2</div>
