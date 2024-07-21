@@ -2415,6 +2415,14 @@ function openAtCursor() {
         var basePath = parts.slice(0, -1).join("/")
         var fileName = basePath + "/" + path
     }
+    
+    // handle output like this
+    // ./path/to/dir/somefile.go:20:func TestFoo (t *testing.T) {
+    var parts = fileName.split(":")
+    if (parts.length > 2) {
+        parts = parts.slice(0, 2)
+        fileName = parts.join(":")
+    }
     addFile(fileName)
 }
 
