@@ -1,6 +1,9 @@
 <!doctype html>
 <!--
 
+cursor in word can make it a color quickly...
+
+expand selection by continually tapping select gutter
 next feature:
 expanding and collapsing indents
 
@@ -527,15 +530,16 @@ They get changed later on.
     <div class=square onclick="runScript()" id=statusBar>run script</div>
     -->
     
-    <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4o')>chatGPT-4o</div>
+    <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4o-mini')>4o mini</div>
     <div class=middleButton onclick=reloadFile(fx)>reload</div>
     <div class=middleButton onclick=goUpDirectory()>⬆️</div>
-    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o', {extra: '\nOnly give me code, no explanation, no markdown wrapper. Just the code.'})">chatGPT-4o code</div>
+    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o-mini', {extra: onlyCode})">4o mini code</div>
     <div id=saveButton class=middleButton onclick=saveWrapper()>save</div>
     <div class=middleButton onclick="runScript()" id=statusBar>run script</div>
     <div class=middleButton onclick="runScript()">action2</div>
     <div class=middleButton onclick="runScript()">action3</div>
-    <div class=middleButton id="gptButton2" onclick=runChatGPT('gpt-3.5-turbo')>chatGPT3.5</div>
+    <div class=middleButton id="gptButton2" onclick=runChatGPT('gpt-4o')>4o</div>
+    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o', {extra: onlyCode})">4o code</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -1077,6 +1081,7 @@ function calcMarginLeft(lineLength) {
     return ret
 }
 
+var onlyCode = '\nOnly give me code, no explanation, no markdown wrapper. Just the code.'
 
 // other fonts.
 // Berkeley Mono, Cascadia, Consolas, Operator, Mona Lisa, Commit Mono, Cartograph, Martha from Coppers Brasses
@@ -2757,6 +2762,16 @@ function runEditorCommand(e) {
         let lowered = linesToProcess.map(l => l.toLowerCase())
         pasteLines(lowered, false, false)
         break
+    case "sum":
+        var _t = getSelectedLines(fx, false)
+        var linesToProcess = _t.lines
+        // let numbers = linesToProcess.map(n => n.trim() - 0)
+        let numbers = linesToProcess.map(n => n.trim().replace(/[^0-9.-]/g, '') - 0)
+        let sum = numbers.reduce((acc, curr) => acc + curr, 0);
+        cleanLines = numbers.map(x => x + "")
+        cleanLines.push("= " + sum)
+        pasteLines(cleanLines, false, false)
+        break
     case "upper":
         var _t = getSelectedLines(fx, true)
         var linesToProcess = _t.lines
@@ -2857,7 +2872,7 @@ function runEditorCommand(e) {
         break
     case "g":
         // runChatGPT('gpt-4', {inline: true, extra: "\n\n" + rest})
-        runChatGPT('gpt-4o', {inline: true, extra: "\n\n" + rest})
+        runChatGPT('gpt-4o-mini', {inline: true, extra: "\n\n" + rest})
         break
     case "g3":
         runChatGPT('gpt-3.5-turbo', {inline: true, extra: "\n\n" + rest})
