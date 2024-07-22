@@ -2783,7 +2783,6 @@ function runEditorCommand(e) {
     case "c":
         var word = getWordAtCursor().word
         if (word != "") {
-            alert(rest)
             if (rest == "") {
                 // code coes here
                 highlightMatches = highlightMatches.filter(m => m.Regex !== word);
