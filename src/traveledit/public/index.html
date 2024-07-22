@@ -2783,10 +2783,9 @@ function runEditorCommand(e) {
     case "c":
         var word = getWordAtCursor().word
         if (word != "") {
-            if (rest == "") {
-                // code coes here
-                highlightMatches = highlightMatches.filter(m => m.Regex !== word);
-            } else {
+            // clear it out first
+            highlightMatches = highlightMatches.filter(m => m.Regex !== word);
+            if (rest != "") {
                 highlightMatches.push({
                     Regex: word,
                     // It's really underline color
