@@ -2780,6 +2780,26 @@ function runEditorCommand(e) {
         cleanLines.push("= " + sum)
         pasteLines(cleanLines, false, false)
         break
+    case "c":
+        var word = getWordAtCursor().word
+        if (word != "") {
+            alert(rest)
+            if (rest == "") {
+                // code coes here
+                highlightMatches = highlightMatches.filter(m => m.Regex !== word);
+            } else {
+                highlightMatches.push({
+                    Regex: word,
+                    // It's really underline color
+                    BackgroundColor: rest,
+                })
+                processHighlightMatches()
+                saveWorkspace()
+                highlightMatches
+            }
+
+        }
+        break
     case "upper":
         var _t = getSelectedLines(fx, true)
         var linesToProcess = _t.lines
@@ -2802,9 +2822,6 @@ function runEditorCommand(e) {
         break
     case "l":
         scriptLinesWithOneLineScript(editorCommandText.value)
-        break
-    case "hl":
-        searchText.value = getWordAtCursor().word; render();
         break
     case "h":
         if (fx.selectedRegions.length == 0) {
@@ -12032,7 +12049,6 @@ function saveWorkspace(oldWorkspaceName) {
         alert("error saving workspace: " + e)
     })
 }
-
 function setHighlightMatches() {
     var lines = getSelectedLines(fx, false).lines
     highlightMatches = []
