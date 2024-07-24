@@ -889,6 +889,7 @@ They get changed later on.
 <div class=toolbar>
     <div class=square onclick="copyOneTimeLink()">one-time link</div>
     <div class=square onclick=record()>🎤</div>
+    <div class=square onclick=recordVideo()>🎥 video</div>
     <div class=square onclick=openEditorCommandText()>editor cmd</div>
     <div class=square onclick="window.open('https://github.com/drewlesueur/traveledit/archive/refs/heads/master.zip')">doenload repo</div>
 </div>
@@ -12254,6 +12255,7 @@ let mediaRecorder;
 var isRecording = false
 
 function record() {
+
     if (isRecording) {
         endRecording()
     } else {
@@ -12271,6 +12273,7 @@ async function startRecording()
     // stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaRecorder = new MediaRecorder(stream);
+
     mediaRecorder.ondataavailable = (event) => {
        // Let's append blobs for now, we could also upload them to the network.
        if (event.data) {
@@ -13539,8 +13542,94 @@ function xdownloadFile(bytes, type, filename) {
 // df([65, 66], "text/plain", "test.txt")
 
 
+// write some javascript code that will record
+// video and display it in a video tag
+// have it work on mobile safari and use the fromt camera
+
+
+// I want the div to display the video live,
+// not just after done recording
+// const recordVideo = async () => {
+//     const constraints = {
+//         video: {
+//             facingMode: 'user',
+//             width: { ideal: 1280 },
+//             height: { ideal: 720 }
+//         }
+//     };
+//     const stream = await navigator.mediaDevices.getUserMedia(constraints);
+//     const video = document.querySelector('#videoEl');
+//     video.srcObject = stream; // Display live video
+// };
+// 
+// should this work to stream the video?
+
+const recordVideo = async () => {
+    const constraints = {
+        video: {
+            facingMode: 'user',
+            // it's actually reversed
+            height: { ideal: 720 },
+            width: { ideal: 1165 }
+        }
+    };
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        const video = document.querySelector('#videoEl');
+
+        // Check if the video element exists
+        if (!video) {
+            throw new Error('Video element not found');
+        }
+        video.style.display = "block"
+        video.srcObject = stream; // Display live video
+        // Make sure the video starts playing
+        video.onloadedmetadata = () => {
+            video.play();
+        };
+    } catch (error) {
+        console.error('Error accessing media devices.', error);
+    }
+};
+
+// const recordVideo = async () => {
+//     const constraints = {
+//         video: {
+//             facingMode: 'user',
+//             width: { ideal: 1280 },
+//             height: { ideal: 720 }
+//         }
+//     };
+//     try {
+//         const stream = await navigator.mediaDevices.getUserMedia(constraints);
+//         const video = document.querySelector('#videoEl');
+//         // Check if the video element exists
+//         if (!video) {
+//             throw new Error('Video element not found');
+//         }
+//         video.srcObject = stream; // Display live video
+//         // Make sure the video starts playing
+//         video.onloadedmetadata = () => {
+//             video.play();
+//             video.style.transform = 'scaleX(-1)'; // Flip the video horizontally
+//         };
+//     } catch (error) {
+//         console.error('Error accessing media devices.', error);
+//     }
+// };
+// 
+// what video formats does safari support?
+// 
+// As of October 2023, Safari supports several video formats. The primary formats include:
+// 1. **MP4 (H.264/AAC)**: This is the most widely supported format and works well across various devices and browsers.
+// 2. **MOV**: QuickTime format, commonly used on Apple devices.
+// 3. **WebM**: Mostly supported in the latest versions of Safari but compatibility can vary based on the version.
+// 4. **AVI**: Generally not natively supported in Safari, but can be played if the content is encoded in a compatible codec.
+// Safari also supports additional formats through HTML5 video tags, but H.264 is the most reliable for ensuring playback across all devices. Always check for the latest updates, as browser support can change over time.
 
 </script>
+<video playsinline id=videoEl style="position: absolute; top: 0; right: 0; display: none; width: 80px; height: 130px; background-color: pink; transform: scaleX(-1); border-radius: 10px;"><video>
 <audio id="audio" controls></audio>
 </body>
 </html>
