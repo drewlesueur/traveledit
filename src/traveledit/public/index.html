@@ -536,6 +536,7 @@ They get changed later on.
     <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o-mini', {extra: onlyCode})">4o mini code</div>
     <div id=saveButton class=middleButton onclick=saveWrapper()>save</div>
     <div class=middleButton onclick="runScript()" id=statusBar>run script</div>
+    <div class=square onclick="window.open(location.origin+location.pathname+'/saveload?browser=1&fullpath=' + encodeURIComponent(fx.fullPath))">open browser</div>
     <div class=middleButton onclick="runScript()">action2</div>
     <div class=middleButton onclick="runScript()">action3</div>
     <div class=middleButton id="gptButton2" onclick=runChatGPT('gpt-4o')>4o</div>
