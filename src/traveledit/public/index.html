@@ -1,6 +1,15 @@
 <!doctype html>
 <!--
 
+
+donthe reverse of duplicate/comment
+
+go imports
+tap right select to increase selection by next block
+left to do it by word?
+clearing paste buffer, have it guess what to add
+like increasing nunber, true to false etc, comma semicolon
+
 cursor in word can make it a color quickly...
 
 expand selection by continually tapping select gutter
@@ -2912,6 +2921,8 @@ function runEditorCommand(e) {
                 for (var i=fileIndexStart; i<= fileIndexStop; i++) {
                     files[i].pinned = true
                 }
+            } else {
+                files[fx.cursorLineIndex - 1].pinned = true
             }
             seeFilesForReal()
         } else {
@@ -2931,6 +2942,8 @@ function runEditorCommand(e) {
                 for (var i=fileIndexStart; i<= fileIndexStop; i++) {
                     files[i].pinned = false
                 }
+            } else {
+                files[fx.cursorLineIndex - 1].pinned = false
             }
             seeFilesForReal()
         } else {
@@ -3044,6 +3057,7 @@ function blurSearchText() {
     setCanvasHeightAccordingly()
 }
 
+var requirePinned = true
 function cleanUpFiles() {
     var seenFiles = {}
     var filesToClose = []
@@ -3052,13 +3066,24 @@ function cleanUpFiles() {
     for (var i=0; i<files.length; i++) {
         var file = files[i]
         if (file.fileMode == "file" || file.fileMode == "directory") {
-            if (file.pinned) {
-                pinnedFiles.push(file)
-            } else if (file.fullPath in seenFiles) {
-                filesToClose.push(file)
+            // old logic, no need for pinned
+
+            if (!requirePinned) {
+                if (file.pinned) {
+                    pinnedFiles.push(file)
+                } else if (file.fullPath in seenFiles) {
+                    filesToClose.push(file)
+                } else {
+                    seenFiles[file.fullPath] = true
+                    filesToKeep.push(file)
+                }
             } else {
-                seenFiles[file.fullPath] = true
-                filesToKeep.push(file)
+                // must be pinned
+                if (file.pinned) {
+                    pinnedFiles.push(file)
+                } else {
+                    filesToClose.push(file)
+                }
             }
         } else if (file.fileMode == "shell") {
                 filesToClose.push(file)
@@ -6990,7 +7015,7 @@ function handleKeydown(e) {
         render()
         return false
     }
-    log(e.keyCode + " " + Date.now())
+    // log(e.keyCode + " " + Date.now())
     // if (e.keyCode == 20) { // caps lock experiment
     //     acWordToggle()
     // }
