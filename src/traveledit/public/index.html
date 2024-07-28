@@ -898,6 +898,7 @@ They get changed later on.
 <div class=toolbar>
     <div class=square onclick="copyOneTimeLink()">one-time link</div>
     <div class=square onclick=record()>🎤</div>
+    <div class=square onclick=startVoiceCommandsV2()>voice 🗣️</div>
     <div class=square onclick=recordVideo()>🎥 video</div>
     <div class=square onclick=openEditorCommandText()>editor cmd</div>
     <div class=square onclick="window.open('https://github.com/drewlesueur/traveledit/archive/refs/heads/master.zip')">doenload repo</div>
@@ -2987,6 +2988,7 @@ function blurEditorCommandText() {
 }
 
 // coral #color
+// This is the old way, the new way is webkitSpeechRecognition flow
 function openVoiceCommandText() {
     voiceCommandText.style.display = "block"
     voiceCommandText.value = ""
@@ -9383,7 +9385,11 @@ function onStart(e) {
                     selectedRegion.stopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
                     selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
                 }
-                expandSelectTimeout = setTimeout(expandSelection, expandSelectTimeoutMillis)
+                // expandSelectTimeout = setTimeout(expandSelection, expandSelectTimeoutMillis)
+                expandSelectTimeout = setTimeout(function () {
+                    //  un setting this causes it to not unselect on mouse up
+                    selectedRegion.selectedWord = false
+                }, expandSelectTimeoutMillis)
                 selectMode = "char"
             }
             fx.selectedRegions.push(selectedRegion)
@@ -12918,6 +12924,7 @@ function touchAreasLongPress(e, state) {
             selectedRegion.stopX = expandTabIndex(line, line.length)
             selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
             selectedRegion.stopped = true
+            // setting this makes it unselect on mouse up
             selectedRegion.selectedLine = true
             selectMode = "line"
             fx.selectedRegions.push(selectedRegion)
@@ -13400,69 +13407,6 @@ function inputVoiceCommandText(e) {
     }, 1000)
 }
 var voiceCommandProcessedIndex = 0
-var voiceCommands_old = [
-    /^\s*go to line (\d+)/, function (c, lineNumber) {
-        fx.cursorLineIndex = lineNumber.replaceAll(",", "") - 1
-        ensureCursorInScreen()
-    },
-    /^\s*previous tab/, function (c) {
-        navFileLeft()
-    },
-    /^\s*next tab/, function (c) {
-        navFileRight()
-    },
-    /^\s*go down (\d+) lines/, function (c, d) {
-        fx.cursorLineIndex += ((d-0) || 0)
-        ensureCursorInScreen()
-    },
-    /^\s*go up (\d+) lines/, function (c, d) {
-        fx.cursorLineIndex -= ((d-0) || 0)
-        ensureCursorInScreen()
-    },
-    /^\s*last tab/, function (c) {
-        setCurrentFile(lastFile) // alt tab, alt+tab
-    },
-    /^\s*start selection/, function (c) {
-        fx.selectedRegions = []
-        cursorType = "select"
-        var line = fx.lines[fx.cursorLineIndex] || ""
-        selectedRegion = {}
-        selectedRegion.startX = 0
-        // selectedRegion.origStartX = fx.cursorColIndex < 0 ? 0 : fx.cursorColIndex
-        selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
-        selectedRegion.stopX = expandTabIndex(line, line.length)
-        selectedRegion.stopY = bind(fx.cursorLineIndex, 0, fx.lines.length - 1)
-        selectedRegion.stopped = true
-        // selectedRegion.selectedLine = true
-        selectMode = "line"
-        fx.selectedRegions.push(selectedRegion)
-        render()
-    },
-    /^\s*end selection/, function (c) {
-        if (fx.selectedRegions.length) {
-            fx.selectedRegions[0].stopY = fx.cursorLineIndex
-        }
-        render()
-    },
-    /^\s*select the next (\d+) lines/, function (c, d) {
-        fx.selectedRegions = []
-        cursorType = "select"
-        var line = fx.lines[fx.cursorLineIndex] || ""
-        selectedRegion = {}
-        selectedRegion.startX = 0
-        // selectedRegion.origStartX = fx.cursorColIndex < 0 ? 0 : fx.cursorColIndex
-        selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
-        // selectedRegion.stopX = expandTabIndex(line, line.length)
-        selectedRegion.stopY = bind(fx.cursorLineIndex + d, 0, fx.lines.length - 1)
-        selectedRegion.stopped = true
-        // selectedRegion.selectedLine = true
-        selectMode = "line"
-        fx.selectedRegions.push(selectedRegion)
-        cursorType = "move"
-        render()
-    },
-
-]
 function inputVoiceCommandText_old(e) {
     clearTimeout(voiceCommandTimeout)
     voiceCommandTimeout = setTimeout(function () {
@@ -13495,6 +13439,159 @@ function inputVoiceCommandText_old(e) {
         }
     }, 1000)
 }
+
+
+var speechRecognition
+function startVoiceCommandsV2() {
+    showLog()
+    speechRecognition = new webkitSpeechRecognition()
+    speechRecognition.continuous = true
+    speechRecognition.interimResults = true
+    speechRecognition.onresult = function (e) {
+        var index = e.resultIndex
+        // var index = 0
+        var newResults = [...e.results].slice(index)
+        var changedResult
+        newResults.forEach(result => {
+            if (result.isFinal) {
+                log2("++> " + result[0].transcript)
+                // doSpeechAction(result[0].transcript)
+            } else {
+                log2("--> " + result[0].transcript)
+                doSpeechAction(result[0].transcript)
+            }
+        })
+    }
+    speechRecognition.start()
+}
+
+var speechActionTimeout
+function toSpeechAction(command) {
+    command = command.toLowerCase()
+    alert("yay")
+}
+
+
+var voiceCommands = [
+    /^go to line (\d+)/, function (c, lineNumber) {
+        fx.cursorLineIndex = lineNumber.replaceAll(",", "") - 1
+        ensureCursorInScreen()
+    },
+    /^previous tab/, function (c) {
+        navFileLeft()
+    },
+    /^next tab/, function (c) {
+        navFileRight()
+    },
+    /^go down (\d+) lines/, function (c, d) {
+        fx.cursorLineIndex += ((d-0) || 0)
+        ensureCursorInScreen()
+    },
+    /^go up (\d+) lines/, function (c, d) {
+        fx.cursorLineIndex -= ((d-0) || 0)
+        ensureCursorInScreen()
+    },
+    /^up/, function (c) {
+        fx.cursorLineIndex -= 1
+        ensureCursorInScreen()
+    },
+    /^down/, function (c) {
+        fx.cursorLineIndex += 1
+        ensureCursorInScreen()
+    },
+    /^go down (\d+) lines/, function (c, d) {
+        fx.cursorLineIndex += ((d-0) || 0)
+        ensureCursorInScreen()
+    },
+    /^last tab/, function (c) {
+        setCurrentFile(lastFile) // alt tab, alt+tab
+    },
+    /^start selection/, function (c) {
+        selectLines(1)
+    },
+    /^stop selection/, function (c) {
+        if (fx.selectedRegions.length) {
+            fx.selectedRegions[0].stopY = fx.cursorLineIndex
+        }
+        render()
+    },
+    /^select the next (\d+) lines/, function (c, d) {
+        selectLines(d)
+    },
+    /^select block/, function (c) {
+        selectLines(1)
+        selectBlock()
+    },
+    /^select line/, function (c) {
+        selectLines(1)
+    },
+    /^select line/, function (c) {
+        selectLines(1)
+    },
+    /^write code/, function (c) {
+        
+    },
+    /^generate code (.*)/, function (c, code) {
+        runChatGPT('gpt-4o-mini', {extra: code + "\n" + onlyCode})
+    },
+
+]
+
+// used for voice commands
+function selectLines(howMany) {
+    fx.selectedRegions = []
+    var line = fx.lines[fx.cursorLineIndex] || ""
+    selectedRegion = {}
+    selectedRegion.startX = 0
+    selectedRegion.startY = bind(fx.cursorLineIndex, 0, fx.lines.length-1)
+    selectedRegion.stopX = expandTabIndex(line, line.length)
+    selectedRegion.stopY = bind(fx.cursorLineIndex + howMany - 1, 0, fx.lines.length - 1)
+    selectedRegion.stopped = true
+    selectMode = "line"
+    fx.selectedRegions.push(selectedRegion)
+    render()
+}
+
+
+// in this command replace the spelled out words with their numerical counterparts
+// for example one becomes 1, two becomes 2
+// go all the way to 100
+// write a function that processes that (javascript)
+function replaceWordsWithNumbers(command) {
+    const numberWords = {
+        'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
+        'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
+        'ten': '10', 'eleven': '11', 'twelve': '12', 'thirteen': '13',
+        'fourteen': '14', 'fifteen': '15', 'sixteen': '16', 'seventeen': '17',
+        'eighteen': '18', 'nineteen': '19', 'twenty': '20', 'thirty': '30',
+        'forty': '40', 'fifty': '50', 'sixty': '60', 'seventy': '70',
+        'eighty': '80', 'ninety': '90', 'hundred': '100'
+    };
+    return command.toLowerCase().replace(/\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred)\b/g, match => numberWords[match]);
+}
+
+
+var speechActionTimeout;
+function doSpeechAction(command) {
+    clearTimeout(speechActionTimeout);
+    speechActionTimeout = setTimeout(function() {
+        command = command.toLowerCase();
+        command = replaceWordsWithNumbers(command)
+
+        log2("#skyblue: " + command);
+        theText.setAttribute("placeholder", command)
+        for (var i = 0; i < voiceCommands.length; i += 2) {
+            var regex = voiceCommands[i];
+            var action = voiceCommands[i + 1];
+            var match = command.match(regex);
+            if (match) {
+                action(command, ...match.slice(1));
+                break;
+            }
+        }
+    }, 300);
+}
+
 
 function selectBlock() {
     let sr = fx.selectedRegions[0]
@@ -13572,22 +13669,6 @@ function xdownloadFile(bytes, type, filename) {
 // have it work on mobile safari and use the fromt camera
 
 
-// I want the div to display the video live,
-// not just after done recording
-// const recordVideo = async () => {
-//     const constraints = {
-//         video: {
-//             facingMode: 'user',
-//             width: { ideal: 1280 },
-//             height: { ideal: 720 }
-//         }
-//     };
-//     const stream = await navigator.mediaDevices.getUserMedia(constraints);
-//     const video = document.querySelector('#videoEl');
-//     video.srcObject = stream; // Display live video
-// };
-// 
-// should this work to stream the video?
 
 const recordVideo = async () => {
     const constraints = {
