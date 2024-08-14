@@ -2636,7 +2636,7 @@ function runEditorCommand(e) {
                         files[i].color = rest
                     }
                 }
-                seeFilesForReal()
+                seeFilesForReal(false)
             }
             break
         }
@@ -2658,7 +2658,7 @@ function runEditorCommand(e) {
                         files[i].group = rest
                     }
                 }
-                seeFilesForReal()
+                seeFilesForReal(false)
             }
             break
         }
@@ -2915,46 +2915,10 @@ function runEditorCommand(e) {
         runChatGPT('gpt-3.5-turbo', {inline: true, extra: "\n\n" + rest})
         break
     case "pin":
-        if (fx.fileMode == "fileList") {
-            if (fx.selectedRegions.length>0) {
-                var r = fx.selectedRegions[0]
-                // we subtract 1 because of the initial "-" at the beginning
-                var fileIndexStart = r.startY - 1
-                var fileIndexStop = r.stopY - 1
-                for (var i=fileIndexStart; i<= fileIndexStop; i++) {
-                    files[i].pinned = true
-                }
-            } else {
-                files[fx.cursorLineIndex - 1].pinned = true
-            }
-            seeFilesForReal()
-        } else {
-            fx.pinned = true
-        }
-        render()
-        renderFileDropdown()
-        saveWorkspace()
+        doPin(true)
         break
     case "unpin":
-        if (fx.fileMode == "fileList") {
-            if (fx.selectedRegions.length>0) {
-                var r = fx.selectedRegions[0]
-                // we subtract 1 because of the initial "-" at the beginning
-                var fileIndexStart = r.startY - 1
-                var fileIndexStop = r.stopY - 1
-                for (var i=fileIndexStart; i<= fileIndexStop; i++) {
-                    files[i].pinned = false
-                }
-            } else {
-                files[fx.cursorLineIndex - 1].pinned = false
-            }
-            seeFilesForReal()
-        } else {
-            fx.pinned = false
-        }
-        render()
-        renderFileDropdown()
-        saveWorkspace()
+        doPin(false)
         break
     }
     editorCommandText.blur()
@@ -3024,9 +2988,49 @@ function blurVoiceCommandText() {
 }
 // end #color
 
-
-
-
+function doTogglePin() {
+    if (fx.fileMode == "fileList") {
+        if (fx.selectedRegions.length>0) {
+            var r = fx.selectedRegions[0]
+            // we subtract 1 because of the initial "-" at the beginning
+            var fileIndexStart = r.startY - 1
+            var fileIndexStop = r.stopY - 1
+            var shouldPin = !files[fileIndexStart].pinned
+            for (var i=fileIndexStart; i<= fileIndexStop; i++) {
+                files[i].pinned = shouldPin
+            }
+        } else {
+            files[fx.cursorLineIndex - 1].pinned = !files[fx.cursorLineIndex - 1].pinned
+        }
+        seeFilesForReal(false)
+    } else {
+        fx.pinned = !fx.pinned
+    }
+    render()
+    renderFileDropdown()
+    saveWorkspace()
+}
+function doPin(pinned) {
+    if (fx.fileMode == "fileList") {
+        if (fx.selectedRegions.length>0) {
+            var r = fx.selectedRegions[0]
+            // we subtract 1 because of the initial "-" at the beginning
+            var fileIndexStart = r.startY - 1
+            var fileIndexStop = r.stopY - 1
+            for (var i=fileIndexStart; i<= fileIndexStop; i++) {
+                files[i].pinned = pinned
+            }
+        } else {
+            files[fx.cursorLineIndex - 1].pinned = pinned
+        }
+        seeFilesForReal(false)
+    } else {
+        fx.pinned = pinned
+    }
+    render()
+    renderFileDropdown()
+    saveWorkspace()
+}
 
 function editSearch() {
     searchText.style.display = "block"
@@ -3130,7 +3134,7 @@ function cleanUpFiles() {
     render()
     renderFileDropdown()
     // seeFiles()
-    seeFilesForReal()
+    seeFilesForReal(true)
 }
 function closeFile(theFX) {
     var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
@@ -4328,7 +4332,8 @@ var getShellCodeForRunningGoFile = thumbscript4.makeJsFunc(() => { /*
         runCode •join cr
     }
     else. {
-        "time go run " •cc filename
+        // "time go run " •cc filename
+        "time go run *.go"
     }
 */ })
 
@@ -9068,7 +9073,8 @@ var syntaxColorMap = [
         // quote: "darksalmon",
         // quote: "rosybrown",
         // quote: "palevioletred",
-        quote: "salmon",
+        // quote: "salmon",
+        quote: "white",
         keyword: "deepskyblue",
         // keyword: "skyblue",
         symbol: "orange",
@@ -11662,23 +11668,28 @@ function seeFiles() {
         setCurrentFile(lastFile)
         return
     }
-    seeFilesForReal()
+    seeFilesForReal(true)
 }
 
-function seeFilesForReal() {
+function seeFilesForReal(resetCursor) {
     splicedFiles = []
 
     var contents = getLinesForFileList().join("\n")
     var f = makeFile("__", 0, contents)
     f.fileMode = "fileList"
 
-    f.cursorLineIndex = 0
-    f.cursorColIndex = -f.marginLeft
-    var fileIndex = treeFilesShadow.indexOf(fx)
-    if (fileIndex != -1) {
-        f.cursorLineIndex = fileIndex
+    if (resetCursor) {
+        f.cursorLineIndex = 0
+        f.cursorColIndex = -f.marginLeft
+        var fileIndex = treeFilesShadow.indexOf(fx)
+        if (fileIndex != -1) {
+            f.cursorLineIndex = fileIndex
+        }
+    } else {
+        f.cursorLineIndex = fx.cursorLineIndex
+        f.cursorColIndex = fx.cursorColIndex
+        f.offsetX = fx.offsetX
     }
-
     setCurrentFile(f)
     updateCursorXY()
     ensureCursorInScreen()
@@ -13001,7 +13012,8 @@ function touchAreasLongPress(e, state) {
 function touchAreasPress(e, state) {
     handleTouchAreas(e, {
         "5middle": function () {
-            clearSearch()
+            // clearSearch()
+            doTogglePin()
         },
         "4left": function () {
             // openVoiceCommandText()
