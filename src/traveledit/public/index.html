@@ -266,10 +266,13 @@ document.write(`
 
 body.dark .toolbar div {
     /* see renderDarkMode */
-    color: rgba(255, 255, 200);
+    border-left: 1px solid #cb9;
+    border-top: 1px solid #cb9;
+    color: #cb9;
+    --border-left: 1px solid rgba(255, 255, 200);
+    --border-top: 1px solid rgba(255, 255, 200);
+    --color: rgba(255, 255, 200);
     --border: 1px solid rgba(255, 255, 200);
-    border-left: 1px solid rgba(255, 255, 200);
-    border-top: 1px solid rgba(255, 255, 200);
     border-right: none;
     border-bottom: none;
     --border: none;
@@ -3391,7 +3394,6 @@ function docChanged(preventUndo) {
         saveUndo(preventUndo)
     }
     renderSaves()
-    lastRenderFullScreenForSet = false
     fx.marginLeft = calcMarginLeft(fx.lines.length)
 }
 function saveUndo(preventUndo) {
@@ -7261,10 +7263,6 @@ function fillStyleIndex(f) {
   return fillStyleMap[f]
 }
 
-
-
-
-
 var mockCanvasContext = {
     mockCanvasContext: true,
     commands: [],
@@ -7458,16 +7456,8 @@ var waitingRender = false
 var lastRender = 0
 var maxFrameRate = 10
 // var maxFrameRate = 0
-var waitingServerRender = false
-var lastServerRender = 0
-var maxServerFrameRate = 100
-var lastRenderFx = null
-var lastRenderOffsetX = -9999
-var lastRenderOffsetY = -9999
-var lastRenderCursorLineIndex = -9999
 
 // TODO: potentially deprecate this
-var lastRenderFullScreenForSet = false
 
 function render() {
     if (preventRender) {
@@ -7498,38 +7488,20 @@ function render() {
 
 
     var start = Date.now()
-    var shouldSetIt = false
-    if (fx == lastRenderFx && lastRenderOffsetY == fx.offsetY && lastRenderOffsetX == fx.offsetX) {
-        if (lastRenderFullScreenForSet) {
-            minY = min(fx.cursorLineIndex, lastRenderCursorLineIndex) - fx.offsetY - 1
-            maxY = max(fx.cursorLineIndex, lastRenderCursorLineIndex) - fx.offsetY + 2
-            t.clearRect(0, minY * fontHeight, c.width, (maxY - minY) * fontHeight)
-        } else {
-            c.width = c.width // one way to clear
-            shouldSetIt = true
-        }
-    } else {
-        c.width = c.width // one way to clear
-        lastRenderFullScreenForSet = false
-    }
-    renderInternal()
-    if (shouldSetIt) {
-        // lastRenderFullScreenForSet = true
-    }
-    if (false && inDebugView) {
+    // c.width = c.width // one way to clear
+    // renderInternal() where it ised to be  _red
+    if (true && inDebugView) {
         s.innerHTML =
             lastWord + " " +
             fx.version + "/" + fx.savedVersion +
             "/" + fx.savingVersion +
             " p:" + cursorX + "," + cursorY +
-            " c:" + fx.cursorColIndex + "," + fx.cursorLineIndex +
-            " " + (r ? `s:${r.startX},${r.startY}:${r.stopX},${r.stopY}` : "s:--") +
-            " " + selectMode
+            " c:" + fx.cursorColIndex + "," + fx.cursorLineIndex
             // theStatus.fileTree = fileTree
         theStatus.lastWord = lastWord
         theStatus.lastCleared = lastCleared
-        theStatus.totalViewRequests = totalViewRequests
-        theStatus.totalViewBytesSent = totalViewBytesSent
+        theStatus.tvr = totalViewRequests
+        theStatus.tvbs = (totalViewBytesSent).toLocaleString()
         // theStatus.overflowX = overflowX
         // theStatus.overflowY = overflowY
         // theStatus.hasDoneOverflowYAction = hasDoneOverflowYAction
@@ -7635,83 +7607,82 @@ function render() {
     }
 
 
+    c.width = c.width // one way to clear
+    renderInternal()
 
     if (serverViewFeature) {
-        // this render bock was recently moved into the serverViewFeature conditional
-        var timeSinceServerRender = Date.now() - lastServerRender
-        if (timeSinceServerRender < maxServerFrameRate) {
-            if (!waitingServerRender) {
-                waitingServerRender = true
-                var localInEdit = inEdit
-                setTimeout(function () {
-                    waitingServerRender = false
-                    // TODO: isolate this so it only async does the server part!
-                    // it is going to possibly update things on the main text box
-                    var oldInEdit = inEdit
-                    inEdit = localInEdit
-                    render()
-                    inEdit = oldInEdit
-                }, maxServerFrameRate - timeSinceServerRender)
-            }
-            return
+        renderServerView()
+    }
+}
+
+var waitingServerRender = false
+var lastServerRender = 0
+var maxServerFrameRate = 50 // millis per render
+function renderServerView() {
+    // this render bock was recently moved into the serverViewFeature conditional
+    var timeSinceServerRender = Date.now() - lastServerRender
+    if (timeSinceServerRender < maxServerFrameRate) {
+        if (!waitingServerRender) {
+            waitingServerRender = true
+            setTimeout(function () {
+                waitingServerRender = false
+                renderServerView()
+            }, maxServerFrameRate - timeSinceServerRender)
         }
-        lastServerRender = Date.now()
-
-        // server rendering
-        var oldOffsetX = fx.offsetX
-        var oldMaxCols = maxCols
-        var oldMaxLines = maxLines
-        var oldT = t // canvas rendering context
-        
-        var expandScreen = false
-        var expandScreen = true
-        
-        if (expandScreen) {
-            fx.offsetX = -fx.marginLeft
-            if (maxCols < 175) {
-                maxCols = 175
-            }
-            if (maxLines < 32) {
-                maxLines = 32
-            }
-        }
-
-        var oldCanvasHeight = canvasHeight
-        // setCanvasHeight(canvasHeightFull)
-        maxLines = Math.floor(canvasHeightFull / fontHeight)
-
-        if (expandScreen) {
-            var section = Math.floor((fx.cursorColIndex + fx.marginLeft) / maxCols)
-            fx.offsetX = (section * maxCols) - fx.marginLeft
-        }
-
-        t = mockCanvasContext
-        // mockCanvasContext.lastFillStyle = "black",
-        // mockCanvasContext.fillStyle = "black",
-        mockCanvasContext.lastFillStyle = "/",
-        mockCanvasContext.fillStyle = "/",
-        mockCanvasContext.lastFont = "",
-        mockCanvasContext.font = "",
-        mockCanvasContext.lastTextBaseline = "",
-        mockCanvasContext.textBaseline = "",
-        mockCanvasContext.commands = [[5, fontWidth.toFixed(2)-0, fontHeight.toFixed(2)-0, maxCols, maxLines, isDark ? 1 : 0]]
-
-        // var start = Date.now()
-        renderInternal()
-
-        fx.offsetX = oldOffsetX
-        maxCols = oldMaxCols
-        maxLines = oldMaxLines
-        t = oldT
-        // setCanvasHeight(oldCanvasHeight)
-        canvasHeight = oldCanvasHeight
-        sendViewToServer()
+        return
     }
 
-    lastRenderFx = fx
-    lastRenderOffsetY = fx.offsetY
-    lastRenderOffsetX = fx.offsetX
-    lastRenderCursorLineIndex = fx.cursorLineIndex
+    // this made it slightly choppy, maybe because of double render?
+    lastServerRender = Date.now()
+
+    // server rendering
+    var oldOffsetX = fx.offsetX
+    var oldMaxCols = maxCols
+    var oldMaxLines = maxLines
+    var oldT = t // canvas rendering context
+    
+    var expandScreen = true
+    
+    if (expandScreen) {
+        fx.offsetX = -fx.marginLeft
+        if (maxCols < 175) {
+            maxCols = 175
+        }
+        if (maxLines < 32) {
+            maxLines = 32
+        }
+    }
+
+    var oldCanvasHeight = canvasHeight
+    // setCanvasHeight(canvasHeightFull)
+    maxLines = Math.floor(canvasHeightFull / fontHeight)
+
+    if (expandScreen) {
+        var section = Math.floor((fx.cursorColIndex + fx.marginLeft) / maxCols)
+        fx.offsetX = (section * maxCols) - fx.marginLeft
+    }
+
+    t = mockCanvasContext
+    // mockCanvasContext.lastFillStyle = "black",
+    // mockCanvasContext.fillStyle = "black",
+    mockCanvasContext.lastFillStyle = "/",
+    mockCanvasContext.fillStyle = "/",
+    mockCanvasContext.lastFont = "",
+    mockCanvasContext.font = "",
+    mockCanvasContext.lastTextBaseline = "",
+    mockCanvasContext.textBaseline = "",
+    mockCanvasContext.commands = [[5, fontWidth.toFixed(2)-0, fontHeight.toFixed(2)-0, maxCols, maxLines, isDark ? 1 : 0]]
+
+    // var start = Date.now()
+    renderInternal()
+
+    fx.offsetX = oldOffsetX
+    maxCols = oldMaxCols
+    maxLines = oldMaxLines
+    t = oldT
+    // setCanvasHeight(oldCanvasHeight)
+    canvasHeight = oldCanvasHeight
+    sendViewToServer()
 }
 
 // this is a workaround for iphone 12 mini issue where dom is slow
@@ -7937,7 +7908,8 @@ function renderInternal() {
     
     // draw line where your cursor is for help with finding
     var underlineOffset = (fontHeight) - (1/6/2 * fontHeight)
-    var underlineHeight = fontHeight/6
+    // var underlineHeight = fontHeight/6
+    var underlineHeight = fontHeight/12
     // var highlightLine = true
     var highlightLine = true
     if (highlightLine) {
@@ -8084,10 +8056,6 @@ function renderInternal() {
     //but didn't seem like it improved things
     var minY = 0
     var maxY = maxLines
-    if (lastRenderFullScreenForSet && fx == lastRenderFx && lastRenderOffsetY == fx.offsetY && lastRenderOffsetX == fx.offsetX) {
-        minY = min(fx.cursorLineIndex, lastRenderCursorLineIndex) - fx.offsetY - 1
-        maxY = max(fx.cursorLineIndex, lastRenderCursorLineIndex) - fx.offsetY + 2
-    }
 
     // colors on file
     if (fx.fileMode == "fileList") {
@@ -8295,7 +8263,7 @@ function renderInternal() {
                     // (y * fontHeight) + (5/6 * fontHeight),
                     (y * fontHeight) + (fontHeight) - (1/6/2 * fontHeight),
                     highlightLength,
-                    fontHeight/6
+                    underlineHeight
                 )
             }
         }
@@ -8342,7 +8310,7 @@ function renderInternal() {
                     // (y * fontHeight) + (5/6 * fontHeight),
                     (y * fontHeight) + (fontHeight) - (1/6/2 * fontHeight),
                     highlightLength,
-                    fontHeight/6
+                    underlineHeight
                 )
             }
         }
