@@ -2,6 +2,11 @@
 <!--
         
 
+abstract http abstract where funcs live
+call on server or clent?
+
+the blue (sliceleft sliceright) on thr bottom 
+should nav by word!
 
 prevent rerun on terminal that you haven't manually run
 donthe reverse of duplicate/comment
@@ -1807,7 +1812,8 @@ function makeTouchRatios(layout) {
 // var layout = "aa ss bb cc dddd ee ff ss gg"
 // var layout = "aa s bbb cc dddd ee fff s gg"
 // var layout = "aa s bb cc dddd ee ff s gg"
-var layout = "aa ss bb cc ddddd ee ff ss gg"
+// var layout = "aa ss bb cc ddddd ee ff ss gg"
+var layout = "aa ss bb cc dddddd ee ff ss gg"
 
 var touchRatios = makeTouchRatios(layout)
 // setTimeout(function () {
@@ -10104,6 +10110,12 @@ function onStart(e) {
                     //     moveCursorUp()
                     // }
                 }
+            },
+            "1sliceLeft": function () {
+                moveCursorLeftSnap()
+            },
+            "1sliceRight": function () {
+                moveCursorRightSnap()
             },
             "1farRight": function () {
                 if (fx.selectedRegions.length) {
