@@ -464,6 +464,7 @@ opacity: 0.5;
         onfocus="focusSearchText()"
         oninput="inputSearchText()"
         onblur="blurSearchText()"
+        onchange="saveSearchHistory()"
     >
 
     <input id=searchTextAfter class=fullWidth type=text
@@ -876,7 +877,6 @@ They get changed later on.
     <div class=square onclick="reloadAll()">reload all</div>
     <div class=square onclick="comment('--')">--</div>
     <div class=square onclick="clearTrailingWhitespace()">&times; tr whitespace</div>
-    <div class=square onclick="searchText.value = getWordAtCursor().word; render();">highlight word</div>
     <div id=toggleTabStopButton class=square onclick="toggleTabStop()">tabs</div>
 </div>
 <div class="toolbar" id=workspaceToolbar onclick=selectWorkspaceToolbar(event) style="">
@@ -1813,7 +1813,8 @@ function makeTouchRatios(layout) {
 // var layout = "aa s bbb cc dddd ee fff s gg"
 // var layout = "aa s bb cc dddd ee ff s gg"
 // var layout = "aa ss bb cc ddddd ee ff ss gg"
-var layout = "aa ss bb cc dddddd ee ff ss gg"
+// var layout = "aa ss bb cc dddddd ee ff ss gg"
+var layout = "aa s bb cc dddddd ee ff s gg"
 
 var touchRatios = makeTouchRatios(layout)
 // setTimeout(function () {
@@ -2911,6 +2912,7 @@ function runEditorCommand(e) {
             return "\\b" + (w.split("").join('[\\w]*')) + "[\\w]*\\b"
         // }).join("\\s+") // >
         }).join(".*") //  
+        saveSearchHistory()
         
         // var r = fuzzyLineMatchToRegexp(rest)
         // searchText.value = r.string
@@ -3073,6 +3075,53 @@ function blurSearchText() {
     editorCommandText.style.display = "none"
     voiceCommandText.style.display = "none"
     setCanvasHeightAccordingly()
+}
+
+var searchHistory = []
+var searchI = 0
+function setSearchText(value) {
+    searchText.value = value
+    saveSearchHistory()
+}
+function saveSearchHistory() {
+    if (searchText.value != "") {
+        searchHistory.push(searchText.value)
+        var maxHistory = 10
+        if (searchHistory.length > maxHistory) {
+            searchHistory = searchHistory.slice(searchHistory.length - maxHistory)
+        }
+        searchI = searchHistory.length - 1
+    }
+}
+function handleSearchFocusBefore() {
+    theText.style.display = "none"
+    editorCommandText.style.display = "none"
+    voiceCommandText.style.display = "none"
+    searchText.style.display = "block"
+    searchText.focus()
+    setCanvasHeightAccordingly()
+    // findUp()
+    searchI--
+    if (searchI < 0) {
+        searchI = 0
+    }
+    searchText.value = searchHistory[searchI]
+    searchText.setSelectionRange(searchText.value.length, searchText.value.length)
+}
+function handleSearchFocusAfter() {
+    theText.style.display = "none"
+    editorCommandText.style.display = "none"
+    voiceCommandText.style.display = "none"
+    searchText.style.display = "block"
+    searchText.focus()
+    setCanvasHeightAccordingly()
+    // findDown()
+    searchI++
+    if (searchI >= searchHistory.length) {
+        searchI = searchHistory.length - 1
+    }
+    searchText.value = searchHistory[searchI]
+    searchText.setSelectionRange(searchText.value.length, searchText.value.length)
 }
 
 var requirePinned = true
@@ -3377,6 +3426,7 @@ function setLastWord(maybeLastWord) {
                     // weird case where the acPlop stuff gets weird with this feature
                 } else {
                     searchText.value = "\\b" + copyBuffer[0] + "\\b"
+                    saveSearchHistory()
                     // searchText.value = copyBuffer[0]
                     hasUpdatedSearchTextForReplaceFlow = true
                 }
@@ -3819,9 +3869,11 @@ function findDown(searchDir, wrap, startTop) {
     if (document.activeElement != searchText) {
         if (fx.selectedRegions.length) {
             searchText.value = getSelectedLines(fx, false, true).lines[0]
+            saveSearchHistory()
             return
         } else if (searchText.value == "" && !lastFindWasHighlightText) {
             searchText.value = getWordAtCursor().word
+            saveSearchHistory()
             if (searchText.value) {
                 return
             }
@@ -3833,6 +3885,7 @@ function findDown(searchDir, wrap, startTop) {
             if (fx.cursorColIndex == -fx.marginLeft) { //     red marker
                 fx.cursorLineIndex++
                 searchText.value = " mar"+"ker$"
+                saveSearchHistory()
                 searchText.preventXNav = true
                 findDown()
                 searchText.value = ""
@@ -3936,10 +3989,12 @@ function findUp() {
     }
     if (fx.selectedRegions.length) {
         searchText.value = getSelectedLines(fx, false, true).lines[0]
+        saveSearchHistory()
         return
     }
     if (searchText.value == "" && !lastFindWasHighlightText) {
         searchText.value = getWordAtCursor().word
+        saveSearchHistory()
         if (searchText.value) {
             return
         }
@@ -3953,6 +4008,7 @@ function findUp() {
         if (fx.cursorColIndex == -fx.marginLeft) { //     red marker
             fx.cursorLineIndex--
             searchText.value = " mar"+"ker$"
+            saveSearchHistory()
             searchText.preventXNav = true
             findUp()
             searchText.value = ""
@@ -6812,26 +6868,6 @@ function handleBlur() {
     window.scrollTo(0, lastPageYOffset)
     renderTheText("")
 }
-function handleSearchFocusBefore() {
-    theText.style.display = "none"
-    editorCommandText.style.display = "none"
-    voiceCommandText.style.display = "none"
-    searchText.style.display = "block"
-    searchText.focus()
-    setCanvasHeightAccordingly()
-    findUp()
-    searchText.setSelectionRange(searchText.value.length, searchText.value.length)
-}
-function handleSearchFocusAfter() {
-    theText.style.display = "none"
-    editorCommandText.style.display = "none"
-    voiceCommandText.style.display = "none"
-    searchText.style.display = "block"
-    searchText.focus()
-    setCanvasHeightAccordingly()
-    findDown()
-    searchText.setSelectionRange(searchText.value.length, searchText.value.length)
-}
 
 // pressing the save button disables autosave
 function saveWrapper() {
@@ -7050,11 +7086,30 @@ function handleKeydown(e) {
         return false
     }
     // log(e.keyCode + " " + Date.now())
-    // if (e.keyCode == 20) { // caps lock experiment
-    //     acWordToggle()
-    // }
+    if (e.keyCode == 32 || e.keyCode == 190 || e.keyCode == 57)  { // spaces . (
+        // if (!e.shiftKey) {
+        if (e.shiftKey) {
+            // e.preventDefault()
+            w = getWordAtCursor()
+            if (w.word != "") {
+                if (!isUsedWord(w.word)) {
+                    acWordToggle()
+                    render() // render sets the input box right, not sure why i need that.
+                }
+            }
+        }
+    }
     return true
 }
+function isUsedWord(word) {
+    return false
+    
+    if (word == "if") {
+        return true
+    }
+    return false
+}
+
 var closingMap = {
     "[": "]",
     "(": ")",
@@ -10501,6 +10556,7 @@ function autocompleteLineV2() {
     if (aclV2 == null) {
         var r = fuzzyLineMatchToRegexp(theLine)
         searchText.value = r.string
+        saveSearchHistory()
         aclV2 = {
             seed: theLine,
             regexp: r.regexp,
@@ -12228,6 +12284,7 @@ function gotoDefinition() {
         searchText.value = oldSearchText
     }
 }
+
 
 function gotoDefinition_experimental() {
     langServer({
