@@ -7085,11 +7085,11 @@ function handleKeydown(e) {
         render()
         return false
     }
-    // log(e.keyCode + " " + Date.now())
-    if (e.keyCode == 32 || e.keyCode == 190 || e.keyCode == 57)  { // spaces . (
+    // log(e.keyCode + " " + Date.now()) 
+    if (e.keyCode == 32)  { //
         // if (!e.shiftKey) {
         if (e.shiftKey) {
-            // e.preventDefault()
+            e.preventDefault() // for use with shift
             w = getWordAtCursor()
             if (w.word != "") {
                 if (!isUsedWord(w.word)) {
