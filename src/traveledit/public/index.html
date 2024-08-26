@@ -7089,10 +7089,10 @@ function handleKeydown(e) {
     if (e.keyCode == 32)  { //
         // if (!e.shiftKey) {
         if (e.shiftKey) {
-            e.preventDefault() // for use with shift
             w = getWordAtCursor()
             if (w.word != "") {
                 if (!isUsedWord(w.word)) {
+                    e.preventDefault() // for use with shift
                     acWordToggle()
                     render() // render sets the input box right, not sure why i need that.
                 }
