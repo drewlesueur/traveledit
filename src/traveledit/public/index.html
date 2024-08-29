@@ -5686,7 +5686,6 @@ function adjustHighlightRanges(index, linesAddedCount, theFile) {
     }
 }
 
-
 function insertLine(closeCurly, oMode) {
     if (fx.fileMode == "iframe") {
         // TODO: figure out this flow, sometimes happens when I click a for button on iframe.
@@ -5774,7 +5773,6 @@ function uploadBlob(blob, filename) {
     })
 }
 
-
 // See other places where we simply splice an empty string 
 // like when calling chatGPT
 function newLine(e, shouldFocus) {
@@ -5787,7 +5785,8 @@ function newLine(e, shouldFocus) {
         // this is handled somewhere else
         // see handleKeydown
     }
-    insertLine(false, true) // this one just makes a new line
+    // insertLine(false, true) // this one just makes a new line
+    insertLine(true, true) 
     if (shouldFocus) {
         theText.focus()
         //theText.setSelectionRange(fx.cursorColIndex, fx.cursorColIndex)
@@ -7111,12 +7110,12 @@ function handleKeydown(e) {
             }
         }
     }
-    if (e.keyCode == 13)  { // enter
-        if (e.shiftKey) {
-            e.preventDefault()
-            theText.blur()
-        }
-    }
+    // if (e.keyCode == 13)  { // enter
+    //     if (e.shiftKey) {
+    //         e.preventDefault()
+    //         theText.blur()
+    //     }
+    // }
 
     return true
 }
