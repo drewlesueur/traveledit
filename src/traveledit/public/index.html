@@ -2,6 +2,10 @@
 <!--
         
 
+if err != nil {}
+hitting enter there should auto indent!
+
+
 abstract http abstract where funcs live
 call on server or clent?
 
@@ -6795,6 +6799,10 @@ function expandLine_old(theLine, theIndex) {
     return expandedLine
 }
 function handleFocusAfter() {
+    theTextAfter.blur()
+    return
+
+    // old stuff
     if (false && searchText.value) {
         findDown()
     } else {
@@ -6813,6 +6821,10 @@ function handleFocusAfter() {
 }
 
 function handleFocusBefore() {
+    theTextBefore.blur()
+    return
+
+    // old stuff
     // if you have something to search, make it search.
     if (false && searchText.value) {
         findUp()
@@ -7086,7 +7098,7 @@ function handleKeydown(e) {
         return false
     }
     // log(e.keyCode + " " + Date.now()) 
-    if (e.keyCode == 32)  { //
+    if (e.keyCode == 32)  { // space
         // if (!e.shiftKey) {
         if (e.shiftKey) {
             w = getWordAtCursor()
@@ -7099,6 +7111,13 @@ function handleKeydown(e) {
             }
         }
     }
+    if (e.keyCode == 13)  { // enter
+        if (e.shiftKey) {
+            e.preventDefault()
+            theText.blur()
+        }
+    }
+
     return true
 }
 function isUsedWord(word) {
@@ -10166,12 +10185,22 @@ function onStart(e) {
                     // }
                 }
             },
+            "3sliceLeft": function () {
+                clearSearch()
+            },
+            "3sliceRight": function () {
+                clearSearch()
+            },
+            "2sliceLeft": function () {
+                moveCursorUp()
+            },
             "1sliceLeft": function () {
-                moveCursorLeftSnap()
+                // moveCursorLeftSnap()
+                moveCursorDown()
             },
-            "1sliceRight": function () {
-                moveCursorRightSnap()
-            },
+            // "1sliceRight": function () {
+            //     // moveCursorRightSnap()
+            // },
             "1farRight": function () {
                 if (fx.selectedRegions.length) {
                     if (selectMode == "char") {
@@ -10503,7 +10532,7 @@ function getSelectedFilePathInDirectory() {
 }
 function clickItemInDirectory() {
     var newFullPath = getSelectedFilePathInDirectory()
-    if (fx.cursorColIndex != -fx.marginLeft) {
+    if (fx.cursorColIndex != -fx.marginLeft && !fx.pinned) {
         replaceFile(newFullPath, {
         })
     } else {
