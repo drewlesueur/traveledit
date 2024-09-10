@@ -10184,22 +10184,29 @@ function onStart(e) {
                     // }
                 }
             },
-            "3sliceLeft": function () {
-                clearSearch()
-            },
-            "3sliceRight": function () {
-                clearSearch()
-            },
-            "2sliceLeft": function () {
-                moveCursorUp()
+            // If you don't have a sliceLeft then default
+            // of character selecting will happen
+            // "3sliceLeft": function () {
+            //     clearSearch()
+            // },
+            // "3sliceRight": function () {
+            //     clearSearch()
+            // },
+            // "2sliceLeft": function () {
+            //     moveCursorUp()
+            // },
+            // "1sliceLeft": function () {
+            //     moveCursorLeftSnap()
+            //     // moveCursorDown()
+            // },
+            "1sliceRight": function () {
+                // moveCursorRightSnap()
+                backspace()
             },
             "1sliceLeft": function () {
-                // moveCursorLeftSnap()
-                moveCursorDown()
+                // moveCursorRightSnap()
+                addSpace()
             },
-            // "1sliceRight": function () {
-            //     // moveCursorRightSnap()
-            // },
             "1farRight": function () {
                 if (fx.selectedRegions.length) {
                     if (selectMode == "char") {
