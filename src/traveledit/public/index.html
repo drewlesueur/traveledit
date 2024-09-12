@@ -393,7 +393,7 @@ input[type="text"] {
 #theText::placeholder {
     font-size: 12px;
 }
-</style>
+</style> 
 </head>
 <body class=dark>
 <div id=topPadding style="height: 0px;"></div>
@@ -1866,6 +1866,20 @@ function doSizing() {
         navTouchSize = 60
     }
     
+    if (screen.width == 768 && screen.height == 1024) {
+        device = "someipad"
+        var oneRow = 36*3
+        // canvasHeightFull=1820 //+ (oneRow*2)
+        // canvasHeightFull=1820 + (oneRow*1)
+        canvasHeightFull=2600 
+        canvasHeightKeyboard=2000
+        navTouchSize = 35
+        // if (innerWidth > innerHeight) {
+        //     canvasHeightFull = 900
+        //     canvasHeightKeyboard = 300
+        //     navTouchSize = 100
+        // }
+    }
     // This condition for the 2022 iPhone 14 Pro
     if (screen.width == 393 && screen.height == 852) {
         device = "iphone14pro"
@@ -8447,13 +8461,16 @@ function renderInternal() {
                 var lineNumber = (theIndex+1).toString().padStart(fx.marginLeft-1, " ")
                 if (fx.offsetX < -1) {
                     // Line numbers
-
-                    var stringedLine = (fx.lines[theIndex] || "").toString()
-                    var stringedLinePrev = (fx.lines[theIndex - 1] || "").toString()
-                    // we use toString because of the new String() hack
-                    if (stringedLine != "" && stringedLinePrev == stringedLine) {
-                        // handy feature to see if lines are same
-                        t.fillStyle = "lime"
+                    if (extras) {
+                        var stringedLine = (fx.lines[theIndex] || "").toString()
+                        var stringedLinePrev = (fx.lines[theIndex - 1] || "").toString()
+                        // we use toString because of the new String() hack
+                        if (stringedLine != "" && stringedLinePrev == stringedLine) {
+                            // handy feature to see if lines are same
+                            t.fillStyle = "lime"
+                        } else {
+                            t.fillStyle = lineNumberColor
+                        }
                     } else {
                         t.fillStyle = lineNumberColor
                     }
