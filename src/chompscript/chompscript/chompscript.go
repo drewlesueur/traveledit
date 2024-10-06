@@ -5,23 +5,11 @@ import (
     "sync"
 	"container/heap"
 	"time"
+    "unicode"
 )
 
-type Record struct {
-    FullPath []string
-    ArrayPart  []*Record
-    LookupPart map[string]*Record
-    ValuePart  string
-    KeysPart   []string
-    IsNull bool
-}
-type CodeFile struct {
-    FullPath string
-    Code string
-    EndsCache map[int]int
-}
-
 type Func struct {
+    Builtin: func(*World) *World
     Arity int
     Name string // optional
     CodeFile *CodeFile
@@ -29,11 +17,56 @@ type Func struct {
     World: *World
 }
 
+// make Go enum values using iota
+// the values I want are
+// Null, Value, Container, Func
+type RecordType int
+const (
+	Null RecordType = iota
+	Value
+	Container
+	Func
+)
+type Record struct {
+    FullPath []string
+    ArrayPart  []*Record
+    LookupPart map[string]*Record
+    ValuePart  string
+    KeysPart   []string
+    Type RecordType
+    FuncPart *Func
+}
+
+// make Methods on Record to push and pop values to ArrayPart
+// eg: r.Push(&Record{ValuePart: "1"})
+// eg: r.Pop()
+// Use Go idioms
+func (r *Record) Push(rec *Record) {
+    r.ArrayPart = append(r.ArrayPart, rec)
+}
+func (r *Record) Pop() *Record {
+    if len(r.ArrayPart) == 0 {
+        return nil
+    }
+    lastIndex := len(r.ArrayPart) - 1
+    lastRecord := r.ArrayPart[lastIndex]
+    r.ArrayPart = r.ArrayPart[:lastIndex]
+    return lastRecord
+}
+
+type CodeFile struct {
+    FullPath string
+    Code string
+    EndsCache map[int]int
+}
+
+
 type World struct {
     CodeFile *CodeFile
     Index int
-    Stack *Record // also has state in lookup part
-    Machine *Machine
+    FuncStartIndex int
+    Stack *Record
+    State *Record
     FuncStack: []*Func
     Func *Func
     RunAt time.Time
@@ -83,6 +116,7 @@ func NewMachine() *Machine {
     nextWorlds := []*World{}
     w := &World{
         Stack: &Record{},
+        State: &Record{},
         FuncStack: &Func{},
     }
     m := &Machine{
@@ -91,7 +125,6 @@ func NewMachine() *Machine {
         NextWorlds: nextWorlds,
         TimedWorlds: wh,
     }
-    w.Machine = m
 }
 
 func (m *Machine) AddCodeString(fullPath string, code string) {
@@ -107,6 +140,7 @@ func (m *Machine) AddCodeString(fullPath string, code string) {
     m.NextWorlds = append(m.NextWorlds, &World{
         CodeFile: codeFile,
         Stack: m.World.Stack,
+        State: m.World.State,
         FuncStack: m.World.FuncStack,
     })
 }
@@ -121,11 +155,144 @@ func (m *Machine) AddCode(fullPath string) error {
     m.AddCodeString(fullPath, code)
     return nil
 }
+
+// TODO: have it return a bool when done?
 func (m *Machine) RunNext(fullPath string, code string) {
     m.Lock()
     defer m.Unlock()
+    
+    // ??
+    if m.World == nil {
+        return
+    }
 
-    // dirst check if
+    // first check if funcs can be called
+    if m.World.Func != nil {
+        if len(m.World.Stack) >= m.World.Arity {
+            // we're ready to call the function!
+            m.CallFunc(m.World.Func, m.World)
+        }
+    }
+    m.Chomp()
+}
+func (m *Machine) Chomp(w *World) {
+    // this reads next token and adds it to the stack!
+    t, index := ReadNextToken(w.Index, w.Code)
+    w.Index = index
+    if t != nil {
+        if t.IsString {
+            w.Stack.Push(&Record{
+                ValuePart: t.Value,
+            })
+        } else if strings.ContainsAny(t.value, "{") {
+            
+        } else if strings.ContainsAny(t.value, "[]{}()") {
+            
+        } else {
+        }
+    }
+}
+
+type Token {
+    Value string
+    IsString bool
+}
+
+// Implement this, a token is the obvious one
+// any alphanumeric is a token (non-string)
+// "-" symbol if not separated by space is not its own token
+// any if these by itself is a token []{}()
+// then any group of symbols is a token
+// a string like "hello world" is a token (IsString true)
+// Also strings can be separated by «»
+// there is no escaping in strings.
+// The return values of the function is token and the new index
+func ReadNextToken(index int, code string) (*Token, int) {
+    if index >= len(code) {
+        return nil, len(code)
+    }
+
+    var start int
+    for start = index; start < len(code) && unicode.IsSpace(rune(code[start])); start++ {
+    }
+
+    if start >= len(code) {
+        return nil, len(code)
+    }
+
+    ch := code[start]
+
+    if ch == '"' || ch == '«' {
+        var endChar byte
+        if ch == '"' {
+            endChar = '"'
+        } else {
+            endChar = '»'
+        }
+        end := start + 1
+        for end < len(code) && code[end] != endChar {
+            end++
+        }
+        if end < len(code) { // to include the closing quote
+            end++
+        }
+        return &Token{Value: code[start:end], IsString: true}, end
+    }
+
+    if ch == '[' || ch == ']' || ch == '{' || ch == '}' || ch == '(' || ch == ')' {
+        return &Token{Value: string(ch), IsString: false}, start + 1
+    }
+
+    if unicode.IsLetter(rune(ch)) || unicode.IsDigit(rune(ch)) {
+        end := start + 1
+        for end < len(code) && (unicode.IsLetter(rune(code[end])) || unicode.IsDigit(rune(code[end])) || code[end] == '-') {
+            end++
+        }
+        return &Token{Value: code[start:end], IsString: false}, end
+    }
+
+    end := start + 1
+    for end < len(code) && !unicode.IsSpace(rune(code[end])) && 
+        !unicode.IsLetter(rune(code[end])) && !unicode.IsDigit(rune(code[end])) && 
+        code[end] != '"' && code[end] != '«' && 
+        code[end] != '[' && code[end] != ']' &&
+        code[end] != '{' && code[end] != '}' &&
+        code[end] != '(' && code[end] != ')' {
+        if code[end] == '-' && (end+1 < len(code) && (unicode.IsLetter(rune(code[end+1])) || unicode.IsDigit(rune(code[end+1])))) {
+            break
+        }
+        end++
+    }
+    
+    return &Token{Value: code[start:end], IsString: false}, end
+}
+
+
+
+func (m *Machine) CallFunc(f *Func, w *World) {
+    if f.Builtin != nil {
+        m.World = f.Builtin(w)
+        if len(m.World.FuncStack) > 0 {
+            // pop
+            m.World.Func = m.World.FuncStack[len(m.World.FuncStack)-1]
+            m.World.FuncStack = m.World.FuncStack[:len(m.World.FuncStack)-1]
+        } else {
+            m.World.Func = nil
+        }
+        return
+    }
+    
+    newWorld := &World{
+        LexicalParent: f.World,
+        RuntimeParent: w,
+        Stack: w.Stack,
+        State: &Record{},
+        CodeFile: f.CodeFile,
+        Index: f.Index,
+        FuncStartIndex: f.Index, // so we can call repeat
+        
+    }
+    m.World = newWorld
 }
 
 // a: 10
@@ -134,11 +301,16 @@ var code = `
 
 if {x is 3} {
 
-}, {
-
 }
 
-ages: 1, 2, 3
+cond [
+    { x is 1 } {
+
+    }
+    { x is 2 } {
+
+    }
+]
 
 
 `

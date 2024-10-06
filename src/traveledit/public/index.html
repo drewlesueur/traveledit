@@ -564,9 +564,9 @@ They get changed later on.
     <div class=middleButton onclick="runScript()">action2</div>
     <div class=middleButton onclick="runScript()">action3</div>
     <div class=middleButton id="gptButton2" onclick=runChatGPT('gpt-4o')>4o</div>
-    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o', {extra: onlyCode})">4o code</div>
-    <div class=middleButton id="gptButton2" onclick=runChatGPT('o1-mini')>o1-mini</div>
-    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('o1-mini', {extra: onlyCode})">o1-mini code</div>
+    <div class=middleButton id="gptButton2Code" onclick="runChatGPT('gpt-4o', {extra: onlyCode})">4o code</div>
+    <div class=middleButton id="gptButton3" onclick=runChatGPTNonStreaming('o1-mini')>o1-mini</div>
+    <div class=middleButton id="gptButton3Code" onclick="runChatGPTNonStreaming('o1-mini', {extra: onlyCode})">o1-mini code</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
@@ -4508,6 +4508,37 @@ function runScript() {
     }
 }
 
+async function runChatGPTNonStreaming(model, options) {
+    alert("yay!")
+    var selectedLinesWrapper = getSelectedLines(fx, false, true);
+    if (selectedLinesWrapper.isWholeFile) {
+        return
+    }
+    var theScriptLines = selectedLinesWrapper.lines
+
+    fx.chatGPTIndent = getIndent(theScriptLines[0])
+    var content = theScriptLines.join("\n")
+    if (options.extra) {
+        content = content + options.extra
+    }
+    var messages = [
+          {
+            "role": "user",
+            // "content": content + ". Add a newline after every 10-ish tokens, except when writing code."
+            "content": content
+          },
+    ]
+    clearLog2()
+    showLog()
+    // var resp = await fetch(proxyPath + "/chatgptNoStream", {
+    //     cache: "no-cache",
+    //     method: "POST"
+    // })
+    // var r = await resp.json()
+    // log2(ret)
+    log2(messages)
+    
+}
 
 async function runChatGPT(model, options) {
     options = options || {}
@@ -4559,16 +4590,12 @@ async function runChatGPT(model, options) {
             + "Do not output anything else other than the code. No explanation, just code. Do not surround the code with backticks."
     }
     var messages = [
-          {
-            "role": "system",
-            "content": "You are a helpful assistant."
-            // "content": "You are a helpful assistant. In your responses, add new lines after about every 8 words, except when writing code."
-            // "content": "When you answer prompts, be sure to add a new line after every 7 or so words, except when writing code. Be sure to add those new lines that's a '\\n' character!"
-          },
+          // o1 doesn't allow system prompts
           // {
-          //   "role": "user",
-          //   // "content": content + ". Add a newline after every 10-ish tokens, except when writing code."
-          //   "content": "I am about to make your request. In your response, please add a new line after ever 7 or so words (except in source code). Ok now here is the request.\n" + code
+          //   "role": "system",
+          //   "content": "You are a helpful assistant."
+          //   // "content": "You are a helpful assistant. In your responses, add new lines after about every 8 words, except when writing code."
+          //   // "content": "When you answer prompts, be sure to add a new line after every 7 or so words, except when writing code. Be sure to add those new lines that's a '\\n' character!"
           // },
           {
             "role": "user",
