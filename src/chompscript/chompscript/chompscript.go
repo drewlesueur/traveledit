@@ -7,10 +7,16 @@ import (
 	"time"
     "unicode"
 )
+// add operator precedence
+// laxy. eval
+// x is 3 and y is 4
+// define arity at compile time a:2
 
 type Func struct {
     Builtin: func(*World) *World
     Arity int
+    Precedence int
+    Associativity bool // Always left to right
     Name string // optional
     CodeFile *CodeFile
     Index int
@@ -22,10 +28,10 @@ type Func struct {
 // Null, Value, Container, Func
 type RecordType int
 const (
-	Null RecordType = iota
-	Value
-	Container
-	Func
+	NullType RecordType = iota
+	ValueType
+	ContainerType
+	FuncType
 )
 type Record struct {
     FullPath []string
@@ -57,6 +63,7 @@ func (r *Record) Pop() *Record {
 type CodeFile struct {
     FullPath string
     Code string
+    // applies to parens brackets curlies and terms even!
     EndsCache map[int]int
 }
 
@@ -102,6 +109,8 @@ type Machine struct {
     Mu sync.Mutex
     IdCounter int
     Files map[string]*CodeFile
+    Stack *Record
+    State *Record
     World *World
     NextWorlds []*Worlds
     TimedWorlds *WorldHeap
@@ -113,15 +122,19 @@ func NewMachine() *Machine {
     wh := &WorldHeap{}
     heap.Init(wh)
 
+    stack := &Record{}
+    state := &Record{}
     nextWorlds := []*World{}
     w := &World{
-        Stack: &Record{},
-        State: &Record{},
+        Stack: stack,
+        State: state,
         FuncStack: &Func{},
     }
     m := &Machine{
         Files: map[string]*CodeFile{},
         World: w,
+        Stack: stack,
+        State: state,
         NextWorlds: nextWorlds,
         TimedWorlds: wh,
     }
@@ -160,11 +173,13 @@ func (m *Machine) AddCode(fullPath string) error {
 func (m *Machine) RunNext(fullPath string, code string) {
     m.Lock()
     defer m.Unlock()
-    
+
     // ??
     if m.World == nil {
         return
     }
+
+    // TODO: nextWorlds
 
     // first check if funcs can be called
     if m.World.Func != nil {
@@ -175,9 +190,78 @@ func (m *Machine) RunNext(fullPath string, code string) {
     }
     m.Chomp()
 }
+
+
+
+
+/*
+greet: { :name
+    "hello" swap cc say
+}
+
+if x is 3 and y is 4 and b is 2 {
+    
+}
+
+a 
+
+
+if {x is 3} and {y is 4} {
+    
+}
+
+foo[] // acces
+{}[] // acces
+()[] // acces
+[][] // access
+
+
+2{} // arity ?
+(){} // arguments
+[]{} ?? captured closure??
+{}{} // func list?
+
+cond {}{
+    
+}{ }{
+    
+}
+
+yo() // call func
+{}() // callnfunc
+[]() // ??
+
+
+
+
+
+greet: (name age){
+    say cc "hello " name
+    say "hello " cc name
+    say ("hello " cc name)
+    say "hello " cc name
+}
+greet: name|age{
+    say "hello" cc name
+    say cc "hello" name
+    say: hello cc name
+}
+greet[name age]: { 
+    say cc "hello" name
+}
+greet: [name age]{
+    say cc "hello" name
+}
+// y[10]
+
+// name.age
+
+
+*/
+
 func (m *Machine) Chomp(w *World) {
     // this reads next token and adds it to the stack!
-    t, index := ReadNextToken(w.Index, w.Code)
+    t, index := ReadNextToken(w.Index, w.CodeFile.Code)
     w.Index = index
     if t != nil {
         if t.IsString {
@@ -185,12 +269,59 @@ func (m *Machine) Chomp(w *World) {
                 ValuePart: t.Value,
             })
         } else if strings.ContainsAny(t.value, "{") {
-            
-        } else if strings.ContainsAny(t.value, "[]{}()") {
-            
+            f := &Func{
+                Arity: 0,
+                Name: "anonymous",
+                CodeFile: w.CodeFile,
+                Index : w.Index,
+                World: w,
+            }
+            r := &Record{
+                RecordType: FuncType,
+                FuncPart: f,
+            }
+            // not going to call right away so it doesn't go in w.Func
+            w.Stack.Push(r)
+        } else if strings.ContainsAny(t.value, "[") {
+            newWorld := &World{
+                LexicalParent: f.World,
+                RuntimeParent: w,
+                Stack: w.Stack,
+                State: &Record{},
+                CodeFile: f.CodeFile,
+                Index: f.Index,
+                FuncStartIndex: f.Index, // so we can call repeat
+            }
+        } else if strings.ContainsAny(t.value, "(") {
+
         } else {
+
         }
     }
+}
+func (m *Machine) CallFunc(f *Func, w *World) {
+    if f.Builtin != nil {
+        m.World = f.Builtin(w)
+        if len(m.World.FuncStack) > 0 {
+            // pop
+            m.World.Func = m.World.FuncStack[len(m.World.FuncStack)-1]
+            m.World.FuncStack = m.World.FuncStack[:len(m.World.FuncStack)-1]
+        } else {
+            m.World.Func = nil
+        }
+        return
+    }
+    
+    newWorld := &World{
+        LexicalParent: f.World,
+        RuntimeParent: w,
+        Stack: w.Stack,
+        State: &Record{},
+        CodeFile: f.CodeFile,
+        Index: f.Index,
+        FuncStartIndex: f.Index, // so we can call repeat
+    }
+    m.World = newWorld
 }
 
 type Token {
@@ -269,31 +400,6 @@ func ReadNextToken(index int, code string) (*Token, int) {
 
 
 
-func (m *Machine) CallFunc(f *Func, w *World) {
-    if f.Builtin != nil {
-        m.World = f.Builtin(w)
-        if len(m.World.FuncStack) > 0 {
-            // pop
-            m.World.Func = m.World.FuncStack[len(m.World.FuncStack)-1]
-            m.World.FuncStack = m.World.FuncStack[:len(m.World.FuncStack)-1]
-        } else {
-            m.World.Func = nil
-        }
-        return
-    }
-    
-    newWorld := &World{
-        LexicalParent: f.World,
-        RuntimeParent: w,
-        Stack: w.Stack,
-        State: &Record{},
-        CodeFile: f.CodeFile,
-        Index: f.Index,
-        FuncStartIndex: f.Index, // so we can call repeat
-        
-    }
-    m.World = newWorld
-}
 
 // a: 10
 var code = `
@@ -375,3 +481,28 @@ cond [
     //     world.parent = oldWorld
     //     // world.cachedLookupWorld = {}
     // }
+
+
+    // squareType
+    // newWorld = {
+    //     parent: world,
+    //     state: {},
+    //     stack: [],
+    //     tokens: token.valueArr,
+    //     i: 0,
+    //     dynParent: world,
+    //     indent: world.indent + 1,
+    //     runId: ++thumbscript4.runId,
+    //     // cachedLookupWorld: {},
+    //     global: world.global,
+    //     asyncTop: world.asyncTop,
+    //     onEnds: [function(world) {
+    //         if (Object.keys(world.state).length) {
+    //             world.dynParent.stack.push(world.state)
+    //         } else {
+    //             world.dynParent.stack.push(world.stack)
+    //         }
+    //     }],
+    //     waitingWorlds: [],
+    // }
+    // break outer
