@@ -12,6 +12,11 @@ import (
 // x is 3 and y is 4
 // define arity at compile time a:2
 
+Type Op struct {
+    Func *Func
+    StartIndex int
+    EndIndex int
+}
 type Func struct {
     Builtin: func(*World) *World
     Arity int
@@ -33,6 +38,7 @@ const (
 	ContainerType
 	FuncType
 )
+
 type Record struct {
     FullPath []string
     ArrayPart  []*Record
@@ -64,14 +70,31 @@ type CodeFile struct {
     FullPath string
     Code string
     // applies to parens brackets curlies and terms even!
-    EndsCache map[int]int
+    ExprCache map[int]int
+    TokenCache map[int]*Token
 }
 
 
+type WorldType int
+const (
+	NormalType WorldType = iota
+	ParenType
+	BracketType
+)
+
+type ChompType int
+const (
+    RunType ChompType = iota
+    FindEndType
+    FindLabelType
+)
+
+
 type World struct {
+    // AsyncTop?
     CodeFile *CodeFile
     Index int
-    FuncStartIndex int
+    BlockStartIndex int
     Stack *Record
     State *Record
     FuncStack: []*Func
@@ -79,6 +102,9 @@ type World struct {
     RunAt time.Time
     LexicalParent *World
     RuntimeParent *World
+    WorldType WorldType
+    ChompType ChompType
+    NestCount int
 }
 
 // type WorldHeap []*World
@@ -124,18 +150,15 @@ func NewMachine() *Machine {
 
     stack := &Record{}
     state := &Record{}
-    nextWorlds := []*World{}
     w := &World{
         Stack: stack,
         State: state,
-        FuncStack: &Func{},
     }
     m := &Machine{
         Files: map[string]*CodeFile{},
         World: w,
         Stack: stack,
         State: state,
-        NextWorlds: nextWorlds,
         TimedWorlds: wh,
     }
 }
@@ -154,7 +177,6 @@ func (m *Machine) AddCodeString(fullPath string, code string) {
         CodeFile: codeFile,
         Stack: m.World.Stack,
         State: m.World.State,
-        FuncStack: m.World.FuncStack,
     })
 }
 func (m *Machine) AddCode(fullPath string) error {
@@ -182,132 +204,80 @@ func (m *Machine) RunNext(fullPath string, code string) {
     // TODO: nextWorlds
 
     // first check if funcs can be called
-    if m.World.Func != nil {
-        if len(m.World.Stack) >= m.World.Arity {
+    if m.World.Op != nil && m.World.Op.Func != nil {
+        if len(m.World.Stack) >= m.World.Op.Func.Arity {
             // we're ready to call the function!
-            m.CallFunc(m.World.Func, m.World)
+            // wait a minute let's check the next value
+            m.CallFunc(m.World.Op.Func, m.World)
+            return
         }
     }
     m.Chomp()
 }
 
+// 1 + 2 * 3 ^ 4 * 3
 
 
 
-/*
-greet: { :name
-    "hello" swap cc say
-}
-
-if x is 3 and y is 4 and b is 2 {
-    
-}
-
-a 
-
-
-if {x is 3} and {y is 4} {
-    
-}
-
-foo[] // acces
-{}[] // acces
-()[] // acces
-[][] // access
-
-
-2{} // arity ?
-(){} // arguments
-[]{} ?? captured closure??
-{}{} // func list?
-
-cond {}{
-    
-}{ }{
-    
-}
-
-yo() // call func
-{}() // callnfunc
-[]() // ??
-
-
-
-
-
-greet: (name age){
-    say cc "hello " name
-    say "hello " cc name
-    say ("hello " cc name)
-    say "hello " cc name
-}
-greet: name|age{
-    say "hello" cc name
-    say cc "hello" name
-    say: hello cc name
-}
-greet[name age]: { 
-    say cc "hello" name
-}
-greet: [name age]{
-    say cc "hello" name
-}
-// y[10]
-
-// name.age
-
-
-*/
 
 func (m *Machine) Chomp(w *World) {
     // this reads next token and adds it to the stack!
     t, index := ReadNextToken(w.Index, w.CodeFile.Code)
     w.Index = index
-    if t != nil {
-        if t.IsString {
-            w.Stack.Push(&Record{
-                ValuePart: t.Value,
-            })
-        } else if strings.ContainsAny(t.value, "{") {
-            f := &Func{
-                Arity: 0,
-                Name: "anonymous",
-                CodeFile: w.CodeFile,
-                Index : w.Index,
-                World: w,
-            }
-            r := &Record{
-                RecordType: FuncType,
-                FuncPart: f,
-            }
-            // not going to call right away so it doesn't go in w.Func
-            w.Stack.Push(r)
-        } else if strings.ContainsAny(t.value, "[") {
-            newWorld := &World{
-                LexicalParent: f.World,
-                RuntimeParent: w,
-                Stack: w.Stack,
-                State: &Record{},
-                CodeFile: f.CodeFile,
-                Index: f.Index,
-                FuncStartIndex: f.Index, // so we can call repeat
-            }
-        } else if strings.ContainsAny(t.value, "(") {
-
-        } else {
-
+    if t == nil {
+        oldWorld := w
+        m.World = w.RuntimeParent
+        if oldWorld.WorldType == ParenType {
+            for _, r := range oldWorld.State
         }
+        return
+    }
+    
+    if t.IsString {
+        w.Stack.Push(&Record{
+            ValuePart: t.Value,
+        })
+    } else if strings.ContainsAny(t.value, "{") {
+        f := &Func{
+            Arity: 0,
+            Name: "anonymous",
+            CodeFile: w.CodeFile,
+            Index : w.Index,
+            World: w,
+        }
+        r := &Record{
+            Type: FuncType,
+            FuncPart: f,
+        }
+        // not going to call right away so it doesn't go in w.Func
+        w.Stack.Push(r)
+        w.ChompType = FindEndType
+        w.EndSymbol == "{"
+    } else if strings.ContainsAny(t.value, "[") {
+        newWorld := &World{
+            LexicalParent: f.World,
+            RuntimeParent: w,
+            Stack: w.Stack,
+            State: &Record{},
+            CodeFile: f.CodeFile,
+            Index: f.Index,
+            BlockStartIndex: f.Index, // so we can call repeat
+        }
+    } else if strings.ContainsAny(t.value, "(") {
+
+    } else {
+        v := w.Lookup(t.Value)
     }
 }
 func (m *Machine) CallFunc(f *Func, w *World) {
     if f.Builtin != nil {
         m.World = f.Builtin(w)
-        if len(m.World.FuncStack) > 0 {
+        if len(m.World.OpStack) > 0 {
             // pop
-            m.World.Func = m.World.FuncStack[len(m.World.FuncStack)-1]
-            m.World.FuncStack = m.World.FuncStack[:len(m.World.FuncStack)-1]
+            m.World.Op = m.World.OpStack[len(m.World.OpStack)-1]
+            m.World.OpStack = m.World.OpStack[:len(m.World.OpStack)-1]
         } else {
-            m.World.Func = nil
+            m.World.Op = nil
         }
         return
     }
@@ -319,7 +289,7 @@ func (m *Machine) CallFunc(f *Func, w *World) {
         State: &Record{},
         CodeFile: f.CodeFile,
         Index: f.Index,
-        FuncStartIndex: f.Index, // so we can call repeat
+        BlockStartIndex: f.Index, // so we can call repeat
     }
     m.World = newWorld
 }
@@ -338,6 +308,14 @@ type Token {
 // Also strings can be separated by «»
 // there is no escaping in strings.
 // The return values of the function is token and the new index
+
+// TODO: use TokenCache
+
+// update this code so the "." is not its own token
+// if it's in a number like 1.25, token value is "1.25"
+// also -1.25 token value is "-1.25"
+// but if it's a variable like foo.bar then that's 3 tokens
+// 
 func ReadNextToken(index int, code string) (*Token, int) {
     if index >= len(code) {
         return nil, len(code)
@@ -374,9 +352,12 @@ func ReadNextToken(index int, code string) (*Token, int) {
         return &Token{Value: string(ch), IsString: false}, start + 1
     }
 
-    if unicode.IsLetter(rune(ch)) || unicode.IsDigit(rune(ch)) {
+    if (unicode.IsLetter(rune(ch)) || unicode.IsDigit(rune(ch)) || ch == '-') && (ch != '-' || start+1 < len(code) && unicode.IsDigit(rune(code[start+1]))) {
         end := start + 1
-        for end < len(code) && (unicode.IsLetter(rune(code[end])) || unicode.IsDigit(rune(code[end])) || code[end] == '-') {
+        for end < len(code) && (unicode.IsLetter(rune(code[end])) || unicode.IsDigit(rune(code[end])) || code[end] == '-' || code[end] == '.') {
+            if code[end] == '.' && (end+1 >= len(code) || !unicode.IsDigit(rune(code[end+1]))) {
+                break
+            }
             end++
         }
         return &Token{Value: code[start:end], IsString: false}, end
@@ -394,7 +375,6 @@ func ReadNextToken(index int, code string) (*Token, int) {
         }
         end++
     }
-    
     return &Token{Value: code[start:end], IsString: false}, end
 }
 
