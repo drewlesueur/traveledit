@@ -6,26 +6,26 @@ import (
 	"container/heap"
 	"time"
     "unicode"
+	"unicode/utf16"
+	"os"
+	"strings"
 )
 // add operator precedence
 // laxy. eval
 // x is 3 and y is 4
 // define arity at compile time a:2
 
-Type Op struct {
-    Func *Func
-    StartIndex int
-    EndIndex int
-}
+
+
 type Func struct {
-    Builtin: func(*World) *World
+    Builtin func(*World) *World
     Arity int
     Precedence int
     Associativity bool // Always left to right
     Name string // optional
     CodeFile *CodeFile
     Index int
-    World: *World
+    World *World
 }
 
 // make Go enum values using iota
@@ -68,9 +68,11 @@ func (r *Record) Pop() *Record {
 
 type CodeFile struct {
     FullPath string
-    Code string
+    Code []uint16
     // applies to parens brackets curlies and terms even!
     ExprCache map[int]int
+    
+    // TODO: start using TokenCache
     TokenCache map[int]*Token
 }
 
@@ -97,8 +99,10 @@ type World struct {
     BlockStartIndex int
     Stack *Record
     State *Record
-    FuncStack: []*Func
+    FuncStack []*Func
     Func *Func
+    ExprStartIndexStack []int
+    ExprStartIndex []int
     RunAt time.Time
     LexicalParent *World
     RuntimeParent *World
@@ -132,16 +136,35 @@ func (wh *WorldHeap) Pop() interface{} {
 }
 
 type Machine struct {
-    Mu sync.Mutex
+    sync.Mutex
     IdCounter int
     Files map[string]*CodeFile
     Stack *Record
     State *Record
     World *World
-    NextWorlds []*Worlds
+    NextWorlds []*World
     TimedWorlds *WorldHeap
     // also need some sort of parallelism and message passing
 }
+
+
+func (m *Machine) PushWorld(w *World) {
+    m.NextWorlds = append(m.NextWorlds, w)
+}
+func (m *Machine) PopWorld() *World {
+    if len(m.NextWorlds) == 0 {
+        return nil
+    }
+    lastIndex := len(m.NextWorlds) - 1
+    lastWorld := m.NextWorlds[lastIndex]
+    m.NextWorlds = m.NextWorlds[:lastIndex]
+    return lastWorld
+}
+
+
+
+
+
 
 
 func NewMachine() *Machine {
@@ -161,16 +184,18 @@ func NewMachine() *Machine {
         State: state,
         TimedWorlds: wh,
     }
+    return m
 }
 
 func (m *Machine) AddCodeString(fullPath string, code string) {
     m.Lock()
     defer m.Unlock()
+    
     codeFile := &CodeFile{
         // FullPath: "_eval_" + strconv.Itoa(m.IdCounter),
         FullPath: fullPath,
-        Code: code,
-        EndsCache: map[int]int{},
+        Code: utf8ToUtf16(code),
+        ExprCache: map[int]int{},
     }
     m.Files[fullPath] = codeFile
     m.NextWorlds = append(m.NextWorlds, &World{
@@ -183,11 +208,11 @@ func (m *Machine) AddCode(fullPath string) error {
     m.Lock()
     defer m.Unlock()
 
-    code, err := io.ReadFile(fullPath)
+    code, err := os.ReadFile(fullPath)
     if err != nil {
         return err
     }
-    m.AddCodeString(fullPath, code)
+    m.AddCodeString(fullPath, string(code))
     return nil
 }
 
@@ -198,17 +223,24 @@ func (m *Machine) RunNext(fullPath string, code string) {
 
     // ??
     if m.World == nil {
-        return
+        w := m.PopWorld()
+        if w == nil {
+            return
+        }
+        m.World = w
     }
 
     // TODO: nextWorlds
 
     // first check if funcs can be called
-    if m.World.Op != nil && m.World.Op.Func != nil {
-        if len(m.World.Stack) >= m.World.Op.Func.Arity {
+    if m.World.Func != nil {
+        if len(m.World.Stack.ArrayPart) >= m.World.Func.Arity {
             // we're ready to call the function!
             // wait a minute let's check the next value
-            m.CallFunc(m.World.Op.Func, m.World)
+            nextToken := m.Peek()
+            _ = nextToken
+            
+            m.CallFunc(m.World.Func, m.World)
             return
         }
     }
@@ -216,11 +248,17 @@ func (m *Machine) RunNext(fullPath string, code string) {
 }
 
 // 1 + 2 * 3 ^ 4 * 3
+func (m *Machine) Peek() *Token {
+    w := m.World
+    t, _ := ReadNextToken(w.Index, w.CodeFile.Code)
+    return t
+}
 
 
 
 
-func (m *Machine) Chomp(w *World) {
+func (m *Machine) Chomp() {
+    w := m.World
     // this reads next token and adds it to the stack!
     t, index := ReadNextToken(w.Index, w.CodeFile.Code)
     w.Index = index
@@ -228,12 +266,12 @@ func (m *Machine) Chomp(w *World) {
         oldWorld := w
         m.World = w.RuntimeParent
         if oldWorld.WorldType == ParenType {
-            for _, r := range oldWorld.State
+            // for _, r := range oldWorld.State
         }
         return
     }
     
-    if t.IsString {
+    if t.TokenType == TokenTypeString {
         w.Stack.Push(&Record{
             ValuePart: t.Value,
         })
@@ -294,9 +332,18 @@ func (m *Machine) CallFunc(f *Func, w *World) {
     m.World = newWorld
 }
 
-type Token {
+
+
+type TokenType int
+const (
+	TokenTypeVar TokenType = iota
+	TokenTypeString
+	TokenTypeBrace
+	// TokenTypeNumber // ?
+)
+type Token struct {
     Value string
-    IsString bool
+    TokenType TokenType
 }
 
 // Implement this, a token is the obvious one
@@ -316,68 +363,148 @@ type Token {
 // also -1.25 token value is "-1.25"
 // but if it's a variable like foo.bar then that's 3 tokens
 // 
-func ReadNextToken(index int, code string) (*Token, int) {
+
+
+// isSpace checks if a given character is a whitespace character.
+func isSpace(c uint16) bool {
+	return c == uint16(' ') || c == uint16('\n') || c == uint16('\t') || c == uint16('\r')
+}
+func isOpeniningBrace(c uint16) bool {
+	return c == uint16('(') || c == uint16('[') || c == uint16('{')
+}
+func isClosingBrace(c uint16) bool {
+	return c == uint16(')') || c == uint16(']') || c == uint16('}')
+}
+
+// isLetter checks if a given character is an uppercase or lowercase letter or an underscore.
+func isLetter(c uint16) bool {
+	return (c >= uint16('A') && c <= uint16('Z')) || (c >= uint16('a') && c <= uint16('z')) || c == uint16('_')
+}
+
+func isDigit(c uint16) bool {
+	return c >= uint16('0') && c <= uint16('9')
+}
+func isMinus(c uint16) bool {
+	return c == uint16('-')
+}
+func isDot(c uint16) bool {
+	return c == uint16('.')
+}
+func isUnderscore(c uint16) bool {
+	return c == uint16('_')
+}
+func isRegularQuote(c uint16) bool {
+	return c == uint16('"')
+}
+func isStartQuote(c uint16) bool {
+	return c == uint16('«') 
+}
+func isCloseQuote(c uint16) bool {
+	return c == uint16('»') 
+}
+
+
+
+func ReadNextToken(index int, code []uint16) (*Token, int) {
     if index >= len(code) {
         return nil, len(code)
     }
-
-    var start int
-    for start = index; start < len(code) && unicode.IsSpace(rune(code[start])); start++ {
-    }
-
-    if start >= len(code) {
-        return nil, len(code)
-    }
-
-    ch := code[start]
-
-    if ch == '"' || ch == '«' {
-        var endChar byte
-        if ch == '"' {
-            endChar = '"'
-        } else {
-            endChar = '»'
+    start := -1
+    quote := ""
+    state := ""
+    for i := index; i < len(code); i++ {
+        c := rune(code[i])
+        var nextC, prevC rune
+        if i < len(code) - 1 {
+            nextC = code[i + 1]
         }
-        end := start + 1
-        for end < len(code) && code[end] != endChar {
-            end++
+        if i > 0 {
+            prevC = rune(code[i - 1])
         }
-        if end < len(code) { // to include the closing quote
-            end++
-        }
-        return &Token{Value: code[start:end], IsString: true}, end
-    }
-
-    if ch == '[' || ch == ']' || ch == '{' || ch == '}' || ch == '(' || ch == ')' {
-        return &Token{Value: string(ch), IsString: false}, start + 1
-    }
-
-    if (unicode.IsLetter(rune(ch)) || unicode.IsDigit(rune(ch)) || ch == '-') && (ch != '-' || start+1 < len(code) && unicode.IsDigit(rune(code[start+1]))) {
-        end := start + 1
-        for end < len(code) && (unicode.IsLetter(rune(code[end])) || unicode.IsDigit(rune(code[end])) || code[end] == '-' || code[end] == '.') {
-            if code[end] == '.' && (end+1 >= len(code) || !unicode.IsDigit(rune(code[end+1]))) {
-                break
+        if state == "" {
+            if isSpace(c) {
+            } else if isLetter(c) {
+                start = i
+                state = "word"
+            } else if isMinus(c) {
+                state = "minus"
+            } else if isDigit(c) {
+                state = "number"
+            } else if isRegularQuote(c) {
+                state = "quote"
+                start = i + 1
+            } else if isStartQuote(c) {
+                state = "fancy_quote"
+                start = i + 1
             }
-            end++
-        }
-        return &Token{Value: code[start:end], IsString: false}, end
-    }
+        } else if state == "word" {
+            if isWord(tokenStartc) || isDigit(c) {
 
-    end := start + 1
-    for end < len(code) && !unicode.IsSpace(rune(code[end])) && 
-        !unicode.IsLetter(rune(code[end])) && !unicode.IsDigit(rune(code[end])) && 
-        code[end] != '"' && code[end] != '«' && 
-        code[end] != '[' && code[end] != ']' &&
-        code[end] != '{' && code[end] != '}' &&
-        code[end] != '(' && code[end] != ')' {
-        if code[end] == '-' && (end+1 < len(code) && (unicode.IsLetter(rune(code[end+1])) || unicode.IsDigit(rune(code[end+1])))) {
-            break
+            } else {
+                return Token{
+                    Value: utf16ToUtf8(code[start:i]),
+                    TokenType: TokenTypeVar,
+                }, i
+            }
+        } else if state == "minus" {
+            if isLetter(c) {
+                return Token{
+                    Value: "neg",
+                    TokenType: TokenTypeVar,
+                }, i
+            } else if isSpace(c) {
+                return Token{
+                    Value: "-",
+                    TokenType: TokenTypeVar,
+                }, i
+            } else if isDigit(c) {
+                state = "number"
+                start = i - 1
+            }
+        } else if state == "number" {
+            if isDigit(c) || isDot(c) || isLetter(c) {
+            } else {
+                return Token{
+                    Value: utf16ToUtf8(code[start:i]),
+                    // ValueFloat: 
+                    // ValueInt: 
+                    TokenType: TokenTypeNumber,
+                }, i
+            }
+        } else if state == "quote" {
+            if isQuote(c) {
+                return Token{
+                    Value: utf16ToUtf8(code[start:i-1]),
+                    TokenType: TokenTypeString,
+                }, i+1
+            }
+        } else if state == "fancy_quote" {
+            if isCloseQuote(c) {
+                return Token{
+                    Value: utf16ToUtf8(code[start:i-1]),
+                    TokenType: TokenTypeString,
+                }, i+1
+            }
         }
-        end++
     }
-    return &Token{Value: code[start:end], IsString: false}, end
 }
 
+
+
+
+
+func utf8ToUtf16(s string) []uint16 {
+	// Decode the UTF-8 string into runes
+	runes := []rune(s)
+	// Encode the runes into UTF-16
+	utf16Encoded := utf16.Encode(runes)
+	return utf16Encoded
+}
+
+func utf16ToUtf8(u []uint16) string {
+	runes := utf16.Decode(u)
+	return string(runes)
+}
 
 
 
