@@ -1,11 +1,11 @@
 package chompscript
 
 import (
-    "fmt"
+    // "fmt"
     "sync"
 	"container/heap"
 	"time"
-    "unicode"
+    // "unicode"
 	"unicode/utf16"
 	"os"
 	"strings"
@@ -275,7 +275,7 @@ func (m *Machine) Chomp() {
         w.Stack.Push(&Record{
             ValuePart: t.Value,
         })
-    } else if strings.ContainsAny(t.value, "{") {
+    } else if strings.ContainsAny(t.Value, "{") {
         f := &Func{
             Arity: 0,
             Name: "anonymous",
@@ -290,32 +290,39 @@ func (m *Machine) Chomp() {
         // not going to call right away so it doesn't go in w.Func
         w.Stack.Push(r)
         w.ChompType = FindEndType
-        w.EndSymbol == "{"
-    } else if strings.ContainsAny(t.value, "[") {
+        // TODO: figure this out
+        // w.EndSymbol == "{"
+    } else if strings.ContainsAny(t.Value, "[") {
         newWorld := &World{
-            LexicalParent: f.World,
+            LexicalParent: w,
             RuntimeParent: w,
             Stack: w.Stack,
             State: &Record{},
-            CodeFile: f.CodeFile,
-            Index: f.Index,
-            BlockStartIndex: f.Index, // so we can call repeat
+            CodeFile: w.CodeFile,
+            Index: w.Index,
+            BlockStartIndex: w.Index, // so we can call repeat
         }
-    } else if strings.ContainsAny(t.value, "(") {
+        _ = newWorld
+    } else if strings.ContainsAny(t.Value, "(") {
 
     } else {
         v := w.Lookup(t.Value)
+        _ = v
     }
 }
+func (w *World) Lookup(v string) Record {
+    return Record{}
+}
+
 func (m *Machine) CallFunc(f *Func, w *World) {
     if f.Builtin != nil {
         m.World = f.Builtin(w)
-        if len(m.World.OpStack) > 0 {
+        if len(m.World.FuncStack) > 0 {
             // pop
-            m.World.Op = m.World.OpStack[len(m.World.OpStack)-1]
-            m.World.OpStack = m.World.OpStack[:len(m.World.OpStack)-1]
+            m.World.Func = m.World.FuncStack[len(m.World.FuncStack)-1]
+            m.World.FuncStack = m.World.FuncStack[:len(m.World.FuncStack)-1]
         } else {
-            m.World.Op = nil
+            m.World.FuncStack = nil
         }
         return
     }
@@ -337,6 +344,7 @@ func (m *Machine) CallFunc(f *Func, w *World) {
 type TokenType int
 const (
 	TokenTypeVar TokenType = iota
+	TokenTypeNumber
 	TokenTypeString
 	TokenTypeBrace
 	// TokenTypeNumber // ?
@@ -410,17 +418,18 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
         return nil, len(code)
     }
     start := -1
-    quote := ""
     state := ""
     for i := index; i < len(code); i++ {
-        c := rune(code[i])
-        var nextC, prevC rune
+        c := code[i]
+        var nextC, prevC uint16
         if i < len(code) - 1 {
             nextC = code[i + 1]
         }
+        _ = nextC
         if i > 0 {
-            prevC = rune(code[i - 1])
+            prevC = code[i - 1]
         }
+        _ = prevC
         if state == "" {
             if isSpace(c) {
             } else if isLetter(c) {
@@ -430,6 +439,7 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
                 state = "minus"
             } else if isDigit(c) {
                 state = "number"
+                start = i
             } else if isRegularQuote(c) {
                 state = "quote"
                 start = i + 1
@@ -438,22 +448,22 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
                 start = i + 1
             }
         } else if state == "word" {
-            if isWord(tokenStartc) || isDigit(c) {
+            if isLetter(c) || isDigit(c) {
 
             } else {
-                return Token{
+                return &Token{
                     Value: utf16ToUtf8(code[start:i]),
                     TokenType: TokenTypeVar,
                 }, i
             }
         } else if state == "minus" {
             if isLetter(c) {
-                return Token{
+                return &Token{
                     Value: "neg",
                     TokenType: TokenTypeVar,
                 }, i
             } else if isSpace(c) {
-                return Token{
+                return &Token{
                     Value: "-",
                     TokenType: TokenTypeVar,
                 }, i
@@ -464,7 +474,7 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
         } else if state == "number" {
             if isDigit(c) || isDot(c) || isLetter(c) {
             } else {
-                return Token{
+                return &Token{
                     Value: utf16ToUtf8(code[start:i]),
                     // ValueFloat: 
                     // ValueInt: 
@@ -472,21 +482,22 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
                 }, i
             }
         } else if state == "quote" {
-            if isQuote(c) {
-                return Token{
-                    Value: utf16ToUtf8(code[start:i-1]),
+            if isRegularQuote(c) {
+                return &Token{
+                    Value: utf16ToUtf8(code[start:i]),
                     TokenType: TokenTypeString,
                 }, i+1
             }
         } else if state == "fancy_quote" {
             if isCloseQuote(c) {
-                return Token{
-                    Value: utf16ToUtf8(code[start:i-1]),
+                return &Token{
+                    Value: utf16ToUtf8(code[start:i]),
                     TokenType: TokenTypeString,
                 }, i+1
             }
         }
     }
+    return nil, len(code)
 }
 
 
