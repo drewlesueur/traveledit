@@ -2010,11 +2010,12 @@ var theStatus = {}
 var wasWasDelete = false
 var wasDelete = false
 var moveHomeEndTimeout
-var moveHomeEndTimeoutMillis = 300
+var moveHomeEndTimeoutMillis = 150
 var moveHomeEndDirection
 var cleanUpFilesTimeout
 var selectTimeout
 // var selectTimeoutMillis = 150
+// selectTimeoutMillis could also be called longPressTimeoutMillis
 var selectTimeoutMillis = 120
 var selectTimeoutMillisMove = 350
 var expandSelectTimeout
@@ -4132,6 +4133,31 @@ function dedent(region) {
     stripPrefixes(["\t", " ".repeat(tabWidth)], region)
 }
 
+function getCommentPrefix() {
+    var prefix
+    if (
+        fx.fullPath.endsWith(".sh") ||
+        fx.fullPath.endsWith(".pm") ||
+        fx.fullPath.endsWith(".pl") ||
+        fx.fullPath.endsWith(".yaml") ||
+        fx.fullPath.endsWith(".yml") ||
+        fx.fullPath.endsWith(".env") ||
+        fx.fullPath.split("/").slice(-1)[0].indexOf(".") == -1
+    ) {
+        // Special case hack for sql script
+        if (fx.lines[fx.lines.length-1] == "EOD") {
+            prefix = "--"
+        } else {
+            prefix = "#"
+        }
+    } else if (fx.fullPath.endsWith(".ini"))  {
+        prefix = ";"
+    } else {
+        prefix = "//"
+    }
+    return prefix
+}
+
 function comment(prefix) {
     var theLine
     if (ghostSelectionComment) {
@@ -4143,26 +4169,7 @@ function comment(prefix) {
     }
 
     if (!prefix) {
-        if (
-            fx.fullPath.endsWith(".sh") ||
-            fx.fullPath.endsWith(".pm") ||
-            fx.fullPath.endsWith(".pl") ||
-            fx.fullPath.endsWith(".yaml") ||
-            fx.fullPath.endsWith(".yml") ||
-            fx.fullPath.endsWith(".env") ||
-            fx.fullPath.split("/").slice(-1)[0].indexOf(".") == -1
-        ) {
-            // Special case hack for sql script
-            if (fx.lines[fx.lines.length-1] == "EOD") {
-                prefix = "--"
-            } else {
-                prefix = "#"
-            }
-        } else if (fx.fullPath.endsWith(".ini"))  {
-            prefix = ";"
-        } else {
-            prefix = "//"
-        }
+        prefix = getCommentPrefix()
     }
 
     if (theLine.trim().startsWith(prefix)) {
@@ -5458,6 +5465,7 @@ function del(preventCopy, preventDeleteWholeLine, preventUndo) {
     //     globalOldCopyBuffer = oldCopyBuffer
     // }
 }
+
 function copyShenanigans(fn) {
     // see del()
     var oldCopyBuffer = copyBuffer
@@ -10221,10 +10229,19 @@ function onStart(e) {
             "1sliceRight": function () {
                 // moveCursorRightSnap()
                 backspace()
+                // reusing the timeout, maybe name it
+                // longTouchEdgesTimeout
+                moveHomeEndTimeout = setTimeout(function () {
+                    deleteToBeginningOfLine()
+                }, moveHomeEndTimeoutMillis)
             },
             "1sliceLeft": function () {
                 // moveCursorRightSnap()
                 addSpace()
+                moveHomeEndTimeout = setTimeout(function () {
+                    backspace()
+                    deleteToEndOfLine()
+                }, moveHomeEndTimeoutMillis)
             },
             "1farRight": function () {
                 if (fx.selectedRegions.length) {
@@ -10366,6 +10383,10 @@ function onStart(e) {
                     // log("sliceRight")
                     clearTimeout(selectTimeout)
                     selectAction(true)
+                    moveHomeEndTimeout = setTimeout(function () {
+                        selectBlock()
+                    }, moveHomeEndTimeoutMillis)
+                    document.body.addEventListener("touchend", onEndForEdges)
                 },
             })
         }
@@ -12990,18 +13011,10 @@ function touchAreasLongPress(e, state) {
             document.body.addEventListener("touchend", doFocus)
         },
         "2left": function () {
-            // Delete to beginning, not sure if I want to keep this
-            copyShenanigans(function () {
-                var theLine = fx.lines[fx.cursorLineIndex]
-                theLine = theLine.slice(u(fx.cursorColIndex))
-                fx.lines[fx.cursorLineIndex] = theLine
-                fx.cursorColIndex = 0
-                updateCursorXY()
-                selectMode = "char"
-                copyBuffer = [theLine.slice(0, u(fx.cursorColIndex))]
-                docChanged()
-                render()
-            })
+            // deleteToBeginningOfLine()
+            selectBlock()
+            comment()
+            
         },
         "2middle": function () {
             // Second row from bottom // lime marker
@@ -13010,16 +13023,9 @@ function touchAreasLongPress(e, state) {
 
         },
         "2right": function () {
-            copyShenanigans(function () {
-                // Delete to end
-                var theLine = fx.lines[fx.cursorLineIndex]
-                copyBuffer = [theLine.slice(u(fx.cursorColIndex))]
-                theLine = theLine.slice(0, u(fx.cursorColIndex))
-                fx.lines[fx.cursorLineIndex] = theLine
-                selectMode = "char"
-                docChanged()
-                render()
-            })
+            // deleteToEndOfLine()
+            selectBlock()
+            duplicateSelection()
         },
         "1left": function () {
             // join lines, also happens elsewhere #joinlines
@@ -13747,59 +13753,86 @@ function replaceWordsWithNumbers(command) {
 
 
 
-
 function selectBlock() {
     let sr = fx.selectedRegions[0]
+    if (!sr) {
+        selectLines(1)
+        sr = fx.selectedRegions[0]
+    }
     let curIndent = getIndent(fx.lines[fx.cursorLineIndex])
 
-    let nextIndent = getIndent(fx.lines[fx.cursorLineIndex + 1])
-    if (nextIndent.length > curIndent.length) {
+    var commentPrefix = getCommentPrefix()
+
+    // selecting block also selects comments
+    // yo
+    // world
+    "hi"
+    // bye
+
+    var theLine = fx.lines[fx.cursorLineIndex]
+    if (theLine.trim().startsWith(commentPrefix)) {
         for (let i=fx.cursorLineIndex+1; i < fx.lines.length; i++) {
-            if (fx.lines[i].trim() == "") {
-                continue
+            let theLine = fx.lines[i]
+            if (!theLine.trim().startsWith(commentPrefix)) {
+                break
             }
-            let thisIndent = getIndent(fx.lines[i])
             sr.stopY = i
             sr.stopX = expandTabIndex(fx.lines[i], fx.lines[i].length, i)
             fx.cursorLineIndex = sr.stopY
             updateCursorXY()
             ensureCursorInScreen()
-            if (thisIndent.length <= curIndent.length) {
-                break
-            }
         }
-        // for (let i=fx.cursorLineIndex-1; i >= 0; i--) {
-        //     let thisIndent = getIndent(fx.lines[i])
-        //     if (thisIndent < curIndent) {
-        //         break
-        //     }
-        //     sr.startY--
-        // }
     } else {
-        var startI = fx.cursorLineIndex+1
-        var hasGottenNonBlankLine = false
-        for (let i=startI; i < fx.lines.length; i++) {
-            if (fx.lines[i].trim() == "") {
-                // continue
-
-                if (hasGottenNonBlankLine) {
-                    break
-                } else {
+        let nextIndent = getIndent(fx.lines[fx.cursorLineIndex + 1])
+        if (nextIndent.length > curIndent.length) {
+            for (let i=fx.cursorLineIndex+1; i < fx.lines.length; i++) {
+                if (fx.lines[i].trim() == "") {
                     continue
                 }
+                let thisIndent = getIndent(fx.lines[i])
+                sr.stopY = i
+                sr.stopX = expandTabIndex(fx.lines[i], fx.lines[i].length, i)
+                fx.cursorLineIndex = sr.stopY
+                updateCursorXY()
+                ensureCursorInScreen()
+                if (thisIndent.length <= curIndent.length) {
+                    break
+                }
             }
-            hasGottenNonBlankLine = true
-            let thisIndent = getIndent(fx.lines[i])
-            if (thisIndent.length < curIndent.length) {
-                break
+            // for (let i=fx.cursorLineIndex-1; i >= 0; i--) {
+            //     let thisIndent = getIndent(fx.lines[i])
+            //     if (thisIndent < curIndent) {
+            //         break
+            //     }
+            //     sr.startY--
+            // }
+        } else {
+            var startI = fx.cursorLineIndex+1
+            var hasGottenNonBlankLine = false
+            for (let i=startI; i < fx.lines.length; i++) {
+                if (fx.lines[i].trim() == "") {
+                    // continue
+    
+                    if (hasGottenNonBlankLine) {
+                        break
+                    } else {
+                        continue
+                    }
+                }
+                hasGottenNonBlankLine = true
+                let thisIndent = getIndent(fx.lines[i])
+                if (thisIndent.length < curIndent.length) {
+                    break
+                }
+                sr.stopY = i
+                sr.stopX = expandTabIndex(fx.lines[i], fx.lines[i].length, i)
+                fx.cursorLineIndex = sr.stopY
+                updateCursorXY()
+                ensureCursorInScreen()
             }
-            sr.stopY = i
-            sr.stopX = expandTabIndex(fx.lines[i], fx.lines[i].length, i)
-            fx.cursorLineIndex = sr.stopY
-            updateCursorXY()
-            ensureCursorInScreen()
         }
     }
+
     render()
 }
 
@@ -13889,6 +13922,38 @@ const recordVideo = async () => {
 // 4. **AVI**: Generally not natively supported in Safari, but can be played if the content is encoded in a compatible codec.
 // Safari also supports additional formats through HTML5 video tags, but H.264 is the most reliable for ensuring playback across all devices. Always check for the latest updates, as browser support can change over time.
 
+function deleteToBeginningOfLine() {
+    // Delete to beginning, not sure if I want to keep this
+    copyShenanigans(function () {
+        var theLine = fx.lines[fx.cursorLineIndex]
+        var theIndent = getIndent(theLine)
+        if (theLine.trim() == "") {
+            theIndent = ""
+        }
+        theLine = theIndent + theLine.slice(u(fx.cursorColIndex))
+        fx.lines[fx.cursorLineIndex] = theLine
+        fx.cursorColIndex = expandTabIndex(theLine, theIndent.length)
+        updateCursorXY()
+        // yo
+        selectMode = "char"
+        copyBuffer = [theLine.slice(theIndent.length, u(fx.cursorColIndex))]
+        docChanged()
+        render()
+    })
+}
+
+function deleteToEndOfLine() {
+    copyShenanigans(function () {
+        // Delete to end
+        var theLine = fx.lines[fx.cursorLineIndex]
+        copyBuffer = [theLine.slice(u(fx.cursorColIndex))]
+        theLine = theLine.slice(0, u(fx.cursorColIndex))
+        fx.lines[fx.cursorLineIndex] = theLine
+        selectMode = "char"
+        docChanged()
+        render()
+    })
+}
 </script>
 <video playsinline id=videoEl style="position: absolute; top: 0; right: 0; display: none; width: 80px; height: 130px; background-color: pink; transform: scaleX(-1); border-radius: 10px;"><video>
 <audio id="audio" controls></audio>
