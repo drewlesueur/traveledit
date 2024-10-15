@@ -1,6 +1,7 @@
 <!doctype html>
 <!--
-        
+
+on first load sometimes the filetype specific control doesn't load
 
 if err != nil {}
 hitting enter there should auto indent!
@@ -10410,10 +10411,18 @@ function onStart(e) {
                     // log("sliceRight")
                     clearTimeout(selectTimeout)
                     selectAction(true)
-                    moveHomeEndTimeout = setTimeout(function () {
+
+
+                    selectBlockTimeout = setTimeout(function () {
                         selectBlock()
-                    }, moveHomeEndTimeoutMillis)
-                    document.body.addEventListener("touchend", onEndForEdges)
+                    }, moveHomeEndTimeoutMillis) // reusing the millis
+                    var onEndForSlice = function () {
+                        clearTimeout(selectBlockTimeout)
+                        document.body.removeEventListener("touchend", onEndForSlice)
+                        document.body.removeEventListener("touchmove", onEndForSlice)
+                    }
+                    document.body.addEventListener("touchend", onEndForSlice)
+                    document.body.addEventListener("touchmove", onEndForSlice)
                 },
             })
         }
