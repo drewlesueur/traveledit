@@ -3520,6 +3520,13 @@ function saveUndo(preventUndo) {
     }
 }
 
+function mergeLastUndos(count) {
+    fx.undo.index -= (count - 1)
+    fx.undo.stack.splice(fx.undo.stack.length - count, (count - 1));
+    fx.undo.yStack.splice(fx.undo.yStack.length - count, (count - 1));
+    fx.undo.xStack.splice(fx.undo.xStack.length - count, (count - 1));
+}
+
 
 // uncomment this line if you want to add back emoji, etc support
 // var splitter = new GraphemeSplitter()
@@ -10261,6 +10268,7 @@ function onStart(e) {
                 // longTouchEdgesTimeout
                 moveHomeEndTimeout = setTimeout(function () {
                     deleteToBeginningOfLine()
+                    mergeLastUndos(2)
                 }, moveHomeEndTimeoutMillis)
             },
             "1sliceLeft": function () {
@@ -10269,6 +10277,7 @@ function onStart(e) {
                 moveHomeEndTimeout = setTimeout(function () {
                     backspace()
                     deleteToEndOfLine()
+                    mergeLastUndos(3)
                 }, moveHomeEndTimeoutMillis)
             },
             "1farRight": function () {
