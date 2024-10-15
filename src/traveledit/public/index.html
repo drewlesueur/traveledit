@@ -7159,7 +7159,7 @@ function handleKeydown(e) {
     if (e.keyCode == 32)  { // space
         // if (!e.shiftKey) {
         if (e.shiftKey) {
-            w = getWordAtCursor()
+            w = getWordBeforeCursor()
             if (w.word != "") {
                 if (!isUsedWord(w.word)) {
                     e.preventDefault() // for use with shift
