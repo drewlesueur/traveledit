@@ -13073,15 +13073,28 @@ function touchAreasLongPress(e, state) {
             duplicateSelection()
         },
         "1left": function () {
+            // this moved to 1midLeft
+            // join lines, also happens elsewhere #joinlines
+            // var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
+            // fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
+            // docChanged()
+            // render()
+
+            selectBlock()
+            del()
+            fx.cursorLineIndex++
+            updateCursorXY()
+            render()
+        },
+        "1midLeft": function () {
+            // var lefSideFeature = true
+            // state.selectAction(false, true, leftSideFeature)
+
             // join lines, also happens elsewhere #joinlines
             var nextLine = fx.lines.splice(fx.cursorLineIndex+1, 1)[0]
             fx.lines[fx.cursorLineIndex] = fx.lines[fx.cursorLineIndex].trimRight() + " " + nextLine.trimLeft()
             docChanged()
             render()
-        },
-        "1midLeft": function () {
-            var leftSideFeature = true
-            state.selectAction(false, true, leftSideFeature)
         },
         "1middle": function () {
             // state.selectAction()
