@@ -25,10 +25,12 @@ import "bytes"
 import "bufio"
 import "crypto/rand"
 import "encoding/hex"
+import "path/filepath"
 
 import "mime/multipart"
 import "net/textproto"
-import "github.com/NYTimes/gziphandler"
+// import "github.com/NYTimes/gziphandler"
+import "compress/gzip"
 
 // import "github.com/gorilla/websocket"
 
@@ -308,7 +310,7 @@ type File struct {
 	HighlightText   string // deprecated
 	HighlightRanges []*HighlightRange
 
-	// fields for remotefile
+	// fields for remotefile (not used)
 	LocalTmpPath string // temorary file
 	Remote       string // like user@host
 
@@ -321,6 +323,8 @@ type File struct {
 	Pty           *os.File
 	ReadBuffer    []byte
 	ChatGPTBuffer []string
+	FileErrors map[string]FileError
+	// pop
 	Closed        bool
 	Name          string
 }
@@ -334,6 +338,7 @@ type Workspace struct {
 
 	HighlightMatches []*HighlightMatch
 	PathDecorators []*PathDecorator
+	// Weeor
 	RemotePasteBuffer string
 }
 
@@ -507,12 +512,18 @@ func runShellCommand(id string, cmdString string, cwd string, w http.ResponseWri
 var workspaces []*Workspace
 var workspace *Workspace
 
+type FileError struct {
+    Line int
+    Col int
+    Message string
+}
 type TerminalResponse struct {
 	Base64 string
 	// CWD ?? so we can keep track of directory changes
 	Error            string   `json:",omitempty"`
 	Closed           bool     `json:",omitempty"`
 	ChatGPTResponses []string `json:",omitempty"`
+	FileErrors map[string]FileError `json:",omitempty"`
 }
 
 var lastFileID = 0
@@ -1077,7 +1088,7 @@ func main() {
 			// and also would need the client to keep track of where it was
 			for _, t := range workspace.Files {
 				// only "terminal" files will have a ReadBuffer
-				if len(t.ReadBuffer) > 0 || len(t.ChatGPTBuffer) > 0 {
+				if len(t.ReadBuffer) > 0 || len(t.ChatGPTBuffer) > 0 || len(t.FileErrors) > 0 {
 					break WaitLoop
 				}
 			}
@@ -1094,14 +1105,20 @@ func main() {
 					// and then keepntrack of closed ids to send?
 					workspace.RemoveFile(t.ID)
 				} else {
-					if len(t.ReadBuffer) == 0 && len(t.ChatGPTBuffer) == 0 {
+					if len(t.ReadBuffer) == 0 && len(t.ChatGPTBuffer) == 0 && len(t.FileErrors) == 0 {
 						continue
 					}
 				}
 				if len(t.ChatGPTBuffer) > 0 {
 					tResp.ChatGPTResponses = t.ChatGPTBuffer
 					t.ChatGPTBuffer = []string{}
-				} else {
+				}
+				if len(t.FileErrors) > 0 {
+					tResp.FileErrors = t.FileErrors
+					// kinda funky, they are consumed and don't persist
+					t.FileErrors = nil
+				}
+				if len(t.ReadBuffer) > 0 {
 					tResp.Base64 = base64.StdEncoding.EncodeToString(t.ReadBuffer)
 					t.ReadBuffer = []byte{}
 				}
@@ -1110,6 +1127,8 @@ func main() {
 			}
 		}
 		wrapperRet["Files"] = ret
+		fmt.Println("#lime the ret")
+		logJSON(ret)
 		wrapperRet["PasteBuffer"] = workspace.RemotePasteBuffer
 		workspace.RemotePasteBuffer = ""
 		json.NewEncoder(w).Encode(wrapperRet)
@@ -1849,7 +1868,9 @@ func main() {
 			} else {
 				s.Saved = true
 			}
-
+			if strings.HasSuffix(theFilePath, ".go") {
+			    go checkGoErrors(theFilePath)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(s)
 		}
@@ -1866,7 +1887,8 @@ func main() {
 
 	var mainMux http.Handler = mux
 	if os.Getenv("NOGZIP") != "1" {
-		mainMux = gziphandler.GzipHandler(mux)
+		// mainMux = gziphandler.GzipHandler(mux)
+		mainMux = GzipMiddleware(mux)
 	}
 
 	if os.Getenv("NOBASICAUTH") == "" {
@@ -2142,3 +2164,122 @@ func GetContentType(thePath string) string {
 	}
 	return mime + ";charset=utf-8"
 }
+
+
+
+// golang write a gzip middleware for an http Handler
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	Writer *gzip.Writer
+}
+
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	return w.Writer.Write(b)
+}
+
+func GzipMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		w.Header().Set("Content-Encoding", "gzip")
+		gzipWriter := gzip.NewWriter(w)
+		defer gzipWriter.Close()
+
+		gzipResponseWriter := &gzipResponseWriter{
+			ResponseWriter: w,
+			Writer:         gzipWriter,
+		}
+
+		next.ServeHTTP(gzipResponseWriter, r)
+	})
+}
+
+// func main() {
+// 	mux := http.NewServeMux()
+// 	mux.Handle("/", GzipMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 		w.Write([]byte("Hello, World!"))
+// 	})))
+// 
+// 	http.ListenAndServe(":8080", mux)
+// }
+
+func findGoModRoot(filePath string) (string, error) {
+    dir := filepath.Dir(filePath)
+    for {
+    	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+    		return dir, nil
+    	}
+    	parent := filepath.Dir(dir)
+    	if parent == dir {
+    		break
+    	}
+    	dir = parent
+    }
+    return "", fmt.Errorf("go.mod not found")
+}
+
+func checkGoErrors(theFilePath string) {
+
+    // not yet limiting this to only one at a time
+    fmt.Println("checking errors for %s", theFilePath)
+    root, err := findGoModRoot(theFilePath)
+    if err != nil {
+        log.Printf("error finding go.mod root: %v", err)
+        return
+    }
+
+    cmd := exec.Command("go", "build", "-o", "/dev/null", "./...")
+    cmd.Dir = root
+    output, err := cmd.CombinedOutput()
+    fileErrorsByFile := map[string]map[string]FileError{}
+    if err != nil {
+        log.Printf("error running go build: %v\nOutput: %s", err, string(output))
+        lines := strings.Split(string(output), "\n")
+        for _, line := range lines {
+            if strings.HasPrefix(line, "./") {
+                // ./traveledit.go:2226:5: syntax error: unexpected go at end of statement
+                parts := strings.Split(line, ":")
+                if len(parts) < 4 {
+                    continue
+                }
+                fullPath := root + parts[0][1:]
+                if fileErrorsByFile[fullPath] == nil {
+                    fileErrorsByFile[fullPath] = map[string]FileError{}
+                }
+                line, _ := strconv.Atoi(parts[1])
+                col, _ := strconv.Atoi(parts[2])
+                fileErrorsByFile[fullPath][parts[1]] = FileError{
+                    Line: line,
+                    Col: col,
+                    Message: strings.Join(parts[3:], ":")[1:],
+                    // set @message parts sliceFrom 3 join ":" sliceFrom 1
+                }
+            }
+        }
+
+        fmt.Println("fileErrorsByFile: ")
+        logJSON(fileErrorsByFile)
+		workspaceMu.Lock()
+		for _, f := range workspace.Files {
+		    fileErrors, ok := fileErrorsByFile[f.FullPath]
+		    if !ok {
+		        continue
+		    }
+		    f.FileErrors = fileErrors
+        	// fmt.Println("#coral fileErrors: ")
+        	// logJSON(fileErrors)
+		}
+		
+		workspaceCond.Broadcast()
+		workspaceMu.Unlock()
+        return
+    }
+    log.Println("go build completed without errors")
+}
+
+
+
+

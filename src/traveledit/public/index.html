@@ -1,6 +1,10 @@
 <!doctype html>
 <!--
 
+select terms with holding down 2middle
+fix unparralel action
+paste and replace (1midleft) doesn't work for block
+
 on first load sometimes the filetype specific control doesn't load
 
 if err != nil {}
@@ -1004,6 +1008,10 @@ They get changed later on.
     <input onchange="caseSensitiveSearch = caseSensitiveSearchCheckbox.checked" type=checkbox name=caseSensitiveSearchCheckbox id=caseSensitiveSearchCheckbox />
     case sensitive search
 </label>
+<label for=showGoErrorsCheckbox>
+    <input onchange="showGoErrors = showGoErrorsCheckbox.checked" type=checkbox name=showGoErrorsCheckbox id=showGoErrorsCheckbox />
+    show Go errors
+</label>
 <br>
 <label for=serverViewCheckbox>
     <input onchange="serverViewFeature = serverViewCheckbox.checked" type=checkbox name=serverViewCheckbox id=serverViewCheckbox />
@@ -1767,6 +1775,7 @@ var fauxMono = false
 var fraktur = false
 var syntaxHighlight = false
 var caseSensitiveSearch = false
+var showGoErrors = false
 
 var lastFile = fx
 // not using indexes so we can move files around without worrying about the indexes
@@ -3670,7 +3679,8 @@ function clearLog() {
         fx.cursorLineIndex = 0
         fx.cursorColIndex = 0
         updateCursorXY()
-        fx.offsetY = -minSpaceForHeader
+        // fx.offsetY = -minSpaceForHeader
+        fx.offsetY = 0
         ensureCursorInScreen()
     }
     logEl.innerHTML = ""
@@ -3987,6 +3997,10 @@ function ensureCursorInScreen(file) {
         file.offsetY = file.cursorLineIndex - minSpaceForHeader
     } else if (file.cursorLineIndex >= file.offsetY+maxLines) {
         file.offsetY = file.cursorLineIndex-maxLines +1
+    }
+    
+    if (fx.offsetY < 0) {
+        fx.offsetY = 0
     }
 
     // TODO: there is something more elegant
@@ -5891,7 +5905,8 @@ function runShellCommand(line) {
             fx.cursorLineIndex = 0
             fx.cursorColIndex = 0
             updateCursorXY()
-            fx.offsetY = -minSpaceForHeader
+            // fx.offsetY = -minSpaceForHeader
+            fx.offsetY = 0
             // render()
             // return
             line = "p"
@@ -6070,6 +6085,13 @@ function pollTerminals() {
             }
             if (termInfo.ChatGPTResponses && termInfo.ChatGPTResponses.length) {
                 handleChatGPTResponse(file, termInfo.ChatGPTResponses)
+            }
+            if (termInfo.FileErrors) {
+                // reset them all
+                file.fileErrors = termInfo.FileErrors
+                render()
+            }
+            if (!termInfo.Base64) {
                 setTimeout(pollTerminals, 1)
                 return
             }
@@ -6967,6 +6989,10 @@ function saveFile(f) {
     return p
 }
 function save(saveDiffsLocal) {
+    // delete it, they will come back if needed
+    for (let f of files) {
+        delete f.fileErrors
+    }
     var resolve; var reject; var p = new Promise(function(res, rej) { resolve = res; reject = res });
     
     // using a single for loop to
@@ -7641,6 +7667,7 @@ function render() {
         theStatus.lastCleared = lastCleared
         theStatus.tvr = totalViewRequests
         theStatus.tvbs = (totalViewBytesSent).toLocaleString()
+        // theStatus.fileErrors = fx.fileErrors
         // theStatus.overflowX = overflowX
         // theStatus.overflowY = overflowY
         // theStatus.hasDoneOverflowYAction = hasDoneOverflowYAction
@@ -8510,7 +8537,9 @@ function renderInternal() {
                         var stringedLine = (fx.lines[theIndex] || "").toString()
                         var stringedLinePrev = (fx.lines[theIndex - 1] || "").toString()
                         // we use toString because of the new String() hack
-                        if (stringedLine != "" && stringedLinePrev == stringedLine) {
+                        if (fx.fileErrors && fx.fileErrors[theIndex+1]) {
+                            t.fillStyle = "white"
+                        } else if (stringedLine != "" && stringedLinePrev == stringedLine) {
                             // handy feature to see if lines are same
                             t.fillStyle = "lime"
                         } else {
@@ -8615,10 +8644,22 @@ function renderInternal() {
         }
         var extraY = 0
         for (var x=0; x < maxCols; x++) {
-            if ((x+fx.offsetX) >= expandedLine.length) {
+            let expLine = expandedLine
+
+            if (fx.fileErrors && fx.fileErrors[theIndex+1]) {
+                // not cached
+                var errorMessage = fx.fileErrors[theIndex+1].Message
+                expLine = expLine.concat((" " + errorMessage).split(""))
+            }
+            
+            
+            if ((x+fx.offsetX) >= expLine.length) {
                 break
             }
-            var chr = expandedLine[x+fx.offsetX] || ""
+            if ((x+fx.offsetX) >= expandedLine.length) {
+                textFillStyle = "rgba(255, 200, 200)"
+            }
+            var chr = expLine[x+fx.offsetX] || ""
             if (chr == "\t") {
                 if (shouldSeeTabs) {
                     t.fillStyle = veryLightFontColor
@@ -9713,12 +9754,14 @@ function onStart(e) {
         var changedY = false
         //var maxHeight = canvasHeight
         var maxHeight = (maxLines -1 ) * fontHeight
+
         // var minAllowedY = headers.length * fontHeight
-        
         var minAllowedY = minSpaceForHeader * fontHeight
-        
-        
+        if (fx.offsetY <= minSpaceForHeader) {
+            minAllowedY = 0
+        }
         // var minAllowedY = 0
+
         if (cursorY > maxHeight) {
             var extendY = cursorY - maxHeight
             cursorY = maxHeight
@@ -9742,9 +9785,13 @@ function onStart(e) {
             cursorY = minAllowedY
             fx.offsetY += Math.floor(extendY/fontHeight)
             changedY = true
-            if (fx.offsetY < -minSpaceForHeader) {
+            // if (fx.offsetY < -minSpaceForHeader) {
+            //     overflowY += fx.offsetY
+            //     fx.offsetY = -minSpaceForHeader
+            // }
+            if (fx.offsetY < 0) {
                 overflowY += fx.offsetY
-                fx.offsetY = -minSpaceForHeader
+                fx.offsetY = 0
             }
             if (overflowY < -50 && !hasDoneOverflowYAction && startCursorLineIndex == 0) {
                 if (fx.fileMode == "shell") {
@@ -10181,7 +10228,8 @@ function onStart(e) {
                         // ??
                         fx.offsetY -= 1
                         if (fx.offsetY < 0) {
-                            fx.offsetY = -minSpaceForHeader
+                            // fx.offsetY = -minSpaceForHeader
+                            fx.offsetY = 0
                         }
                     }
                 }
@@ -11357,6 +11405,7 @@ function makeFile(fullPath, cursorLineIndex, contents) {
             lastSavedLines: JSON.parse(JSON.stringify(theLines)),
             lastSavedHash: md5(contents),
         },
+        fileErrors: {},
         lines: theLines,
         cursorLineIndex: cursorLineIndex,
         // cursorColIndex: 0,
@@ -11367,7 +11416,8 @@ function makeFile(fullPath, cursorLineIndex, contents) {
         cursorColIndex: -calcMarginLeft(theLines.length),
         // offsetY: cursorLineIndex, // you could get smarter about this
         // offsetY: max(cursorLineIndex - Math.floor(maxLines/2), 0), // you can still clean this up a bit, not sure if maxLines is ready?
-        offsetY: -minSpaceForHeader,
+        // offsetY: -minSpaceForHeader,
+        offsetY: 0,
         offsetX: 0,
         fileMode: "file",
         shellCWD: "",
@@ -11515,6 +11565,7 @@ function addFile(fullPath, options, id, name) { // hotpink marker
                 // see also setLines
                 files[i].lines = file.lines
                 files[i].undo = file.undo
+                files[i].fileErrors = file.fileErrors
                 files[i].marginLeft = file.marginLeft
                 if (files[i].cursorColIndex < 0) {
                     files[i].cursorColIndex = -file.marginLeft
@@ -11950,8 +12001,10 @@ function duplicateFile(f, cursorLineIndex, options, id="") {
     }
     var oldLines = f.lines
     var oldUndo = f.undo
+    var oldFileErrors = f.fileErrors
     delete f.lines
     delete f.undo
+    delete f.fileErrors
     
     var fc = JSON.parse(JSON.stringify(f))
     fc.fileToken = fileToken
@@ -11961,9 +12014,11 @@ function duplicateFile(f, cursorLineIndex, options, id="") {
     
     f.lines = oldLines
     f.undo = oldUndo
+    f.fileErrors = oldFileErrors
     // copy everything but reference lines and undo
     fc.lines = f.lines
     fc.undo = f.undo
+    fc.fileErrors = f.fileErrors
     
 
     if (id == "") {
@@ -12046,6 +12101,7 @@ function fetchFile(fullPath, file, id="") {
             lastSavedLines: JSON.parse(JSON.stringify(file.lines)),
             lastSavedHash: md5(b),
         }
+        file.fileErrors = {}
         file.loadedFirstTime = true
         if (isDir) {
             file.fileMode = "directory"
@@ -12090,6 +12146,7 @@ function reloadFile(theFile) {
                 files[i].lines = theFile.lines
                 files[i].marginLeft = theFile.marginLeft
                 files[i].undo = theFile.undo
+                files[i].fileErrors = theFile.fileErrors
                 if (files[i].cursorColIndex < 0) {
                     files[i].cursorColIndex = -theFile.marginLeft
                     ensureCursorInScreen(files[i])
