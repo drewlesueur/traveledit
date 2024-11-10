@@ -73,6 +73,7 @@ func PretendBasicAuth(r *http.Request) (string, string, bool) {
 	return parts[0], parts[1], true
 
 }
+
 func BasicAuth(handler http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := os.Getenv("BASICUSER")

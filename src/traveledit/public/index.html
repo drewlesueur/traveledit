@@ -1775,6 +1775,7 @@ var fauxMono = false
 var fraktur = false
 var syntaxHighlight = false
 var caseSensitiveSearch = false
+// not wired up yet 
 var showGoErrors = false
 
 var lastFile = fx
@@ -3910,7 +3911,7 @@ function findDown(searchDir, wrap, startTop) {
             searchText.value = getSelectedLines(fx, false, true).lines[0]
             saveSearchHistory()
             return
-        } else if (searchText.value == "" && !lastFindWasHighlightText) {
+        } else if (searchText.value == "" && !lastFindWasHighlightText && fx.cursorColIndex != -fx.marginLeft) {
             searchText.value = getWordAtCursor().word
             saveSearchHistory()
             if (searchText.value) {
@@ -3921,13 +3922,26 @@ function findDown(searchDir, wrap, startTop) {
             // nextHighlightRange()
             // return
             // navForward()
-            if (fx.cursorColIndex == -fx.marginLeft) { //     red marker
+            if (false && fx.cursorColIndex == -fx.marginLeft) { //     red marker
                 fx.cursorLineIndex++
                 searchText.value = " mar"+"ker$"
                 saveSearchHistory()
                 searchText.preventXNav = true
                 findDown()
                 searchText.value = ""
+            } else if (fx.fileErrors && fx.cursorColIndex == -fx.marginLeft) {
+                var lineNumbers = Object.keys(fx.fileErrors).map(x => x - 0).sort((a, b) => a - b)
+                // set @lineNumbers file @fileErrors keys map {as @x x - 0} sort { as2 @a @b a - b}
+                var curLine = fx.cursorLineIndex + 1
+                for (let i=0; i <lineNumbers.length; i++) {
+                    let ln = lineNumbers[i]
+                    if (ln > curLine && (i == 0 || lineNumbers[i-1] <= curLine)) {
+                        fx.cursorLineIndex = ln - 1
+                        updateCursorXY()
+                        ensureCursorInScreen()
+                        break
+                    }
+                }
             } else {
                 nextHighlightText()
             }
@@ -4035,7 +4049,7 @@ function findUp() {
         saveSearchHistory()
         return
     }
-    if (searchText.value == "" && !lastFindWasHighlightText) {
+    if (searchText.value == "" && !lastFindWasHighlightText && fx.cursorColIndex != -fx.marginLeft) {
         searchText.value = getWordAtCursor().word
         saveSearchHistory()
         if (searchText.value) {
@@ -4048,13 +4062,27 @@ function findUp() {
         // navBack()
         
         
-        if (fx.cursorColIndex == -fx.marginLeft) { //     red marker
+        if (false && fx.cursorColIndex == -fx.marginLeft) {
             fx.cursorLineIndex--
             searchText.value = " mar"+"ker$"
             saveSearchHistory()
             searchText.preventXNav = true
             findUp()
             searchText.value = ""
+        } else if (fx.fileErrors && fx.cursorColIndex == -fx.marginLeft) {
+            var lineNumbers = Object.keys(fx.fileErrors).map(x => x - 0).sort((a, b) => a - b)
+            // set @lineNumbers file @fileErrors keys map {as @x x - 0} sort { as2 @a @b a - b}
+            var curLine = fx.cursorLineIndex + 1
+            for (let i=lineNumbers.length-1; i >= 0; i--) {
+                let ln = lineNumbers[i]
+                if (ln < curLine && (i == (lineNumbers.length - 1) || lineNumbers[i+1] >= curLine)) {
+                // if (ln < curLine) and { (i is lineNumbers len - 1) or {lineNumbers at (1+i) >= curLine} }
+                    fx.cursorLineIndex = ln - 1
+                    updateCursorXY()
+                    ensureCursorInScreen()
+                    break
+                }
+            }
         } else {
             prevHighlightText()
         }
