@@ -26,6 +26,7 @@ import "bufio"
 import "crypto/rand"
 import "encoding/hex"
 import "path/filepath"
+// import "context"
 
 import "mime/multipart"
 import "net/textproto"
@@ -1870,7 +1871,10 @@ func main() {
 				s.Saved = true
 			}
 			if strings.HasSuffix(theFilePath, ".go") {
-			    go checkGoErrors(theFilePath)
+			    go func() {
+			       checkGoErrors(theFilePath, false) 
+			       // checkGoErrors(theFilePath, true) 
+			    }()
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(s)
@@ -2222,18 +2226,25 @@ func findGoModRoot(filePath string) (string, error) {
     return "", fmt.Errorf("go.mod not found")
 }
 
-func checkGoErrors(theFilePath string) {
+func checkGoErrors(theFilePath string, checkRoot bool) {
 
     // not yet limiting this to only one at a time
     fmt.Println("checking errors for %s", theFilePath)
-    root, err := findGoModRoot(theFilePath)
-    if err != nil {
-        log.Printf("error finding go.mod root: %v", err)
-        return
+    var theDir string
+    if checkRoot {
+        root, err := findGoModRoot(theFilePath)
+        if err != nil {
+            log.Printf("error finding go.mod root: %v", err)
+            return
+        }
+        theDir = root
+    } else {
+        theDir = filepath.Dir(theFilePath)
     }
 
-    cmd := exec.Command("go", "build", "-o", "/dev/null", "./...")
-    cmd.Dir = root
+    // cmd := exec.Command("go", "build", "-o", "/dev/null", "./...")
+    cmd := exec.Command("go", "test", "-c", "-o", "/dev/null", "./...")
+    cmd.Dir = theDir
     output, err := cmd.CombinedOutput()
     fileErrorsByFile := map[string]map[string]FileError{}
     if err != nil {
@@ -2241,23 +2252,24 @@ func checkGoErrors(theFilePath string) {
         lines := strings.Split(string(output), "\n")
         for _, line := range lines {
             if strings.HasPrefix(line, "./") {
-                // ./traveledit.go:2226:5: syntax error: unexpected go at end of statement
-                parts := strings.Split(line, ":")
-                if len(parts) < 4 {
-                    continue
-                }
-                fullPath := root + parts[0][1:]
-                if fileErrorsByFile[fullPath] == nil {
-                    fileErrorsByFile[fullPath] = map[string]FileError{}
-                }
-                line, _ := strconv.Atoi(parts[1])
-                col, _ := strconv.Atoi(parts[2])
-                fileErrorsByFile[fullPath][parts[1]] = FileError{
-                    Line: line,
-                    Col: col,
-                    Message: strings.Join(parts[3:], ":")[1:],
-                    // set @message parts sliceFrom 3 join ":" sliceFrom 1
-                }
+                line = strings.TrimPrefix(line, "./")
+            }
+            parts := strings.Split(line, ":")
+            if len(parts) < 4 {
+                continue
+            }
+            // ./traveledit.go:2226:5: syntax error: unexpected go at end of statement
+            fullPath := theDir + "/" + parts[0]
+            if fileErrorsByFile[fullPath] == nil {
+                fileErrorsByFile[fullPath] = map[string]FileError{}
+            }
+            line, _ := strconv.Atoi(parts[1])
+            col, _ := strconv.Atoi(parts[2])
+            fileErrorsByFile[fullPath][parts[1]] = FileError{
+                Line: line,
+                Col: col,
+                Message: strings.Join(parts[3:], ":")[1:],
+                // set @message parts sliceFrom 3 join ":" sliceFrom 1
             }
         }
 
@@ -2282,5 +2294,4 @@ func checkGoErrors(theFilePath string) {
 }
 
 
-
-
+// boo

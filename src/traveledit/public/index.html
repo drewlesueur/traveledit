@@ -6121,7 +6121,7 @@ function pollTerminals() {
             }
             if (!termInfo.Base64) {
                 setTimeout(pollTerminals, 1)
-                return
+                continue
             }
             var oldCopyBuffer = copyBuffer
             // btoa("hello")
@@ -7695,12 +7695,12 @@ function render() {
         theStatus.lastCleared = lastCleared
         theStatus.tvr = totalViewRequests
         theStatus.tvbs = (totalViewBytesSent).toLocaleString()
-        // theStatus.fileErrors = fx.fileErrors
+        theStatus.fileErrors = fx.fileErrors
         // theStatus.overflowX = overflowX
         // theStatus.overflowY = overflowY
         // theStatus.hasDoneOverflowYAction = hasDoneOverflowYAction
-        theStatus.CB = JSON.stringify(copyBuffer)
-        theStatus.oldCB = JSON.stringify(globalOldCopyBuffer)
+        // theStatus.CB = JSON.stringify(copyBuffer)
+        // theStatus.oldCB = JSON.stringify(globalOldCopyBuffer)
         if (fx.iframe) {
             theStatus.iframeCursorX = fx.iframeCursorX
             theStatus.iframeCursorY = fx.iframeCursorY
