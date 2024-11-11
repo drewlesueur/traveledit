@@ -554,6 +554,7 @@ func addCORS(next http.Handler) http.Handler {
 
 func main() {
 	workspaceCond = sync.NewCond(&workspaceMu)
+	onceCheckGoErrors := NewOnce()
 	// TODO: #wschange save workspace to file so ot persists
 	// TODO: secial path prefix for saving/loading files not just /
 
@@ -1186,7 +1187,7 @@ func main() {
 				log.Printf("chatgpt json: %s", payload)
 				chatReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", strings.NewReader(payload))
 				if err != nil {
-					log.Println("new request to chatgpt: %d: %v", ID, err)
+					log.Printf("new request to chatgpt: %d: %v", ID, err)
 					return
 				}
 				// set the request header to indicate that we're sending JSON
@@ -1200,7 +1201,7 @@ func main() {
 
 				resp, err := httpClient.Do(chatReq)
 				if err != nil {
-					log.Println("req to chatgpt: %d: %v", ID, err)
+					log.Printf("req to chatgpt: %d: %v", ID, err)
 					return
 				}
 				defer resp.Body.Close()
@@ -1340,7 +1341,7 @@ func main() {
     	file, handler, err := r.FormFile("file")
     	_ = handler 
     	if err != nil {
-    		logAndErr(w, "Error retrieving file:", err)
+    		logAndErr(w, "Error retrieving file: %v", err)
     		return
     	}
     	defer file.Close()
@@ -1872,7 +1873,10 @@ func main() {
 			}
 			if strings.HasSuffix(theFilePath, ".go") {
 			    go func() {
-			       checkGoErrors(theFilePath, false) 
+			       // checkGoErrors(theFilePath, false) 
+			       go onceCheckGoErrors.Run(func () {
+			           checkGoErrors(theFilePath, false) 
+			       })
 			       // checkGoErrors(theFilePath, true) 
 			    }()
 			}
@@ -2035,12 +2039,12 @@ func pollForRequests(mainMux http.Handler) {
 		log.Println("polling for requests")
 		req, err := http.NewRequest("GET", pollerProxyServer+"/pollForRequests?poller_name="+url.QueryEscape(pollerName), nil)
 		if err != nil {
-			log.Println("error creating request to poll: %v", err)
+			log.Printf("error creating request to poll: %v", err)
 			continue
 		}
 		res, err := httpClient.Do(req)
 		if err != nil {
-			log.Println("error polling for requests: %v", err)
+			log.Printf("error polling for requests: %v", err)
 			continue
 		}
 		defer res.Body.Close()
@@ -2049,7 +2053,7 @@ func pollForRequests(mainMux http.Handler) {
 		// I think the bytes is base64 encoded.
 		err = json.NewDecoder(res.Body).Decode(&pr)
 		if err != nil {
-			log.Println("error parsing polled request: %v", err)
+			log.Printf("error parsing polled request: %v", err)
 			continue
 		}
 		// quick check for empty
@@ -2061,7 +2065,7 @@ func pollForRequests(mainMux http.Handler) {
 			w := httptest.NewRecorder()
 			r, err := http.NewRequest(pr.Method, pr.URL, bytes.NewReader(pr.Body))
 			if err != nil {
-				log.Println("error making local request object: %v", err)
+				log.Printf("error making local request object: %v", err)
 				return
 			}
 			r.Header = http.Header(pr.Header)
@@ -2070,7 +2074,7 @@ func pollForRequests(mainMux http.Handler) {
 			resp := w.Result()
 			bodyBytes, err := ioutil.ReadAll(resp.Body)
 			if err != nil {
-				log.Println("error reading body of ResponseRecorder: %v", err)
+				log.Printf("error reading body of ResponseRecorder: %v", err)
 				return
 			}
 			resp.Body.Close()
@@ -2084,17 +2088,17 @@ func pollForRequests(mainMux http.Handler) {
 			var writeBuf bytes.Buffer
 			json.NewEncoder(&writeBuf).Encode(pResp)
 			if err != nil {
-				log.Println("error encoding json for poller response  %v", err)
+				log.Printf("error encoding json for poller response  %v", err)
 				return
 			}
 			req, err := http.NewRequest("POST", pollerProxyServer+"/pollerResponse", &writeBuf)
 			if err != nil {
-				log.Println("error making request for response: %v", err)
+				log.Printf("error making request for response: %v", err)
 				return
 			}
 			finalResponse, err := httpClient.Do(req)
 			if err != nil {
-				log.Println("error reading body of final response: %v", err)
+				log.Printf("error reading body of final response: %v", err)
 				return
 			}
 			defer finalResponse.Body.Close()
@@ -2226,10 +2230,46 @@ func findGoModRoot(filePath string) (string, error) {
     return "", fmt.Errorf("go.mod not found")
 }
 
+type Once struct {
+    Mu sync.Mutex
+    IsCalling bool
+    NeedsCall bool
+}
+
+func (o *Once) Run(f func()) {
+    o.Mu.Lock()
+    if o.IsCalling {
+        o.NeedsCall = true
+        o.Mu.Unlock()
+        return
+    }
+    o.IsCalling = true
+    o.Mu.Unlock()
+
+    f()
+    for {
+        o.Mu.Lock()
+        if !o.NeedsCall {
+            o.IsCalling = false
+            o.Mu.Unlock()
+            return
+        }
+        o.NeedsCall = false
+        o.Mu.Unlock()
+        f()
+    }
+}
+
+
+func NewOnce() *Once {
+    return &Once{
+        Mu: sync.Mutex{},
+    }
+}
+
 func checkGoErrors(theFilePath string, checkRoot bool) {
 
     // not yet limiting this to only one at a time
-    fmt.Println("checking errors for %s", theFilePath)
     var theDir string
     if checkRoot {
         root, err := findGoModRoot(theFilePath)
@@ -2292,6 +2332,5 @@ func checkGoErrors(theFilePath string, checkRoot bool) {
     }
     log.Println("go build completed without errors")
 }
-
 
 // boo
