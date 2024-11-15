@@ -8695,6 +8695,27 @@ function renderInternal() {
             } else if (chr == "\r") {
                 t.fillStyle = "orangered"
                 t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
+
+
+            // } else if (chr == "\342") {
+            //     t.fillStyle = "skyblue"
+            //     t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
+            // } else if (chr == "\200") {
+            //     t.fillStyle = "white"
+            //     t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
+            // } else if (chr == "\203") {
+            //     t.fillStyle = "orange"
+            //     t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
+            } else if (chr == "\u2003") {
+                t.fillStyle = "teal"
+                t.fillText("•", x*fontWidth, y*fontHeight + fontOffsetY)
+            } else if (chr > "\xff") {
+                t.fillStyle = "deepskyblue"
+                t.fillText(chr, x*fontWidth, y*fontHeight + fontOffsetY)
+            } else if (chr > "\x7f") {
+                t.fillStyle = "lawngreen"
+                t.fillText(chr, x*fontWidth, y*fontHeight + fontOffsetY)
+
             } else if (chr != "" && chr != " ") {
                 // TODO: do we need to assign every time?
                 // red #color
