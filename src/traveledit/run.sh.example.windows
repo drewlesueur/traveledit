@@ -10,8 +10,6 @@
 
 GOCACHE="$HOME/AppData/Local/go-build" \
 GOTMPDIR="$HOME" \
-GO111MODULE=off \
-GOPATH=$(pwd)/../.. \
 go build -o traveledit || exit 1
 
 
