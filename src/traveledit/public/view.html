@@ -30,14 +30,12 @@
 <script>
 var proxyPath = ""
 // PROXYPATH GOES HERE
-
 var viewCounter = 0
 var file = ""
 var search = ""
 var pullInterval = 1
 var t = canvasEl.getContext("2d")
 // t.font = "Courier monospace"
-pullAndRender()
 function pullAndRender() {
     fetch(proxyPath + "/view?viewCounter=" + viewCounter, {
         cache: "no-cache"
@@ -98,16 +96,22 @@ function getNextNumber(str, index) {
     }
     return [numb-0, "", numb]
 }
-var segmenter = new Intl.Segmenter('en', {granularity: "grapheme"})
+
+var segmenter
 function splitGraphemes(theLine) {
-    // return theLine.split("")
-    // return splitter.splitGraphemes(theLine)
-    var a = []
-    var segments = segmenter.segment(theLine)
-    for (let {segment, index, isWordLike} of segments) {
-      a.push(segment)
+    if (window.Intl && window.Intl.Segmenter) {
+        if (!segmenter) {
+            segmenter = new Intl.Segmenter('en', {granularity: "grapheme"})
+        }
+        var a = []
+        var segments = segmenter.segment(theLine)
+        for (let {segment, index, isWordLike} of segments) {
+          a.push(segment)
+        }
+        return a
     }
-    return a
+    
+    return theLine.split("")
     
     // This also works, strange to me this interface?
     // var si = segmenter.segment(theLine)[Symbol.iterator]()
@@ -178,6 +182,7 @@ var cmds = {
         t.fillStyle = fillStyleString(a[0])
     },
     3: function(a) {
+        // alert(a)
         t.font = a[0]
         var currentFont = a[1]
         if (seenFonts[currentFont.fontName]) {
@@ -266,24 +271,30 @@ var cmds = {
 }
 function render(v, file, search) {
     infoEl.innerText = `file:   ${file}\nsearch: ${search}`
-    for (var i=0; i<v.length; i++) {
-        var c = v[i]
-        if (typeof c === "string") {
-            c = [c]
-        } else if (typeof c === "number") {
-            c = [c]
+    try {
+        for (var i=0; i<v.length; i++) {
+            var c = v[i]
+            if (typeof c === "string") {
+                c = [c]
+            } else if (typeof c === "number") {
+                c = [c]
+            }
+            // 6 is special meaning no change
+            if (c[0] === 6) {
+                // pullInterval = 1000
+                break    
+            }
+            if ((typeof c[0]) == "string") {
+                cmds[0](c)
+                continue
+            }
+            // pullInterval = 10
+            cmds[c[0]](c.slice(1))
         }
-        // 6 is special meaning no change
-        if (c[0] === 6) {
-            // pullInterval = 1000
-            break    
-        }
-        if ((typeof c[0]) == "string") {
-            cmds[0](c)
-            continue
-        }
-        // pullInterval = 10
-        cmds[c[0]](c.slice(1))
+    } catch (error) {
+        alert(error.stack)
     }
 }
+pullAndRender()
+// alert(navigator.userAgent)
 </script>

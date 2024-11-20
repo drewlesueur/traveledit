@@ -1893,6 +1893,28 @@ func main() {
 	mux.HandleFunc("/mylangserver", func(w http.ResponseWriter, r *http.Request) {
 		proxyToLangServer.ServeHTTP(w, r)
 	})
+	mux.HandleFunc("/gotodef", func(w http.ResponseWriter, r *http.Request) {
+    	fileSpot := r.FormValue("fileSpot")
+        fmt.Println("gotodef called for", fileSpot)
+    	parts := strings.Split(fileSpot, ":")
+    	if len(parts) < 3 {
+		    logAndErr(w, "invalid fileSpot %s", fileSpot)
+    	}
+
+    	fullPath := parts[0]
+        theDir := filepath.Dir(fullPath)
+    	cmd := exec.Command("gopls", "definition", fileSpot)
+    	cmd.Dir = theDir
+        output, err := cmd.CombinedOutput()
+        fmt.Println("the gopls output is:", string(output))
+        if err != nil {
+		    logAndErr(w, "invalid goto def: %v, %s", err, output)
+		    return
+        }
+        json.NewEncoder(w).Encode(map[string]any{
+            "output": string(output),
+        })
+	})
 
 	var mainMux http.Handler = mux
 	if os.Getenv("NOGZIP") != "1" {

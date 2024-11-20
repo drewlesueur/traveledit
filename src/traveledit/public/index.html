@@ -8103,16 +8103,17 @@ function renderInternal() {
     var underlineOffset = (fontHeight) - (1/6/2 * fontHeight)
     // var underlineHeight = fontHeight/6
     var underlineHeight = fontHeight/12
-    // var highlightLine = true
     var highlightLine = true
+    // var highlightLine = false
     if (highlightLine) {
         // t.fillStyle = "rgba(0, 255, 255, 0.15)"
         // more apparent highlight line
         if (isDark) {
             // temp experiment with darker line
             // t.fillStyle = "rgba(0, 128, 128, 0.55)"
-            t.fillStyle = "rgba(0, 128, 128, 0.55)"
             // t.fillStyle = "rgba(128, 128, 128, 0.55)"
+            // t.fillStyle = "rgba(0, 128, 128, 0.55)"
+            t.fillStyle = "rgba(0, 128, 128, 0.45)"
         } else {
             // t.fillStyle = "rgba(0, 255, 255, 0.55)"
             // t.fillStyle = "rgba(192, 192, 192, 0.55)"
@@ -8659,7 +8660,7 @@ function renderInternal() {
         theLine = theLine || ""
         var expandedLine = expandLine(theLine, (theIndex))
         var syntaxColors
-        if (syntaxHighlight) {
+        if (syntaxHighlight && fx.fileMode == "file") {
             syntaxColors = getSyntaxHighlight(expandedLine)
         }
 
@@ -8755,8 +8756,8 @@ function renderInternal() {
                         t.font = fontCSS
                         extraY = 0
                     }
-                    if (syntaxHighlight) {
-                        // t.fillStyle = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
+                    // if (syntaxHighlight) {
+                    if (syntaxHighlight && fx.fileMode == "file") {
                         let f = syntaxColorMap[isDark-0][syntaxColors[x+fx.offsetX]]
                         if (f) {
                             t.fillStyle = f
@@ -9273,7 +9274,11 @@ var syntaxColorMap = [
         // quote: "rosybrown",
         // quote: "palevioletred",
         // quote: "salmon",
-        quote: "white",
+        // quote: "white",
+        // quote: "pink",
+        // quote: "plum",
+        // quote: "lavenderblush",
+        quote: "thistle",
         keyword: "deepskyblue",
         // keyword: "skyblue",
         symbol: "orange",
@@ -13144,7 +13149,9 @@ function touchAreasPressWhileSelected(e, state) {
     })
 }
 
-
+function fileSpot() {
+    return fx.fullPath + ":" + (fx.cursorLineIndex + 1) + ":" + (u(fx.cursorColIndex) + 1)
+}
 function touchAreasLongPress(e, state) {
     handleTouchAreas(e, {
         "5middle": function () {
@@ -13160,6 +13167,14 @@ function touchAreasLongPress(e, state) {
             document.body.removeEventListener("touchmove", state.onMove)
             moveListenerCount -= 1
             document.body.addEventListener("touchend", doFocus)
+        },
+        "3right": async function() {
+            var r = await fetch(proxyPath + "/gotodef?fileSpot=" + encodeURIComponent(fileSpot()), {cache: "no-cache"})
+            var j = await r.json()
+            if (j.output[0] == "/") {
+                let parts = j.output.split(":")
+                addFile()
+            }
         },
         "2left": function () {
             // deleteToBeginningOfLine()
