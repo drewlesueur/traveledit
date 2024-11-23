@@ -34,7 +34,9 @@ type Func struct {
 type RecordType int
 const (
 	NullType RecordType = iota
-	ValueType
+	StringType
+	FloatType
+	IntegerType
 	ContainerType
 	FuncType
 )
@@ -43,7 +45,9 @@ type Record struct {
     FullPath []string
     ArrayPart  []*Record
     LookupPart map[string]*Record
-    ValuePart  string
+    StringPart string
+    FloatPart float64
+    IntegerPart int
     KeysPart   []string
     Type RecordType
     FuncPart *Func
@@ -161,12 +165,6 @@ func (m *Machine) PopWorld() *World {
     return lastWorld
 }
 
-
-
-
-
-
-
 func NewMachine() *Machine {
     wh := &WorldHeap{}
     heap.Init(wh)
@@ -273,7 +271,7 @@ func (m *Machine) Chomp() {
     
     if t.TokenType == TokenTypeString {
         w.Stack.Push(&Record{
-            ValuePart: t.Value,
+            StringPart: t.Value,
         })
     } else if strings.ContainsAny(t.Value, "{") {
         f := &Func{
@@ -395,6 +393,9 @@ func isDigit(c uint16) bool {
 func isMinus(c uint16) bool {
 	return c == uint16('-')
 }
+func isForwardSlash(c uint16) bool {
+	return c == uint16('/')
+}
 func isDot(c uint16) bool {
 	return c == uint16('.')
 }
@@ -405,10 +406,13 @@ func isRegularQuote(c uint16) bool {
 	return c == uint16('"')
 }
 func isStartQuote(c uint16) bool {
-	return c == uint16('«') 
+	return c == uint16('«')
 }
 func isCloseQuote(c uint16) bool {
-	return c == uint16('»') 
+	return c == uint16('»')
+}
+func isNewLine(c uint16) bool {
+	return c == uint16('\n') || c == uint16('\r')
 }
 
 
@@ -434,9 +438,16 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
             if isSpace(c) {
             } else if isLetter(c) {
                 start = i
-                state = "word"
+                state = "name"
             } else if isMinus(c) {
                 state = "minus"
+            } else if isForwardSlash(c) {
+                if isForwardSlash(nextC) {
+                    state = "comment"
+                } else {
+                    start = i
+                    state = "non_letter_name"
+                }
             } else if isDigit(c) {
                 state = "number"
                 start = i
@@ -446,8 +457,15 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
             } else if isStartQuote(c) {
                 state = "fancy_quote"
                 start = i + 1
+            } else  {
+                start = i
+                state = "non_letter_name"
             }
-        } else if state == "word" {
+        } else if state == "non_letter_name" {
+            // 4 + -3 * 10
+           
+            
+        } else if state == "name" {
             if isLetter(c) || isDigit(c) {
 
             } else {
@@ -471,15 +489,27 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
                 state = "number"
                 start = i - 1
             }
+        } else if state == "forward_slash" {
+            if isForwardSlash(c) {
+                state = "comment"
+            } else {
+                state = "number"
+                start = i - 1
+            }
+        } else if state == "comment" {
+            if isNewLine(c) {
+                state = ""
+            }
         } else if state == "number" {
             if isDigit(c) || isDot(c) || isLetter(c) {
             } else {
-                return &Token{
-                    Value: utf16ToUtf8(code[start:i]),
-                    // ValueFloat: 
-                    // ValueInt: 
+                v := utf16ToUtf8(code[start:i])
+                t := &Token{
+                    Value: v,
                     TokenType: TokenTypeNumber,
-                }, i
+                }
+                // if
+                return t, i
             }
         } else if state == "quote" {
             if isRegularQuote(c) {
@@ -499,10 +529,6 @@ func ReadNextToken(index int, code []uint16) (*Token, int) {
     }
     return nil, len(code)
 }
-
-
-
-
 
 func utf8ToUtf16(s string) []uint16 {
 	// Decode the UTF-8 string into runes

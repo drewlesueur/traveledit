@@ -3215,11 +3215,11 @@ thumbscript4.stdlib = String.raw`
         ret
     }
     map: {
-        :func :list
-        [] :output
-        list {
-            output func push
-        } each
+        :f :list
+        output: []
+        each. list { :v
+            push. output f. v
+        }
         output
     }
     trimPrefix: {
