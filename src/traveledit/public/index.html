@@ -1,213 +1,8 @@
 <!doctype html>
 <!--
-
-select terms with holding down 2middle
-fix unparralel action
-paste and replace (1midleft) doesn't work for block
-
-on first load sometimes the filetype specific control doesn't load
-
-if err != nil {}
-hitting enter there should auto indent!
-
-
-abstract http abstract where funcs live
-call on server or clent?
-
-the blue (sliceleft sliceright) on thr bottom 
-should nav by word!
-
-prevent rerun on terminal that you haven't manually run
-donthe reverse of duplicate/comment
-
-go imports
-tap right select to increase selection by next block
-left to do it by word?
-clearing paste buffer, have it guess what to add
-like increasing nunber, true to false etc, comma semicolon
-
-cursor in word can make it a color quickly...
-
-expand selection by continually tapping select gutter
-next feature:
-expanding and collapsing indents
-
-plop , . ; }  at end
-navigating directory on second from left file has flashes
-
-TODO: seems like long files have per issues finding header, when scrolled to bottom
-need to run on :443... proxy.
-global http proxy.
-
-
-dumb webserver that calls scripts (like apache)
-
-external index to filesystem db
-notes
-a: 1
-a 1
-
-header functions
-zoom
-
-
-
-at top show what function we are in
-basically all the indent levels.
-
-
-need quick button to indent and dedent
-flows, linked files
-easily add color
-at some point better sliced undo?
-better handling of super long lines
-the "marker" search should change
-
-inline color args? // args:blue
- 
-
-open html?
-
-syntax highlighting
-select line with one tap
-fonts on screenshare
-idea last position
-if cursor not in screen, breaks screenshare until you move cursor (becsuse moving ensures it's in screen)
-highlight recently changed lines
-you need a button for start select line
-start select char
-last char on prev line button
-slowly dragging doesn't trigger move as fasr as I'd think
-is it because I have too much code?
-touch area to del() and paste() in one go
-button to tab right and tab left
-
-voice commands
-next tab
-previous tab
-last tab
-start selection
-slots, put words in slots
-
-
-change start selection
-change end selection
-go to line
-
-where the first word is different start processing there
-
-top line
-
-select block?
-comment block?
-
-commands I want
-edit
-edit and insert newline
-move left, right, up, down
-go end of line, beginning of line
-end of file, beginning of file
-up by paragraph, down by paragraph
-? next word, prev word
-paste line
-paste inline
-duplicate line
-replace line (delete and paste)
-replace word
-copy
-cut (note I have smart cut and paste, where cut paste, cut paste will toggle etc)
-delete line
-delete word
-indent, dedent
-select word
-select line
-select in string
-select in quotes
-? select in paragraph
-space, backspace, newline
-join lines
-find down, find up
-clear search
-edit search
-toggle comment
-undo redo
-
-keep search
-
-
-b.   n
-c.   w
-
-char udlr delfwd delback select copy
-word lr delin select copy 
-line ud del select copy paste indent dedent
-block ud
-file
-
-feature        char word line blok file ()"" lngr
-----------     ---- ---- ---- ---- ---- ---- ----
-// up             x    x    x    x    x
-// down           x    x    x    x    x
-// left           x    x    x    x    x
-// right          x    x    x    x    x
-// del back       x    x    x
-// del forward    x    x    x
-// del in              x    x    x    x
-dupl (cpy,pst)      x    x    x    x
-repl (cut,pst)      x    x    x    x
-// indent                   x    x    x
-// dedent                   x    x    x
-add blank      x         x
-select         x    x    x    x    x
-copy           x    x    x    x    x
-paste          x         x
-comment    
-
-
-            c w l b f p
-            
-  < o >   s s s
-  o x o   / c d
-  { o }   b p r
-
-
-clear search
-edit search
-find down
-find up
-undo redo
-alt tab
-prev tab
-next tab
-dup tab
-up dir
-
-t su - cut line (or selection)
-t sl - dedent
-t sr - indent
-t sd - copy line
-t sd t - duplicate line (or selection)
-t su t - replace line
-t t - paste (or by line depending on selectMode)
-t r - move cursor right
-t l - move cursor left
-t u - move cursor up
-t d - move cursor down
-t R - move cursor right by word
-# t sr sr - comment/uncomment
-t sr sr - space
-t sl sl - backspace
-t sd sd - newline
-t sl sr - comment/uncomment
-t sr sl - join
-t t sl - delete to beginning
-t t sr - delete to end
-t t su - delete word
-t t d - copy word
-t t su t - replace word
-t t sd - copy word
-
-(long swipe, diag swipe, diag Touch, start swiping left)
+fix issue with knowing position changes
+like when you paste and have a highlight range
+also with the undo
 -->
 <html>
 <head>
@@ -219,9 +14,6 @@ var isGitBash = false
 // ISGITBASH GOES HERE
 
 </script>
-<!--<meta name="viewport" content="width=device-width, initial-scale=1">
--->
-
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, max-scale=1">
 <meta name="apple-mobile-web-app-title" content="Editor">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -238,10 +30,6 @@ document.write(`
 <!--<script src="`+proxyPath+`/tepublic/diff.js"></scr`+`ipt>-->
 <script src="`+proxyPath+`/tepublic/md52.js"></scr`+`ipt>
 <script src="`+proxyPath+`/tepublic/thumbscript4.js?v=`+Date.now()+`"></scr`+`ipt>
-<!-- For now not loading in grapheme splitter to save pageload. -->
-<!-- it means we can't use emojis, other unicode chars for now -->
-<!-- <script src="`+proxyPath+`/tepublic/grapheme-splitter.js"></scr`+`ipt>
- -->
 `)
 </script>
 <script src="https://unpkg.com/sval@0.4.8/dist/sval.min.js"></script>
@@ -639,112 +427,6 @@ They get changed later on.
 </div>
 <!--<div class="toolbar xhidden" id=fileRow ontouchstart=selectFileRow(event)>-->
 <!--Select file row was here-->
-<div style="display: none; background-color: black">
-    <!-- some buttons can be long press -->
-    <!-- you could snap down snap left snap up snap right -->
-    <div class=toolbar>
-        <div onclick="moveCursorLeft()"
-             onlongclick="moveCursorHome()"
-             class=icon>⬅️</div>
-        <div onclick="moveCursorRight()"
-             onlongclick="moveCursorEnd()"
-             class=icon>➡️</div>
-        <div onclick="findUp()"
-             onlongclick="clearSearch()"
-             class=icon>🔺</div>
-        <div onclick="findDown()"
-             onlongclick="editSearch()"
-             class=icon>🔻</div>
-        <div onclick="dup()"
-             onlongclick="copy()"
-             class=icon>👀</div>
-        <div onclick="goUpDirectory()"
-            onlongclick="reloadfile()"
-            class=icon>⤴️</div>
-        <div onclick="moveCursorUp()"
-            onlongclick="goToTop()" 
-            class=icon>⬆️</div>
-        <div onclick="moveCursorDown()" 
-             onlongclick="goToBottom()"
-             class=icon>⬇️</div>
-        <div onclick="navFileLeft()"
-             onlongclick="seeFiles()"
-             style="filter: hue-rotate(90deg)"
-             class=icon>◀️</div>
-        <div onclick="navFileRight()" 
-             onlongclick="altTab()" 
-             class=icon>▶️</div>
-    </div>
-    <div class=toolbar>
-        <div onclick="undo()" 
-             onlongclick="editMode()"
-             class=icon>↩️</div>
-        <div onclick="redo()" 
-             onlongclick="save()"
-             id=saveIcon
-             class=icon>↪️</div>
-        <div onclick="del()" 
-             onlongclick="deleteWord()"
-             class=icon>✂️</div>
-        <div onclick="paste()" 
-             onlongclick="pasteInline"
-             class=icon>🪧</div>
-        <div onclick="cmd()"
-             onlongclick="runScript()"
-             class=icon>🐚</div>
-        <div onclick="xterm()" 
-             onlongclick="openEditorCommandText()"
-             class=icon>🐢</div>
-        <div onclick="backspace()" 
-             onlongclick="clearLine()"
-             class=icon>🅱️</div>
-        <div onclick="closeFile()" 
-             onlongclick="closeDupFiles()" 
-             class=icon>❌</div>
-        <div onclick="newline()" 
-             onlongclick="joinLines()" 
-             class=icon>🏁</div>
-        <div onclick="selectWord()" 
-             onlongclick="selectLine()"
-             class=icon>🎀</div>
-    </div>
-    <div class=toolbar>
-        <div onclick="moveFileLeft()" 
-             onlongclick="moveFileAllTheWayLeft()"
-             class=icon>👈</div>
-        <div onclick="moveFileRight()" 
-             onlongclick="openFile()"
-             class=icon>👉</div>
-        <div onclick="dedent()" 
-             class=icon>🫲</div>
-        <div onclick="indent()" 
-             class=icon>🫱</div>
-        <div onclick="goBack()" 
-             class=icon>🚗</div>
-        <div onclick="goForward()" 
-             class=icon
-             style="transform: scale(-1, 1)";>🚗</div>
-        <div onclick="newScratch()" 
-             class=icon>📝</div>
-        <div onclick="diffFiles()" class=icon>🍉</div>
-        <div onclick="showDiff()" class=icon>🎄</div>
-        <div onclick="visit()" class=icon>🌎</div>
-    </div>
-    <div class=toolbar>
-        <div onclick="doRefresh()" class=icon>🔄</div>
-        <div onclick="googleIt()" class=icon>🍓</div>
-        <div onclick="download()" class=icon>📲</div>
-        <div onclick="iframeBrowser()" class=icon>🖼️</div>
-        <div onclick="openBrowser()" class=icon>🌍</div>
-        <div onclick="copyPath()" class=icon>👮‍♀️</div>
-        <div onclick="osCopy()" class=icon>🚓</div>
-        <div onclick="osPaste()" class=icon>🍝</div>
-        <!--
-        <div onclick="seeTabs()" class=icon>🧿</div>
-        <div onclick="toggleDarkMode()" class=icon>💡</div>
-        -->
-    </div>
-</div>
 <div class=toolbar>
 </div>
 <div class=toolbar>
@@ -7889,17 +7571,14 @@ function renderSaves() {
     if (fx.fileMode == "file")   {
         if (fx.savingVersion != -1) {
             saveButton.style.backgroundColor = "gray"
-            saveIcon.style.backgroundColor = "gray"
             saveButton.innerText = "saving"
             renpderedSaveRed = false
         } else if (fx.version == fx.savedVersion) {
             saveButton.style.backgroundColor = ""
-            saveIcon.style.backgroundColor = ""
             saveButton.innerText = "saved"
             renderedSaveRed = false
         } else if (!renderedSaveRed) {
             saveButton.style.backgroundColor = "red"
-            saveIcon.style.backgroundColor = "red"
             saveButton.innerText = "save"
             renderedSaveRed = true
         }
@@ -8591,7 +8270,8 @@ function renderInternal() {
         var commentLine = false
         // TODO: maybe pull some of this out of the loop
         // if (fx.fileMode != "terminal") {
-        if (extras) {
+        if (extras && (!syntaxHighlight || fx.fileMode != "file")) {
+            // the mini highlighting we do, not the full fledged highlighting
             if (theLine.startsWith("+")) {
                 textFillStyle = isDark ? "lime" : "green"
             } else if (theLine.startsWith("-")){
@@ -8658,10 +8338,15 @@ function renderInternal() {
         }
 
         theLine = theLine || ""
-        var expandedLine = expandLine(theLine, (theIndex))
+        var expandedLine = expandLine(theLine, theIndex)
         var syntaxColors
         if (syntaxHighlight && fx.fileMode == "file") {
-            syntaxColors = getSyntaxHighlight(expandedLine)
+        // if (syntaxHighlight) {
+            var prevExpandedLine = null
+            if (theIndex > 0) {
+                prevExpandedLine = expandLine(fx.lines[theIndex-1] || "", theIndex-1)
+            }
+            syntaxColors = getSyntaxHighlight(expandedLine, prevExpandedLine)
         }
 
         // one option is to draw the whole line in one go
@@ -8673,18 +8358,20 @@ function renderInternal() {
         var extraY = 0
         for (var x=0; x < maxCols; x++) {
             let expLine = expandedLine
-
+            // if (syntaxHighlight && fx.fileMode == "file") {
+            //     expLine = expLine.concat((" " + expandedLine.endState).split(""))
+            // }
             if (fx.fileErrors && fx.fileErrors[theIndex+1]) {
                 // not cached
                 var errorMessage = fx.fileErrors[theIndex+1].Message
                 expLine = expLine.concat((" " + errorMessage).split(""))
             }
             
-            
             if ((x+fx.offsetX) >= expLine.length) {
                 break
             }
             if ((x+fx.offsetX) >= expandedLine.length) {
+                // fileError Color
                 textFillStyle = "rgba(255, 200, 200)"
             }
             var chr = expLine[x+fx.offsetX] || ""
@@ -9264,6 +8951,8 @@ var syntaxColorMap = [
         keyword2: "magenta",
         keyword3: "brown", 
         number: "coral",
+        diffAdd: "green",
+        diffSub: "orangered",
     },
     {
         // darkmode
@@ -9281,7 +8970,9 @@ var syntaxColorMap = [
         quote: "thistle",
         keyword: "deepskyblue",
         // keyword: "skyblue",
-        symbol: "orange",
+        // symbol: "orange",
+        // symbol: "wheat",
+        symbol: "tan",
         key: "cyan",
         comment: "rgba(255, 255, 255, 0.5)",
         dotword: "aquamarine",
@@ -9303,13 +8994,19 @@ var syntaxColorMap = [
         keyword2: "lightpink",
         keyword3: "yellowgreen",
         number: "yellow",
+        diffAdd: "lime",
+        diffSub: "orangered",
     },
 ]
-function getSyntaxHighlight(expandedLine) {
+function getSyntaxHighlight(expandedLine, prevExpandedLine) {
     var quoties = "\"'`"
     var backslash = "\\"
     var state = "out"
     var quoteType = ""
+    if (prevExpandedLine && prevExpandedLine.endState) {
+        state = prevExpandedLine.endState
+        quoteType = prevExpandedLine.endQuoteType
+    }
     var syntaxColors = []
     var curWord = ""
     var quoteStart = -1
@@ -9334,12 +9031,21 @@ function getSyntaxHighlight(expandedLine) {
             } else if ("/".indexOf(chr) != -1) {
                 state = "inFirstForwardSlash"
                 syntaxColors.push("symbol")
+            } else if ("<".indexOf(chr) != -1) {
+                state = "inLessThan"
+                syntaxColors.push("symbol")
             } else if ("#".indexOf(chr) != -1) {
                 state = "inComment"
                 syntaxColors.push("comment")
             } else if ("*".indexOf(chr) != -1 && i == 5) {
                 state = "inComment"
                 syntaxColors.push("comment")
+            // } else if ("+".indexOf(chr) != -1 && i == 0) {
+            //     state = "inDiffAdd"
+            //     syntaxColors.push("diffAdd")
+            // } else if ("-".indexOf(chr) != -1 && i == 0) {
+            //     state = "inDiffSub"
+            //     syntaxColors.push("diffSub")
             } else {
                 state = "inSymbol"
                 syntaxColors.push("symbol")
@@ -9493,6 +9199,37 @@ function getSyntaxHighlight(expandedLine) {
                 state = "inComment"
                 syntaxColors[i-1] = "comment"
                 syntaxColors.push("comment")
+            } else if ("*".indexOf(chr) != -1) {
+                state = "inOtherComment"
+                syntaxColors[i-1] = "comment"
+                syntaxColors.push("comment")
+            } else {
+                state = "inSymbol"
+                i--
+            }
+        } else if (state == "inLessThan") {
+            if ("!".indexOf(chr) != -1) {
+                state = "maybeInHtmlComment1"
+                syntaxColors.push("symbol")
+            } else {
+                state = "inSymbol"
+                i--
+            }
+        } else if (state == "maybeInHtmlComment1") {
+            if ("-".indexOf(chr) != -1) {
+                state = "maybeInHtmlComment2"
+                syntaxColors.push("symbol")
+            } else {
+                state = "inSymbol"
+                i--
+            }
+        } else if (state == "maybeInHtmlComment2") {
+            if ("-".indexOf(chr) != -1) {
+                state = "inHtmlComment"
+                syntaxColors[i-1] = "comment" // -
+                syntaxColors[i-2] = "comment"// !
+                syntaxColors[i-3] = "comment" // <
+                syntaxColors.push("comment")
             } else {
                 state = "inSymbol"
                 i--
@@ -9509,6 +9246,39 @@ function getSyntaxHighlight(expandedLine) {
             }
         } else if (state == "inComment") {
             syntaxColors.push("comment")
+        } else if (state == "inOtherComment") {
+            if ("*".indexOf(chr) != -1) {
+                state = "maybeEndOtherComment"
+            }
+            syntaxColors.push("comment")
+        } else if (state == "maybeEndOtherComment") {
+            if ("/".indexOf(chr) != -1) {
+                state = "out"
+            }
+            syntaxColors.push("comment")
+        } else if (state == "inHtmlComment") {
+            if ("-".indexOf(chr) != -1) {
+                state = "maybeEndHtmlComment1"
+            }
+            syntaxColors.push("comment")
+        } else if (state == "maybeEndHtmlComment1") {
+            if ("-".indexOf(chr) != -1) {
+                state = "maybeEndHtmlComment2"
+            } else {
+                state = "inHtmlComment"
+            }
+            syntaxColors.push("comment")
+        } else if (state == "maybeEndHtmlComment2") {
+            if (">".indexOf(chr) != -1) {
+                state = "out"
+            } else {
+                state = "inHtmlComment"
+            }
+            syntaxColors.push("comment")
+        } else if (state == "inDiffAdd") {
+            syntaxColors.push("diffAdd")
+        } else if (state == "inDiffSub") {
+            syntaxColors.push("diffSub")
         } else if (state == "inQuote") {
             if (chr == backslash) {
                 state = "backslashInQuote"
@@ -9532,6 +9302,14 @@ function getSyntaxHighlight(expandedLine) {
         }
     }
     expandedLine.syntaxColors = syntaxColors
+    if (state == "inOtherComment" || state == "inHtmlComment" || state == "inQuote") {
+        expandedLine.endState = state
+        if (state == "inQuote") {
+            expandedLine.endQuoteType = quoteType
+        }
+    } else {
+        expandedLine.endState = ""
+    }
     return syntaxColors
 }
 
