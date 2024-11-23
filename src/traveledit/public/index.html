@@ -8956,47 +8956,27 @@ var syntaxColorMap = [
     },
     {
         // darkmode
-        // quote: "orangered",
-        // quote: "coral", // * last one
-        // quote: "lightsalmon",
-        // quote: "darksalmon",
-        // quote: "rosybrown",
-        // quote: "palevioletred",
-        // quote: "salmon",
-        // quote: "white",
-        // quote: "pink",
-        // quote: "plum",
-        // quote: "lavenderblush",
         quote: "thistle",
         keyword: "deepskyblue",
-        // keyword: "skyblue",
-        // symbol: "orange",
-        // symbol: "wheat",
         symbol: "tan",
         key: "cyan",
         comment: "rgba(255, 255, 255, 0.5)",
         dotword: "aquamarine",
-        // call: "lime",
-        // call: "lightgreen",
-        // call: "limegreen",
         call: "lightgreen",
-        // dollarword: "rgb(255, 100, 255)",
-        // dollarword: "magenta",
         dollarword: "khaki",
         uppercasefirst: "darkkhaki",
-        // uppercasefirst: "olive",
-        // uppercase: "yellow",
-        // uppercase: "chartreuse",
-        // uppercase: "cornflowerblue",
-        // uppercasefirst: "gold",
         uppercase: "lightskyblue",
-        // keyword2: "plum",
         keyword2: "lightpink",
         keyword3: "yellowgreen",
         number: "yellow",
-        diffAdd: "lime",
-        diffSub: "orangered",
     },
+    // {
+    //     // darkmode
+    //     quote: "lightgreen",
+    //     comment: "rgba(255, 255, 255, 0.5)",
+    //     diffAdd: "lime",
+    //     diffSub: "orangered",
+    // },
 ]
 function getSyntaxHighlight(expandedLine, prevExpandedLine) {
     var quoties = "\"'`"
@@ -9040,12 +9020,12 @@ function getSyntaxHighlight(expandedLine, prevExpandedLine) {
             } else if ("*".indexOf(chr) != -1 && i == 5) {
                 state = "inComment"
                 syntaxColors.push("comment")
-            // } else if ("+".indexOf(chr) != -1 && i == 0) {
-            //     state = "inDiffAdd"
-            //     syntaxColors.push("diffAdd")
-            // } else if ("-".indexOf(chr) != -1 && i == 0) {
-            //     state = "inDiffSub"
-            //     syntaxColors.push("diffSub")
+            } else if ("+".indexOf(chr) != -1 && i == 0) {
+                state = "inDiffAdd"
+                syntaxColors.push("diffAdd")
+            } else if ("-".indexOf(chr) != -1 && i == 0) {
+                state = "inDiffSub"
+                syntaxColors.push("diffSub")
             } else {
                 state = "inSymbol"
                 syntaxColors.push("symbol")
