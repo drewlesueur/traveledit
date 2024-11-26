@@ -2861,7 +2861,10 @@ function cleanUpFiles() {
             } else {
                 // must be pinned
                 if (file.pinned) {
-                    pinnedFiles.push(file)
+                    if (!seenFiles[file.fullPath]) {
+                        pinnedFiles.push(file)
+                        seenFiles[file.fullPath] = true
+                    }
                 } else {
                     filesToClose.push(file)
                 }
