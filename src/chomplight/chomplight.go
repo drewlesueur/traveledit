@@ -27,31 +27,18 @@ func main() {
             break
         }
         fmt.Println(i, token)
-        time.Sleep(200 * time.Millisecond)
+        time.Sleep(10 * time.Millisecond)
         
         if i >= len(contents) {
             break
         }
     }
-    
-    // lines = strings.Split(contents, "\n")
-    // for i, line := range lines {
-    //     line := strings.TrimLeft(line)
-    //     parts := strings.Split(line, " ")
-    //     cleanParts := []string{}
-    //     var currentPart []string
-    //     for _, part := range parts {
-    //         if strings.HasPrefix(part, `"`) && !strings.HasSuffix(part, `"`) {
-    //             currentPart 
-    //         }
-    //     }
-    // }
 }
 type TokenType int
 const (
 	TokenTypeVar TokenType = iota
-	// TokenTypeNumber
 	TokenTypeString
+	TokenTypeNewline
 )
 type Token struct {
     Value string
@@ -63,52 +50,77 @@ func (t *Token) String() string {
         return t.Value
     }
     
-    return `"` + t.Value + `"`
+    if t.TokenType == TokenTypeString {
+        return `"` + t.Value + `"`
+    }
+    
+    if t.TokenType == TokenTypeNewline {
+        return "<newline>"
+    }
+    
+    return ""
 }
 
 func getNextToken(contents string, i int) (*Token, int) {
-    // TODO: cache
+    // TODO: cache this
     startToken := -1
     for i := i; i < len(contents); i++{
         if startToken == -1 {
-            if contents[i] == '"' {
+            if contents[i] == '\n' {
+                t := &Token{
+                    TokenType: TokenTypeNewline,
+                    Value: "",
+                }
+                for i = i+1; i < len(contents); i++ {
+                    if contents[i] != '\n' {
+                        break
+                    }
+                }
+                return t, i
+            } else if contents[i] == '"' {
                 end := strings.Index(contents[i+1:], `"`)
                 if end == -1 {
                     end = len(contents) - (i+1)
                 }
+                realEnd := i+1+end
                 t := &Token{
                     TokenType: TokenTypeString,
-                    Value: contents[i+1:i+1+end],
+                    Value: contents[i+1:realEnd],
                 }
-                return t, i+1+end+1
+                return t, realEnd+1
             } else if contents[i] == '«' {
                 end := strings.Index(contents[i+1:], `»`)
                 if end == -1 {
                     end = len(contents) - (i+1)
                 }
+                realEnd := i+1+end
                 t := &Token{
                     TokenType: TokenTypeString,
-                    Value: contents[i+1:i+1+end],
+                    Value: contents[i+1:realEnd],
                 }
-                return t, i+1+end+1
+                return t, realEnd+1
             } else if contents[i] == '$' {
-                end := strings.Index(contents[i+1:], `\n`)
+                end := strings.Index(contents[i+1:], "\n")
                 if end == -1 {
                     end = len(contents) - (i+1)
                 }
-                fmt.Println("end is ", end)
+                realEnd := i+1+end
                 t := &Token{
                     TokenType: TokenTypeString,
-                    Value: contents[i+2:i+1+end],
+                    Value: contents[i+2:realEnd],
                 }
-                return t, i+1+end+1
+                if realEnd == len(contents) {
+                    return t, realEnd+1
+                }
+                return t, realEnd
             } else if contents[i] == '#' {
-                end := strings.Index(contents[i+1:], `\n`)
+                end := strings.Index(contents[i+1:], "\n")
                 if end == -1 {
-                    end = len(contents)
+                    end = len(contents) - (i+1)
                 }
-                i = end+1
-            } else if contents[i] == ' ' || contents[i]  == '\t' || contents[i]  == '\n' || contents[i]  == '\r' {
+                realEnd := i+1+end
+                i = realEnd+1
+            } else if contents[i] == ' ' || contents[i]  == '\t' || contents[i]  == '\r' {
             } else {
                 startToken = i
             }
@@ -117,6 +129,9 @@ func getNextToken(contents string, i int) (*Token, int) {
                 t := &Token{
                     TokenType: TokenTypeVar,
                     Value: contents[startToken:i],
+                }
+                if contents[i] == '\n' {
+                    return t, i
                 }
                 return t, i+1
             } else if i == len(contents) - 1 {

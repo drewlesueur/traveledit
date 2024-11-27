@@ -42,7 +42,6 @@ const (
 )
 
 type Record struct {
-    FullPath []string
     ArrayPart  []*Record
     LookupPart map[string]*Record
     StringPart string
