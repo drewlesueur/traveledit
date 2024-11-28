@@ -7,6 +7,10 @@ import (
     "time"
 )
 
+type State struct {
+    Locations map[string]int
+    
+}
 func main() {
     if len(os.Args) < 2 {
         fmt.Println("Please provide a filename")
@@ -66,13 +70,15 @@ func getNextToken(contents string, i int) (*Token, int) {
     startToken := -1
     for i := i; i < len(contents); i++{
         if startToken == -1 {
-            if contents[i] == '\n' {
+            if contents[i] == '\n' || contents[i] == ',' {
+            // if contents[i] == '\n' {
                 t := &Token{
                     TokenType: TokenTypeNewline,
                     Value: "",
                 }
                 for i = i+1; i < len(contents); i++ {
-                    if contents[i] != '\n' {
+                    if contents[i] != '\n' && contents[i] != ',' {
+                    // if contents[i] != '\n' {
                         break
                     }
                 }
@@ -125,12 +131,14 @@ func getNextToken(contents string, i int) (*Token, int) {
                 startToken = i
             }
         } else if startToken != -1 {
-            if contents[i] == ' ' || contents[i]  == '\t' || contents[i]  == '\n' || contents[i]  == '\r' {
+            if contents[i] == ' ' || contents[i]  == '\t' || contents[i]  == '\n' || contents[i]  == '\r' || contents[i]  == ',' {
+            // if contents[i] == ' ' || contents[i]  == '\t' || contents[i]  == '\n' || contents[i]  == '\r' {
                 t := &Token{
                     TokenType: TokenTypeVar,
                     Value: contents[startToken:i],
                 }
-                if contents[i] == '\n' {
+                if contents[i] == '\n' || contents[i] == ',' {
+                // if contents[i] == '\n' {
                     return t, i
                 }
                 return t, i+1
