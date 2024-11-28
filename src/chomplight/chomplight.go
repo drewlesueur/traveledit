@@ -7,10 +7,24 @@ import (
     "time"
 )
 
-type State struct {
-    Locations map[string]int
-    
+type File struct {
+    FullPath string
+    Code string
+    // TODO: start using TokenCache
+    // TokenCache map[int]*Token
 }
+type World struct {
+    Stack *Record
+    State *Record
+    LexicalParent *World
+    RuntimeParent *World
+    FileIndex int
+    CodeIndex int
+    Files []*File
+    FirstToken *Token
+    StringCache map[string]*Record
+}
+
 func main() {
     if len(os.Args) < 2 {
         fmt.Println("Please provide a filename")
@@ -22,27 +36,72 @@ func main() {
         fmt.Println("Error reading file:", err)
         return
     }
-    contents := string(data)
-    i := 0
+    world := &World{
+        Stack: &Record{},
+        State: &Record{},
+        LexicalParent: nil,
+        RuntimeParent: nil,
+        FileIndex: 0,
+        CodeIndex: 0,
+        Files: []*File{
+            {
+                FullPath: os.Args[1],
+                Code: string(data),
+            },
+        },
+        FirstToken: nil,
+        StringCache: map[string]*Record{}
+    }
+    world.Run()
+}
+
+func (w *World) Run() {
     var token *Token
     for {
-        token, i = getNextToken(contents, i)
-        if token == nil {
-            break
+        code := world.Files[world.FileIndex].Code
+        token, world.CodeIndex = getNextToken(code, world.CodeIndex)
+
+        fmt.Println(world.CodeIndex, token)
+        if token != nil {
+            if world.FirstToken == nil {
+                world.FirstToken = token
+            }
+            if token.TokenType == TokenTypeNewline {
+                w = w.ExecCurrentFunc()
+            } else if token.TokenType == TokenTypeVar {
+                w.PlopValueAt(token.Value)
+            } else if token.TokenType == TokenTypeString {
+                w.PlopValue(token.Value)
+            }
         }
-        fmt.Println(i, token)
         time.Sleep(10 * time.Millisecond)
-        
-        if i >= len(contents) {
-            break
+        if token == nil || world.CodeIndex >= len(code) {
+            world.CodeIndex = 0
+            world.FileIndex++
+            if (world.FileIndex >= len(world.Files)) {
+                break
+            }
         }
     }
 }
+
+func (w *Wolrd) ExecCurrentFunc() {
+    firstToken := w.FirstToken
+    w.FirstToken = nil
+    
+}
+
 type TokenType int
 const (
 	TokenTypeVar TokenType = iota
 	TokenTypeString
 	TokenTypeNewline
+	TokenTypeLeftCurly
+	TokenTypeRightCurly
+	TokenTypeLeftBracket
+	TokenTypeRightBracket
+	TokenTypeLeftParens
+	TokenTypeRightParens
 )
 type Token struct {
     Value string
@@ -70,11 +129,41 @@ func getNextToken(contents string, i int) (*Token, int) {
     startToken := -1
     for i := i; i < len(contents); i++{
         if startToken == -1 {
-            if contents[i] == '\n' || contents[i] == ',' {
+            // TODO: maybe just a tokenTypeSymbol?
+            if contents[i] == '{' {
+                t := &Token{
+                    TokenType: TokenTypeLeftCurly,
+                }
+                return t, i+1
+            } else if contents[i] == '}' {
+                t := &Token{
+                    TokenType: TokenTypeRightCurly,
+                }
+                return t, i+1
+            } else if contents[i] == '[' {
+                t := &Token{
+                    TokenType: TokenTypeLeftBracket,
+                }
+                return t, i+1
+            } else if contents[i] == ']' {
+                t := &Token{
+                    TokenType: TokenTypeRightBracket,
+                }
+                return t, i+1
+            } else if contents[i] == '(' {
+                t := &Token{
+                    TokenType: TokenTypeLeftParens,
+                }
+                return t, i+1
+            } else if contents[i] == ')' {
+                t := &Token{
+                    TokenType: TokenTypeRightParens,
+                }
+                return t, i+1
+            } else if contents[i] == '\n' || contents[i] == ',' {
             // if contents[i] == '\n' {
                 t := &Token{
                     TokenType: TokenTypeNewline,
-                    Value: "",
                 }
                 for i = i+1; i < len(contents); i++ {
                     if contents[i] != '\n' && contents[i] != ',' {
@@ -131,14 +220,12 @@ func getNextToken(contents string, i int) (*Token, int) {
                 startToken = i
             }
         } else if startToken != -1 {
-            if contents[i] == ' ' || contents[i]  == '\t' || contents[i]  == '\n' || contents[i]  == '\r' || contents[i]  == ',' {
-            // if contents[i] == ' ' || contents[i]  == '\t' || contents[i]  == '\n' || contents[i]  == '\r' {
+            if contents[i] == ' ' || contents[i]  == '\t' || contents[i]  == '\n' || contents[i]  == '\r' || contents[i]  == ',' || contents[i]  == '{' || contents[i]  == '}' || contents[i]  == '[' || contents[i]  == ']' || contents[i]  == '(' || contents[i]  == ')' {
                 t := &Token{
                     TokenType: TokenTypeVar,
                     Value: contents[startToken:i],
                 }
-                if contents[i] == '\n' || contents[i] == ',' {
-                // if contents[i] == '\n' {
+                if contents[i] == '\n' || contents[i] == ',' || contents[i]  == '{' || contents[i]  == '}' || contents[i]  == '[' || contents[i]  == ']' || contents[i]  == '(' || contents[i]  == ')' {
                     return t, i
                 }
                 return t, i+1
@@ -154,6 +241,12 @@ func getNextToken(contents string, i int) (*Token, int) {
     return nil, i+1
 }
 
+type Func struct {
+    Builtin func(*World) *World
+    World *World // world where it was defined
+    FileIndex int
+    CodeIndex int
+}
 
 type RecordType int
 const (
@@ -165,6 +258,7 @@ const (
 	FuncType
 )
 
+
 type Record struct {
     ArrayPart  []*Record
     LookupPart map[string]*Record
@@ -173,6 +267,60 @@ type Record struct {
     IntegerPart int
     KeysPart   []string
     Type RecordType
+    FuncPart *Func
+}
+
+func NewRecord(theType RecordType) *Record {
+    return &Record{
+        ArrayPart:  []*Record{},
+        LookupPart: make(map[string]*Record),
+        StringPart: "",
+        FloatPart:  0.0,
+        IntegerPart: 0,
+        KeysPart:   []string{},
+        Type:       theType,
+    }
+}
+var NullRecord = NewRecord(NullType)
+
+func (r *Record) Get(key string) *Record {
+    return r.LookupPart[key]
+}
+
+func (r *Record) Has(key string) bool {
+    _, exists := r.LookupPart[key]
+    return exists
+}
+
+func (r *Record) Set(key string, value *Record) {
+    r.LookupPart[key] = value
+}
+func (w *World) Lookup(v string) *Record {
+    for ww := w; ww != nil; ww = ww.LexicalParent {
+        if ww.State.Has(v) {
+            return ww.State.Get(v)
+        }
+    }
+    return NullRecord
+}
+func (w *World) PlopValueAt(v string) {
+    for ww := w; ww != nil; ww = ww.LexicalParent {
+        if ww.State.Has(v) {
+            w.Stack.Push(ww.State.Get(v))
+            return
+        }
+    }
+    w.Stack.Push(NullRecord)
+}
+func (w *World) PlopValue(v string) {
+    r := w.StringCache[v]
+    if r == nil {
+        r = &Record{
+            Value: v,
+        }
+        w.StringCache[v] = r
+    }
+    w.Stack.Push(r)
 }
 
 func (r *Record) Push(rec *Record) {
