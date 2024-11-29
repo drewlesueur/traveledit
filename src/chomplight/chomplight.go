@@ -52,19 +52,20 @@ func main() {
         FirstToken: nil,
         StringCache: map[string]*Record{}
     }
-    world.Run()
+    Run(world)
+    return
 }
 
-func (w *World) Run() {
+func Run(w *World) {
     var token *Token
     for {
-        code := world.Files[world.FileIndex].Code
-        token, world.CodeIndex = getNextToken(code, world.CodeIndex)
+        code := w.Files[w.FileIndex].Code
+        token, w.CodeIndex = getNextToken(code, w.CodeIndex)
 
-        fmt.Println(world.CodeIndex, token)
+        fmt.Println(w.CodeIndex, token)
         if token != nil {
-            if world.FirstToken == nil {
-                world.FirstToken = token
+            if w.FirstToken == nil {
+                w.FirstToken = token
             }
             if token.TokenType == TokenTypeNewline {
                 w = w.ExecCurrentFunc()
@@ -75,20 +76,41 @@ func (w *World) Run() {
             }
         }
         time.Sleep(10 * time.Millisecond)
-        if token == nil || world.CodeIndex >= len(code) {
-            world.CodeIndex = 0
-            world.FileIndex++
-            if (world.FileIndex >= len(world.Files)) {
+        if w == nil {
+            return
+        }
+        if token == nil || w.CodeIndex >= len(code) {
+            w.CodeIndex = 0
+            w.FileIndex++
+            if (w.FileIndex >= len(w.Files)) {
                 break
             }
         }
     }
 }
 
-func (w *Wolrd) ExecCurrentFunc() {
+func (w *World) ExecCurrentFunc() *World {
     firstToken := w.FirstToken
     w.FirstToken = nil
-    
+    theFunc := w.State.Lookup(firstToken.Value)
+    if theFunc.Type == NullType {
+        fmt.Println("null func!")
+        return w
+    }
+    if theFunc.Builtin {
+        retur
+    }
+    newWorld := &World{
+        Stack: w.Stack,
+        State: &Record{},
+        LexicalParent: theFunc.World,
+        RuntimeParent: w,
+        FileIndex: f.FileIndex,
+        CodeIndex: f.CodeIndex,
+        Files: w.Files,
+        FirstToken: nil,
+        StringCache: w.StringCache,
+    }
 }
 
 type TokenType int
@@ -161,7 +183,6 @@ func getNextToken(contents string, i int) (*Token, int) {
                 }
                 return t, i+1
             } else if contents[i] == '\n' || contents[i] == ',' {
-            // if contents[i] == '\n' {
                 t := &Token{
                     TokenType: TokenTypeNewline,
                 }
@@ -183,8 +204,8 @@ func getNextToken(contents string, i int) (*Token, int) {
                     Value: contents[i+1:realEnd],
                 }
                 return t, realEnd+1
-            } else if contents[i] == '«' {
-                end := strings.Index(contents[i+1:], `»`)
+            } else if contents[i] == '<' {
+                end := strings.Index(contents[i+1:], `>`)
                 if end == -1 {
                     end = len(contents) - (i+1)
                 }

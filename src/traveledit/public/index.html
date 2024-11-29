@@ -2864,6 +2864,8 @@ function cleanUpFiles() {
                     if (!seenFiles[file.fullPath]) {
                         pinnedFiles.push(file)
                         seenFiles[file.fullPath] = true
+                    } else {
+                        filesToClose.push(file)
                     }
                 } else {
                     filesToClose.push(file)
@@ -8008,6 +8010,7 @@ function renderInternal() {
             theLine = headers[y]
             trimmedLine = theLine.trim()
             theIndex = headerIndexes[y]
+            // if (isdarkm)
             t.fillStyle = "#222"
             t.fillRect(0, y * fontHeight, c.width*3, fontHeight)
             textFillStyleOverride = "#aaa"
