@@ -8010,10 +8010,15 @@ function renderInternal() {
             theLine = headers[y]
             trimmedLine = theLine.trim()
             theIndex = headerIndexes[y]
-            // if (isdarkm)
-            t.fillStyle = "#222"
+            if (isDark) {
+                t.fillStyle = "#222"
+                textFillStyleOverride = "#aaa"
+            } else {
+                t.fillStyle = "white"
+                textFillStyleOverride = "#222"
+            }
+
             t.fillRect(0, y * fontHeight, c.width*3, fontHeight)
-            textFillStyleOverride = "#aaa"
         } else {
             textFillStyleOverride = ""
         }
