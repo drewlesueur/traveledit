@@ -12868,6 +12868,9 @@ function handleTouchAreasXOnly(e, mapping) {
 // yay
 function touchAreasPressWhileSelected(e, state) {
     handleTouchAreas(e, {
+        "5middle": function () {
+            doTogglePin()
+        },
         "3middle": function() {
             openEditorCommandText()
         },
