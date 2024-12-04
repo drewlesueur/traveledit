@@ -2864,6 +2864,8 @@ function cleanUpFiles() {
                     if (!seenFiles[file.fullPath]) {
                         pinnedFiles.push(file)
                         seenFiles[file.fullPath] = true
+                    } else {
+                        filesToClose.push(file)
                     }
                 } else {
                     filesToClose.push(file)
@@ -3877,6 +3879,7 @@ function getCommentPrefix() {
         fx.fullPath.endsWith(".yaml") ||
         fx.fullPath.endsWith(".yml") ||
         fx.fullPath.endsWith(".env") ||
+        fx.fullPath.endsWith(".ch") ||
         fx.fullPath.split("/").slice(-1)[0].indexOf(".") == -1
     ) {
         // Special case hack for sql script
@@ -8007,9 +8010,15 @@ function renderInternal() {
             theLine = headers[y]
             trimmedLine = theLine.trim()
             theIndex = headerIndexes[y]
-            t.fillStyle = "#222"
+            if (isDark) {
+                t.fillStyle = "#222"
+                textFillStyleOverride = "#aaa"
+            } else {
+                t.fillStyle = "white"
+                textFillStyleOverride = "#222"
+            }
+
             t.fillRect(0, y * fontHeight, c.width*3, fontHeight)
-            textFillStyleOverride = "#aaa"
         } else {
             textFillStyleOverride = ""
         }
