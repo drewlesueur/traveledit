@@ -3886,6 +3886,7 @@ function getCommentPrefix() {
         fx.fullPath.endsWith(".yml") ||
         fx.fullPath.endsWith(".env") ||
         fx.fullPath.endsWith(".ch") ||
+        fx.fullPath.endsWith(".graphqls") ||
         fx.fullPath.split("/").slice(-1)[0].indexOf(".") == -1
     ) {
         // Special case hack for sql script
@@ -12895,6 +12896,9 @@ function handleTouchAreasXOnly(e, mapping) {
 // yay
 function touchAreasPressWhileSelected(e, state) {
     handleTouchAreas(e, {
+        "5middle": function () {
+            doTogglePin()
+        },
         "3middle": function() {
             openEditorCommandText()
         },
