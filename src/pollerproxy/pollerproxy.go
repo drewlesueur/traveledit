@@ -6,9 +6,17 @@ import (
     "strings"
 )
 
+// client types, 
+// cgi
+// linrary to existing go code
+//    don't need to ListenAndServe
+//    just call this library
 
-// ♠️♠️♠️♠️♠️♠️♠️
-type PolledRequest struct {
+// server
+// allow it also to be a regular proxy
+
+
+type Request struct {
 	RequestID string
 	Method    string
 	URL       string
@@ -16,8 +24,7 @@ type PolledRequest struct {
 	Body      []byte
 }
 
-// ♦️♦️♦️♦️♦️♦️♦️
-type PolledResponse struct {
+type Response struct {
 	PollerName string
 	RequestID  string
 	StatusCode int
@@ -25,7 +32,26 @@ type PolledResponse struct {
 	Body       []byte
 }
 
-func main() {
+type PollerProxyServer struct {
+    PollerMu sync.Mutex
+    PollerRequestID int
+}
+
+// either subdomain, or path prefix
+func (p *PollerProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    
+}
+generate a Request based on the http.Request
+come up with a random request id
+
+
+
+
+
+
+
+
+func OldMain() {
 	pollerPairsString := os.getEnv("POLLER_PAIRS")
 	strings.Replace(pollerPairsString, ",","\n", -1)
 	pairs := strings.Split(pollerPairs, "\n")
