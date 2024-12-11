@@ -2,8 +2,9 @@ package main
 
 import (
     "net/http"
-    "log"
-    "strings"
+    "container/list"
+    "encoding/json"
+    "time"
 )
 
 // client types, 
@@ -40,7 +41,7 @@ type Response struct {
 type EventLoop struct {
     Ch chan *Event
     Process func(*Event)
-    Timeouts = map[int]*
+    Timeouts map[int]*time.Timer
     TimerCount int
 }
 func (e *EventLoop) Start() {
@@ -62,12 +63,12 @@ func (e *EventLoop) Dispatch(name string, data ...any) {
 }
 
 func (e *EventLoop) SetTimeout(d time.Duration, name string, data ...any) {
+    e.TimerCount++
     event := &Event{
         Name: name,
         Data: data,
-        TimerID: e.TimerCount++,
+        TimerID: e.TimerCount,
     }
-    event.Time
     t := time.AfterFunc(d, func() {
         e.Ch <- event
     })
@@ -93,12 +94,13 @@ type EventLoopRequest struct {
     IsDone bool
     ch chan int
 }
-func NewEventLoopRequest(w http.ResponseWriter, r *http.Request) {
+func NewEventLoopRequest(w http.ResponseWriter, r *http.Request) *EventLoopRequest {
     e := &EventLoopRequest{
-        ch: make(chan bool, 1),
+        ch: make(chan int, 1),
         Request: r,
         ResponseWriter: w,
     }
+    return e
 }
 func (e *EventLoopRequest) Done() {
     e.IsDone = true
@@ -112,25 +114,23 @@ func (e *EventLoopRequest) Wait() {
 type PollerProxyServer struct {
     EventLoop *EventLoop
     PollerRequestID int
-    // PollerCond *sync.Cond
-	Requests map[string][]*Request
-	Responses map[string]*Response
+	Requests map[string]*list.List
+	Responses map[string]*list.List
+	PollingRequests map[string]*list.List
 }
 
-
-
-func NewPollerProxyServer() {
+func NewPollerProxyServer() *PollerProxyServer {
 	pps := &PollerProxyServer{
 	    EventLoop: &EventLoop{
 	        // buffered
-	        Ch: make(chan *Event)
+	        Ch: make(chan *Event),
 	    },
-	    Requests: map[string]*list.List{}
-	    Responses: map[string]*list.List{}
+	    Requests: map[string]*list.List{},
+	    Responses: map[string]*list.List{},
 	    // Requesting the requests
-	    PollingRequests: map[string]*list.List{}
+	    PollingRequests: map[string]*list.List{},
 	}
-	pps.EventLoop.Process = p.Process
+	pps.EventLoop.Process = pps.Process
     go func() {
         pps.EventLoop.Start()
     }()
@@ -139,36 +139,81 @@ func NewPollerProxyServer() {
 
 
 // try long polling pattern and limited concurrency pattern
-func (p *PollerProxyServer) Process() {
-    for e := range pps.Ch {
-        switch (e.Name) {
-        case "http_request":
-            elr := v.Data[0].(*EventLoopRequest)
-            r := elr.Request
-            if r.URL.Path == "/pollerProxy/pollForRequest" {
-                pollerName := r.FormValue("poller_name")
-                // TODO for security in future, add a mapping
-                pathPrefix := pollerName
-                availableRequests := p.Requests[pathPrefix]
-                if availableRequests != nil && availableRequests.Len() > 0 {
-                    availableRequest := availableRequests.Front().Value.(*Request)
-                    json.NewEncoder(elr.ResponseWriter).Encode(availableRequest)
-                    elr.Done()
-                    return
-                }
-                p.SetTimeout(10 * time.Second, "http_request_timeout", elr)
-            } else if r.URL.Path == "/pollerProxy/provideResponse" {
-                pollerName := r.FormValue("poller_name")
-                // TODO for security in future, add a mapping
-                pathPrefix := pollerName
+func (p *PollerProxyServer) Process(e *Event) {
+    switch (e.Name) {
+    case "http_request":
+        elr := e.Data[0].(*EventLoopRequest)
+        r := elr.Request
+        if r.URL.Path == "/pollerProxy/pollForRequest" {
+            pollerName := r.FormValue("poller_name")
+            // TODO for security in future, add a mapping
+            pathPrefix := pollerName
+            availableRequests := p.Requests[pathPrefix]
+            if availableRequests != nil && availableRequests.Len() > 0 {
+                aEl := availableRequests.Front()
+                a := aEl.Value.(*Request)
+                availableRequests.Remove(aEl)
+                json.NewEncoder(elr.ResponseWriter).Encode(a)
+                elr.Done()
+                return
             }
-        case "http_request_timeout":
-            elr := v.Data[0].(*EventLoopRequest)
-            elr.ResponseWriter.WriteHeader(http.StatusNoContent)
-            elr.Done()
-            
+            elrEl := p.AddPollingRequest(pathPrefix, elr)
+            p.EventLoop.SetTimeout(10 * time.Second, "http_request_timeout", pathPrefix, elrEl)
+        } else if r.URL.Path == "/pollerProxy/provideResponse" {
+            pollerName := r.FormValue("poller_name")
+            // TODO for security in future, add a mapping
+            pathPrefix := pollerName
+            response := &Response{}
+            err := json.NewDecoder(r.Body).Decode(response)
+            if err != nil {
+                elr.ResponseWriter.WriteHeader(http.StatusBadRequest)
+                elr.Done()
+                return
+            }
+            p.AddResponse(pathPrefix, response)
         }
+    case "http_request_timeout":
+        pathPrefix := e.Data[0].(string) // we could get this from the request if we want
+        elrEl := e.Data[1].(*list.Element)
+        elr := elrEl.Value.(*EventLoopRequest)
+        p.PollingRequests[pathPrefix].Remove(elrEl)
+        elr.ResponseWriter.WriteHeader(http.StatusNoContent)
+        elr.Done()
     }
+}
+
+func (p *PollerProxyServer) AddPollingRequest(pathPrefix string, v any) *list.Element {
+    if p.PollingRequests == nil {
+        p.PollingRequests = map[string]*list.List{}
+    }
+    myList := p.PollingRequests[pathPrefix]
+    if myList == nil {
+        myList = list.New()
+        p.PollingRequests[pathPrefix] = myList
+    }
+    return myList.PushBack(v)
+}
+func (p *PollerProxyServer) AddRequest(pathPrefix string, v any) *list.Element {
+    if p.Requests == nil {
+        p.Requests = map[string]*list.List{}
+    }
+    myList := p.Requests[pathPrefix]
+    if myList == nil {
+        myList = list.New()
+        p.Requests[pathPrefix] = myList
+    }
+    return myList.PushBack(v)
+}
+func (p *PollerProxyServer) AddResponse(pathPrefix string, v any) *list.Element {
+    if p.Responses == nil {
+        p.Responses = map[string]*list.List{}
+    }
+    myList := p.Responses[pathPrefix]
+    if myList == nil {
+        myList = list.New()
+        p.Responses[pathPrefix] = myList
+    }
+    return myList.PushBack(v)
 }
 
 func (p *PollerProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -217,42 +262,42 @@ func (p *PollerProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // either subdomain, or path prefix
 
-func waitFor(time.Duration, f func() bool) {
-    
-}
 
 
-type StateMachine struct {
-    
-}
+	// certFile := os.Getenv("CERTFILE")
+	// keyFile := os.Getenv("KEYFILE")
+	// httpsServer := &http.Server{
+	// 	Addr:         *serverAddress,
+	// 	ReadTimeout:  30 * time.Second,
+	// 	WriteTimeout: 30 * time.Second,
+	// 	Handler:      handlerMux,
+	// }
+	// log.Fatal(httpsServer.ListenAndServeTLS(certFile, keyFile))
 
 
 
 
-
-
-
-func OldMain() {
-	pollerPairsString := os.getEnv("POLLER_PAIRS")
-	strings.Replace(pollerPairsString, ",","\n", -1)
-	pairs := strings.Split(pollerPairs, "\n")
-	
-	
-	// 📖📖📖📖📖📖📖📖📖📖📖📖
-
-	go func() {
-		for range time.NewTicker(1 * time.Second).C {
-			pollerCond.Broadcast()
-		}
-	}()
-
-	pollerMux := http.NewServeMux()
-
-	pollerMux.HandleFunc("/pollerProxy/provideResponse", func(w http.ResponseWriter, r *http.Request) {
-	})
-	pollerMux.HandleFunc("/pollerProxy/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
-		pathPrefix := r.FormValue("poller_name")
-	}
+// func OldMain() {
+// 	pollerPairsString := os.getEnv("POLLER_PAIRS")
+// 	strings.Replace(pollerPairsString, ",","\n", -1)
+// 	pairs := strings.Split(pollerPairs, "\n")
+// 	
+// 	
+// 	// 📖📖📖📖📖📖📖📖📖📖📖📖
+// 
+// 	go func() {
+// 		for range time.NewTicker(1 * time.Second).C {
+// 			pollerCond.Broadcast()
+// 		}
+// 	}()
+// 
+// 	pollerMux := http.NewServeMux()
+// 
+// 	pollerMux.HandleFunc("/pollerProxy/provideResponse", func(w http.ResponseWriter, r *http.Request) {
+// 	})
+// 	pollerMux.HandleFunc("/pollerProxy/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
+// 		pathPrefix := r.FormValue("poller_name")
+// 	}
  
 		
 		// pollerMu.Lock()
@@ -277,7 +322,7 @@ func OldMain() {
 		// // TODO: underlying array stays large, you could trim it at some point?
 		// // or use a linked list or something
 		// json.NewEncoder(w).Encode(pr)
-	})
+	// })
 
 	// 🙊🙊🙊🙊🙊🙊🙊🙊
 	// handlerMux = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -337,24 +382,5 @@ func OldMain() {
  //
 	// })
 
-	certFile := os.Getenv("CERTFILE")
-	keyFile := os.Getenv("KEYFILE")
-
-	httpsServer := &http.Server{
-		Addr:         *serverAddress,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		Handler:      handlerMux,
-	}
-
-
-	log.Fatal(httpsServer.ListenAndServeTLS(certFile, keyFile))
-}
-
-
-
-write some go code that implements an http server
-that does long polling
-it polls for
-
+// }
 
