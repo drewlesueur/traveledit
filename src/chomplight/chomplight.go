@@ -50,7 +50,7 @@ func main() {
             },
         },
         FirstToken: nil,
-        StringCache: map[string]*Record{}
+        StringCache: map[string]*Record{},
     }
     Run(world)
     return
@@ -92,13 +92,19 @@ func Run(w *World) {
 func (w *World) ExecCurrentFunc() *World {
     firstToken := w.FirstToken
     w.FirstToken = nil
-    theFunc := w.State.Lookup(firstToken.Value)
+    theFunc := w.Lookup(firstToken.Value)
     if theFunc.Type == NullType {
         fmt.Println("null func!")
         return w
     }
-    if theFunc.Builtin {
-        retur
+    
+    if theFunc.Type != FuncType {
+        fmt.Println("Not a function", theFunc)
+        return w
+    }
+    
+    if theFunc.FuncPart.Builtin != nil {
+        return theFunc.Builtin(world)
     }
     newWorld := &World{
         Stack: w.Stack,
@@ -111,6 +117,7 @@ func (w *World) ExecCurrentFunc() *World {
         FirstToken: nil,
         StringCache: w.StringCache,
     }
+    return newWorld
 }
 
 type TokenType int

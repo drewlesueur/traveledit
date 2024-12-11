@@ -3,6 +3,12 @@
 fix issue with knowing position changes
 like when you paste and have a highlight range
 also with the undo
+
+don't allow rerun on a reloaded session terminal
+
+
+button to increase or decrease number
+allow graphs and visualizations
 -->
 <html>
 <head>
@@ -5767,7 +5773,15 @@ function handleChatGPTResponse(file, responses) {
 }
 var allowPolling = true
 var isPollingTerminal = false
+var lastPolled = null
+var lastPollResponse = null
+var lastPollError = null
+// allow hangups and newSession
+
 function pollTerminals() {
+    lastPolled = new Date()
+    lastPollResponse = null
+    lastPollError = null
     if (!allowPolling) {
         // so we can manually disable polling
         return false
@@ -5783,6 +5797,7 @@ function pollTerminals() {
     }).then(r => {
         return r.json()
     }).then(wrapperR => {
+        lastPollResponse = new Date()
         // map of terminals and their payload and maybe meta info
         if (wrapperR.PasteBuffer) {
             copyBuffer = wrapperR.PasteBuffer.split("\n")
@@ -5954,6 +5969,7 @@ function pollTerminals() {
         // as a double check, in the polling code if there id a request
         // in-flight, don't poll again.
         // alert("polling error: " + e)
+        lastPollError = new Date()
         setTimeout(pollTerminals, 1)
     })
 }
@@ -12575,8 +12591,10 @@ function duplicateSelection() {
     // copy(true)
     ghostSelectionComment = fx.selectedRegions[0]
     // so the duplicate, comment flow also works
+    var oldCopyBuffer = copyBuffer
     copy()
     paste()
+    copyBuffer = oldCopyBuffer
 }
 function moveSelectionUp() {
     fx.cursorLineIndex -= 1
