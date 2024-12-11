@@ -24,6 +24,7 @@ type Request struct {
 	Body      []byte
 }
 
+
 type Response struct {
 	PollerName string
 	RequestID  string
@@ -31,22 +32,80 @@ type Response struct {
 	Header     map[string][]string
 	Body       []byte
 }
+write a Go function that will, given that response
+make the appropriate calls on w (an http.ResponseWriter)
+to send the response to the client
+
+
+// type Sync struct {
+//     mu sync.Mutex
+// }
+// 
+// sync.Run()
+
+
 
 type PollerProxyServer struct {
     PollerMu sync.Mutex
     PollerRequestID int
+    // PollerCond *sync.Cond
+	Requests map[string][]*Request
+	Responses map[string]*Response
 }
+
+func NewPollerProxyServer() {
+	pps := &PollerProxyServer{
+	    Requests: map[string][]*Request{}
+	    Responses: map[string][]*Response{}
+	}
+    // pps.PollerCond = sync.NewCond(&pps.PollerMu)
+	return pps
+}
+func (p *PollerProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	pollerMux := http.NewServeMux()
+
+	pollerMux.HandleFunc("/pollerProxy/provideResponse", func(w http.ResponseWriter, r *http.Request) {
+	})
+	pollerMux.HandleFunc("/pollerProxy/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
+		pathPrefix := r.FormValue("poller_name")
+	}
+	pollerMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.NotFound(w, r)
+	})
+	handlerMux = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// the pollers must have this header or else
+		pollerName := r.Header.Get("X-Poller-Key")
+		if pollerName == "" {
+			pollerMux.ServeHTTP(w, r)
+			return
+		}
+	}
+		
+		response := pps.WaitForResponse()
+		if response == nil {
+			w.WriteHeader(504)
+			fmt.Fprintf(w, "%s", "{}")
+			return
+		}
+		// Set the status code
+		w.WriteHeader(resp.StatusCode)
+ 
+		// Set the headers
+		for key, values := range resp.Header {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		// Write the body
+		w.Write(resp.Body)
+}
+
 
 // either subdomain, or path prefix
-func (p *PollerProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+
+func waitFor(time.Duration, f func() bool) {
     
 }
-generate a Request based on the http.Request
-come up with a random request id
-
-
-
-
 
 
 
@@ -58,12 +117,6 @@ func OldMain() {
 	
 	
 	// 📖📖📖📖📖📖📖📖📖📖📖📖
-	// single global mutex for everything.
-	var pollerMu sync.Mutex
-	var pollerRequestID = 0
-	pollerCond := sync.NewCond(&pollerMu)
-	var requestsForPolling = map[string][]*PolledRequest{}
-	var responsesForPolling = map[string]*PolledResponse{}
 
 	go func() {
 		for range time.NewTicker(1 * time.Second).C {
@@ -73,101 +126,94 @@ func OldMain() {
 
 	pollerMux := http.NewServeMux()
 
-	pollerMux.HandleFunc("/pollerResponse", func(w http.ResponseWriter, r *http.Request) {
-	
+	pollerMux.HandleFunc("/pollerProxy/provideResponse", func(w http.ResponseWriter, r *http.Request) {
 	})
-	pollerMux.HandleFunc("/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
-		// 👂👂👂👂👂👂
-
-		pathPrefix := ""
-		parts := strings.Split(r.URL.Path, "/")
-		if len(splits) >= 2 {
-			pathPrefix = parts[1] // because of leading slash
-		}
-
+	pollerMux.HandleFunc("/pollerProxy/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
 		pathPrefix := r.FormValue("poller_name")
-		pollerMu.Lock()
-		defer pollerMu.Unlock()
-		startWait := time.Now()
-		var prs = []*PolledRequest{}
-		for {
-			if time.Since(startWait) > (10 * time.Second) {
-				fmt.Fprintf(w, "%s", "{}")
-				return
-			}
-			prs = requestsForPolling[pathPrefix]
-			if len(prs) > 0 {
-				break
-			}
-			pollerCond.Wait()
-		}
-		pr := prs[0]
-		// prs = prs[1:]
-		// shift
-		copy(prs, prs[1:])
-		prs = prs[0 : len(prs)-1]
-		requestsForPolling[pathPrefix] = prs
-		// TODO: underlying array stays large, you could trim it at some point?
-		json.NewEncoder(w).Encode(pr)
+	}
+ 
+		
+		// pollerMu.Lock()
+		// defer pollerMu.Unlock()
+		// startWait := time.Now()
+		// var requests = []*request{}
+		// for {
+		// 	if time.Since(startWait) > (10 * time.Second) {
+		// 		fmt.Fprintf(w, "%s", "{}")
+		// 		return
+		// 	}
+		// 	requests = requestsForPolling[pathPrefix]
+		// 	if len(requests) > 0 {
+		// 		break
+		// 	}
+		// 	pollerCond.Wait()
+		// }
+		// pr := requests[0]
+		// copy(requests, requests[1:])
+		// requests = requests[0 : len(requests)-1]
+		// requestsForPolling[pathPrefix] = requests
+		// // TODO: underlying array stays large, you could trim it at some point?
+		// // or use a linked list or something
+		// json.NewEncoder(w).Encode(pr)
 	})
 
 	// 🙊🙊🙊🙊🙊🙊🙊🙊
-	handlerMux = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// the pollers must have this header or else
-		pollerName := r.Header.Get("X-Poller-Key")
-		if pollerName == "" {
-			pollerMux.ServeHTTP(w, r)
-			return
-		}
-
-		pollerMu.Lock()
-		pollerRequestID++
-		pollerMu.Unlock()
-
-		requestIDString := fmt.Sprintf("%d", pollerRequestID)
-		rBody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			logAndErr(w, "couldn't open file: %v", err)
-			return
-		}
-		polledRequest := &PolledRequest{
-			RequestID: requestIDString,
-			Method:    r.Method,
-			URL:       r.RequestURI,
-			Header:    r.Header,
-			Body:      rBody,
-		}
-		pollerMu.Lock()
-		requestsForPolling[pollerName] = append(requestsForPolling[pollerName], polledRequest)
-		pollerMu.Unlock()
-		// dead zone. need to unlock so that pollForRequests endpoint can get it and return it
-		pollerCond.Broadcast() // could have done this in lock
-		pollerMu.Lock()
-		defer pollerMu.Unlock()
-		startWait := time.Now()
-		var polledResponse *PolledResponse
-		for {
-			if time.Since(startWait) > (10 * time.Second) {
-				w.WriteHeader(504)
-				fmt.Fprintf(w, "%s", "{}")
-				return
-			}
-			polledResponse = responsesForPolling[requestIDString]
-			if polledResponse != nil {
-				break
-			}
-			pollerCond.Wait()
-		}
-		delete(responsesForPolling, requestIDString)
-
-		w.WriteHeader(polledResponse.StatusCode)
-		// add headers
-		for k, v := range polledResponse.Header {
-			w.Header().Set(k, v[0])
-		}
-		w.Write(polledResponse.Body)
-
-	})
+	// handlerMux = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 	// the pollers must have this header or else
+	// 	pollerName := r.Header.Get("X-Poller-Key")
+	// 	if pollerName == "" {
+	// 		pollerMux.ServeHTTP(w, r)
+	// 		return
+	// 	}
+ //
+	// 	pollerMu.Lock()
+	// 	pollerRequestID++
+	// 	pollerMu.Unlock()
+ //
+	// 	requestIDString := fmt.Sprintf("%d", pollerRequestID)
+	// 	rBody, err := ioutil.ReadAll(r.Body)
+	// 	if err != nil {
+	// 		logAndErr(w, "couldn't open file: %v", err)
+	// 		return
+	// 	}
+	// 	polledRequest := &PolledRequest{
+	// 		RequestID: requestIDString,
+	// 		Method:    r.Method,
+	// 		URL:       r.RequestURI,
+	// 		Header:    r.Header,
+	// 		Body:      rBody,
+	// 	}
+	// 	pollerMu.Lock()
+	// 	requestsForPolling[pollerName] = append(requestsForPolling[pollerName], polledRequest)
+	// 	pollerMu.Unlock()
+	// 	// dead zone. need to unlock so that pollForRequests endpoint can get it and return it
+	// 	pollerCond.Broadcast() // could have done this in lock
+	// 	pollerMu.Lock()
+	// 	defer pollerMu.Unlock()
+	// 	startWait := time.Now()
+	// 	var polledResponse *PolledResponse
+	// 	for {
+	// 		if time.Since(startWait) > (10 * time.Second) {
+	// 			w.WriteHeader(504)
+	// 			fmt.Fprintf(w, "%s", "{}")
+	// 			return
+	// 		}
+	// 		polledResponse = responsesForPolling[requestIDString]
+	// 		if polledResponse != nil {
+	// 			break
+	// 		}
+	// 		pollerCond.Wait()
+	// 	}
+	// 	delete(responsesForPolling, requestIDString)
+ //
+	// 	w.WriteHeader(polledResponse.StatusCode)
+	// 	// add headers
+	// 	for k, v := range polledResponse.Header {
+	// 		w.Header().Set(k, v[0])
+	// 	}
+	// 	w.Write(polledResponse.Body)
+ //
+	// })
 
 	certFile := os.Getenv("CERTFILE")
 	keyFile := os.Getenv("KEYFILE")
@@ -182,3 +228,11 @@ func OldMain() {
 
 	log.Fatal(httpsServer.ListenAndServeTLS(certFile, keyFile))
 }
+
+
+
+write some go code that implements an http server
+that does long polling
+it polls for
+
+
