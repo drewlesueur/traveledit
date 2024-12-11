@@ -5,6 +5,9 @@ import (
     "container/list"
     "encoding/json"
     "time"
+    "strings"
+    "io"
+    "strconv"
 )
 
 // client types, 
@@ -33,10 +36,19 @@ type Response struct {
 	Header     map[string][]string
 	Body       []byte
 }
-// write a Go function that will, given that response
-// make the appropriate calls on w (an http.ResponseWriter)
-// to send the response to the client
 
+func (resp *Response) ToResponseWriter(w http.ReponseWriter) {
+    // Set the status code
+    w.WriteHeader(resp.StatusCode)
+    // Set the headers
+    for key, values := range resp.Header {
+    	for _, value := range values {
+    		w.Header().Add(key, value)
+    	}
+    }
+    // Write the body
+    w.Write(resp.Body)
+}
 
 type EventLoop struct {
     Ch chan *Event
@@ -62,7 +74,7 @@ func (e *EventLoop) Dispatch(name string, data ...any) {
     }()
 }
 
-func (e *EventLoop) SetTimeout(d time.Duration, name string, data ...any) {
+func (e *EventLoop) SetTimeout(d time.Duration, name string, data ...any) int {
     e.TimerCount++
     event := &Event{
         Name: name,
@@ -74,6 +86,7 @@ func (e *EventLoop) SetTimeout(d time.Duration, name string, data ...any) {
     })
     // If timer already went off, the event loop handling will delete this
     e.Timeouts[event.TimerID] = t
+    return event.TimerID
 }
 func (e *EventLoop) ClearTimeout(t int) {
     timer := e.Timeouts[t]
@@ -91,8 +104,10 @@ type Event struct {
 type EventLoopRequest struct {
     Request *http.Request
     ResponseWriter http.ResponseWriter
+    ID int
     IsDone bool
     ch chan int
+    Timeout int
 }
 func NewEventLoopRequest(w http.ResponseWriter, r *http.Request) *EventLoopRequest {
     e := &EventLoopRequest{
@@ -113,10 +128,10 @@ func (e *EventLoopRequest) Wait() {
 
 type PollerProxyServer struct {
     EventLoop *EventLoop
-    PollerRequestID int
+    RequestCount int
 	Requests map[string]*list.List
-	Responses map[string]*list.List
 	PollingRequests map[string]*list.List
+	RequestsByID map[string]*EventLoopRequest
 }
 
 func NewPollerProxyServer() *PollerProxyServer {
@@ -126,15 +141,32 @@ func NewPollerProxyServer() *PollerProxyServer {
 	        Ch: make(chan *Event),
 	    },
 	    Requests: map[string]*list.List{},
-	    Responses: map[string]*list.List{},
 	    // Requesting the requests
 	    PollingRequests: map[string]*list.List{},
+	    RequestsByID: map[string]*EventLoopRequest{},
 	}
 	pps.EventLoop.Process = pps.Process
     go func() {
         pps.EventLoop.Start()
     }()
 	return pps
+}
+func (p *PollerProxyServer) HttpToCustomRequest(req *http.Request) (*Request, error) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	p.RequestCount++
+	customReq := &Request{
+		// RequestID: req.Header.Get("X-Request-ID"),
+		RequestID: strconv.Itoa(p.RequestCount),
+		Method:    req.Method,
+		URL:       req.URL.String(),
+		Header:    req.Header,
+		Body:      body,
+	}
+	
+	return customReq, nil
 }
 
 
@@ -158,11 +190,8 @@ func (p *PollerProxyServer) Process(e *Event) {
                 return
             }
             elrEl := p.AddPollingRequest(pathPrefix, elr)
-            p.EventLoop.SetTimeout(10 * time.Second, "http_request_timeout", pathPrefix, elrEl)
+            elr.Timeout := p.EventLoop.SetTimeout(10 * time.Second, "http_request_timeout", pathPrefix, elrEl)
         } else if r.URL.Path == "/pollerProxy/provideResponse" {
-            pollerName := r.FormValue("poller_name")
-            // TODO for security in future, add a mapping
-            pathPrefix := pollerName
             response := &Response{}
             err := json.NewDecoder(r.Body).Decode(response)
             if err != nil {
@@ -170,15 +199,31 @@ func (p *PollerProxyServer) Process(e *Event) {
                 elr.Done()
                 return
             }
-            p.AddResponse(pathPrefix, response)
+            correspondingElr := p.RequestsByID[response.RequestID]
+            p.EventLoop.ClearTimeout
+            response.ToResponseWriter(correspondingElr.ResponseWriter)
+        } else {
+            // requests from users
+            parts := strings.Split(r.URL.Path, "/")
+            pathPrefix := parts[1]
+            customRequest, err := p.HttpToCustomRequest(r)
+            if err != nil {
+                elr.ResponseWriter.WriteHeader(http.StatusBadRequest)
+                elr.Done()
+                return
+            }
+            p.Requests[pathPrefix].PushBack(customRequest)
+            p.RequestsByID[customRequest.RequestID] = elr
         }
     case "http_request_timeout":
         pathPrefix := e.Data[0].(string) // we could get this from the request if we want
         elrEl := e.Data[1].(*list.Element)
         elr := elrEl.Value.(*EventLoopRequest)
         p.PollingRequests[pathPrefix].Remove(elrEl)
-        elr.ResponseWriter.WriteHeader(http.StatusNoContent)
-        elr.Done()
+        if !elr.IsDone {
+            elr.ResponseWriter.WriteHeader(http.StatusNoContent)
+            elr.Done()
+        }
     }
 }
 
@@ -204,183 +249,9 @@ func (p *PollerProxyServer) AddRequest(pathPrefix string, v any) *list.Element {
     }
     return myList.PushBack(v)
 }
-func (p *PollerProxyServer) AddResponse(pathPrefix string, v any) *list.Element {
-    if p.Responses == nil {
-        p.Responses = map[string]*list.List{}
-    }
-    myList := p.Responses[pathPrefix]
-    if myList == nil {
-        myList = list.New()
-        p.Responses[pathPrefix] = myList
-    }
-    return myList.PushBack(v)
-}
-
 func (p *PollerProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	elr := NewEventLoopRequest(w, r)
 	p.EventLoop.Dispatch("http_request", elr)
 }
 	
-	// pollerMux := http.NewServeMux()
- //
-	// pollerMux.HandleFunc("/pollerProxy/provideResponse", func(w http.ResponseWriter, r *http.Request) {
-	// })
-	// pollerMux.HandleFunc("/pollerProxy/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
-	// 	pathPrefix := r.FormValue("poller_name")
-	// }
-	// pollerMux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	// 	http.NotFound(w, r)
-	// })
-	// handlerMux = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	// 	// the pollers must have this header or else
-	// 	pollerName := r.Header.Get("X-Poller-Key")
-	// 	if pollerName == "" {
-	// 		pollerMux.ServeHTTP(w, r)
-	// 		return
-	// 	}
-	// }
- //
-	// 	response := pps.WaitForResponse()
-	// 	if response == nil {
-	// 		w.WriteHeader(504)
-	// 		fmt.Fprintf(w, "%s", "{}")
-	// 		return
-	// 	}
-	// 	// Set the status code
-	// 	w.WriteHeader(resp.StatusCode)
- //
-	// 	// Set the headers
-	// 	for key, values := range resp.Header {
-	// 		for _, value := range values {
-	// 			w.Header().Add(key, value)
-	// 		}
-	// 	}
-	// 	// Write the body
-	// 	w.Write(resp.Body)
-// }
- //
-
-// either subdomain, or path prefix
-
-
-
-	// certFile := os.Getenv("CERTFILE")
-	// keyFile := os.Getenv("KEYFILE")
-	// httpsServer := &http.Server{
-	// 	Addr:         *serverAddress,
-	// 	ReadTimeout:  30 * time.Second,
-	// 	WriteTimeout: 30 * time.Second,
-	// 	Handler:      handlerMux,
-	// }
-	// log.Fatal(httpsServer.ListenAndServeTLS(certFile, keyFile))
-
-
-
-
-// func OldMain() {
-// 	pollerPairsString := os.getEnv("POLLER_PAIRS")
-// 	strings.Replace(pollerPairsString, ",","\n", -1)
-// 	pairs := strings.Split(pollerPairs, "\n")
-// 	
-// 	
-// 	// 📖📖📖📖📖📖📖📖📖📖📖📖
-// 
-// 	go func() {
-// 		for range time.NewTicker(1 * time.Second).C {
-// 			pollerCond.Broadcast()
-// 		}
-// 	}()
-// 
-// 	pollerMux := http.NewServeMux()
-// 
-// 	pollerMux.HandleFunc("/pollerProxy/provideResponse", func(w http.ResponseWriter, r *http.Request) {
-// 	})
-// 	pollerMux.HandleFunc("/pollerProxy/pollForRequests", func(w http.ResponseWriter, r *http.Request) {
-// 		pathPrefix := r.FormValue("poller_name")
-// 	}
- 
-		
-		// pollerMu.Lock()
-		// defer pollerMu.Unlock()
-		// startWait := time.Now()
-		// var requests = []*request{}
-		// for {
-		// 	if time.Since(startWait) > (10 * time.Second) {
-		// 		fmt.Fprintf(w, "%s", "{}")
-		// 		return
-		// 	}
-		// 	requests = requestsForPolling[pathPrefix]
-		// 	if len(requests) > 0 {
-		// 		break
-		// 	}
-		// 	pollerCond.Wait()
-		// }
-		// pr := requests[0]
-		// copy(requests, requests[1:])
-		// requests = requests[0 : len(requests)-1]
-		// requestsForPolling[pathPrefix] = requests
-		// // TODO: underlying array stays large, you could trim it at some point?
-		// // or use a linked list or something
-		// json.NewEncoder(w).Encode(pr)
-	// })
-
-	// 🙊🙊🙊🙊🙊🙊🙊🙊
-	// handlerMux = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	// 	// the pollers must have this header or else
-	// 	pollerName := r.Header.Get("X-Poller-Key")
-	// 	if pollerName == "" {
-	// 		pollerMux.ServeHTTP(w, r)
-	// 		return
-	// 	}
- //
-	// 	pollerMu.Lock()
-	// 	pollerRequestID++
-	// 	pollerMu.Unlock()
- //
-	// 	requestIDString := fmt.Sprintf("%d", pollerRequestID)
-	// 	rBody, err := ioutil.ReadAll(r.Body)
-	// 	if err != nil {
-	// 		logAndErr(w, "couldn't open file: %v", err)
-	// 		return
-	// 	}
-	// 	polledRequest := &PolledRequest{
-	// 		RequestID: requestIDString,
-	// 		Method:    r.Method,
-	// 		URL:       r.RequestURI,
-	// 		Header:    r.Header,
-	// 		Body:      rBody,
-	// 	}
-	// 	pollerMu.Lock()
-	// 	requestsForPolling[pollerName] = append(requestsForPolling[pollerName], polledRequest)
-	// 	pollerMu.Unlock()
-	// 	// dead zone. need to unlock so that pollForRequests endpoint can get it and return it
-	// 	pollerCond.Broadcast() // could have done this in lock
-	// 	pollerMu.Lock()
-	// 	defer pollerMu.Unlock()
-	// 	startWait := time.Now()
-	// 	var polledResponse *PolledResponse
-	// 	for {
-	// 		if time.Since(startWait) > (10 * time.Second) {
-	// 			w.WriteHeader(504)
-	// 			fmt.Fprintf(w, "%s", "{}")
-	// 			return
-	// 		}
-	// 		polledResponse = responsesForPolling[requestIDString]
-	// 		if polledResponse != nil {
-	// 			break
-	// 		}
-	// 		pollerCond.Wait()
-	// 	}
-	// 	delete(responsesForPolling, requestIDString)
- //
-	// 	w.WriteHeader(polledResponse.StatusCode)
-	// 	// add headers
-	// 	for k, v := range polledResponse.Header {
-	// 		w.Header().Set(k, v[0])
-	// 	}
-	// 	w.Write(polledResponse.Body)
- //
-	// })
-
-// }
 
