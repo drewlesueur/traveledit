@@ -177,6 +177,7 @@ func (p *PollerProxyServer) Process(e *Event) {
         elr := e.Data[0].(*EventLoopRequest)
         r := elr.Request
         if r.URL.Path == "/pollerProxy/pollForRequest" {
+            // #deepskyblue pollers asking for requests
             pollerName := r.FormValue("poller_name")
             // TODO for security in future, add a mapping
             pathPrefix := pollerName
@@ -192,6 +193,7 @@ func (p *PollerProxyServer) Process(e *Event) {
             elrEl := p.AddPollingRequest(pathPrefix, elr)
             elr.Timeout := p.EventLoop.SetTimeout(10 * time.Second, "http_request_timeout", pathPrefix, elrEl)
         } else if r.URL.Path == "/pollerProxy/provideResponse" {
+            // #deepskyblue pollers asking for requests
             response := &Response{}
             err := json.NewDecoder(r.Body).Decode(response)
             if err != nil {

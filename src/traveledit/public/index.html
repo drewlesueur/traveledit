@@ -3887,6 +3887,7 @@ function getCommentPrefix() {
         fx.fullPath.endsWith(".env") ||
         fx.fullPath.endsWith(".ch") ||
         fx.fullPath.endsWith(".graphqls") ||
+        fx.fullPath.endsWith(".graphql") ||
         fx.fullPath.split("/").slice(-1)[0].indexOf(".") == -1
     ) {
         // Special case hack for sql script
@@ -12654,6 +12655,17 @@ var navFileLeft = function() {
     } else {
         fileIndex = 0
     }
+    if (fileIndex > 0) {
+        // reusing moveHomeEndTimeout
+        moveHomeEndTimeout = setTimeout(function() {
+            fileIndex = fileIndex + 1
+            setCurrentFile(files[fileIndex])
+            moveFileAllTheWayLeft()
+            saveWorkspace()
+            // overflowX = 0
+        }, moveHomeEndTimeoutMillis)
+    }
+    
     if (fileIndex == -1) {
         seeFiles()
     } else {
