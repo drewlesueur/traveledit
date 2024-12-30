@@ -4,14 +4,37 @@ import (
     "fmt"
     "os"
     "strings"
+    "os/exec"
 )
 
 func popVal(state map[string]any) any {
     valStack := state["__valStack"].([]any)
     poppedValue := valStack[len(valStack)-1]
     state["__valStack"] = valStack[:len(valStack)-1]
+    argCount := state["__argCount"].(int)
+    if argCount > 0 {
+        // args are prefixed so se can use incr and set etc
+        state["__argCount"] = argCount - 1
+        return get(state, poppedValue.(string))
+    }
     return poppedValue
 }
+func popValRaw(state map[string]any) any {
+    valStack := state["__valStack"].([]any)
+    poppedValue := valStack[len(valStack)-1]
+    state["__valStack"] = valStack[:len(valStack)-1]
+    argCount := state["__argCount"].(int)
+    if argCount > 0 {
+        // args are prefixed so se can use incr and set etc
+        state["__argCount"] = argCount - 1
+    }
+    return poppedValue
+}
+
+func pushVal(state map[string]any, v any) {
+    state["__valStack"] = append(state["__valStack"].([]any), v)
+}
+
 func get(state map[string]any, field string) any {
     // TODO: parse out dot
     if field[0] == '\'' {
@@ -22,9 +45,19 @@ func get(state map[string]any, field string) any {
 
 var builtins = map[string]func(state map[string]any) {
     "say": func(state map[string]any) {
-        // fmt.Println(len(state["__valStack"].([]any)))
-        val := get(state, popVal(state).(string))
+        val := popVal(state).(string)
         fmt.Printf("%v\n", val)
+    },
+    "execBashCombined": func(state map[string]any) {
+        val := popVal(state).(string)
+        fmt.Printf("%v\n", val)
+
+        cmd := exec.Command("sh", "-c", val)
+        cmdOutput, err := cmd.CombinedOutput()
+        if err != nil {
+            panic(err)
+        }
+        pushVal(state, string(cmdOutput))
     },
 }
 
@@ -68,7 +101,7 @@ func main() {
         if token == "" {
             break
         }
-        // fmt.Printf("# token: %q\n", token)
+        fmt.Printf("# token: %q\n", token)
         // fmt.Printf("i: %d\n", i)
         // continue
         if token == "\n" {
@@ -85,7 +118,8 @@ func main() {
             state["__inCall"] = true
             state["__currFuncName"] = token
         } else {
-            state["__valStack"] = append(state["__valStack"].([]any), token)
+            // state["__valStack"] = append(state["__valStack"].([]any), token)
+            pushVal(state, token)
             state["__argCount"] = state["__argCount"].(int) + 1
         }
     }
@@ -134,8 +168,8 @@ func nextToken(code string, i int) (string, int) {
             case '"', '\'':
                 expectedQuoteEnd := string(code[i]) + code[start:i-1]
                 endIndex := strings.Index(code[i+1:], code[start:i])
-                token := code[i+1:i+1+endIndex]
-                return "'" + token, i + 1 + endIndex + len(expectedQuoteEnd) + 1
+                token := code[i+1:i+1+endIndex-1]
+                return "'" + token, i + 1 + endIndex + len(expectedQuoteEnd)
             default:
             }
         }
