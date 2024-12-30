@@ -6,6 +6,22 @@ execBashCombined %"
 say
 
 
+[set foo ]
+
+incr "foo.bar"
+
+let "foo" 100
+
+
+
+sleepMs 100
+
+# label "thing"
+# 
+# 
+# goto "thing"
+
+
 # how is everyone
 # 
 # ok (yo man)

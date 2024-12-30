@@ -8,31 +8,32 @@ import (
 )
 
 func popVal(state map[string]any) any {
+    // first shift from args
+    if len(state["__args"].([]any)) > 0 {
+        return shiftArgs(state)
+    }
+    // then popfrom stack
     valStack := state["__valStack"].([]any)
     poppedValue := valStack[len(valStack)-1]
     state["__valStack"] = valStack[:len(valStack)-1]
-    argCount := state["__argCount"].(int)
-    if argCount > 0 {
-        // args are prefixed so se can use incr and set etc
-        state["__argCount"] = argCount - 1
-        return get(state, poppedValue.(string))
-    }
-    return poppedValue
-}
-func popValRaw(state map[string]any) any {
-    valStack := state["__valStack"].([]any)
-    poppedValue := valStack[len(valStack)-1]
-    state["__valStack"] = valStack[:len(valStack)-1]
-    argCount := state["__argCount"].(int)
-    if argCount > 0 {
-        // args are prefixed so se can use incr and set etc
-        state["__argCount"] = argCount - 1
-    }
+
     return poppedValue
 }
 
 func pushVal(state map[string]any, v any) {
     state["__valStack"] = append(state["__valStack"].([]any), v)
+}
+func pushArgs(state map[string]any, v any) {
+    state["__args"] = append(state["__args"].([]any), v)
+}
+func shiftArgs(state map[string]any) any {
+    args := state["__args"].([]any)
+    if len(args) == 0 {
+        return nil
+    }
+    firstElement := args[0]
+    state["__args"] = args[1:]
+    return firstElement
 }
 
 func get(state map[string]any, field string) any {
@@ -44,6 +45,11 @@ func get(state map[string]any, field string) any {
 }
 
 var builtins = map[string]func(state map[string]any) map[string]any {
+    "(": func(state map[string]any) map[string]any {
+        val := popVal(state).(string)
+        fmt.Printf("%v\n", val)
+        return state
+    },
     "say": func(state map[string]any) map[string]any {
         val := popVal(state).(string)
         fmt.Printf("%v\n", val)
@@ -64,9 +70,16 @@ var builtins = map[string]func(state map[string]any) map[string]any {
 }
 
 func callFunc(state map[string]any) map[string]any {
-    fName := state["__currFuncName"].(string)[1:]
+    fName := state["__currFuncName"].(string)
+    if (fName == "") {
+        return state
+    }
+    fName = fName[1:]
     if f, ok := builtins[fName]; ok {
         newState := f(state)
+        state["__inCall"] = false
+        state["__args"] = []any{}
+        state["__currFuncName"] = ""
         return newState
     }
     return state
@@ -91,10 +104,10 @@ func main() {
     token := ""
     state := map[string]any{
         "__valStack": []any{},
+        "__args": []any{},
         // "__vars": map[string]any{},
         "__i": 0,
         "__inCall": false,
-        "__argCount": 0,
         "__currFuncName": "",
     }
 
@@ -108,14 +121,7 @@ func main() {
         // fmt.Printf("i: %d\n", i)
         // continue
         if token == "\n" {
-            if (state["__currFuncName"].(string) == "") {
-                continue
-            }
-            oldState := state
             callFunc(state)
-            oldState["__inCall"] = false
-            oldState["__argCount"] = 0
-            oldState["__currFuncName"] = ""
             continue
         }
         if !state["__inCall"].(bool) {
@@ -123,8 +129,7 @@ func main() {
             state["__currFuncName"] = token
         } else {
             // state["__valStack"] = append(state["__valStack"].([]any), token)
-            pushVal(state, token)
-            state["__argCount"] = state["__argCount"].(int) + 1
+            pushArgs(state, get(state, token))
         }
     }
 }
