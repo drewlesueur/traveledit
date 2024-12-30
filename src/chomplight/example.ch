@@ -1111,3 +1111,6 @@ if (x | is 3)
 end
 
 x + (3)
+
+
+if (is(), and [has 3 x])
