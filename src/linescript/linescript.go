@@ -21,16 +21,20 @@ func get(state map[string]any, field string) any {
 }
 
 var builtins = map[string]func(state map[string]any) {
-    "get": func(state map[string]any) {
-    },
     "say": func(state map[string]any) {
+        // fmt.Println(len(state["__valStack"].([]any)))
         val := get(state, popVal(state).(string))
-        fmt.Println(val)
+        fmt.Printf("%v\n", val)
     },
 }
 
 func callFunc(state map[string]any) {
-    
+    fName := state["__currFuncName"].(string)[1:]
+    // fmt.Println("# func name:", fName)
+    if f, ok := builtins[fName]; ok {
+        f(state)
+        return
+    }
 }
 
 func main() {
@@ -45,7 +49,7 @@ func main() {
         fmt.Println("Error reading file:", err)
         return
     }
-    fmt.Println(string(data))
+    // fmt.Println(string(data))
     code := string(data)
 
     i := 0
@@ -64,18 +68,22 @@ func main() {
         if token == "" {
             break
         }
-        fmt.Printf("token: %q\n", token)
-        fmt.Printf("i: %d\n", i)
-        continue
+        // fmt.Printf("# token: %q\n", token)
+        // fmt.Printf("i: %d\n", i)
+        // continue
         if token == "\n" {
+            if (state["__currFuncName"].(string) == "") {
+                continue
+            }
             callFunc(state)
             state["__inCall"] = false
             state["__argCount"] = 0
+            state["__currFuncName"] = ""
             continue
         }
-        if state["__inCall"].(bool) {
+        if !state["__inCall"].(bool) {
             state["__inCall"] = true
-            state["__curFuncName"] = token
+            state["__currFuncName"] = token
         } else {
             state["__valStack"] = append(state["__valStack"].([]any), token)
             state["__argCount"] = state["__argCount"].(int) + 1
