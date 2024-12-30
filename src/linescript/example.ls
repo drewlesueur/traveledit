@@ -6,15 +6,15 @@ execBashCombined %"
 say
 
 
-[set foo ]
+# [set foo ]
+# incr foo.bar
 
-incr "foo.bar"
+let foo 100
+say foo
 
-let "foo" 100
+# sleepMs 100
 
 
-
-sleepMs 100
 
 # label "thing"
 # 

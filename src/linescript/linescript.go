@@ -5,9 +5,22 @@ import (
     "os"
     "strings"
     "os/exec"
+	"strconv"
 )
 
 func popVal(state map[string]any) any {
+    // first shift from args
+    if len(state["__args"].([]any)) > 0 {
+        return get(state, shiftArgs(state).(string))
+    }
+    // then popfrom stack
+    valStack := state["__valStack"].([]any)
+    poppedValue := valStack[len(valStack)-1]
+    state["__valStack"] = valStack[:len(valStack)-1]
+
+    return poppedValue
+}
+func popValRaw(state map[string]any) any {
     // first shift from args
     if len(state["__args"].([]any)) > 0 {
         return shiftArgs(state)
@@ -41,8 +54,21 @@ func get(state map[string]any, field string) any {
     if field[0] == '\'' {
         return field[1:]
     }
-    return state[field[1:]]
+    
+    if field[0] == '#' {
+        // for numbers
+        return field[1:]
+    }
+
+    name := field[1:]
+    return state[name]
 }
+
+func isNumeric(s string) bool {
+	_, err := strconv.ParseFloat(s, 64)
+	return err == nil
+}
+
 
 var builtins = map[string]func(state map[string]any) map[string]any {
     "(": func(state map[string]any) map[string]any {
@@ -53,6 +79,13 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "say": func(state map[string]any) map[string]any {
         val := popVal(state).(string)
         fmt.Printf("%v\n", val)
+        return state
+    },
+    "let": func(state map[string]any) map[string]any {
+        varName := popValRaw(state).(string)[1:]
+        val := popVal(state)
+        state[varName] = val
+        fmt.Printf("setting %s to %v\n", varName, val)
         return state
     },
     "execBashCombined": func(state map[string]any) map[string]any {
@@ -129,7 +162,8 @@ func main() {
             state["__currFuncName"] = token
         } else {
             // state["__valStack"] = append(state["__valStack"].([]any), token)
-            pushArgs(state, get(state, token))
+            // pushArgs(state, get(state, token))
+            pushArgs(state, token)
         }
     }
 }
@@ -169,11 +203,11 @@ func nextToken(code string, i int) (string, int) {
         case "in":
             switch b {
             case '{', '}', '(', ')', '[', ']':
-                return "$" + code[start:i], i
+                return makeToken(code[start:i]), i
             case ',', '\n':
-                return "$" + code[start:i], i
+                return makeToken(code[start:i]), i
             case ' ', '\t', '\r':
-                return "$" + code[start:i], i+1
+                return makeToken(code[start:i]), i+1
             case '"', '\'':
                 expectedQuoteEnd := string(code[i]) + code[start:i-1]
                 endIndex := strings.Index(code[i+1:], code[start:i])
@@ -184,7 +218,17 @@ func nextToken(code string, i int) (string, int) {
         }
     }
     if state == "in" {
-        return "$" + code[start:i], i+1
+        return makeToken(code[start:i]), i+1
     }
     return "", -1
+}
+
+// 'a string
+// $var_name
+// #300
+func makeToken(val string) string {
+    if isNumeric(val) {
+        return "#" + val
+    }
+    return "$" + val
 }
