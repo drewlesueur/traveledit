@@ -8,7 +8,7 @@ import (
 	"strconv"
 )
 
-func popVal(state map[string]any) any {
+func popVal_(state map[string]any) any {
     // first shift from args
     if len(state["__args"].([]any)) > 0 {
         return get(state, shiftArgs(state).(string))
@@ -20,7 +20,7 @@ func popVal(state map[string]any) any {
 
     return poppedValue
 }
-func popValRaw(state map[string]any) any {
+func popVal(state map[string]any) any {
     // first shift from args
     if len(state["__args"].([]any)) > 0 {
         return shiftArgs(state)
@@ -71,10 +71,31 @@ func isNumeric(s string) bool {
 
 
 var builtins = map[string]func(state map[string]any) map[string]any {
-    "(": func(state map[string]any) map[string]any {
-        val := popVal(state).(string)
-        fmt.Printf("%v\n", val)
-        return state
+    // "(": func(state map[string]any) map[string]any {
+    //     val := popVal(state).(string)
+    //     fmt.Printf("%v\n", val)
+    //     return state
+    // },
+    "[": func(state map[string]any) map[string]any {
+        newState := map[string]any{
+            "__valStack": []any{},
+            "__args": []any{},
+            "__i": state["__i"],
+            "__inCall": false,
+            "__currFuncName": "",
+            "__mode": "array",
+            "__parent": state,
+        }
+        return newState
+    },
+    "]": func(state map[string]any) map[string]any {
+        parentState := state["__parent"].(map[string]any)
+        if !parentState["__inCall"].(bool) {
+            pushVal(parentState, state["__valStack"])
+        } else {
+            pushArgs(parentState, state["__valStack"])
+        }
+        return parentState
     },
     "say": func(state map[string]any) map[string]any {
         val := popVal(state).(string)
@@ -82,7 +103,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
         return state
     },
     "let": func(state map[string]any) map[string]any {
-        varName := popValRaw(state).(string)[1:]
+        varName := popVal(state).(string)
         val := popVal(state)
         state[varName] = val
         fmt.Printf("setting %s to %v\n", varName, val)
@@ -142,6 +163,7 @@ func main() {
         "__i": 0,
         "__inCall": false,
         "__currFuncName": "",
+        "__mode": "normal", // object, array
     }
 
     for j := 0; j < 1000; j++ {
@@ -153,17 +175,25 @@ func main() {
         fmt.Printf("# token: %q\n", token)
         // fmt.Printf("i: %d\n", i)
         // continue
-        if token == "\n" {
-            callFunc(state)
-            continue
-        }
-        if !state["__inCall"].(bool) {
-            state["__inCall"] = true
-            state["__currFuncName"] = token
-        } else {
-            // state["__valStack"] = append(state["__valStack"].([]any), token)
-            // pushArgs(state, get(state, token))
-            pushArgs(state, token)
+
+        if state["__mode"].(string) == "normal" {
+            if token == "\n" {
+                callFunc(state)
+                continue
+            }
+            if !state["__inCall"].(bool) {
+                state["__inCall"] = true
+                state["__currFuncName"] = token
+            } else {
+                // state["__valStack"] = append(state["__valStack"].([]any), token)
+                // pushArgs(state, get(state, token))
+                pushArgs(state, get(state, token))
+            }
+        } else if state["__mode"].(string) == "array" {
+            if token == "\n" {
+                continue
+            }
+            pushVal(state, get(state, token))
         }
     }
 }
