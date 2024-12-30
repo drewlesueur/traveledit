@@ -43,12 +43,13 @@ func get(state map[string]any, field string) any {
     return state[field[1:]]
 }
 
-var builtins = map[string]func(state map[string]any) {
-    "say": func(state map[string]any) {
+var builtins = map[string]func(state map[string]any) map[string]any {
+    "say": func(state map[string]any) map[string]any {
         val := popVal(state).(string)
         fmt.Printf("%v\n", val)
+        return state
     },
-    "execBashCombined": func(state map[string]any) {
+    "execBashCombined": func(state map[string]any) map[string]any {
         val := popVal(state).(string)
         fmt.Printf("%v\n", val)
 
@@ -58,16 +59,17 @@ var builtins = map[string]func(state map[string]any) {
             panic(err)
         }
         pushVal(state, string(cmdOutput))
+        return state
     },
 }
 
-func callFunc(state map[string]any) {
+func callFunc(state map[string]any) map[string]any {
     fName := state["__currFuncName"].(string)[1:]
-    // fmt.Println("# func name:", fName)
     if f, ok := builtins[fName]; ok {
-        f(state)
-        return
+        newState := f(state)
+        return newState
     }
+    return state
 }
 
 func main() {
@@ -89,6 +91,7 @@ func main() {
     token := ""
     state := map[string]any{
         "__valStack": []any{},
+        // "__vars": map[string]any{},
         "__i": 0,
         "__inCall": false,
         "__argCount": 0,
@@ -108,10 +111,11 @@ func main() {
             if (state["__currFuncName"].(string) == "") {
                 continue
             }
+            oldState := state
             callFunc(state)
-            state["__inCall"] = false
-            state["__argCount"] = 0
-            state["__currFuncName"] = ""
+            oldState["__inCall"] = false
+            oldState["__argCount"] = 0
+            oldState["__currFuncName"] = ""
             continue
         }
         if !state["__inCall"].(bool) {

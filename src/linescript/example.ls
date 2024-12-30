@@ -1,8 +1,8 @@
 say "hello world"
 
-execBashCombined code"
+execBashCombined %"
     date
-"code
+"%
 say
 
 
