@@ -10,9 +10,9 @@ import (
 )
 
 func popVal_(state map[string]any) any {
-    // first shift from args
+    // first pop from args
     if len(state["__args"].([]any)) > 0 {
-        return get(state, shiftArgs(state).(string))
+        return get(state, popArgs(state).(string))
     }
     // then popfrom stack
     valStack := state["__valStack"].([]any)
@@ -23,9 +23,9 @@ func popVal_(state map[string]any) any {
 }
 
 func popVal(state map[string]any) any {
-    // first shift from args
+    // first pop from args
     if len(state["__args"].([]any)) > 0 {
-        return shiftArgs(state)
+        return popArgs(state)
     }
     // then popfrom stack
     valStack := state["__valStack"].([]any)
@@ -53,6 +53,17 @@ func shiftArgs(state map[string]any) any {
     return firstElement
 }
 
+func popArgs(state map[string]any) any {
+    args := state["__args"].([]any)
+    if len(args) == 0 {
+        return nil
+    }
+    lastIndex := len(args) - 1
+    lastElement := args[lastIndex]
+    state["__args"] = args[:lastIndex]
+    return lastElement
+}
+
 func get(state map[string]any, field string) any {
     // TODO: parse out dot
     if field[0] == '\'' {
@@ -65,8 +76,21 @@ func get(state map[string]any, field string) any {
     }
 
     name := field[1:]
-    return state["__vars"].(map[string]any)[name]
+    var ok bool
+    for {
+        vars := state["__vars"].(map[string]any)
+        if val, ok := vars[name]; ok {
+            return val
+        }
+        state, ok = state["__lexicalParent"].(map[string]any)
+        if !ok {
+            return nil
+        }
+    }
+    return nil
+    // return state["__vars"].(map[string]any)[name]
 }
+
 
 func isNumeric(s string) bool {
 	_, err := strconv.ParseFloat(s, 64)
@@ -118,8 +142,14 @@ var builtins = map[string]func(state map[string]any) map[string]any {
         // will be different for if
         return state["__callingParent"].(map[string]any)
     },
+    "cc": func(state map[string]any) map[string]any {
+        b := popVal(state).(string)
+        a := popVal(state).(string)
+        pushVal(state, a + b)
+        return state
+    },
     "def": func(state map[string]any) map[string]any {
-        funcName := popVal(state).(string)
+        funcName := shiftArgs(state).(string)
         state["__vars"].(map[string]any)[funcName] = map[string]any{
             "__fileIndex": state["__fileIndex"],
             "__i": state["__i"],
@@ -190,8 +220,8 @@ var builtins = map[string]func(state map[string]any) map[string]any {
         return state
     },
     "let": func(state map[string]any) map[string]any {
-        varName := popVal(state).(string)
         val := popVal(state)
+        varName := popVal(state).(string)
         state["__vars"].(map[string]any)[varName] = val
         return state
     },

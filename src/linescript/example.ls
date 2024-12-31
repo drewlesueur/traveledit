@@ -7,9 +7,17 @@ execBashCombined %"
 say
 
 def "greet" "name"
-    say "in greet!"
-    say name
+    cc "Hello " name
+    say
 end
+
+# def "incrr"
+#     let "x" 0
+#     def "incr"
+#         let "x" ()
+#     end
+#     return incr
+# end
 
 say "ok cool"
 
