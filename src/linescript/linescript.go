@@ -240,11 +240,6 @@ var endFuncs = map[string]func(map[string]any, map[string]any) map[string]any {
     },
 }
 var builtins = map[string]func(state map[string]any) map[string]any {
-    // "(": func(state map[string]any) map[string]any {
-    //     val := popVal(state).(string)
-    //     fmt.Printf("%v\n", val)
-    //     return state
-    // },
     "+": func(state map[string]any) map[string]any {
         b := popVal(state).(float64)
         a := popVal(state).(float64)
@@ -452,7 +447,7 @@ func callFunc(state map[string]any) map[string]any {
 }
 
 func getCode(state map[string]any) string {
-    return state["__files"].([]any)[state["__fileIndex"].(int)].(map[string]any)["code"].(string)
+    return (*(state["__files"].(*[]any)))[state["__fileIndex"].(int)].(map[string]any)["code"].(string)
 }
 
 func main() {
@@ -473,7 +468,7 @@ func main() {
     token := ""
     // stateCreation
     state := map[string]any{
-        "__files": []any{
+        "__files": &[]any{
             map[string]any{
                 "fullPath": fileName,
                 "code": code,
