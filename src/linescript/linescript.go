@@ -12,45 +12,14 @@ import (
 
 func popVal(state map[string]any) any {
     // first pop from args
-    if len(state["__args"].([]any)) > 0 {
-        return popArgs(state)
+    if length(state["__args"]) > 0 {
+        return pop(state["__args"])
     }
-    // then popfrom stack
-    valStack := state["__valStack"].([]any)
-    poppedValue := valStack[len(valStack)-1]
-    state["__valStack"] = valStack[:len(valStack)-1]
-
-    return poppedValue
+    // then pop from stack
+    return pop(state["__valStack"])
 }
 
-func pushVal(state map[string]any, v any) {
-    state["__valStack"] = append(state["__valStack"].([]any), v)
-}
 
-func pushArgs(state map[string]any, v any) {
-    state["__args"] = append(state["__args"].([]any), v)
-}
-
-func shiftArgs(state map[string]any) any {
-    args := state["__args"].([]any)
-    if len(args) == 0 {
-        return nil
-    }
-    firstElement := args[0]
-    state["__args"] = args[1:]
-    return firstElement
-}
-
-func popArgs(state map[string]any) any {
-    args := state["__args"].([]any)
-    if len(args) == 0 {
-        return nil
-    }
-    lastIndex := len(args) - 1
-    lastElement := args[lastIndex]
-    state["__args"] = args[:lastIndex]
-    return lastElement
-}
 
 func get(state map[string]any, field string) any {
     // TODO: parse out dot
@@ -125,6 +94,37 @@ func unshift(slice any, value any) {
 	}
 }
 
+func splice(slice any, start int, deleteCount int, elements ...any) []any {
+	if s, ok := slice.(*[]any); ok {
+		if start < 0 {
+			start = len(*s) + start
+		}
+		if start < 0 {
+			start = 0
+		}
+		if start > len(*s) {
+			start = len(*s)
+		}
+		if deleteCount < 0 {
+			deleteCount = 0
+		}
+		if start+deleteCount > len(*s) {
+			deleteCount = len(*s) - start
+		}
+		removed := (*s)[start : start+deleteCount]
+		*s = append(append((*s)[:start], elements...), (*s)[start+deleteCount:]...)
+		return removed
+	}
+	return nil
+}
+
+func length(slice any) int {
+	if s, ok := slice.(*[]any); ok {
+		return len(*s)
+	}
+	return 0
+}
+
 func getPrevIndentRaw(code string, i int) string {
     lastNonSpace := i
     loopy:
@@ -171,7 +171,7 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
             "__valStack": state["__valStack"],
             "__endStack": &[]any{},
             "__vars": map[string]any{},
-            "__args": []any{},
+            "__args": &[]any{},
             "__i": state["__i"],
             "__currFuncName": "",
             "__mode": "normal",
@@ -184,12 +184,12 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
         state = callFunc(state)
         parentState := state["__lexicalParent"].(map[string]any)
         if parentState["__currFuncName"].(string) == "" {
-            for _, val := range state["__valStack"].([]any) {
-                pushVal(parentState, val)
+            for _, val := range *(state["__valStack"].(*[]any)) {
+                push(parentState["__valStack"], val)
             }
         } else {
-            for _, val := range state["__valStack"].([]any) {
-                pushArgs(parentState, val)
+            for _, val := range *(state["__valStack"].(*[]any)) {
+                push(parentState["__args"], val)
             }
         }
         parentState["__i"] = state["__i"]
@@ -200,10 +200,10 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
         newState := map[string]any{
             "__files": state["__files"],
             "__fileIndex": state["__fileIndex"],
-            "__valStack": []any{},
+            "__valStack": &[]any{},
             "__endStack": &[]any{},
             "__vars": map[string]any{},
-            "__args": []any{},
+            "__args": &[]any{},
             "__i": state["__i"],
             "__currFuncName": "",
             "__mode": "array",
@@ -215,9 +215,9 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
     "]": func(state map[string]any) map[string]any {
         parentState := state["__lexicalParent"].(map[string]any)
         if parentState["__currFuncName"].(string) == "" {
-            pushVal(parentState, state["__valStack"])
+            push(parentState["__valStack"], state["__valStack"])
         } else {
-            pushArgs(parentState, state["__valStack"])
+            push(parentState["__args"], state["__valStack"])
         }
         parentState["__i"] = state["__i"]
         return parentState
@@ -248,7 +248,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "+": func(state map[string]any) map[string]any {
         b := popVal(state).(float64)
         a := popVal(state).(float64)
-        pushVal(state, a + b)
+        push(state["__valStack"], a + b)
         return state
     },
     "if": func(state map[string]any) map[string]any {
@@ -278,8 +278,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     },
     // "loopN": 
     "end": func(state map[string]any) map[string]any {
-        endStack := state["__endStack"].(*[]any)
-        if len(*endStack) == 0 {
+        if length(state["__endStack"]) == 0 {
             return state["__callingParent"].(map[string]any)
         }
 
@@ -296,30 +295,30 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "return": func(state map[string]any) map[string]any {
         // will be different for if
         parentState := state["__callingParent"].(map[string]any)
-        for _, val := range state["__args"].([]any) {
-            pushVal(parentState, val)
+        for _, val := range *(state["__args"].(*[]any)) {
+            push(parentState["__valStack"], val)
         }
         return parentState
     },
     "is": func(state map[string]any) map[string]any {
         b := popVal(state)
         a := popVal(state)
-        pushVal(state, a == b)
+        push(state["__valStack"], a == b)
         return state
     },
     "put": func(state map[string]any) map[string]any {
         a := popVal(state)
-        pushVal(state, a)
+        push(state["__valStack"], a)
         return state
     },
     "cc": func(state map[string]any) map[string]any {
         b := popVal(state).(string)
         a := popVal(state).(string)
-        pushVal(state, a + b)
+        push(state["__valStack"], a + b)
         return state
     },
     "def": func(state map[string]any) map[string]any {
-        funcName := shiftArgs(state).(string)
+        funcName := shift(state["__args"]).(string)
         state["__vars"].(map[string]any)[funcName] = map[string]any{
             "__fileIndex": state["__fileIndex"],
             "__i": state["__i"],
@@ -347,7 +346,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
         // fmt.Printf("wanting to find: %q\n", indent + "end")
         i := findNext(state, []string{"\n" + indent + "end"})
         state["__i"] = i
-        pushVal(state, f)
+        push(state["__valStack"], f)
         return state
     },
     "say": func(state map[string]any) map[string]any {
@@ -362,7 +361,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
             } else {
                 fmt.Println(string(jsonData))
             }
-        case []any:
+        case *[]any:
             jsonData, err := json.MarshalIndent(val, "", "    ")
             if err != nil {
                 panic(err)
@@ -370,6 +369,8 @@ var builtins = map[string]func(state map[string]any) map[string]any {
                 fmt.Println(string(jsonData))
             }
         case float64:
+            fmt.Printf("%v\n", val)
+        case int:
             fmt.Printf("%v\n", val)
         case bool:
             fmt.Printf("%t\n", val)
@@ -396,7 +397,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
         if err != nil {
             panic(err)
         }
-        pushVal(state, string(cmdOutput))
+        push(state["__valStack"], string(cmdOutput))
         return state
     },
 }
@@ -409,7 +410,7 @@ func callFunc(state map[string]any) map[string]any {
     fName := fNameToken[1:]
     if f, ok := builtins[fName]; ok {
         newState := f(state)
-        state["__args"] = []any{}
+        state["__args"] = &[]any{}
         state["__currFuncName"] = ""
         return newState
     }
@@ -417,19 +418,19 @@ func callFunc(state map[string]any) map[string]any {
     internalFunc, ok := get(state, fNameToken).(map[string]any)
     if ok {
         // stateCreation
-        args := state["__args"].([]any)
-        params := internalFunc["__params"].([]any)
+        args := *(state["__args"].(*[]any))
+        params := *(internalFunc["__params"].(*[]any))
         
         
-        state["__args"] = []any{}
+        state["__args"] = &[]any{}
         state["__currFuncName"] = ""
         newState := map[string]any{
             "__files": state["__files"],
             "__fileIndex": internalFunc["__fileIndex"],
-            "__valStack": []any{},
+            "__valStack": &[]any{},
             "__endStack": &[]any{},
             "__vars": map[string]any{},
-            "__args": []any{},
+            "__args": &[]any{},
             "__i": internalFunc["__i"],
             "__currFuncName": "",
             "__mode": "normal",
@@ -444,7 +445,7 @@ func callFunc(state map[string]any) map[string]any {
         return newState
     } else {
         fmt.Println("Func not found:", fName)
-        state["__args"] = []any{}
+        state["__args"] = &[]any{}
         state["__currFuncName"] = ""
     }
     return state
@@ -479,9 +480,9 @@ func main() {
             },
         },
         "__fileIndex": 0,
-        "__valStack": []any{},
+        "__valStack": &[]any{},
         "__endStack": &[]any{},
-        "__args": []any{},
+        "__args": &[]any{},
         "__vars": map[string]any{},
         "__i": 0,
         "__currFuncName": "",
@@ -513,14 +514,14 @@ func main() {
             if state["__currFuncName"].(string) == "" {
                 state["__currFuncName"] = token
             } else {
-                pushArgs(state, get(state, token))
+                push(state["__args"], get(state, token))
             }
         } else if state["__mode"].(string) == "array" {
             switch token {
             case "\n":
                 continue
             }
-            pushVal(state, get(state, token))
+            push(state["__valStack"], get(state, token))
         } else if state["__mode"].(string) == "object" {
             switch token {
             case "\n":
