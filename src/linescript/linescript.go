@@ -9,18 +9,6 @@ import (
 	"encoding/json"
 )
 
-func popVal_(state map[string]any) any {
-    // first pop from args
-    if len(state["__args"].([]any)) > 0 {
-        return get(state, popArgs(state).(string))
-    }
-    // then popfrom stack
-    valStack := state["__valStack"].([]any)
-    poppedValue := valStack[len(valStack)-1]
-    state["__valStack"] = valStack[:len(valStack)-1]
-
-    return poppedValue
-}
 
 func popVal(state map[string]any) any {
     // first pop from args
@@ -106,6 +94,37 @@ func getPrevIndent(state map[string]any) string {
     return getPrevIndentRaw(getCode(state), state["__i"].(int) - 2)
 }
 
+
+func push(slice any, value any) {
+	if s, ok := slice.(*[]any); ok {
+		*s = append(*s, value)
+	}
+}
+
+func pop(slice any) any {
+	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
+		val := (*s)[len(*s)-1]
+		*s = (*s)[:len(*s)-1]
+		return val
+	}
+	return nil
+}
+
+func shift(slice any) any {
+	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
+		val := (*s)[0]
+		*s = (*s)[1:]
+		return val
+	}
+	return nil
+}
+
+func unshift(slice any, value any) {
+	if s, ok := slice.(*[]any); ok {
+		*s = append([]any{value}, *s...)
+	}
+}
+
 func getPrevIndentRaw(code string, i int) string {
     lastNonSpace := i
     loopy:
@@ -142,6 +161,7 @@ func findNext(state map[string]any, things []string) int {
     return minDiff + i + len(things[closestIndex])
 }
     
+    
 var tokenFuncs = map[string]func(state map[string]any) map[string]any {
     "(": func(state map[string]any) map[string]any {
         // stateCreation
@@ -149,7 +169,7 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
             "__files": state["__files"],
             "__fileIndex": state["__fileIndex"],
             "__valStack": state["__valStack"],
-            "__endStack": []any{},
+            "__endStack": &[]any{},
             "__vars": map[string]any{},
             "__args": []any{},
             "__i": state["__i"],
@@ -181,7 +201,7 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
             "__files": state["__files"],
             "__fileIndex": state["__fileIndex"],
             "__valStack": []any{},
-            "__endStack": []any{},
+            "__endStack": &[]any{},
             "__vars": map[string]any{},
             "__args": []any{},
             "__i": state["__i"],
@@ -233,7 +253,10 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     },
     "if": func(state map[string]any) map[string]any {
         cond := popVal(state)
-        state["__endStack"] = append(state["__endStack"].([]any), map[string]any{
+        // state["__endStack"] = append(state["__endStack"].([]any), map[string]any{
+        //     "type": "if",
+        // })
+        push(state["__endStack"], map[string]any{
             "type": "if",
         })
         if cond.(bool) == true {
@@ -255,18 +278,19 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     },
     // "loopN": 
     "end": func(state map[string]any) map[string]any {
-        endStack := state["__endStack"].([]any)
-        if len(endStack) == 0 {
+        endStack := state["__endStack"].(*[]any)
+        if len(*endStack) == 0 {
             return state["__callingParent"].(map[string]any)
         }
-        
-        endInfo := endStack[len(endStack)-1].(map[string]any)
-        state["__endStack"] = endStack[:len(endStack)-1]
+
+        // endInfo := endStack[len(endStack)-1].(map[string]any)
+        // state["__endStack"] = endStack[:len(endStack)-1]
+        endInfo := pop(state["__endStack"]).(map[string]any)
         endFunc, ok := endFuncs[endInfo["type"].(string)]
         if ok {
             return endFunc(endInfo, state)
         }
-        
+
         return state
     },
     "return": func(state map[string]any) map[string]any {
@@ -403,7 +427,7 @@ func callFunc(state map[string]any) map[string]any {
             "__files": state["__files"],
             "__fileIndex": internalFunc["__fileIndex"],
             "__valStack": []any{},
-            "__endStack": []any{},
+            "__endStack": &[]any{},
             "__vars": map[string]any{},
             "__args": []any{},
             "__i": internalFunc["__i"],
@@ -456,7 +480,7 @@ func main() {
         },
         "__fileIndex": 0,
         "__valStack": []any{},
-        "__endStack": []any{},
+        "__endStack": &[]any{},
         "__args": []any{},
         "__vars": map[string]any{},
         "__i": 0,
