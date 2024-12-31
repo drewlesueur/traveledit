@@ -1,3 +1,4 @@
+#!/usr/bin/env go run linescript.go
 say "hello world"
 
 execBashCombined %"
@@ -5,9 +6,17 @@ execBashCombined %"
 "%
 say
 
+def "greet" "name"
+    say "in greet!"
+    say name
+end
 
-# [set foo ]
-# incr foo.bar
+say "ok cool"
+
+# say greet
+
+greet "Drew"
+
 
 let "foo" 100
 say foo

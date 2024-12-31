@@ -4209,7 +4209,7 @@ function runScript() {
         })
         return
     }
-    if (isWholeFile && fx.fullPath.endsWith(".sh")) {
+    if (isWholeFile && (fx.fullPath.endsWith(".sh") || fx.fullPath.endsWith(".ls"))) {
         let filename = fx.fullPath.split("/").slice(-1)
         addTerminalTab()
         fx.terminalLoadPromise.then(function () {

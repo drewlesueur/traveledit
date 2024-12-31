@@ -6,6 +6,7 @@ import (
     "strings"
     "os/exec"
 	"strconv"
+	"encoding/json"
 )
 
 func popVal_(state map[string]any) any {
@@ -20,6 +21,7 @@ func popVal_(state map[string]any) any {
 
     return poppedValue
 }
+
 func popVal(state map[string]any) any {
     // first shift from args
     if len(state["__args"].([]any)) > 0 {
@@ -36,9 +38,11 @@ func popVal(state map[string]any) any {
 func pushVal(state map[string]any, v any) {
     state["__valStack"] = append(state["__valStack"].([]any), v)
 }
+
 func pushArgs(state map[string]any, v any) {
     state["__args"] = append(state["__args"].([]any), v)
 }
+
 func shiftArgs(state map[string]any) any {
     args := state["__args"].([]any)
     if len(args) == 0 {
@@ -54,14 +58,14 @@ func get(state map[string]any, field string) any {
     if field[0] == '\'' {
         return field[1:]
     }
-    
+
     if field[0] == '#' {
         // for numbers
         return field[1:]
     }
 
     name := field[1:]
-    return state[name]
+    return state["__vars"].(map[string]any)[name]
 }
 
 func isNumeric(s string) bool {
@@ -69,6 +73,40 @@ func isNumeric(s string) bool {
 	return err == nil
 }
 
+func getPrevIndent(code string, i int) string {
+    lastNonSpace := i
+    loopy:
+    for i = i; i >= 0; i-- {
+        chr := code[i]
+        switch chr {
+        case '\n':
+            i++
+            break loopy
+        case ' ', '\t':
+        default:
+            lastNonSpace = i
+        }
+    }
+    return code[i:lastNonSpace]
+}
+
+func findNext(state map[string]any, things []string) int {
+    code := getCode(state)
+    i := state["__i"].(int)
+    toSearch := code[i:]
+
+    closestIndex := -1
+    minDiff := len(toSearch)
+
+    for j, thing := range things {
+        index := strings.Index(toSearch, thing)
+        if index != -1 && index < minDiff {
+            minDiff = index
+            closestIndex = j
+        }
+    }
+    return minDiff + i + len(things[closestIndex])
+}
 
 var builtins = map[string]func(state map[string]any) map[string]any {
     // "(": func(state map[string]any) map[string]any {
@@ -76,21 +114,47 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     //     fmt.Printf("%v\n", val)
     //     return state
     // },
+    "end": func(state map[string]any) map[string]any {
+        // will be different for if
+        return state["__callingParent"].(map[string]any)
+    },
+    "def": func(state map[string]any) map[string]any {
+        funcName := popVal(state).(string)
+        state["__vars"].(map[string]any)[funcName] = map[string]any{
+            "__fileIndex": state["__fileIndex"],
+            "__i": state["__i"],
+            "__params": state["__args"],
+            "__lexicalParent": state,
+        }
+        // todo you could keep track of indent better
+        indent := getPrevIndent(getCode(state), state["__i"].(int) - 2)
+        // fmt.Printf("wanting to find: %q\n", indent + "end")
+        i := findNext(state, []string{"\n" + indent + "end"})
+        state["__i"] = i
+
+        // fmt.Printf("found: %q\n", getCode(state)[i:])
+
+        return state
+    },
     "[": func(state map[string]any) map[string]any {
+        // stateCreation
         newState := map[string]any{
+            "__files": state["__files"],
+            "__fileIndex": state["__fileIndex"],
             "__valStack": []any{},
+            "__vars": map[string]any{},
             "__args": []any{},
             "__i": state["__i"],
-            "__inCall": false,
             "__currFuncName": "",
             "__mode": "array",
-            "__parent": state,
+            "__lexicalParent": state,
+            "__callingParent": state,
         }
         return newState
     },
     "]": func(state map[string]any) map[string]any {
-        parentState := state["__parent"].(map[string]any)
-        if !parentState["__inCall"].(bool) {
+        parentState := state["__lexicalParent"].(map[string]any)
+        if parentState["__currFuncName"].(string) == "" {
             pushVal(parentState, state["__valStack"])
         } else {
             pushArgs(parentState, state["__valStack"])
@@ -98,20 +162,42 @@ var builtins = map[string]func(state map[string]any) map[string]any {
         return parentState
     },
     "say": func(state map[string]any) map[string]any {
-        val := popVal(state).(string)
-        fmt.Printf("%v\n", val)
+        val := popVal(state)
+        switch val := val.(type) {
+        case string:
+            fmt.Printf("%v\n", val)
+        case map[string]any:
+            jsonData, err := json.MarshalIndent(val, "", "    ")
+            if err != nil {
+                panic(err)
+            } else {
+                fmt.Println(string(jsonData))
+            }
+        case []any:
+            jsonData, err := json.MarshalIndent(val, "", "    ")
+            if err != nil {
+                panic(err)
+            } else {
+                fmt.Println(string(jsonData))
+            }
+        case nil:
+            fmt.Println("<nil>")
+        default:
+            fmt.Println("the type is %T", val)
+        }
+
+
         return state
     },
     "let": func(state map[string]any) map[string]any {
         varName := popVal(state).(string)
         val := popVal(state)
-        state[varName] = val
-        fmt.Printf("setting %s to %v\n", varName, val)
+        state["__vars"].(map[string]any)[varName] = val
         return state
     },
     "execBashCombined": func(state map[string]any) map[string]any {
         val := popVal(state).(string)
-        fmt.Printf("%v\n", val)
+        // fmt.Printf("%v\n", val)
 
         cmd := exec.Command("sh", "-c", val)
         cmdOutput, err := cmd.CombinedOutput()
@@ -124,19 +210,55 @@ var builtins = map[string]func(state map[string]any) map[string]any {
 }
 
 func callFunc(state map[string]any) map[string]any {
-    fName := state["__currFuncName"].(string)
-    if (fName == "") {
+    fNameToken := state["__currFuncName"].(string)
+    if (fNameToken == "") {
         return state
     }
-    fName = fName[1:]
+    fName := fNameToken[1:]
     if f, ok := builtins[fName]; ok {
         newState := f(state)
-        state["__inCall"] = false
         state["__args"] = []any{}
         state["__currFuncName"] = ""
         return newState
     }
+    
+    internalFunc, ok := get(state, fNameToken).(map[string]any)
+    if ok {
+        // stateCreation
+        args := state["__args"].([]any)
+        params := internalFunc["__params"].([]any)
+        
+        
+        state["__args"] = []any{}
+        state["__currFuncName"] = ""
+        newState := map[string]any{
+            "__files": state["__files"],
+            "__fileIndex": internalFunc["__fileIndex"],
+            "__valStack": []any{},
+            "__vars": map[string]any{},
+            "__args": []any{},
+            "__i": internalFunc["__i"],
+            "__currFuncName": "",
+            "__mode": "normal",
+            "__lexicalParent": internalFunc["__lexicalParent"],
+            "__callingParent": state,
+        }
+        vars := newState["__vars"].(map[string]any)
+        for argI, arg := range args {
+            vars[params[argI].(string)] = arg
+        }
+        fmt.Println("+wow new state")
+        return newState
+    } else {
+        fmt.Println("Func not found:", fName)
+        state["__args"] = []any{}
+        state["__currFuncName"] = ""
+    }
     return state
+}
+
+func getCode(state map[string]any) string {
+    return state["__files"].([]any)[state["__fileIndex"].(int)].(map[string]any)["code"].(string)
 }
 
 func main() {
@@ -154,21 +276,27 @@ func main() {
     // fmt.Println(string(data))
     code := string(data)
 
-    i := 0
     token := ""
+    // stateCreation
     state := map[string]any{
+        "__files": []any{
+            map[string]any{
+                "fullPath": fileName,
+                "code": code,
+            },
+        },
+        "__fileIndex": 0,
         "__valStack": []any{},
         "__args": []any{},
-        // "__vars": map[string]any{},
+        "__vars": map[string]any{},
         "__i": 0,
-        "__inCall": false,
         "__currFuncName": "",
         "__mode": "normal", // object, array
     }
 
     for j := 0; j < 1000; j++ {
-        token, i = nextToken(code, i)
-        state["__i"] = i
+        // token, state["__i"] = nextToken(getCode(state), state["__i"].(int))
+        token = nextToken(state)
         if token == "" {
             break
         }
@@ -178,11 +306,10 @@ func main() {
 
         if state["__mode"].(string) == "normal" {
             if token == "\n" {
-                callFunc(state)
+                state = callFunc(state)
                 continue
             }
-            if !state["__inCall"].(bool) {
-                state["__inCall"] = true
+            if state["__currFuncName"].(string) == "" {
                 state["__currFuncName"] = token
             } else {
                 // state["__valStack"] = append(state["__valStack"].([]any), token)
@@ -194,11 +321,22 @@ func main() {
                 continue
             }
             pushVal(state, get(state, token))
+        } else if state["__mode"].(string) == "object" {
+            if token == "\n" {
+                continue
+            }
+            // state[get(state, token)] = (state, )
         }
     }
 }
 
-func nextToken(code string, i int) (string, int) {
+func nextToken(state map[string]any) (string) {
+    var token string
+    token, state["__i"] = nextTokenRaw(getCode(state), state["__i"].(int))
+    return token
+}
+
+func nextTokenRaw(code string, i int) (string, int) {
     if i > len(code) {
         return "", -1
     }
