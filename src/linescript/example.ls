@@ -11,6 +11,51 @@ def "greet" "name"
     say
 end
 
+say "going to greet"
+greet "Drew"
+# loop "x" 1 100
+# 
+# end
+
+# each list "key" "val"
+# 
+# end
+
+if (is 1 2)
+    say "1 is 2"
+end
+
+if (is 1 2)
+    say "1 is 2"
+else
+    say "1 is not 2"
+end
+
+if (is 1 2)
+    say "1 is 2"
+else if (is 1 1)
+    say "1 is 1"
+end
+
+if (is 1 2)
+    say "1 is 2"
+else if (is 1 3)
+    say "1 is 3"
+else if (is 1 4)
+    say "1 is 4"
+end
+
+if (is 1 2)
+    say "1 is 2"
+else if (is 1 3)
+    say "1 is 3"
+else if (is 1 4)
+    say "1 is 4"
+else
+    say "1 is not any"
+end
+
+
 let "list" [1 2 3]
 say list
 
@@ -39,7 +84,6 @@ say "ok cool"
 
 # say greet
 
-greet "Drew"
 
 
 let "foo" 100
