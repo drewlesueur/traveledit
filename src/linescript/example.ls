@@ -11,6 +11,22 @@ def "greet" "name"
     say
 end
 
+let "list" [1 2 3]
+say list
+
+[2 4 6]
+say
+
+# say (cc "hia " "pal")
+
+(let "x" "wowza!"
+say x
+put x)
+
+# cc " is cool"
+# say
+say (cc " is cool")
+            
 # def "incrr"
 #     let "x" 0
 #     def "incr"

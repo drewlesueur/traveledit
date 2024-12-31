@@ -72,7 +72,11 @@ func get(state map[string]any, field string) any {
 
     if field[0] == '#' {
         // for numbers
-        return field[1:]
+        f, err := strconv.ParseFloat(field[1:], 64)
+        if err != nil {
+            panic(err)
+        }
+        return f
     }
 
     name := field[1:]
@@ -131,7 +135,66 @@ func findNext(state map[string]any, things []string) int {
     }
     return minDiff + i + len(things[closestIndex])
 }
-
+    
+var tokenFuncs = map[string]func(state map[string]any) map[string]any {
+    "(": func(state map[string]any) map[string]any {
+        // stateCreation
+        newState := map[string]any{
+            "__files": state["__files"],
+            "__fileIndex": state["__fileIndex"],
+            "__valStack": state["__valStack"],
+            "__vars": map[string]any{},
+            "__args": []any{},
+            "__i": state["__i"],
+            "__currFuncName": "",
+            "__mode": "normal",
+            "__lexicalParent": state,
+            "__callingParent": state,
+        }
+        return newState
+    },
+    ")": func(state map[string]any) map[string]any {
+        state = callFunc(state)
+        parentState := state["__lexicalParent"].(map[string]any)
+        if parentState["__currFuncName"].(string) == "" {
+            for _, val := range state["__valStack"].([]any) {
+                pushVal(parentState, val)
+            }
+        } else {
+            for _, val := range state["__valStack"].([]any) {
+                pushArgs(parentState, val)
+            }
+        }
+        parentState["__i"] = state["__i"]
+        return parentState
+    },
+    "[": func(state map[string]any) map[string]any {
+        // stateCreation
+        newState := map[string]any{
+            "__files": state["__files"],
+            "__fileIndex": state["__fileIndex"],
+            "__valStack": []any{},
+            "__vars": map[string]any{},
+            "__args": []any{},
+            "__i": state["__i"],
+            "__currFuncName": "",
+            "__mode": "array",
+            "__lexicalParent": state,
+            "__callingParent": state,
+        }
+        return newState
+    },
+    "]": func(state map[string]any) map[string]any {
+        parentState := state["__lexicalParent"].(map[string]any)
+        if parentState["__currFuncName"].(string) == "" {
+            pushVal(parentState, state["__valStack"])
+        } else {
+            pushArgs(parentState, state["__valStack"])
+        }
+        parentState["__i"] = state["__i"]
+        return parentState
+    },
+}
 var builtins = map[string]func(state map[string]any) map[string]any {
     // "(": func(state map[string]any) map[string]any {
     //     val := popVal(state).(string)
@@ -141,6 +204,11 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "end": func(state map[string]any) map[string]any {
         // will be different for if
         return state["__callingParent"].(map[string]any)
+    },
+    "put": func(state map[string]any) map[string]any {
+        a := popVal(state)
+        pushVal(state, a)
+        return state
     },
     "cc": func(state map[string]any) map[string]any {
         b := popVal(state).(string)
@@ -166,31 +234,6 @@ var builtins = map[string]func(state map[string]any) map[string]any {
 
         return state
     },
-    "[": func(state map[string]any) map[string]any {
-        // stateCreation
-        newState := map[string]any{
-            "__files": state["__files"],
-            "__fileIndex": state["__fileIndex"],
-            "__valStack": []any{},
-            "__vars": map[string]any{},
-            "__args": []any{},
-            "__i": state["__i"],
-            "__currFuncName": "",
-            "__mode": "array",
-            "__lexicalParent": state,
-            "__callingParent": state,
-        }
-        return newState
-    },
-    "]": func(state map[string]any) map[string]any {
-        parentState := state["__lexicalParent"].(map[string]any)
-        if parentState["__currFuncName"].(string) == "" {
-            pushVal(parentState, state["__valStack"])
-        } else {
-            pushArgs(parentState, state["__valStack"])
-        }
-        return parentState
-    },
     "say": func(state map[string]any) map[string]any {
         val := popVal(state)
         switch val := val.(type) {
@@ -210,10 +253,12 @@ var builtins = map[string]func(state map[string]any) map[string]any {
             } else {
                 fmt.Println(string(jsonData))
             }
+        case float64:
+            fmt.Printf("%v\n", val)
         case nil:
             fmt.Println("<nil>")
         default:
-            fmt.Println("the type is %T", val)
+            fmt.Printf("the type is %T\n", val)
         }
 
 
@@ -333,29 +378,41 @@ func main() {
         fmt.Printf("# token: %q\n", token)
         // fmt.Printf("i: %d\n", i)
         // continue
-
+        
+        switch token {
+        case "[", "]", "(", ")", "{", "}":
+            state = tokenFuncs[token](state)
+            continue
+        }
         if state["__mode"].(string) == "normal" {
-            if token == "\n" {
+            switch token {
+            case "\n":
                 state = callFunc(state)
                 continue
             }
+
             if state["__currFuncName"].(string) == "" {
                 state["__currFuncName"] = token
             } else {
-                // state["__valStack"] = append(state["__valStack"].([]any), token)
-                // pushArgs(state, get(state, token))
                 pushArgs(state, get(state, token))
             }
         } else if state["__mode"].(string) == "array" {
-            if token == "\n" {
+            switch token {
+            case "\n":
                 continue
             }
             pushVal(state, get(state, token))
         } else if state["__mode"].(string) == "object" {
-            if token == "\n" {
+            switch token {
+            case "\n":
                 continue
             }
-            // state[get(state, token)] = (state, )
+            if key, ok := state["__currKey"].(string); ok {
+                state["__vars"].(map[string]any)[key] = get(state, token)
+                delete(state["__vars"].(map[string]any), "__currKey")
+            } else {
+                state["__currKey"] = get(state, token)
+            }
         }
     }
 }
