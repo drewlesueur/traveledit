@@ -2,8 +2,19 @@
 
 say "start lol"
 
+
+# put __STATE "get2", here, setProp
+# pop __vals
+
+put __STATE "goto", here, setProp
+__code
+
+
 put __STATE "endFunc", here, setProp
+goto "#doneEndFunc"
 say "this should end the func"
+#doneEndFunc
+
 say "end lol"
 
 

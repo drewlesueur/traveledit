@@ -48,6 +48,10 @@ func main() {
         switch token {
         case "\n":
             state = callFunc(state)
+            if state["__newState"] != nil {
+                delete(state, "__newState")
+                state = state["__newState"].(map[string]any)
+            }
             continue
         }
 
