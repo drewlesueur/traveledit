@@ -70,6 +70,12 @@ func push(slice any, value any) {
 	}
 }
 
+func setField(m any, key string, value any) {
+	if mmap, ok := m.(map[string]any); ok {
+		mmap[key] = value
+	}
+}
+
 func pop(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
 		val := (*s)[len(*s)-1]
@@ -173,7 +179,7 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
             "__vars": map[string]any{},
             "__args": &[]any{},
             "__i": state["__i"],
-            "__currFuncName": "",
+            "__currFuncToken": "",
             "__mode": "normal",
             "__lexicalParent": state,
             "__callingParent": state,
@@ -183,7 +189,7 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
     ")": func(state map[string]any) map[string]any {
         state = callFunc(state)
         parentState := state["__lexicalParent"].(map[string]any)
-        if parentState["__currFuncName"].(string) == "" {
+        if parentState["__currFuncToken"].(string) == "" {
             for _, val := range *(state["__valStack"].(*[]any)) {
                 push(parentState["__valStack"], val)
             }
@@ -205,7 +211,7 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
             "__vars": map[string]any{},
             "__args": &[]any{},
             "__i": state["__i"],
-            "__currFuncName": "",
+            "__currFuncToken": "",
             "__mode": "array",
             "__lexicalParent": state,
             "__callingParent": state,
@@ -214,7 +220,7 @@ var tokenFuncs = map[string]func(state map[string]any) map[string]any {
     },
     "]": func(state map[string]any) map[string]any {
         parentState := state["__lexicalParent"].(map[string]any)
-        if parentState["__currFuncName"].(string) == "" {
+        if parentState["__currFuncToken"].(string) == "" {
             push(parentState["__valStack"], state["__valStack"])
         } else {
             push(parentState["__args"], state["__valStack"])
@@ -294,6 +300,15 @@ var builtins = map[string]func(state map[string]any) map[string]any {
             push(parentState["__valStack"], val)
         }
         return parentState
+    },
+    "label": func(state map[string]any) map[string]any {
+        varName := popVal(state).(string)
+        val := map[string]any{
+            "__fileIndex": state["__fileIndex"],
+            "__i": state["__i"],
+        }
+        setField(state["__vars"], varName, val)
+        return state
     },
     "is": func(state map[string]any) map[string]any {
         b := popVal(state)
@@ -380,7 +395,8 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "let": func(state map[string]any) map[string]any {
         val := popVal(state)
         varName := popVal(state).(string)
-        state["__vars"].(map[string]any)[varName] = val
+        setField(state["__vars"], varName, val)
+        // state["__vars"].(map[string]any)[varName] = val
         return state
     },
     "execBashCombined": func(state map[string]any) map[string]any {
@@ -398,7 +414,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
 }
 
 func callFunc(state map[string]any) map[string]any {
-    fNameToken := state["__currFuncName"].(string)
+    fNameToken := state["__currFuncToken"].(string)
     if (fNameToken == "") {
         return state
     }
@@ -406,7 +422,7 @@ func callFunc(state map[string]any) map[string]any {
     if f, ok := builtins[fName]; ok {
         newState := f(state)
         state["__args"] = &[]any{}
-        state["__currFuncName"] = ""
+        state["__currFuncToken"] = ""
         return newState
     }
     
@@ -418,7 +434,7 @@ func callFunc(state map[string]any) map[string]any {
         
         
         state["__args"] = &[]any{}
-        state["__currFuncName"] = ""
+        state["__currFuncToken"] = ""
         newState := map[string]any{
             "__files": state["__files"],
             "__fileIndex": internalFunc["__fileIndex"],
@@ -427,7 +443,7 @@ func callFunc(state map[string]any) map[string]any {
             "__vars": map[string]any{},
             "__args": &[]any{},
             "__i": internalFunc["__i"],
-            "__currFuncName": "",
+            "__currFuncToken": "",
             "__mode": "normal",
             "__lexicalParent": internalFunc["__lexicalParent"],
             "__callingParent": state,
@@ -441,7 +457,7 @@ func callFunc(state map[string]any) map[string]any {
     } else {
         fmt.Println("Func not found:", fName)
         state["__args"] = &[]any{}
-        state["__currFuncName"] = ""
+        state["__currFuncToken"] = ""
     }
     return state
 }
@@ -480,7 +496,7 @@ func main() {
         "__args": &[]any{},
         "__vars": map[string]any{},
         "__i": 0,
-        "__currFuncName": "",
+        "__currFuncToken": "",
         "__mode": "normal", // object, array
     }
 
@@ -506,8 +522,8 @@ func main() {
                 continue
             }
 
-            if state["__currFuncName"].(string) == "" {
-                state["__currFuncName"] = token
+            if state["__currFuncToken"].(string) == "" {
+                state["__currFuncToken"] = token
             } else {
                 push(state["__args"], get(state, token))
             }
