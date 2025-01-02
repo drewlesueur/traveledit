@@ -30,7 +30,7 @@ getProp __STATE "__globals", setProp "get" %"
 get "__globals", setProp "dup" %"
     # funny thing is this could use dup!
     get "s"
-        getProp "__vals"
+    getProp "__vals"
 
         get "s"
         getProp "__vals"
@@ -47,8 +47,42 @@ dup
 say
 say
 
+get "__globals", setProp "as" %"
+    put  __STATE
+
+    get "s", getProp  "__vals"
+    pop
+
+
+    get "s", getProp  "__vals"
+    pop
+
+    setProp
+"%
+
+get "__globals", setProp "swap" %"
+    get "s", getProp  "__vals"
+    pop, as "tmp"
+
+    get "s", getProp  "__vals"
+    pop, as "tmp2"
+
+    get "s", getProp "__vals"
+    get "tmp2"
+    push
+
+    get "s", getProp "__vals"
+    get "tmp1"
+    push
+"%
+
+get "__globals", setProp "goUp" %"
+
+"%
+
 
 get "__call_immediates", setProp "(" %"
+    # might be more readable if we used "as" here?
     put __STATE
     put "s"
     makeObject
@@ -61,6 +95,14 @@ get "__call_immediates", setProp "(" %"
             put "__i" 0
         setProp
 
+        dup
+            put "__code"
+            get "s", getProp "__code"
+        setProp
+
+        dup
+            put "__vals", makeArray
+        setProp
         dup
             put "__globals"
             get "s", getProp "__globals"
@@ -89,8 +131,21 @@ get "__call_immediates", setProp "(" %"
         setProp
     setProp
 "%
-get "__call_immediates", setProp ")" %"
 
+
+
+get "__call_immediates", setProp ")" %"
+    // because potentially no newline, so we force call it
+    get "s", callFunc
+    get "s", getProp "__lexicalParent"
+    as "parentState"
+
+    get "parentState", getProp "__vals"
+    get "s", getProp "__vals"
+
+    put __STATE "s"
+    get "parentState"
+    setProp
 "%
 
         # "__fileName": fileName,

@@ -7,9 +7,17 @@ import (
     // "os/exec"
 	"strconv"
 	"encoding/json"
+	"math"
 )
 
 func main() {
+    // because of initialozation cycle issue
+	// ./linescript3.go:374:5: initialization cycle for builtins
+	// 	./linescript3.go:374:5: builtins refers to
+	// 	./linescript3.go:440:6: callFunc refers to
+	// 	./linescript3.go:374:5: builtins
+    builtins["callFunc"] = callFunc
+
     if len(os.Args) < 2 {
         fmt.Println("Please provide a file name.")
         return
@@ -116,6 +124,16 @@ func push(slice any, value any) {
 		*s = append(*s, value)
 	}
 }
+
+func pushm(slice any, values any) {
+	if s, ok := slice.(*[]any); ok {
+		if v, ok := values.(*[]any); ok {
+			*s = append(*s, *v...)
+		}
+	}
+}
+
+
 func at(slice any, index any) any {
 	if s, ok := slice.(*[]any); ok {
 		return (*s)[index.(int)]
@@ -132,6 +150,7 @@ func pop(slice any) any {
 	}
 	return nil
 }
+
 
 func shift(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
@@ -174,55 +193,107 @@ func splice(slice any, start any, deleteCount any, elements any) any {
 	}
 	return nil
 }
-func sliceFrom(slice any, start any) any {
-	if s, ok := slice.(*[]any); ok {
-		start := start.(int)
-		if start < 0 {
-			start = len(*s) + start
+
+
+func slice(s any, start any, end any) any {
+	startInt := start.(int)
+	endInt := end.(int)
+
+	switch s := s.(type) {
+	case *[]any:
+		if startInt < 0 {
+			startInt = len(*s) + startInt
 		}
-		if start < 0 {
-			start = 0
+		if startInt < 0 {
+			startInt = 0
 		}
-		if start > len(*s) {
-			start = len(*s)
+		if startInt > len(*s) {
+			startInt = len(*s)
 		}
-		return (*s)[start:]
+		if endInt < 0 {
+			endInt = len(*s) + endInt
+		}
+		if endInt > len(*s) {
+			endInt = len(*s)
+		}
+		if startInt > endInt {
+			return nil
+		}
+		return (*s)[startInt:endInt]
+	case string:
+		if startInt < 0 {
+			startInt = len(s) + startInt
+		}
+		if startInt < 0 {
+			startInt = 0
+		}
+		if startInt > len(s) {
+			startInt = len(s)
+		}
+		if endInt < 0 {
+			endInt = len(s) + endInt
+		}
+		if endInt > len(s) {
+			endInt = len(s)
+		}
+		if startInt > endInt {
+			return ""
+		}
+		return s[startInt:endInt]
 	}
 	return nil
 }
 
-func slice(s any, start any, end any) any {
-	if s, ok := s.(*[]any); ok {
-		start := start.(int)
-		end := end.(int)
-		if start < 0 {
-			start = len(*s) + start
+func sliceFrom(slice any, start any) any {
+	startInt := start.(int)
+
+	switch s := slice.(type) {
+	case *[]any:
+		if startInt < 0 {
+			startInt = len(*s) + startInt
 		}
-		if start < 0 {
-			start = 0
+		if startInt < 0 {
+			startInt = 0
 		}
-		if start > len(*s) {
-			start = len(*s)
+		if startInt > len(*s) {
+			startInt = len(*s)
 		}
-		if end < 0 {
-			end = len(*s) + end
+		return (*s)[startInt:]
+	case string:
+		if startInt < 0 {
+			startInt = len(s) + startInt
 		}
-		if end > len(*s) {
-			end = len(*s)
+		if startInt < 0 {
+			startInt = 0
 		}
-		if start > end {
-			return nil
+		if startInt > len(s) {
+			startInt = len(s)
 		}
-		return (*s)[start:end]
+		return s[startInt:]
 	}
 	return nil
 }
 
 func length(slice any) any {
-	if s, ok := slice.(*[]any); ok {
+	switch s := slice.(type) {
+	case *[]any:
 		return len(*s)
+	case string:
+		return len(s)
 	}
 	return 0
+}
+func indexOf(a any, b any) any {
+	if a, ok := a.(string); ok {
+	    return strings.Index(a, b.(string))
+	}
+	return -1
+}
+func lastIndexOf(a any, b any) any {
+	if a, ok := a.(string); ok {
+	    return strings.LastIndex(a, b.(string))
+	}
+	return -1
 }
 
 func plus(a, b any) any {
@@ -244,11 +315,71 @@ func minus(a, b any) any {
     return nil
 }
 
+func times(a, b any) any {
+    switch a := a.(type) {
+    case int:
+        return a * b.(int)
+    case float64:
+        return a * b.(float64)
+    }
+    return nil
+}
+
+func divide(a, b any) any {
+    switch a := a.(type) {
+    case int:
+        return a / b.(int)
+    case float64:
+        return a / b.(float64)
+    }
+    return nil
+}
+
+func mod(a, b any) any {
+    switch a := a.(type) {
+    case int:
+        return a % b.(int)
+    case float64:
+        // this right?
+        return a - float64(int(a/b.(float64)))*b.(float64)
+    }
+    return nil
+}
+
+// double check this chatgpt code
+func exponent(a, b any) any {
+    switch a := a.(type) {
+    case int:
+        result := 1
+        base := a
+        exp := b.(int)
+        for exp > 0 {
+            if exp%2 == 1 {
+                result *= base
+            }
+            base *= base
+            exp /= 2
+        }
+        return result
+    case float64:
+        return math.Pow(a, b.(float64))
+    }
+    return nil
+}
+
 func is(a, b any) any {
     return a == b
 }
+
 func cc(a, b any) any {
-    return a.(string) + b.(string)
+	if aArr, ok1 := a.(*[]any); ok1 {
+		if bArr, ok2 := b.(*[]any); ok2 {
+			result := append([]any{}, (*aArr)...)
+			result = append(result, (*bArr)...)
+			return &result
+		}
+	}
+	return a.(string) + b.(string)
 }
 
 func toString(a any) any {
@@ -374,12 +505,17 @@ func makeBuiltin_4_1(f func(any, any, any, any) any) func(state map[string]any) 
 var builtins = map[string]func(state map[string]any) map[string]any {
     "+": makeBuiltin_2_1(plus),
     "-": makeBuiltin_2_1(minus),
+    "*": makeBuiltin_2_1(times),
+    "/": makeBuiltin_2_1(divide),
+    "^": makeBuiltin_2_1(exponent),
+    "%": makeBuiltin_2_1(mod),
     "cc": makeBuiltin_2_1(cc),
     "toString": makeBuiltin_1_1(toString),
     "is": makeBuiltin_2_1(is),
     "say": makeBuiltin_1_0(say),
     "put": makeNoop(),
     "push": makeBuiltin_2_0(push),
+    "pushm": makeBuiltin_2_0(pushm),
     "pop": makeBuiltin_1_1(pop),
     "unshift": makeBuiltin_2_0(unshift),
     "shift": makeBuiltin_1_1(shift),
