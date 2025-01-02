@@ -320,6 +320,7 @@ func makeState(fileName, code string) map[string]any {
         "__code": code,
         "__vals": &[]any{},
         "__globals": map[string]any{},
+        "__call_immediates": map[string]any{},
         "__argCount": 0,
         "__currFuncToken": "",
     }
