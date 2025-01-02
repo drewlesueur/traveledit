@@ -7,6 +7,9 @@ say "start lol"
 setProp __STATE "foo" "this is bar"
 getProp __STATE "foo", say
 
++ 1 100
+say
+
 getProp __STATE "__globals", setProp "yo" %"
     say "Yo!"
 "%
@@ -14,18 +17,122 @@ yo
 
 getProp __STATE "__globals", setProp "get" %"
     getProp __STATE "s"
-    getProp "__vals"
+        getProp "__vals"
 
-    getProp __STATE "s"
-
-    getProp __STATE "s"
-    getProp "__vals"
-    pop
-
-    getProp
+        getProp __STATE "s"
+            getProp __STATE "s"
+            getProp "__vals"
+            pop
+        getProp
     push
 "%
 
+get "__globals", setProp "dup" %"
+    # funny thing is this could use dup!
+    get "s"
+        getProp "__vals"
+
+        get "s"
+        getProp "__vals"
+            get "s"
+                getProp "__vals"
+                length
+            - 1
+        at
+    push
+"%
+
+put 999
+dup
+say
+say
+
+
+get "__call_immediates", setProp "(" %"
+    put __STATE
+    put "s"
+    makeObject
+        dup
+            put "__fileName"
+            get "s", getProp "__fileName"
+        setProp
+
+        dup
+            put "__i" 0
+        setProp
+
+        dup
+            put "__globals"
+            get "s", getProp "__globals"
+        setProp
+
+        dup
+            put "__call_immediates"
+            get "s", getProp "__call_immediates"
+        setProp
+
+        dup
+            put "__argCount" 0
+        setProp
+
+        dup
+            put "__currFuncToken" ""
+        setProp
+
+        dup
+            put "__lexicalParent"
+            get "s"
+        setProp
+        dup
+            put "__callingParent"
+            get "s"
+        setProp
+    setProp
+"%
+get "__call_immediates", setProp ")" %"
+
+"%
+
+        # "__fileName": fileName,
+        # "__i": 0,
+        # "__code": code,
+        # "__vals": &[]any{},
+        # "__globals": map[string]any{},
+        # "__call_immediates": map[string]any{},
+        # "__argCount": 0,
+        # "__currFuncToken": "",
+    # "(": func(state map[string]any) map[string]any {
+    #     // stateCreation
+    #     newState := map[string]any{
+    #         "__files": state["__files"],
+    #         "__fileIndex": state["__fileIndex"],
+    #         "__valStack": state["__valStack"],
+    #         "__endStack": &[]any{},
+    #         "__vars": map[string]any{},
+    #         "__args": &[]any{},
+    #         "__i": state["__i"],
+    #         "__currFuncToken": "",
+    #         "__mode": "normal",
+    #         "__lexicalParent": state,
+    #         "__callingParent": state,
+    #     }
+    #     return newState
+    # },
+    # ")": func(state map[string]any) map[string]any {
+    #     state = callFunc(state)
+    #     parentState := state["__lexicalParent"].(map[string]any)
+    #     if parentState["__currFuncToken"].(string) == "" {
+    #         for _, val := range *(state["__valStack"].(*[]any)) {
+    #             push(parentState["__valStack"], val)
+    #         }
+    #     } else {
+    #         for _, val := range *(state["__valStack"].(*[]any)) {
+    #             push(parentState["__args"], val)
+    #         }
+    #     }
+    #     parentState["__i"] = state["__i"]
+    #     return parentState
+    # },
 
 
 
@@ -41,18 +148,18 @@ exit
 #     getProp __STATE "s"
 #     getProp __STATE "varName"
 #     has
-#     
-#     
+#
+#
 # "%
 
 yo
 
 # getProp __STATE "__globals", setProp "__evalToken" %"
-#     
+#
 # "%
 
 setProp __STATE "__callFunc" %"
-    
+
 "%
 
 
@@ -62,7 +169,7 @@ setProp __STATE "__callFunc" %"
 #     put __STATE
 #     getProp __STATE "__vals"
 #     pop
-#     
+#
 #     setProp __STATE "v"
 #     getProp __STATE "s"
 #     setProp ""
@@ -70,7 +177,7 @@ setProp __STATE "__callFunc" %"
 
 # setProp __STATE "let" "
 #     getProp __STATE
-#     setProp __STATE 
+#     setProp __STATE
 # "
 
 
@@ -81,8 +188,8 @@ setProp __STATE "__callFunc" %"
 
 # put __STATE "goto", here, setProp
 # __code
-# 
-# 
+#
+#
 # put __STATE "endFunc", here, setProp
 # goto "#doneEndFunc"
 # say "this should end the func"
@@ -94,18 +201,18 @@ say "end lol"
 
 
 # put __STATE "let"
-# 
+#
 # put __STATE "sayHi"
 # here
 # setProp
 # say "saying hi!"
 # end
-# 
+#
 # say "-->"
-# 
+#
 # # getProp __STATE "sayHi"
 # # say sayHi
-# 
+#
 # say "hello world"
 
 

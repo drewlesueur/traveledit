@@ -6,7 +6,7 @@ import (
     "strings"
     // "os/exec"
 	"strconv"
-	// "encoding/json"
+	"encoding/json"
 )
 
 func main() {
@@ -69,6 +69,7 @@ func evalToken(state map[string]any, field string) any {
     if field[0] == '\'' {
         return field[1:]
     }
+    
 
     if field[0] == '#' {
         // for numbers
@@ -78,6 +79,18 @@ func evalToken(state map[string]any, field string) any {
         }
         return f
     }
+
+    if field[0] == 'i' {
+        // for integers
+        i, err := strconv.Atoi(field[1:])
+        if err != nil {
+            panic(err)
+        }
+        return i
+    }
+
+    
+    
     if field == "$__STATE" {
         return state
     }
@@ -103,12 +116,13 @@ func push(slice any, value any) {
 		*s = append(*s, value)
 	}
 }
-
-func setField(m any, key any, value any) {
-	if mmap, ok := m.(map[string]any); ok {
-		mmap[key.(string)] = value
+func at(slice any, index any) any {
+	if s, ok := slice.(*[]any); ok {
+		return (*s)[index.(int)]
 	}
+	return nil
 }
+
 
 func pop(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
@@ -134,8 +148,11 @@ func unshift(slice any, value any) {
 	}
 }
 
-func splice(slice any, start int, deleteCount int, elements []any) []any {
+func splice(slice any, start any, deleteCount any, elements any) any {
 	if s, ok := slice.(*[]any); ok {
+		start := start.(int)
+		deleteCount := deleteCount.(int)
+		elements := elements.([]any)
 		if start < 0 {
 			start = len(*s) + start
 		}
@@ -157,8 +174,9 @@ func splice(slice any, start int, deleteCount int, elements []any) []any {
 	}
 	return nil
 }
-func sliceFrom(slice any, start int) []any {
+func sliceFrom(slice any, start any) any {
 	if s, ok := slice.(*[]any); ok {
+		start := start.(int)
 		if start < 0 {
 			start = len(*s) + start
 		}
@@ -173,8 +191,10 @@ func sliceFrom(slice any, start int) []any {
 	return nil
 }
 
-func slice(s any, start int, end int) []any {
+func slice(s any, start any, end any) any {
 	if s, ok := s.(*[]any); ok {
+		start := start.(int)
+		end := end.(int)
 		if start < 0 {
 			start = len(*s) + start
 		}
@@ -198,19 +218,80 @@ func slice(s any, start int, end int) []any {
 	return nil
 }
 
-func length(slice any) int {
+func length(slice any) any {
 	if s, ok := slice.(*[]any); ok {
 		return len(*s)
 	}
 	return 0
 }
 
+func plus(a, b any) any {
+    switch a := a.(type) {
+    case int:
+        return a + b.(int)
+    case float64:
+        return a + b.(float64)
+    }
+    return nil
+}
+func minus(a, b any) any {
+    switch a := a.(type) {
+    case int:
+        return a - b.(int)
+    case float64:
+        return a - b.(float64)
+    }
+    return nil
+}
+
 func is(a, b any) any {
     return a == b
 }
-func say(a any) {
-    fmt.Println(a)
+func cc(a, b any) any {
+    return a.(string) + b.(string)
 }
+
+func toString(a any) any {
+    switch a := a.(type) {
+    case int:
+        return strconv.Itoa(a)
+    case float64:
+        return strconv.FormatFloat(a, 'f', -1, 64)
+    }
+    return nil
+}
+
+func say(val any) {
+    switch val := val.(type) {
+    case string:
+        fmt.Printf("%v\n", val)
+    case map[string]any:
+        jsonData, err := json.MarshalIndent(val, "", "    ")
+        if err != nil {
+            panic(err)
+        } else {
+            fmt.Println(string(jsonData))
+        }
+    case *[]any:
+        jsonData, err := json.MarshalIndent(val, "", "    ")
+        if err != nil {
+            panic(err)
+        } else {
+            fmt.Println(string(jsonData))
+        }
+    case float64:
+        fmt.Printf("%v\n", val)
+    case int:
+        fmt.Printf("%v\n", val)
+    case bool:
+        fmt.Printf("%t\n", val)
+    case nil:
+        fmt.Println("<nil>")
+    default:
+        fmt.Printf("the type is %T\n", val)
+    }
+}
+
 func keys(a any) any {
     ret := []any{}
     for k := range a.(map[string]any) {
@@ -279,18 +360,47 @@ func makeBuiltin_3_1(f func(any, any, any) any) func(state map[string]any) map[s
         return state
     }
 }
+func makeBuiltin_4_1(f func(any, any, any, any) any) func(state map[string]any) map[string]any {
+    return func(state map[string]any) map[string]any {
+        d := pop(state["__vals"])
+        c := pop(state["__vals"])
+        b := pop(state["__vals"])
+        a := pop(state["__vals"])
+        push(state["__vals"], f(a, b, c, d))
+        return state
+    }
+}
 
 var builtins = map[string]func(state map[string]any) map[string]any {
+    "+": makeBuiltin_2_1(plus),
+    "-": makeBuiltin_2_1(minus),
+    "cc": makeBuiltin_2_1(cc),
+    "toString": makeBuiltin_1_1(toString),
     "is": makeBuiltin_2_1(is),
     "say": makeBuiltin_1_0(say),
     "put": makeNoop(),
     "push": makeBuiltin_2_0(push),
     "pop": makeBuiltin_1_1(pop),
+    "unshift": makeBuiltin_2_0(unshift),
+    "shift": makeBuiltin_1_1(shift),
+    "at": makeBuiltin_2_1(at),
+    "sliceFrom": makeBuiltin_2_1(sliceFrom),
+    "slice": makeBuiltin_3_1(slice),
+    "splice": makeBuiltin_4_1(splice),
+    "length": makeBuiltin_1_1(length),
     "setProp": makeBuiltin_3_0(setProp),
     "getProp": makeBuiltin_2_1(getProp),
     "keys": makeBuiltin_1_1(keys),
     "exit": func(state map[string]any) map[string]any {
         return nil
+    },
+    "makeObject": func(state map[string]any) map[string]any {
+        push(state["__vals"], map[string]any{})
+        return state
+    },
+    "makeArray": func(state map[string]any) map[string]any {
+        push(state["__vals"], &[]any{})
+        return state
     },
     "debugS": func(state map[string]any) map[string]any {
         fmt.Println("debugging s", state["s"].(map[string]any)["__vals"])
@@ -346,6 +456,8 @@ func callFunc(state map[string]any) map[string]any {
     switch funcCode := funcCode.(type) {
     case string:
         evalState := makeState("__internal", funcCode)
+        evalState["__globals"] = state["__globals"]
+        evalState["__call_immediates"] = state["__call_immediates"]
         evalState["s"] = state
         evalState = eval(evalState)
         state["__currFuncToken"] = ""
@@ -434,10 +546,14 @@ func nextTokenRaw(code string, i int) (string, int) {
 // #300
 func makeToken(val string) string {
     if isNumeric(val) {
-        return "#" + val
+        if strings.Contains(val, ".") {
+            return "#" + val
+        }
+        return "i" + val
     }
     return "$" + val
 }
+
 func isNumeric(s string) bool {
 	_, err := strconv.ParseFloat(s, 64)
 	return err == nil
