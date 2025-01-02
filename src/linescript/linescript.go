@@ -124,6 +124,7 @@ func splice(slice any, start int, deleteCount int, elements ...any) []any {
 	return nil
 }
 
+
 func length(slice any) int {
 	if s, ok := slice.(*[]any); ok {
 		return len(*s)

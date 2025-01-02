@@ -21,22 +21,18 @@ func main() {
         fmt.Println("Error reading file:", err)
         return
     }
-    // fmt.Println(string(data))
     code := string(data)
+    state := makeState(fileName, code)
+    eval(state)
+}
 
+func eval(state map[string]any) map[string]any {
     token := ""
-    // stateCreation
-    state := map[string]any{
-        "__fileName": fileName,
-        "__i": 0,
-        "__code": code,
-        "__vals": &[]any{},
-        "__argCount": 0,
-        "__currFuncToken": "",
-    }
 
     for j := 0; j < 1000; j++ {
-        // token, state["__i"] = nextToken(getCode(state), state["__i"].(int))
+        if state == nil {
+            return nil
+        }
         token = nextToken(state)
         if token == "" {
             break
@@ -44,27 +40,31 @@ func main() {
         // fmt.Printf("# token: %q\n", token)
         // fmt.Printf("i: %d\n", i)
         // continue
-        
+
         switch token {
         case "\n":
             state = callFunc(state)
-            if state["__newState"] != nil {
-                delete(state, "__newState")
-                state = state["__newState"].(map[string]any)
-            }
             continue
+        }
+        
+        if immediateCode, ok := state["__call_immediates"].(map[string]any)[token].(string); ok {
+            evalState := makeState("__internal", immediateCode)
+            evalState["s"] = state
+            evalState = eval(evalState)
+            state = evalState["s"].(map[string]any)
         }
 
         if state["__currFuncToken"].(string) == "" {
             state["__currFuncToken"] = token
         } else {
             state["__argCount"] = state["__argCount"].(int) + 1
-            push(state["__vals"], getToken(state, token))
+            push(state["__vals"], evalToken(state, token))
         }
     }
+    return state
 }
 
-func getToken(state map[string]any, field string) any {
+func evalToken(state map[string]any, field string) any {
     // TODO: parse out dot
     if field[0] == '\'' {
         return field[1:]
@@ -82,9 +82,17 @@ func getToken(state map[string]any, field string) any {
         return state
     }
 
-    name := field[1:]
-    // todo: custom lexical see original linescript
-    return state[name]
+    varName := field[1:]
+    funcCode := state["__globals"].(map[string]any)["__getVar"]
+    switch funcCode := funcCode.(type) {
+    case string:
+        evalState := makeState("__internal", funcCode)
+        evalState["s"] = state
+        evalState["varName"] = varName
+        evalState = eval(evalState)
+        return evalState["s"].(map[string]any)
+    }
+    return state
 }
 
 
@@ -126,7 +134,7 @@ func unshift(slice any, value any) {
 	}
 }
 
-func splice(slice any, start int, deleteCount int, elements ...any) []any {
+func splice(slice any, start int, deleteCount int, elements []any) []any {
 	if s, ok := slice.(*[]any); ok {
 		if start < 0 {
 			start = len(*s) + start
@@ -146,6 +154,46 @@ func splice(slice any, start int, deleteCount int, elements ...any) []any {
 		removed := (*s)[start : start+deleteCount]
 		*s = append(append((*s)[:start], elements...), (*s)[start+deleteCount:]...)
 		return removed
+	}
+	return nil
+}
+func sliceFrom(slice any, start int) []any {
+	if s, ok := slice.(*[]any); ok {
+		if start < 0 {
+			start = len(*s) + start
+		}
+		if start < 0 {
+			start = 0
+		}
+		if start > len(*s) {
+			start = len(*s)
+		}
+		return (*s)[start:]
+	}
+	return nil
+}
+
+func slice(s any, start int, end int) []any {
+	if s, ok := s.(*[]any); ok {
+		if start < 0 {
+			start = len(*s) + start
+		}
+		if start < 0 {
+			start = 0
+		}
+		if start > len(*s) {
+			start = len(*s)
+		}
+		if end < 0 {
+			end = len(*s) + end
+		}
+		if end > len(*s) {
+			end = len(*s)
+		}
+		if start > end {
+			return nil
+		}
+		return (*s)[start:end]
 	}
 	return nil
 }
@@ -175,7 +223,6 @@ func setProp(a, b, c any) {
     a.(map[string]any)[b.(string)] = c
 }
 func getProp(a, b any) any {
-    fmt.Println("Getting prop", b.(string))
     return a.(map[string]any)[b.(string)]
 }
 
@@ -188,6 +235,14 @@ func makeBuiltin_1_0(f func(any)) func(state map[string]any) map[string]any {
     return func(state map[string]any) map[string]any {
         a := pop(state["__vals"])
         f(a)
+        return state
+    }
+}
+func makeBuiltin_2_0(f func(any, any)) func(state map[string]any) map[string]any {
+    return func(state map[string]any) map[string]any {
+        b := pop(state["__vals"])
+        a := pop(state["__vals"])
+        f(a, b)
         return state
     }
 }
@@ -229,13 +284,23 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "is": makeBuiltin_2_1(is),
     "say": makeBuiltin_1_0(say),
     "put": makeNoop(),
+    "push": makeBuiltin_2_0(push),
+    "pop": makeBuiltin_1_1(pop),
     "setProp": makeBuiltin_3_0(setProp),
     "getProp": makeBuiltin_2_1(getProp),
     "keys": makeBuiltin_1_1(keys),
-    // "debug1": func(state map[string]any) map[string]any {
-    //     fmt.Println("debugging", state["sayHi"])
-    //     return state
-    // },
+    "exit": func(state map[string]any) map[string]any {
+        return nil
+    },
+    "debugS": func(state map[string]any) map[string]any {
+        fmt.Println("debugging s", state["s"].(map[string]any)["__vals"])
+        return state
+    },
+    "debug": func(state map[string]any) map[string]any {
+        vals := *state["__vals"].(*[]any)
+        fmt.Println("debugging", vals[len(vals)-1])
+        return state
+    },
     "here": func(state map[string]any) map[string]any {
         push(state["__vals"], map[string]any{
             "__fileName": state["__fileName"],
@@ -247,40 +312,58 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     },
 }
 
+func makeState(fileName, code string) map[string]any {
+    // stateCreation
+    return map[string]any{
+        "__fileName": fileName,
+        "__i": 0,
+        "__code": code,
+        "__vals": &[]any{},
+        "__globals": map[string]any{},
+        "__argCount": 0,
+        "__currFuncToken": "",
+    }
+}
+
 func callFunc(state map[string]any) map[string]any {
     fNameToken := state["__currFuncToken"].(string)
     if (fNameToken == "") {
         return state
     }
     fName := fNameToken[1:]
+
+    // phase 1: builtin
     if f, ok := builtins[fName]; ok {
         newState := f(state)
         state["__currFuncToken"] = ""
         state["__argCount"] = 0
         return newState
     }
-    
-    internalFunc, ok := getToken(state, fNameToken).(map[string]any)
-    if ok {
-        // stateCreation
-        newState := map[string]any{
-            "__fileName": internalFunc["__fileName"],
-            "__i": internalFunc["__i"],
-            "__code": internalFunc["__code"],
-            "__vals": state["__vals"],
-            "__currFuncToken": "",
-            "__lexicalParent": internalFunc["__lexicalParent"],
-            "__callingParent": state,
-            "__argCount": state["__argCount"],
+
+    // phase 2: special case string function
+    funcCode := state["__globals"].(map[string]any)[fName]
+    switch funcCode := funcCode.(type) {
+    case string:
+        evalState := makeState("__internal", funcCode)
+        evalState["s"] = state
+        evalState = eval(evalState)
+        state["__currFuncToken"] = ""
+        state["__argCount"] = 0
+        return evalState["s"].(map[string]any)
+    case map[string]any:
+        callFuncString, ok := state["__globals"].(map[string]any)["__callFunc"].(string)
+        if ok {
+            evalState := makeState("__internal", callFuncString)
+            evalState["s"] = state
+            evalState = eval(evalState)
+            state["__currFuncToken"] = ""
+            state["__argCount"] = 0
+            return evalState["s"].(map[string]any)
         }
-        state["__currFuncToken"] = ""
-        state["__argCount"] = 0
-        return newState
-    } else {
-        fmt.Println("Func not found:", fName)
-        state["__currFuncToken"] = ""
-        state["__argCount"] = 0
     }
+    fmt.Println("-cannot find func", fName)
+    state["__currFuncToken"] = ""
+    state["__argCount"] = 0
     return state
 }
 
