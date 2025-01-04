@@ -27,19 +27,37 @@ getProp __STATE "__globals", setProp "get" %"
     push
 "%
 
-
-get "__globals", setProp "dup" %"
-    # funny thing is this could use dup!
+# this func could be
+get "__globals", setProp "getSubStateVals" %"
     get "s"
     getProp "__vals"
 
-        get "s"
-        getProp "__vals"
-            get "s"
-                getProp "__vals"
-                length
-            - 1
-        at
+    get "s"
+    getProp "s"
+    getProp "__vals"
+    push
+"%
+
+# get "__globals", setProp "dup" %"
+#     get "s"
+#     getProp "__vals"
+#         get "s"
+#         getProp "__vals"
+#             get "s"
+#                 getProp "__vals"
+#                 length
+#             - 1
+#         at
+#     push
+# "%
+get "__globals", setProp "dup" %"
+    # funny thing is this could use dup!
+    getSubStateVals
+    getSubStateVals
+    getSubStateVals
+    length
+    - 1
+    at
     push
 "%
 
@@ -52,10 +70,10 @@ say
 get "__globals", setProp "as" %"
     get "s"
 
-    get "s", getProp  "__vals"
+    getSubStateVals
     pop
 
-    get "s", getProp  "__vals"
+    getSubStateVals
     pop
 
     setProp
@@ -65,26 +83,21 @@ as "hello"
 get "hello", say
 
 get "__globals", setProp "swap" %"
-    get "s", getProp  "__vals"
+    # get "s", getProp "__vals"
+    getSubStateVals
     pop, as "tmp"
 
-    get "s", getProp  "__vals"
+    getSubStateVals
     pop, as "tmp2"
 
-    get "s", getProp "__vals"
+    getSubStateVals
     get "tmp"
     push
 
-    get "s", getProp "__vals"
+    getSubStateVals
     get "tmp2"
     push
 "%
-
-
-get "__globals", setProp "goUp" %"
-
-"%
-
 
 
 get "__call_immediates", setProp "(" %"
@@ -154,7 +167,8 @@ get "__call_immediates", setProp ")" %"
     as "parentState"
 
     get "parentState", getProp "__vals"
-    get "s", getProp "__vals"
+    # get "s", getProp "__vals"
+    getSubStateVals
     pushm
 
 
@@ -169,6 +183,11 @@ get "__call_immediates", setProp ")" %"
     get "parentState"
     setProp
 "%
+
+get "__globals", setProp "goUp" %"
+    lastIndexOf (getProp (get "s") "__code" (get "s", getProp "__vals", pop))
+"%
+
 
 say "the globals"
 get "__globals", keys, say
