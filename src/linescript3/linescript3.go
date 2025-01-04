@@ -458,8 +458,14 @@ func keys(a any) any {
 func setProp(a, b, c any) {
     a.(map[string]any)[b.(string)] = c
 }
+func setPropVKO(v, k, o any) {
+    o.(map[string]any)[k.(string)] = v
+}
 func getProp(a, b any) any {
     return a.(map[string]any)[b.(string)]
+}
+func getPropKO(k, o any) any {
+    return o.(map[string]any)[k.(string)]
 }
 func deleteProp(a, b any) {
     delete(a.(map[string]any), b.(string))
@@ -554,7 +560,9 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "splice": makeBuiltin_4_1(splice),
     "length": makeBuiltin_1_1(length),
     "setProp": makeBuiltin_3_0(setProp),
+    "setPropVKO": makeBuiltin_3_0(setPropVKO),
     "getProp": makeBuiltin_2_1(getProp),
+    "getPropKO": makeBuiltin_2_1(getPropKO),
     "deleteProp": makeBuiltin_2_0(deleteProp),
     "keys": makeBuiltin_1_1(keys),
     "exit": func(state map[string]any) map[string]any {
@@ -658,6 +666,17 @@ func callFunc(state map[string]any) map[string]any {
     funcCode = state["__globals"].(map[string]any)[fName]
     switch funcCode := funcCode.(type) {
     case string:
+        // evalState := makeState("__internal", funcCode)
+        // evalState["__stateChangers"] = state["__stateChangers"]
+        // evalState["__globals"] = state["__globals"]
+        // evalState["__call_immediates"] = state["__call_immediates"]
+        // evalState["__vals"] = state["__vals"]
+        // eval(evalState)
+        // state["__currFuncToken"] = ""
+        // state["__argCount"] = 0
+        // return state
+    
+        // need this for "as" to work
         oldCode := state["__code"]
         oldI := state["__i"]
         oldFileName := state["__fileName"]

@@ -15,22 +15,37 @@ getProp __STATE "__stateChangers", setProp "yo" %"
 "%
 yo
 
-getProp __STATE "__stateChangers", setProp "get" %"
-    getProp __STATE "s"
-        getProp "__vals"
+# keep for reference but not needed
+# getProp __STATE "__stateChangers", setProp "get" %"
+#     getProp __STATE "s"
+#         getProp "__vals"
+#
+#         getProp __STATE "s"
+#             getProp __STATE "s"
+#             getProp "__vals"
+#             pop
+#         getProp
+#     push
+# "%
 
-        getProp __STATE "s"
-            getProp __STATE "s"
-            getProp "__vals"
-            pop
-        getProp
-    push
+getProp __STATE "__globals", setProp "as" %"
+    setPropVKO __STATE
 "%
 
+getProp __STATE "__globals", setProp "get" %"
+    getPropKO __STATE
+"%
+
+
+setProp __STATE "color" "blue"
+say "ok got here"
+get "color", say
+
+# this works, and I keep it for reference, but harder to understand
 # get "__stateChangers", setProp "getSubStateVals" %"
 #     get "s"
 #     getProp "__vals"
-# 
+#
 #     get "s"
 #     getProp "s"
 #     getProp "__vals"
@@ -41,7 +56,7 @@ get "__globals", setProp "getSubStateVals" %"
     get "s", getProp "__vals"
 "%
 
-
+# keeping for reference
 # get "__stateChangers", setProp "dup" %"
 #     get "s"
 #     getProp "__vals"
@@ -54,16 +69,23 @@ get "__globals", setProp "getSubStateVals" %"
 #         at
 #     push
 # "%
-get "__stateChangers", setProp "dup" %"
-    # funny thing is this could use dup!
-    # get "s", getProp "__vals"
-    getSubStateVals
-    getSubStateVals
-    getSubStateVals
-    length
-    - 1
-    at
-    push
+# get "__stateChangers", setProp "dup" %"
+#     # funny thing is this could use dup!
+#     # get "s", getProp "__vals"
+#     getSubStateVals
+#     getSubStateVals
+#     getSubStateVals
+#     length
+#     - 1
+#     at
+#     push
+# "%
+
+get "__globals", setProp "dup" %"
+    as "__a"
+    get "__a"
+    get "__a"
+    deleteProp __STATE "__a"
 "%
 
 
@@ -72,38 +94,48 @@ dup
 say
 say
 
-get "__stateChangers", setProp "as" %"
-    get "s"
-
-    # get "s", getProp "__vals"
-    getSubStateVals
-    pop
-
-    # get "s", getProp "__vals"
-    getSubStateVals
-    pop
-
-    setProp
-"%
+# keeping for reference but a simpler version exisits
+# get "__stateChangers", setProp "as" %"
+#     get "s"
+#
+#     # get "s", getProp "__vals"
+#     getSubStateVals
+#     pop
+#
+#     # get "s", getProp "__vals"
+#     getSubStateVals
+#     pop
+#
+#     setProp
+# "%
 put "yo this is a value of a variable"
 as "hello"
 get "hello", say
 
-get "__stateChangers", setProp "swap" %"
-    # get "s", getProp "__vals"
-    getSubStateVals
-    pop, as "tmp"
+# get "__stateChangers", setProp "swap" %"
+#     # get "s", getProp "__vals"
+#     getSubStateVals
+#     pop, as "tmp"
+#
+#     getSubStateVals
+#     pop, as "tmp2"
+#
+#     getSubStateVals
+#     get "tmp"
+#     push
+#
+#     getSubStateVals
+#     get "tmp2"
+#     push
+# "%
 
-    getSubStateVals
-    pop, as "tmp2"
-
-    getSubStateVals
-    get "tmp"
-    push
-
-    getSubStateVals
-    get "tmp2"
-    push
+get "__globals", setProp "swap" %"
+    as "__a"
+    as "__b"
+    get "__a"
+    get "__b"
+    deleteProp __STATE "__a"
+    deleteProp __STATE "__b"
 "%
 
 
@@ -167,13 +199,13 @@ get "__call_immediates", setProp ")" %"
     # call without setting __currFuncToken so it doesn't recurse
     get "s", callFuncAccessible
     as "s"
-    
+
     # debug
     # get "s", getProp "__vals"
     # pop
     # say
     # exit
-    
+
     get "s", getProp "__lexicalParent"
     as "parentState"
 
@@ -194,9 +226,8 @@ get "__call_immediates", setProp ")" %"
     setProp
 "%
 
-get "__stateChangers", setProp "goUp" %"
-    lastIndexOf (getProp (get "s") "__code" (get "s", getProp "__vals", pop))
-"%
+
+
 
 
 say "the globals"
@@ -208,6 +239,43 @@ put "bar" "foo", swap, cc, say
 say (+ 10 200)
 say (cc "hello " "world!")
 say "what?"
+
+# (get s") doesn't work cuz it's a  new scope
+# need lexical lookup func
+
+get "__stateChangers", setProp "goUp" %"
+    # get "s"
+    # getProp "__i", toString
+    # put "Here's the __i ", swap, cc, say
+    
+    getSubStateVals
+    pop
+    put "#", swap, cc
+    as "toSearch"
+    
+
+
+    get "s"
+    getProp "__code"
+    put 0, get "s", getProp "__i", slice
+    get "toSearch"
+    lastIndexOf
+    as "newI"
+    
+    
+    get "s"
+    put "__i"
+    get "newI"
+    setProp
+"%
+
+#yoink
+say "hmm....."
+goUp "yoink"
+
+
+
+
 exit
 
         # "__fileName": fileName,
