@@ -27,25 +27,19 @@ getProp __STATE "__stateChangers", setProp "get" %"
     push
 "%
 
-get "__stateChangers", setProp "getSubStateVals" %"
-    get "s"
-    getProp "__vals"
-
-    get "s"
-    getProp "s"
-    getProp "__vals"
-    push
-"%
-
-# get "__globals", setProp "getSubStateVals" %"
-#     get "s", getProp "__vals"
+# get "__stateChangers", setProp "getSubStateVals" %"
+#     get "s"
+#     getProp "__vals"
+# 
+#     get "s"
+#     getProp "s"
+#     getProp "__vals"
+#     push
 # "%
 
-get "__globals", setProp "testGlobal" %"
-    say "ok!"
+get "__globals", setProp "getSubStateVals" %"
+    get "s", getProp "__vals"
 "%
-testGlobal
-
 
 
 # get "__stateChangers", setProp "dup" %"
@@ -91,7 +85,7 @@ get "__stateChangers", setProp "as" %"
 
     setProp
 "%
-put "yo!!"
+put "yo this is a value of a variable"
 as "hello"
 get "hello", say
 
@@ -139,6 +133,10 @@ get "__call_immediates", setProp "(" %"
             put "__stateChangers"
             get "s", getProp "__stateChangers"
         setProp
+        dup
+            put "__globals"
+            get "s", getProp "__globals"
+        setProp
 
         dup
             put "__call_immediates"
@@ -180,8 +178,7 @@ get "__call_immediates", setProp ")" %"
     as "parentState"
 
     get "parentState", getProp "__vals"
-    get "s", getProp "__vals"
-    # getSubStateVals
+    getSubStateVals
     pushm
 
 
@@ -209,8 +206,6 @@ get "__stateChangers", keys, say
 put "bar" "foo", swap, cc, say
 
 say (+ 10 200)
-exit
-# 
 say (cc "hello " "world!")
 say "what?"
 exit
