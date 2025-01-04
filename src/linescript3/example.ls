@@ -97,7 +97,8 @@ get "__call_immediates", setProp "(" %"
         setProp
 
         dup
-            put "__i" 0
+            put "__i"
+            get "s", getProp "__i"
         setProp
 
         dup
@@ -139,8 +140,15 @@ get "__call_immediates", setProp "(" %"
 
 
 get "__call_immediates", setProp ")" %"
-    // because potentially no newline, so we force call it
-    get "s", callFunc
+    # call without setting __currFuncToken so it doesn't recurse
+    get "s", callFuncAccessible
+    as "s"
+    
+    # debug
+    # get "s", getProp "__vals"
+    # pop
+    # say
+    # exit
     
     get "s", getProp "__lexicalParent"
     as "parentState"
@@ -149,14 +157,16 @@ get "__call_immediates", setProp ")" %"
     get "s", getProp "__vals"
     pushm
 
-    put __STATE "s"
-    get "parentState"
-    setProp
-    
+
     get "parentState"
     put "__i"
+
     get "s"
     getProp "__i"
+    setProp
+
+    put __STATE "s"
+    get "parentState"
     setProp
 "%
 
@@ -167,8 +177,11 @@ get "__globals", keys, say
 put "bar" "foo", swap, cc, say
 
 
+say (+ 10 200)
+
+say (cc "hello " "world!")
+say "what?"
 exit
-# say (+ 20 300)
 
         # "__fileName": fileName,
         # "__i": 0,

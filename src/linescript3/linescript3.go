@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"encoding/json"
 	"math"
+	"time"
 )
 
 func main() {
@@ -16,7 +17,7 @@ func main() {
 	// 	./linescript3.go:374:5: builtins refers to
 	// 	./linescript3.go:440:6: callFunc refers to
 	// 	./linescript3.go:374:5: builtins
-    builtins["callFunc"] = callFunc
+    builtins["callFuncAccessible"] = makeBuiltin_1_1(callFuncAccessible)
 
     if len(os.Args) < 2 {
         fmt.Println("Please provide a file name.")
@@ -53,13 +54,26 @@ func eval(state map[string]any) map[string]any {
         case "\n":
             state = callFunc(state)
             continue
+        // case "$callFuncImmediate":
+        //     fmt.Println("calling immediate!", state["__currFuncToken"])
+        //     callFunc(state)
+        //     continue
+        // case "$callFunc":
+        //     fmt.Println("calling immediate!", state["__currFuncToken"])
+        //     continue
         }
 
         if immediateCode, ok := state["__call_immediates"].(map[string]any)[token].(string); ok {
             evalState := makeState("__internal", immediateCode)
+            evalState["__globals"] = state["__globals"]
+            evalState["__call_immediates"] = state["__call_immediates"]
             evalState["s"] = state
             evalState = eval(evalState)
-            state = evalState["s"].(map[string]any)
+            state, ok = evalState["s"].(map[string]any)
+            if !ok {
+                return nil
+            }
+            continue
         }
 
         if state["__currFuncToken"].(string) == "" {
@@ -100,12 +114,23 @@ func evalToken(state map[string]any, field string) any {
     if field == "$__STATE" {
         return state
     }
+    if field == "$true" {
+        return true
+    }
+    if field == "$false" {
+        return false
+    }
+    if field == "$null" {
+        return nil
+    }
 
     varName := field[1:]
     funcCode := state["__globals"].(map[string]any)["__getVar"]
     switch funcCode := funcCode.(type) {
     case string:
         evalState := makeState("__internal", funcCode)
+        evalState["__globals"] = state["__globals"]
+        evalState["__call_immediates"] = state["__call_immediates"]
         evalState["s"] = state
         evalState["varName"] = varName
         evalState = eval(evalState)
@@ -434,6 +459,9 @@ func setProp(a, b, c any) {
 func getProp(a, b any) any {
     return a.(map[string]any)[b.(string)]
 }
+func deleteProp(a, b any) {
+    delete(a.(map[string]any), b.(string))
+}
 
 func makeNoop() func(state map[string]any) map[string]any {
     return func(state map[string]any) map[string]any {
@@ -523,6 +551,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "length": makeBuiltin_1_1(length),
     "setProp": makeBuiltin_3_0(setProp),
     "getProp": makeBuiltin_2_1(getProp),
+    "deleteProp": makeBuiltin_2_0(deleteProp),
     "keys": makeBuiltin_1_1(keys),
     "exit": func(state map[string]any) map[string]any {
         return nil
@@ -569,8 +598,17 @@ func makeState(fileName, code string) map[string]any {
     }
 }
 
+func callFuncAccessible(state any) any {
+    // fmt.Println("ok======", state.(map[string]any)["__currFuncToken"])
+    return callFunc(state.(map[string]any))
+}
+
 func callFunc(state map[string]any) map[string]any {
     fNameToken := state["__currFuncToken"].(string)
+    if dc, _ := state["__globals"].(map[string]any)["debugCalling"].(bool); dc {
+        fmt.Println("we are calling", fNameToken)
+        time.Sleep(1 * time.Second)
+    }
     if (fNameToken == "") {
         return state
     }
@@ -600,6 +638,8 @@ func callFunc(state map[string]any) map[string]any {
         callFuncString, ok := state["__globals"].(map[string]any)["__callFunc"].(string)
         if ok {
             evalState := makeState("__internal", callFuncString)
+            evalState["__globals"] = state["__globals"]
+            evalState["__call_immediates"] = state["__call_immediates"]
             evalState["s"] = state
             evalState = eval(evalState)
             state["__currFuncToken"] = ""
