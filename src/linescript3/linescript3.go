@@ -38,7 +38,7 @@ func main() {
 func eval(state map[string]any) map[string]any {
     token := ""
 
-    for j := 0; j < 1000; j++ {
+    for j := 0; j < 10000; j++ {
         if state == nil {
             return nil
         }
@@ -65,6 +65,7 @@ func eval(state map[string]any) map[string]any {
 
         if immediateCode, ok := state["__call_immediates"].(map[string]any)[token].(string); ok {
             evalState := makeState("__internal", immediateCode)
+            evalState["__stateChangers"] = state["__stateChangers"]
             evalState["__globals"] = state["__globals"]
             evalState["__call_immediates"] = state["__call_immediates"]
             evalState["s"] = state
@@ -125,10 +126,11 @@ func evalToken(state map[string]any, field string) any {
     }
 
     varName := field[1:]
-    funcCode := state["__globals"].(map[string]any)["__getVar"]
+    funcCode := state["__stateChangers"].(map[string]any)["__getVar"]
     switch funcCode := funcCode.(type) {
     case string:
         evalState := makeState("__internal", funcCode)
+        evalState["__stateChangers"] = state["__stateChangers"]
         evalState["__globals"] = state["__globals"]
         evalState["__call_immediates"] = state["__call_immediates"]
         evalState["s"] = state
@@ -535,6 +537,8 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "^": makeBuiltin_2_1(exponent),
     "%": makeBuiltin_2_1(mod),
     "cc": makeBuiltin_2_1(cc),
+    "indexOf": makeBuiltin_2_1(indexOf),
+    "lastIndexOf": makeBuiltin_2_1(lastIndexOf),
     "toString": makeBuiltin_1_1(toString),
     "is": makeBuiltin_2_1(is),
     "say": makeBuiltin_1_0(say),
@@ -573,15 +577,15 @@ var builtins = map[string]func(state map[string]any) map[string]any {
         fmt.Println("debugging", vals[len(vals)-1])
         return state
     },
-    "here": func(state map[string]any) map[string]any {
-        push(state["__vals"], map[string]any{
-            "__fileName": state["__fileName"],
-            "__i": state["__i"],
-            "__code": state["__code"],
-            "__lexicalParent": state["__lexicalParent"],
-        })
-        return state
-    },
+    // "here": func(state map[string]any) map[string]any {
+    //     push(state["__vals"], map[string]any{
+    //         "__fileName": state["__fileName"],
+    //         "__i": state["__i"],
+    //         "__code": state["__code"],
+    //         "__lexicalParent": state["__lexicalParent"],
+    //     })
+    //     return state
+    // },
 }
 
 func makeState(fileName, code string) map[string]any {
@@ -591,6 +595,7 @@ func makeState(fileName, code string) map[string]any {
         "__i": 0,
         "__code": code,
         "__vals": &[]any{},
+        "__stateChangers": map[string]any{},
         "__globals": map[string]any{},
         "__call_immediates": map[string]any{},
         "__argCount": 0,
@@ -605,7 +610,7 @@ func callFuncAccessible(state any) any {
 
 func callFunc(state map[string]any) map[string]any {
     fNameToken := state["__currFuncToken"].(string)
-    if dc, _ := state["__globals"].(map[string]any)["debugCalling"].(bool); dc {
+    if dc, _ := state["__stateChangers"].(map[string]any)["debugCalling"].(bool); dc {
         fmt.Println("we are calling", fNameToken)
         time.Sleep(1 * time.Second)
     }
@@ -623,10 +628,11 @@ func callFunc(state map[string]any) map[string]any {
     }
 
     // phase 2: special case string function
-    funcCode := state["__globals"].(map[string]any)[fName]
+    funcCode := state["__stateChangers"].(map[string]any)[fName]
     switch funcCode := funcCode.(type) {
     case string:
         evalState := makeState("__internal", funcCode)
+        evalState["__stateChangers"] = state["__stateChangers"]
         evalState["__globals"] = state["__globals"]
         evalState["__call_immediates"] = state["__call_immediates"]
         evalState["s"] = state
@@ -635,9 +641,10 @@ func callFunc(state map[string]any) map[string]any {
         state["__argCount"] = 0
         return evalState["s"].(map[string]any)
     case map[string]any:
-        callFuncString, ok := state["__globals"].(map[string]any)["__callFunc"].(string)
+        callFuncString, ok := state["__stateChangers"].(map[string]any)["__callFunc"].(string)
         if ok {
             evalState := makeState("__internal", callFuncString)
+            evalState["__stateChangers"] = state["__stateChangers"]
             evalState["__globals"] = state["__globals"]
             evalState["__call_immediates"] = state["__call_immediates"]
             evalState["s"] = state
@@ -646,6 +653,24 @@ func callFunc(state map[string]any) map[string]any {
             state["__argCount"] = 0
             return evalState["s"].(map[string]any)
         }
+    }
+    
+    funcCode = state["__globals"].(map[string]any)[fName]
+    switch funcCode := funcCode.(type) {
+    case string:
+        oldCode := state["__code"]
+        oldI := state["__i"]
+        oldFileName := state["__fileName"]
+        state["__code"] = funcCode
+        state["__i"] = 0
+        state["__fileName"] = "__internal"
+        state["__currFuncToken"] = ""
+        eval(state)
+        state["__argCount"] = 0
+        state["__code"] = oldCode
+        state["__i"] = oldI
+        state["__fileName"] = oldFileName
+        return state
     }
     fmt.Println("-cannot find func", fName)
     state["__currFuncToken"] = ""

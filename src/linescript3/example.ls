@@ -10,12 +10,12 @@ getProp __STATE "foo", say
 + 1 100
 say
 
-getProp __STATE "__globals", setProp "yo" %"
+getProp __STATE "__stateChangers", setProp "yo" %"
     say "Yo!"
 "%
 yo
 
-getProp __STATE "__globals", setProp "get" %"
+getProp __STATE "__stateChangers", setProp "get" %"
     getProp __STATE "s"
         getProp "__vals"
 
@@ -27,8 +27,7 @@ getProp __STATE "__globals", setProp "get" %"
     push
 "%
 
-# this func could be
-get "__globals", setProp "getSubStateVals" %"
+get "__stateChangers", setProp "getSubStateVals" %"
     get "s"
     getProp "__vals"
 
@@ -38,7 +37,18 @@ get "__globals", setProp "getSubStateVals" %"
     push
 "%
 
-# get "__globals", setProp "dup" %"
+# get "__globals", setProp "getSubStateVals" %"
+#     get "s", getProp "__vals"
+# "%
+
+get "__globals", setProp "testGlobal" %"
+    say "ok!"
+"%
+testGlobal
+
+
+
+# get "__stateChangers", setProp "dup" %"
 #     get "s"
 #     getProp "__vals"
 #         get "s"
@@ -50,8 +60,9 @@ get "__globals", setProp "getSubStateVals" %"
 #         at
 #     push
 # "%
-get "__globals", setProp "dup" %"
+get "__stateChangers", setProp "dup" %"
     # funny thing is this could use dup!
+    # get "s", getProp "__vals"
     getSubStateVals
     getSubStateVals
     getSubStateVals
@@ -67,12 +78,14 @@ dup
 say
 say
 
-get "__globals", setProp "as" %"
+get "__stateChangers", setProp "as" %"
     get "s"
 
+    # get "s", getProp "__vals"
     getSubStateVals
     pop
 
+    # get "s", getProp "__vals"
     getSubStateVals
     pop
 
@@ -82,7 +95,7 @@ put "yo!!"
 as "hello"
 get "hello", say
 
-get "__globals", setProp "swap" %"
+get "__stateChangers", setProp "swap" %"
     # get "s", getProp "__vals"
     getSubStateVals
     pop, as "tmp"
@@ -123,8 +136,8 @@ get "__call_immediates", setProp "(" %"
             put "__vals", makeArray
         setProp
         dup
-            put "__globals"
-            get "s", getProp "__globals"
+            put "__stateChangers"
+            get "s", getProp "__stateChangers"
         setProp
 
         dup
@@ -167,8 +180,8 @@ get "__call_immediates", setProp ")" %"
     as "parentState"
 
     get "parentState", getProp "__vals"
-    # get "s", getProp "__vals"
-    getSubStateVals
+    get "s", getProp "__vals"
+    # getSubStateVals
     pushm
 
 
@@ -184,20 +197,20 @@ get "__call_immediates", setProp ")" %"
     setProp
 "%
 
-get "__globals", setProp "goUp" %"
+get "__stateChangers", setProp "goUp" %"
     lastIndexOf (getProp (get "s") "__code" (get "s", getProp "__vals", pop))
 "%
 
 
 say "the globals"
-get "__globals", keys, say
+get "__stateChangers", keys, say
 
 
 put "bar" "foo", swap, cc, say
 
-
 say (+ 10 200)
-
+exit
+# 
 say (cc "hello " "world!")
 say "what?"
 exit
@@ -206,7 +219,7 @@ exit
         # "__i": 0,
         # "__code": code,
         # "__vals": &[]any{},
-        # "__globals": map[string]any{},
+        # "__stateChangers": map[string]any{},
         # "__call_immediates": map[string]any{},
         # "__argCount": 0,
         # "__currFuncToken": "",
@@ -250,7 +263,7 @@ exit
 # get foo
 # say
 
-# getProp __STATE "__globals", setProp "__getVar" %"
+# getProp __STATE "__stateChangers", setProp "__getVar" %"
 #     getProp __STATE "s"
 #     getProp __STATE "varName"
 #     has
@@ -260,7 +273,7 @@ exit
 
 yo
 
-# getProp __STATE "__globals", setProp "__evalToken" %"
+# getProp __STATE "__stateChangers", setProp "__evalToken" %"
 #
 # "%
 
@@ -270,7 +283,7 @@ setProp __STATE "__callFunc" %"
 
 
 
-# getProp __STATE "__globals"
+# getProp __STATE "__stateChangers"
 # setProp "let" "
 #     put __STATE
 #     getProp __STATE "__vals"
