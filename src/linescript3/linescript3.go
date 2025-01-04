@@ -54,7 +54,7 @@ func eval(state map[string]any) map[string]any {
             state = callFunc(state)
             continue
         }
-        
+
         if immediateCode, ok := state["__call_immediates"].(map[string]any)[token].(string); ok {
             evalState := makeState("__internal", immediateCode)
             evalState["s"] = state
@@ -97,8 +97,6 @@ func evalToken(state map[string]any, field string) any {
         return i
     }
 
-    
-    
     if field == "$__STATE" {
         return state
     }
@@ -428,7 +426,6 @@ func keys(a any) any {
     for k := range a.(map[string]any) {
         ret = append(ret, k)
     }
-    fmt.Println("debug:", ret)
     return &ret
 }
 func setProp(a, b, c any) {
@@ -679,7 +676,8 @@ func nextTokenRaw(code string, i int) (string, int) {
 
 // 'a string
 // $var_name
-// #300
+// #300.23
+// i300
 func makeToken(val string) string {
     if isNumeric(val) {
         if strings.Contains(val, ".") {

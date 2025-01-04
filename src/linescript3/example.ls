@@ -27,6 +27,7 @@ getProp __STATE "__globals", setProp "get" %"
     push
 "%
 
+
 get "__globals", setProp "dup" %"
     # funny thing is this could use dup!
     get "s"
@@ -42,23 +43,26 @@ get "__globals", setProp "dup" %"
     push
 "%
 
+
 put 999
 dup
 say
 say
 
 get "__globals", setProp "as" %"
-    put  __STATE
+    get "s"
 
     get "s", getProp  "__vals"
     pop
-
 
     get "s", getProp  "__vals"
     pop
 
     setProp
 "%
+put "yo!!"
+as "hello"
+get "hello", say
 
 get "__globals", setProp "swap" %"
     get "s", getProp  "__vals"
@@ -68,23 +72,24 @@ get "__globals", setProp "swap" %"
     pop, as "tmp2"
 
     get "s", getProp "__vals"
-    get "tmp2"
+    get "tmp"
     push
 
     get "s", getProp "__vals"
-    get "tmp1"
+    get "tmp2"
     push
 "%
+
 
 get "__globals", setProp "goUp" %"
 
 "%
 
 
+
 get "__call_immediates", setProp "(" %"
     # might be more readable if we used "as" here?
-    put __STATE
-    put "s"
+    put __STATE "s"
     makeObject
         dup
             put "__fileName"
@@ -133,20 +138,37 @@ get "__call_immediates", setProp "(" %"
 "%
 
 
-
 get "__call_immediates", setProp ")" %"
     // because potentially no newline, so we force call it
     get "s", callFunc
+    
     get "s", getProp "__lexicalParent"
     as "parentState"
 
     get "parentState", getProp "__vals"
     get "s", getProp "__vals"
+    pushm
 
     put __STATE "s"
     get "parentState"
     setProp
+    
+    get "parentState"
+    put "__i"
+    get "s"
+    getProp "__i"
+    setProp
 "%
+
+say "the globals"
+get "__globals", keys, say
+
+
+put "bar" "foo", swap, cc, say
+
+
+exit
+# say (+ 20 300)
 
         # "__fileName": fileName,
         # "__i": 0,
@@ -191,9 +213,6 @@ get "__call_immediates", setProp ")" %"
 
 
 
-get "foo", say
-
-exit
 
 
 # get foo
