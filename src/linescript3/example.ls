@@ -138,93 +138,125 @@ get "__globals", setProp "swap" %"
     deleteProp __STATE "__b"
 "%
 
-
 get "__call_immediates", setProp "(" %"
-    # might be more readable if we used "as" here?
-    put __STATE "s"
-    makeObject
-        dup
-            put "__fileName"
-            get "s", getProp "__fileName"
-        setProp
-
-        dup
-            put "__i"
-            get "s", getProp "__i"
-        setProp
-
-        dup
-            put "__code"
-            get "s", getProp "__code"
-        setProp
-
-        dup
-            put "__vals", makeArray
-        setProp
-        dup
-            put "__stateChangers"
-            get "s", getProp "__stateChangers"
-        setProp
-        dup
-            put "__globals"
-            get "s", getProp "__globals"
-        setProp
-
-        dup
-            put "__call_immediates"
-            get "s", getProp "__call_immediates"
-        setProp
-
-        dup
-            put "__argCount" 0
-        setProp
-
-        dup
-            put "__currFuncToken" ""
-        setProp
-
-        dup
-            put "__lexicalParent"
-            get "s"
-        setProp
-        dup
-            put "__callingParent"
-            get "s"
-        setProp
-    setProp
+    get "s", getProp "__funcTokenStack"
+    get "s", getProp "__currFuncToken"
+    push
+    get "s", setProp "__currFuncToken" ""
+    
+    
+    get "s", getProp "__funcTokenSpotStack"
+    get "s", getProp "__funcTokenSpot"
+    push
+    get "s", setProp "__funcTokenSpot" -1
 "%
-
 
 get "__call_immediates", setProp ")" %"
-    # call without setting __currFuncToken so it doesn't recurse
     get "s", callFuncAccessible
     as "s"
-
-    # debug
-    # get "s", getProp "__vals"
-    # pop
-    # say
-    # exit
-
-    get "s", getProp "__lexicalParent"
-    as "parentState"
-
-    get "parentState", getProp "__vals"
-    getSubStateVals
-    pushm
-
-
-    get "parentState"
-    put "__i"
-
+    
     get "s"
-    getProp "__i"
+    put "__currFuncToken"
+        get "s", getProp "__funcTokenStack"
+        pop
     setProp
-
-    put __STATE "s"
-    get "parentState"
+    
+    
+    get "s"
+    put "__funcTokenSpot"
+        get "s", getProp "__funcTokenSpotStack"
+        pop
     setProp
 "%
+
+# get "__call_immediates", setProp "(" %"
+#     # might be more readable if we used "as" here?
+#     put __STATE "s"
+#     makeObject
+#         dup
+#             put "__fileName"
+#             get "s", getProp "__fileName"
+#         setProp
+# 
+#         dup
+#             put "__i"
+#             get "s", getProp "__i"
+#         setProp
+# 
+#         dup
+#             put "__code"
+#             get "s", getProp "__code"
+#         setProp
+# 
+#         dup
+#             put "__vals", makeArray
+#         setProp
+#         dup
+#             put "__stateChangers"
+#             get "s", getProp "__stateChangers"
+#         setProp
+#         dup
+#             put "__globals"
+#             get "s", getProp "__globals"
+#         setProp
+# 
+#         dup
+#             put "__call_immediates"
+#             get "s", getProp "__call_immediates"
+#         setProp
+# 
+# 
+#         dup
+#             put "__currFuncToken" ""
+#         setProp
+#         
+#         dup
+#             put "__funcTokenStack" makeArray
+#         setProp
+# 
+#         dup
+#             put "__lexicalParent"
+#             get "s"
+#         setProp
+#         # this last dup remove?
+#         dup
+#             put "__callingParent"
+#             get "s"
+#         setProp
+#     setProp
+# "%
+
+
+# get "__call_immediates", setProp ")" %"
+#     # call without setting __currFuncToken so it doesn't recurse
+#     get "s", callFuncAccessible
+#     as "s"
+# 
+#     # debug
+#     # get "s", getProp "__vals"
+#     # pop
+#     # say
+#     # exit
+# 
+#     get "s", getProp "__lexicalParent"
+#     as "parentState"
+# 
+#     get "parentState", getProp "__vals"
+#     getSubStateVals
+#     pushm
+# 
+# 
+#     get "parentState"
+#     put "__i"
+# 
+#     get "s"
+#     getProp "__i"
+#     setProp
+# 
+#     put __STATE "s"
+#     get "parentState"
+#     setProp
+# "%
 
 
 
@@ -327,40 +359,45 @@ as "(green)" "theColor"
 get "theColor", sayP "the var color: "
 # exit
 
-get "__globals", setProp "incr" %"
+get "__call_immediates", setProp "it" %"
+    say "calling it"
+    getProp (get "__s") "__funcTokenSpot"
+    as "spot"
+    # index of the first arg
+
+    getSubStateVals, splice (get "spot") 1 null
+    as "item"
     
+    getSubStateVals
+    push (get "item")
+"%
+
+get "__globals", setProp "incr" %"
     as "__key"
+    
     get "__key"
     get
     + 1
-    say
+    dup, say
     
-    
-    # as "__key"
-    # put __STATE
-    # get "__key"
-    # getProp
-    # + 1
-    #
-    # put __STATE
-    # get "__key"
-    
-
-    # get "key", sayP "*the key is: "
-    # get "key"
-    # put __STATE, get "key", getProp, + 1
-    # setProp
+    get "__key"
+    as
 "%
 
 put 101, as "theCount"
 say "count:"
 get "theCount", say
 # get "theCount", sayP "The count is "
+# exit
+
+incr "theCount"
+incr "theCount"
+incr "theCount"
 incr "theCount"
 say "count:"
 get "theCount", say
-
 exit
+
 
 #yoink
 
@@ -378,7 +415,6 @@ exit
         # "__vals": &[]any{},
         # "__stateChangers": map[string]any{},
         # "__call_immediates": map[string]any{},
-        # "__argCount": 0,
         # "__currFuncToken": "",
     # "(": func(state map[string]any) map[string]any {
     #     // stateCreation

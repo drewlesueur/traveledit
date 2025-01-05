@@ -54,13 +54,6 @@ func eval(state map[string]any) map[string]any {
         case "\n":
             state = callFunc(state)
             continue
-        // case "$callFuncImmediate":
-        //     fmt.Println("calling immediate!", state["__currFuncToken"])
-        //     callFunc(state)
-        //     continue
-        // case "$callFunc":
-        //     fmt.Println("calling immediate!", state["__currFuncToken"])
-        //     continue
         }
 
         if immediateCode, ok := state["__call_immediates"].(map[string]any)[token].(string); ok {
@@ -79,8 +72,8 @@ func eval(state map[string]any) map[string]any {
 
         if state["__currFuncToken"].(string) == "" {
             state["__currFuncToken"] = token
+            state["__funcTokenSpot"] = length(state["__vals"]).(int) + 1
         } else {
-            state["__argCount"] = state["__argCount"].(int) + 1
             push(state["__vals"], evalToken(state, token))
         }
     }
@@ -620,6 +613,9 @@ func makeState(fileName, code string) map[string]any {
         "__call_immediates": map[string]any{},
         "__argCount": 0,
         "__currFuncToken": "",
+        "__funcTokenStack": &[]any{},
+        "__funcTokenSpot": -1,
+        "__funcTokenSpotStack": &[]any{},
     }
 }
 
@@ -643,7 +639,7 @@ func callFunc(state map[string]any) map[string]any {
     if f, ok := builtins[fName]; ok {
         newState := f(state)
         state["__currFuncToken"] = ""
-        state["__argCount"] = 0
+        state["__funcTokenSpot"] = -1
         return newState
     }
 
@@ -658,7 +654,7 @@ func callFunc(state map[string]any) map[string]any {
         evalState["s"] = state
         evalState = eval(evalState)
         state["__currFuncToken"] = ""
-        state["__argCount"] = 0
+        state["__funcTokenSpot"] = -1
         return evalState["s"].(map[string]any)
     case map[string]any:
         callFuncString, ok := state["__stateChangers"].(map[string]any)["__callFunc"].(string)
@@ -670,7 +666,7 @@ func callFunc(state map[string]any) map[string]any {
             evalState["s"] = state
             evalState = eval(evalState)
             state["__currFuncToken"] = ""
-            state["__argCount"] = 0
+            state["__funcTokenSpot"] = -1
             return evalState["s"].(map[string]any)
         }
     }
@@ -685,7 +681,7 @@ func callFunc(state map[string]any) map[string]any {
         // evalState["__vals"] = state["__vals"]
         // eval(evalState)
         // state["__currFuncToken"] = ""
-        // state["__argCount"] = 0
+        // state["__funcTokenSpot"] = -1
         // return state
     
         // need this for "as" to work
@@ -697,7 +693,7 @@ func callFunc(state map[string]any) map[string]any {
         state["__fileName"] = "__internal"
         state["__currFuncToken"] = ""
         eval(state)
-        state["__argCount"] = 0
+        state["__funcTokenSpot"] = -1
         state["__code"] = oldCode
         state["__i"] = oldI
         state["__fileName"] = oldFileName
@@ -705,7 +701,7 @@ func callFunc(state map[string]any) map[string]any {
     }
     fmt.Println("-cannot find func", fName)
     state["__currFuncToken"] = ""
-    state["__argCount"] = 0
+    state["__funcTokenSpot"] = -1
     return state
 }
 
