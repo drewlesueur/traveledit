@@ -417,6 +417,17 @@ func toString(a any) any {
     return nil
 }
 
+func toInt(a any) any {
+    switch a := a.(type) {
+    case bool:
+        if a {
+            return 1
+        }
+        return 0
+    }
+    return nil
+}
+
 func say(val any) {
     switch val := val.(type) {
     case string:
@@ -546,6 +557,7 @@ var builtins = map[string]func(state map[string]any) map[string]any {
     "indexOf": makeBuiltin_2_1(indexOf),
     "lastIndexOf": makeBuiltin_2_1(lastIndexOf),
     "toString": makeBuiltin_1_1(toString),
+    "toInt": makeBuiltin_1_1(toInt),
     "is": makeBuiltin_2_1(is),
     "say": makeBuiltin_1_0(say),
     "put": makeNoop(),

@@ -244,16 +244,12 @@ say "what?"
 # need lexical lookup func
 
 get "__stateChangers", setProp "goUp" %"
-    # get "s"
-    # getProp "__i", toString
-    # put "Here's the __i ", swap, cc, say
-    
+    # todo add caching
+
     getSubStateVals
     pop
     put "#", swap, cc
     as "toSearch"
-    
-
 
     get "s"
     getProp "__code"
@@ -261,15 +257,113 @@ get "__stateChangers", setProp "goUp" %"
     get "toSearch"
     lastIndexOf
     as "newI"
-    
-    
+
     get "s"
     put "__i"
     get "newI"
     setProp
 "%
 
+get "__stateChangers", setProp "stopIf" %"
+    get "s"
+        put "__i"
+
+        get "s", getProp "__code", length
+            get "s", getProp "__i"
+        -
+
+        getSubStateVals
+        pop
+        toInt
+        *
+
+        get "s", getProp "__i"
+        +
+
+    setProp
+"%
+
+
+get "__globals", setProp "testing1" %"
+    say "here we test"
+    stopIf true
+    say "#red should not get here"
+"%
+
+testing1
+say "Done testing1"
+
+get "__stateChangers", setProp "goUpIf" %"
+    getSubStateVals
+    pop
+    stopIf
+
+    # todo add caching
+    getSubStateVals
+    pop
+    put "#", swap, cc
+    as "toSearch"
+
+    get "s"
+    getProp "__code"
+    put 0, get "s", getProp "__i", slice
+    get "toSearch"
+    lastIndexOf
+    as "newI"
+
+    get "s"
+    put "__i"
+    get "newI"
+    setProp
+"%
+
+get "__globals", setProp "sayP" %"
+    swap, cc, say
+"%
+
+put "(blue)"
+sayP "the color is "
+as "(green)" "theColor"
+get "theColor", sayP "the var color: "
+# exit
+
+get "__globals", setProp "incr" %"
+    
+    as "__key"
+    get "__key"
+    get
+    + 1
+    say
+    
+    
+    # as "__key"
+    # put __STATE
+    # get "__key"
+    # getProp
+    # + 1
+    #
+    # put __STATE
+    # get "__key"
+    
+
+    # get "key", sayP "*the key is: "
+    # get "key"
+    # put __STATE, get "key", getProp, + 1
+    # setProp
+"%
+
+put 101, as "theCount"
+say "count:"
+get "theCount", say
+# get "theCount", sayP "The count is "
+incr "theCount"
+say "count:"
+get "theCount", say
+
+exit
+
 #yoink
+
 say "hmm....."
 goUp "yoink"
 
