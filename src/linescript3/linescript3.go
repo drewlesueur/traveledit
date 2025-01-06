@@ -306,18 +306,18 @@ func nextToken__(state map[string]any) string {
 
 
 
-
-
+const stateOut = 0
+const stateIn = 1
 func nextTokenRaw(code string, i int) (string, int) {
     if i > len(code) {
         return "", -1
     }
-    state := "out" // "string", "in"
+    state := stateOut
     start := -1
     for i = i; i < len(code); i++ {
         b := code[i]
         switch state {
-        case "out":
+        case stateOut:
             switch b {
             case '{', '}', '(', ')', '[', ']':
                 return string(b), i+1
@@ -337,10 +337,10 @@ func nextTokenRaw(code string, i int) (string, int) {
                 }
                 i = i+1+end
             default:
-                state = "in"
+                state = stateIn
                 start = i
             }
-        case "in":
+        case stateIn:
             switch b {
             case '{', '}', '(', ')', '[', ']':
                 return makeToken(code[start:i]), i
@@ -357,7 +357,7 @@ func nextTokenRaw(code string, i int) (string, int) {
             }
         }
     }
-    if state == "in" {
+    if state == stateIn {
         return makeToken(code[start:i]), i+1
     }
     return "", -1

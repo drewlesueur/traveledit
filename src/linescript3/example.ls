@@ -1,4 +1,4 @@
-#!/usr/bin/env go run linescript3.go funcs.go
+#!/usr/bin/env -S go run linescript3.go funcs.go
 
 #notfound
 
@@ -531,11 +531,11 @@ get "__globals", setProp "loop" %"
     
 "%
 
+let "loopCount" 100000
 
 let "theStart" (now)
 let "val" 0
-# loop 10000 "i" %"
-loop 10000 "i" %"
+loop loopCount "i" %"
     get "val"
     get "i"
     % 30
@@ -552,8 +552,7 @@ say "and val is " val (cc)
 
 let "theStart" (now)
 let "val" 0
-# loop 10000 "i" %"
-loop 10000 "i" %"
+loop loopCount "i" %"
     put val
     % i 30
     +
@@ -573,8 +572,7 @@ put val
 +
 as "val"
 incr "i"
-put "here", < i 10000, goUpIf
-# goUpIf "here" (< i 10000)
+put "here", < i loopCount, goUpIf
 let "theEnd" (now)
 say "+it took " (- theEnd theStart) " millis" (cc) (cc)
 say "and val is " val (cc)
@@ -589,8 +587,7 @@ get "i"
 +
 as "val"
 incr "i"
-put "here", < i 10000, goUpIf
-# goUpIf "here" (< i 10000)
+put "here", get "i", get "loopCount", <, goUpIf
 let "theEnd" (now)
 say "+it took " (- theEnd theStart) " millis" (cc) (cc)
 say "and val is " val (cc)

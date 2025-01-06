@@ -587,7 +587,7 @@ func makeBuiltin_4_1(f func(any, any, any, any) any) func(state map[string]any) 
 }
 
 func optimized() {
-    return
+    // return
     builtins["incr"] = func(state map[string]any) map[string]any {
         a := pop(state["__vals"])
         state[a.(string)] = state[a.(string)].(int) + 1
