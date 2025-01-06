@@ -1,4 +1,4 @@
-#!/usr/bin/env go run linescript3.go
+#!/usr/bin/env go run linescript3.go funcs.go
 
 #notfound
 
@@ -260,6 +260,9 @@ get "__call_immediates", setProp ")" %"
 
 
 
+get "__globals", setProp "let" %"
+    swap, as
+"%
 
 
 say "the globals"
@@ -288,6 +291,27 @@ get "__stateChangers", setProp "goUp" %"
     put 0, get "s", getProp "__i", slice
     get "toSearch"
     lastIndexOf
+    as "newI"
+
+    get "s"
+    put "__i"
+    get "newI"
+    setProp
+"%
+get "__stateChangers", setProp "goDown" %"
+    # todo add caching
+
+    getSubStateVals
+    pop
+    put "#", swap, cc
+    as "toSearch"
+    
+
+    get "s", getProp "__code"
+    get "s", getProp "__i"
+    sliceFrom 
+    get "toSearch"
+    indexOf
     as "newI"
 
     get "s"
@@ -329,7 +353,6 @@ get "__stateChangers", setProp "stopIf" %"
     setProp
 "%
 
-
 get "__globals", setProp "testing1" %"
     say "here we test"
     stopIf true
@@ -342,6 +365,7 @@ say "Done testing1"
 get "__stateChangers", setProp "goUpIf" %"
     getSubStateVals
     pop
+    not
     stopIf
 
     # todo add caching
@@ -363,6 +387,35 @@ get "__stateChangers", setProp "goUpIf" %"
     setProp
 "%
 
+
+get "__stateChangers", setProp "goDownIf" %"
+    getSubStateVals
+    pop
+    not
+    stopIf
+    
+    # todo add caching
+    getSubStateVals
+    pop
+    put "#", swap, cc
+    as "toSearch"
+    
+
+    get "s", getProp "__code"
+    get "s", getProp "__i"
+    sliceFrom 
+    get "toSearch"
+    indexOf
+    as "newI"
+
+    get "s"
+    put "__i"
+    get "newI"
+    setProp
+"%
+
+
+
 get "__globals", setProp "sayP" %"
     swap, cc, say
 "%
@@ -373,9 +426,6 @@ as "(green)" "theColor"
 get "theColor", sayP "the var color: "
 # exit
 
-get "__globals", setProp "let" %"
-    swap, as
-"%
 
 say "test parens"
 let "name" "Drew"
@@ -448,7 +498,6 @@ say
 put name
 say
 
-
 say name
 say "<--"
 
@@ -457,130 +506,46 @@ say "<--"
 # say (cc "a is: " it)
 
 
-exit
 
-
+let "i" 0
 #yoink
-say "hmm....."
-goUp "yoink"
+incr "i"
+say "hmm....." i (cc)
+goUpIf "yoink" (< i 10)
+
+
+let "j" 100
+# goDown "rock"
+goDownIf "rock" (== j 101)
+say "-should not het here!"
+#rock
+
+
+let "theStart" (now)
+let "i" 0
+#here
+incr "i"
+# goUpIf "here" (< i 10000)
+put "here", < i 10000, goUpIf
+let "theEnd" (now)
+
+say "it took " (- theEnd theStart) " millis" (cc) (cc)
+say theStart, say theEnd
+say (- theEnd theStart)
+say "and i is " i (cc)
+
+
 exit
 
-        # "__fileName": fileName,
-        # "__i": 0,
-        # "__code": code,
-        # "__vals": &[]any{},
-        # "__stateChangers": map[string]any{},
-        # "__call_immediates": map[string]any{},
-        # "__currFuncToken": "",
-    # "(": func(state map[string]any) map[string]any {
-    #     // stateCreation
-    #     newState := map[string]any{
-    #         "__files": state["__files"],
-    #         "__fileIndex": state["__fileIndex"],
-    #         "__valStack": state["__valStack"],
-    #         "__endStack": &[]any{},
-    #         "__vars": map[string]any{},
-    #         "__args": &[]any{},
-    #         "__i": state["__i"],
-    #         "__currFuncToken": "",
-    #         "__mode": "normal",
-    #         "__lexicalParent": state,
-    #         "__callingParent": state,
-    #     }
-    #     return newState
-    # },
-    # ")": func(state map[string]any) map[string]any {
-    #     state = callFunc(state)
-    #     parentState := state["__lexicalParent"].(map[string]any)
-    #     if parentState["__currFuncToken"].(string) == "" {
-    #         for _, val := range *(state["__valStack"].(*[]any)) {
-    #             push(parentState["__valStack"], val)
-    #         }
-    #     } else {
-    #         for _, val := range *(state["__valStack"].(*[]any)) {
-    #             push(parentState["__args"], val)
-    #         }
-    #     }
-    #     parentState["__i"] = state["__i"]
-    #     return parentState
-    # },
-
-
-
-
-
-# get foo
-# say
-
-# getProp __STATE "__stateChangers", setProp "__getVar" %"
-#     getProp __STATE "s"
-#     getProp __STATE "varName"
-#     has
-#
-#
-# "%
-
-yo
-
-# getProp __STATE "__stateChangers", setProp "__evalToken" %"
-#
-# "%
 
 setProp __STATE "__callFunc" %"
 
 "%
 
 
-
-# getProp __STATE "__stateChangers"
-# setProp "let" "
-#     put __STATE
-#     getProp __STATE "__vals"
-#     pop
-#
-#     setProp __STATE "v"
-#     getProp __STATE "s"
-#     setProp ""
-# "
-
-# setProp __STATE "let" "
-#     getProp __STATE
-#     setProp __STATE
-# "
-
-
-
-
-# put __STATE "get2", here, setProp
-# pop __vals
-
-# put __STATE "goto", here, setProp
-# __code
-#
-#
-# put __STATE "endFunc", here, setProp
-# goto "#doneEndFunc"
-# say "this should end the func"
-#doneEndFunc
-
 say "end lol"
 
 
 
-
-# put __STATE "let"
-#
-# put __STATE "sayHi"
-# here
-# setProp
-# say "saying hi!"
-# end
-#
-# say "-->"
-#
-# # getProp __STATE "sayHi"
-# # say sayHi
-#
-# say "hello world"
 
 
