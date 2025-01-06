@@ -6,7 +6,7 @@ import (
     // "os/exec"
 	"strconv"
 	"strings"
-	// "time"
+	"time"
 )
 
 func main() {
@@ -15,7 +15,18 @@ func main() {
 	// 	./linescript3.go:374:5: builtins refers to
 	// 	./linescript3.go:440:6: callFunc refers to
 	// 	./linescript3.go:374:5: builtins
+    start := time.Now()
+    val := 0
+    // for i := 0; i<1_000_000; i++ {
+    for i := 0; i<10_000; i++ {
+        val += i % 30
+    }
+    fmt.Println(time.Since(start))
+    fmt.Println("val is", val)
+    
     builtins["callFuncAccessible"] = makeBuiltin_1_1(callFuncAccessible)
+    
+    optimized()
 
     if len(os.Args) < 2 {
         fmt.Println("Please provide a file name.")
@@ -261,9 +272,9 @@ func nextTokenRaw(code string, i int) (string, int) {
             case ' ', '\t', '\r':
                 return makeToken(code[start:i]), i+1
             case '"', '\'':
-                expectedQuoteEnd := string(code[i]) + code[start:i-1]
-                endIndex := strings.Index(code[i+1:], code[start:i])
-                token := code[i+1:i+1+endIndex-1]
+                expectedQuoteEnd := string(code[i]) + code[start:i]
+                endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
+                token := code[i+1:i+1+endIndex]
                 return "'" + token, i + 1 + endIndex + len(expectedQuoteEnd)
             default:
             }

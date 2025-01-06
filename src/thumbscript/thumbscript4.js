@@ -4482,7 +4482,7 @@ numbers: [1 2]
 each. numbers {
     "number is " swap cc say
 }
- exit
+ // exit
 
 a: 101
 say. "🫐🫐🫐🫐🫐🫐🫐🫐🫐"
@@ -4545,8 +4545,9 @@ if. lt(10 100) {
             //     stopp
             // } ?
             // count: count plus. i
-            i count+=
-            
+            // i count+=
+            // count: i 30 mod count plus
+            count = i 30 mod count plus
             // i: i plus. 1
             i++
             

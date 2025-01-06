@@ -387,7 +387,7 @@ get "__stateChangers", setProp "goUpIf" %"
     setProp
 "%
 
-
+# TODO: need to grab both vars before you exit early
 get "__stateChangers", setProp "goDownIf" %"
     getSubStateVals
     pop
@@ -521,19 +521,63 @@ say "-should not het here!"
 #rock
 
 
+get "__globals", setProp "loop" %"
+    
+    as "code"
+    as "varName"
+    as "count"
+    #start
+    
+    
+"%
+
+
 let "theStart" (now)
+let "val" 0
+# loop 10000 "i" %"
+loop 100000 "i" %"
+    get "val"
+    get "i"
+    % 30
+    +
+    as "val"
+"%
+let "theEnd" (now)
+say "+it took " (- theEnd theStart) " millis" (cc) (cc)
+say "and val is " val (cc)
+
+
+
+
+
+let "theStart" (now)
+let "val" 0
+# loop 10000 "i" %"
+loop 100000 "i" %"
+    put val
+    % i 30
+    +
+    as "val"
+"%
+let "theEnd" (now)
+say "+it took " (- theEnd theStart) " millis" (cc) (cc)
+say "and val is " val (cc)
+
+
+let "theStart" (now)
+let "val" 0
 let "i" 0
 #here
+put val
+% i 30
++
+as "val"
 incr "i"
 # goUpIf "here" (< i 10000)
-put "here", < i 10000, goUpIf
+put "here", < i 100000, goUpIf
 let "theEnd" (now)
-
-say "it took " (- theEnd theStart) " millis" (cc) (cc)
-say theStart, say theEnd
-say (- theEnd theStart)
-say "and i is " i (cc)
-
+say "+it took " (- theEnd theStart) " millis" (cc) (cc)
+say "and val is " val (cc)
 
 exit
 

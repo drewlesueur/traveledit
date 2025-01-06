@@ -420,7 +420,7 @@ func cc(a, b any) any {
 			return &result
 		}
 	}
-	
+
 	return toString(a).(string) + toString(b).(string)
 }
 
@@ -582,6 +582,79 @@ func makeBuiltin_4_1(f func(any, any, any, any) any) func(state map[string]any) 
         b := pop(state["__vals"])
         a := pop(state["__vals"])
         push(state["__vals"], f(a, b, c, d))
+        return state
+    }
+}
+
+func optimized() {
+    return
+    builtins["incr"] = func(state map[string]any) map[string]any {
+        a := pop(state["__vals"])
+        state[a.(string)] = state[a.(string)].(int) + 1
+        // push(state["__vals"], f(a, b))
+        return state
+    }
+    builtins["get"] = func(state map[string]any) map[string]any {
+        a := pop(state["__vals"]).(string)
+        push(state["__vals"], state[a])
+        return state
+    }
+    builtins["let"] = func(state map[string]any) map[string]any {
+        b := pop(state["__vals"])
+        a := pop(state["__vals"]).(string)
+        state[a] = b
+        return state
+    }
+    builtins["as"] = func(state map[string]any) map[string]any {
+        // say(state["__vals"])
+        b := pop(state["__vals"]).(string)
+        a := pop(state["__vals"])
+        state[b] = a
+        return state
+    }
+    builtins["__getVar"] = func(state map[string]any) map[string]any {
+        a := pop(state["__vals"]).(string)
+        push(state["__vals"], state[a])
+        return state
+    }
+    builtins["goUpIf"] = func(state map[string]any) map[string]any {
+        cond := pop(state["__vals"]).(bool)
+        locText := pop(state["__vals"]).(string)
+    
+        toSearch := "#" + locText
+        if cond {
+            code := state["__code"].(string)
+            i := state["__i"].(int)
+            newI := strings.LastIndex(code[0:i], toSearch)
+            state["__i"] = newI
+        }
+        // push(state["__vals"], state[a])
+        return state
+    }
+    builtins["loop"] = func(state map[string]any) map[string]any {
+        // say(state["__vals"])
+        code := pop(state["__vals"]).(string)
+        varName := pop(state["__vals"]).(string)
+        count := pop(state["__vals"]).(int)
+
+        oldCode := state["__code"]
+        oldI := state["__i"]
+        oldCurrFuncToken := state["__currFuncToken"]
+        oldFuncTokenSpot := state["__funcTokenSpot"]
+
+        state["__code"] = code
+        state["__currFuncToken"] = ""
+        state["__funcTokenSpot"] = -1
+        for i := 0; i < count; i++ {
+            state["__i"] = 0
+            state[varName] = i
+            eval(state)
+        }
+        state["__code"] = oldCode
+        state["__i"] = oldI
+        state["__currFuncToken"] = oldCurrFuncToken
+        state["__funcTokenSpot"] = oldFuncTokenSpot
+
         return state
     }
 }
