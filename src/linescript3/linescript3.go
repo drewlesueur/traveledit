@@ -157,11 +157,11 @@ func makeState(fileName, code string) map[string]any {
         "__fileName": fileName,
         "__i": 0,
         "__code": code,
+        // "__cache": codeCache[code],
         "__vals": &[]any{},
         "__stateChangers": map[string]any{},
         "__globals": map[string]any{},
         "__call_immediates": map[string]any{},
-        "__argCount": 0,
         "__currFuncToken": "",
         "__funcTokenStack": &[]any{},
         "__funcTokenSpot": -1,
@@ -169,6 +169,10 @@ func makeState(fileName, code string) map[string]any {
     }
 }
 
+var codeCache = map[string]map[int]struct {
+    token string
+    newI  int
+}{ }
 
 func callFunc(state map[string]any) map[string]any {
     var fName string
@@ -190,7 +194,7 @@ func callFunc(state map[string]any) map[string]any {
     funcCode := state["__stateChangers"].(map[string]any)[fName]
     switch funcCode := funcCode.(type) {
     case string:
-        // this did not save anything
+        // this maybe helped a small bit
         // evalState := map[string]any{
         //     "__fileName": "__internal",
         //     "__i": 0,
@@ -199,7 +203,6 @@ func callFunc(state map[string]any) map[string]any {
         //     "__stateChangers": state["__stateChangers"],
         //     "__globals": state["__globals"],
         //     "__call_immediates": state["__call_immediates"],
-        //     "__argCount": 0,
         //     "__currFuncToken": "",
         //     "__funcTokenStack": &[]any{},
         //     "__funcTokenSpot": -1,
@@ -209,6 +212,7 @@ func callFunc(state map[string]any) map[string]any {
         evalState["__stateChangers"] = state["__stateChangers"]
         evalState["__globals"] = state["__globals"]
         evalState["__call_immediates"] = state["__call_immediates"]
+        
         evalState["s"] = state
         evalState = eval(evalState)
         state["__currFuncToken"] = ""
@@ -235,15 +239,18 @@ func callFunc(state map[string]any) map[string]any {
 
         // need this for "as" to work
         oldCode := state["__code"]
+        // oldCache := state["__cache"]
         oldI := state["__i"]
         oldFileName := state["__fileName"]
         state["__code"] = funcCode
+        // state["__cache"] = codeCache[funcCode]
         state["__i"] = 0
         state["__fileName"] = "__internal"
         state["__currFuncToken"] = ""
         eval(state)
         state["__funcTokenSpot"] = -1
         state["__code"] = oldCode
+        // state["__cache"] = oldCache
         state["__i"] = oldI
         state["__fileName"] = oldFileName
         return state
@@ -259,6 +266,47 @@ func nextToken(state map[string]any) (string) {
     token, state["__i"] = nextTokenRaw(state["__code"].(string), state["__i"].(int))
     return token
 }
+
+// add caching by setting cache on state
+// cache the token and new __i at given __i
+
+func nextToken__(state map[string]any) string {
+    if cache, ok := state["__cache"].(map[int]struct {
+        token string
+        newI  int
+    }); ok {
+        if cachedResult, found := cache[state["__i"].(int)]; found {
+            state["__i"] = cachedResult.newI
+            return cachedResult.token
+        }
+    } else {
+        theCache := make(map[int]struct {
+            token string
+            newI  int
+        })
+        state["__cache"] = theCache
+        codeCache[state["__code"].(string)] = theCache
+    }
+
+    token, newI := nextTokenRaw(state["__code"].(string), state["__i"].(int))
+    
+    state["__cache"].(map[int]struct {
+        token string
+        newI  int
+    })[state["__i"].(int)] = struct {
+        token string
+        newI  int
+    }{token, newI}
+
+    state["__i"] = newI
+    return token
+}
+
+// assignment to entry in nil map
+
+
+
+
 
 func nextTokenRaw(code string, i int) (string, int) {
     if i > len(code) {
@@ -329,7 +377,12 @@ func makeToken(val string) string {
     return "$" + val
 }
 
+// func isNumeric(s string) bool {
+// 	_, err := strconv.ParseFloat(s, 64)
+// 	return err == nil
+// }
+
+
 func isNumeric(s string) bool {
-	_, err := strconv.ParseFloat(s, 64)
-	return err == nil
+	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || s[0] == '-')
 }

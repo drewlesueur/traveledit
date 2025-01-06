@@ -535,7 +535,7 @@ get "__globals", setProp "loop" %"
 let "theStart" (now)
 let "val" 0
 # loop 10000 "i" %"
-loop 100000 "i" %"
+loop 10000 "i" %"
     get "val"
     get "i"
     % 30
@@ -553,7 +553,7 @@ say "and val is " val (cc)
 let "theStart" (now)
 let "val" 0
 # loop 10000 "i" %"
-loop 100000 "i" %"
+loop 10000 "i" %"
     put val
     % i 30
     +
@@ -573,8 +573,24 @@ put val
 +
 as "val"
 incr "i"
-# goUpIf "here" (< i 10000)
 put "here", < i 10000, goUpIf
+# goUpIf "here" (< i 10000)
+let "theEnd" (now)
+say "+it took " (- theEnd theStart) " millis" (cc) (cc)
+say "and val is " val (cc)
+
+let "theStart" (now)
+let "val" 0
+let "i" 0
+#here
+get "val"
+get "i"
+% 30
++
+as "val"
+incr "i"
+put "here", < i 10000, goUpIf
+# goUpIf "here" (< i 10000)
 let "theEnd" (now)
 say "+it took " (- theEnd theStart) " millis" (cc) (cc)
 say "and val is " val (cc)
