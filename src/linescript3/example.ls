@@ -438,13 +438,19 @@ say "count:"
 get "theCount", say
 
 
-
 get "__globals", setProp "__getVar" %"
     get
 "%
 
 let "name" "Drew L."
+put name
+say
+put name
+say
+
+
 say name
+say "<--"
 
 
 # let "a" "300"

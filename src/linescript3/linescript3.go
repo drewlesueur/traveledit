@@ -52,7 +52,7 @@ func eval(state map[string]any) map[string]any {
 
         switch token {
         case "\n":
-            state = callFunc(state, "")
+            state = callFunc(state)
             continue
         }
 
@@ -118,23 +118,17 @@ func evalToken(state map[string]any, field string) any {
     }
 
     varName := field[1:]
-    fmt.Println("+varName is", varName)
     push(state["__vals"], varName)
-    state = callFunc(state, "__getVar") // you could implement __call_immediates this way?
+    oldCurrFuncToken := state["__currFuncToken"]
+    oldFuncTokenSpot := state["__funcTokenSpot"]
+    state["__currFuncToken"] = "$__getVar"
+    callFunc(state) // you could implement __call_immediates this way?
+    state["__currFuncToken"] = oldCurrFuncToken
+    state["__funcTokenSpot"] = oldFuncTokenSpot
+    item := pop(state["__vals"])
+    return item
+    // TODO, it pops, only to put it back on again, short circuit that
     
-    // funcCode := state["__stateChangers"].(map[string]any)["__getVar"]
-    // switch funcCode := funcCode.(type) {
-    // case string:
-    //     evalState := makeState("__internal", funcCode)
-    //     evalState["__stateChangers"] = state["__stateChangers"]
-    //     evalState["__globals"] = state["__globals"]
-    //     evalState["__call_immediates"] = state["__call_immediates"]
-    //     evalState["s"] = state
-    //     evalState["varName"] = varName
-    //     evalState = eval(evalState)
-    //     return evalState["s"].(map[string]any)
-    // }
-    return state
 }
 
 
@@ -640,20 +634,16 @@ func makeState(fileName, code string) map[string]any {
 
 func callFuncAccessible(state any) any {
     // fmt.Println("ok======", state.(map[string]any)["__currFuncToken"])
-    return callFunc(state.(map[string]any), "")
+    return callFunc(state.(map[string]any))
 }
 
-func callFunc(state map[string]any, overrideFunc string) map[string]any {
+func callFunc(state map[string]any) map[string]any {
     var fName string
-    if overrideFunc == "" {
-        fNameToken := state["__currFuncToken"].(string)
-        if (fNameToken == "") {
-            return state
-        }
-        fName = fNameToken[1:]
-    } else {
-        fName = overrideFunc
+    fNameToken := state["__currFuncToken"].(string)
+    if (fNameToken == "") {
+        return state
     }
+    fName = fNameToken[1:]
 
     // phase 1: builtin
     if f, ok := builtins[fName]; ok {
