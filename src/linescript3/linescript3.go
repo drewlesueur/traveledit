@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"encoding/json"
 	"math"
-	"time"
+	// "time"
 )
 
 func main() {
@@ -52,7 +52,7 @@ func eval(state map[string]any) map[string]any {
 
         switch token {
         case "\n":
-            state = callFunc(state)
+            state = callFunc(state, "")
             continue
         }
 
@@ -72,7 +72,7 @@ func eval(state map[string]any) map[string]any {
 
         if state["__currFuncToken"].(string) == "" {
             state["__currFuncToken"] = token
-            state["__funcTokenSpot"] = length(state["__vals"]).(int) + 1
+            state["__funcTokenSpot"] = length(state["__vals"]).(int) - 1
         } else {
             push(state["__vals"], evalToken(state, token))
         }
@@ -85,7 +85,6 @@ func evalToken(state map[string]any, field string) any {
     if field[0] == '\'' {
         return field[1:]
     }
-    
 
     if field[0] == '#' {
         // for numbers
@@ -119,18 +118,22 @@ func evalToken(state map[string]any, field string) any {
     }
 
     varName := field[1:]
-    funcCode := state["__stateChangers"].(map[string]any)["__getVar"]
-    switch funcCode := funcCode.(type) {
-    case string:
-        evalState := makeState("__internal", funcCode)
-        evalState["__stateChangers"] = state["__stateChangers"]
-        evalState["__globals"] = state["__globals"]
-        evalState["__call_immediates"] = state["__call_immediates"]
-        evalState["s"] = state
-        evalState["varName"] = varName
-        evalState = eval(evalState)
-        return evalState["s"].(map[string]any)
-    }
+    fmt.Println("+varName is", varName)
+    push(state["__vals"], varName)
+    state = callFunc(state, "__getVar") // you could implement __call_immediates this way?
+    
+    // funcCode := state["__stateChangers"].(map[string]any)["__getVar"]
+    // switch funcCode := funcCode.(type) {
+    // case string:
+    //     evalState := makeState("__internal", funcCode)
+    //     evalState["__stateChangers"] = state["__stateChangers"]
+    //     evalState["__globals"] = state["__globals"]
+    //     evalState["__call_immediates"] = state["__call_immediates"]
+    //     evalState["s"] = state
+    //     evalState["varName"] = varName
+    //     evalState = eval(evalState)
+    //     return evalState["s"].(map[string]any)
+    // }
     return state
 }
 
@@ -189,7 +192,11 @@ func splice(slice any, start any, deleteCount any, elements any) any {
 	if s, ok := slice.(*[]any); ok {
 		start := start.(int)
 		deleteCount := deleteCount.(int)
-		elements := elements.([]any)
+		var elementsToAdd []any
+		elements, ok := elements.(*[]any)
+		if ok {
+		    elementsToAdd = *elements
+		}
 		if start < 0 {
 			start = len(*s) + start
 		}
@@ -205,9 +212,10 @@ func splice(slice any, start any, deleteCount any, elements any) any {
 		if start+deleteCount > len(*s) {
 			deleteCount = len(*s) - start
 		}
-		removed := (*s)[start : start+deleteCount]
-		*s = append(append((*s)[:start], elements...), (*s)[start+deleteCount:]...)
-		return removed
+		removed := make([]any, deleteCount)
+		copy(removed, (*s)[start:start+deleteCount])
+		*s = append(append((*s)[:start], elementsToAdd...), (*s)[start+deleteCount:]...)
+		return &removed
 	}
 	return nil
 }
@@ -237,7 +245,9 @@ func slice(s any, start any, end any) any {
 		if startInt > endInt {
 			return nil
 		}
-		return (*s)[startInt:endInt]
+		sliced := make([]any, endInt - startInt)
+		copy(sliced, (*s)[startInt:endInt])
+		return &sliced
 	case string:
 		if startInt < 0 {
 			startInt = len(s) + startInt
@@ -276,7 +286,10 @@ func sliceFrom(slice any, start any) any {
 		if startInt > len(*s) {
 			startInt = len(*s)
 		}
-		return (*s)[startInt:]
+		// return (*s)[startInt:]
+		sliced := make([]any, len(*s) - startInt)
+		copy(sliced, (*s)[startInt:])
+		return &sliced
 	case string:
 		if startInt < 0 {
 			startInt = len(s) + startInt
@@ -397,8 +410,12 @@ func cc(a, b any) any {
 			return &result
 		}
 	}
-	return a.(string) + b.(string)
+	
+	return toString(a).(string) + toString(b).(string)
 }
+
+
+
 
 func toString(a any) any {
     switch a := a.(type) {
@@ -406,6 +423,8 @@ func toString(a any) any {
         return strconv.Itoa(a)
     case float64:
         return strconv.FormatFloat(a, 'f', -1, 64)
+    case string:
+        return a
     }
     return nil
 }
@@ -448,7 +467,7 @@ func say(val any) {
     case nil:
         fmt.Println("<nil>")
     default:
-        fmt.Printf("the type is %T\n", val)
+        fmt.Printf("error: the type is %T\n", val)
     }
 }
 
@@ -621,19 +640,20 @@ func makeState(fileName, code string) map[string]any {
 
 func callFuncAccessible(state any) any {
     // fmt.Println("ok======", state.(map[string]any)["__currFuncToken"])
-    return callFunc(state.(map[string]any))
+    return callFunc(state.(map[string]any), "")
 }
 
-func callFunc(state map[string]any) map[string]any {
-    fNameToken := state["__currFuncToken"].(string)
-    if dc, _ := state["__stateChangers"].(map[string]any)["debugCalling"].(bool); dc {
-        fmt.Println("we are calling", fNameToken)
-        time.Sleep(1 * time.Second)
+func callFunc(state map[string]any, overrideFunc string) map[string]any {
+    var fName string
+    if overrideFunc == "" {
+        fNameToken := state["__currFuncToken"].(string)
+        if (fNameToken == "") {
+            return state
+        }
+        fName = fNameToken[1:]
+    } else {
+        fName = overrideFunc
     }
-    if (fNameToken == "") {
-        return state
-    }
-    fName := fNameToken[1:]
 
     // phase 1: builtin
     if f, ok := builtins[fName]; ok {
@@ -670,7 +690,7 @@ func callFunc(state map[string]any) map[string]any {
             return evalState["s"].(map[string]any)
         }
     }
-    
+
     funcCode = state["__globals"].(map[string]any)[fName]
     switch funcCode := funcCode.(type) {
     case string:
@@ -683,7 +703,7 @@ func callFunc(state map[string]any) map[string]any {
         // state["__currFuncToken"] = ""
         // state["__funcTokenSpot"] = -1
         // return state
-    
+
         // need this for "as" to work
         oldCode := state["__code"]
         oldI := state["__i"]

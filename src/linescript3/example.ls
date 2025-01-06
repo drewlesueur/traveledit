@@ -143,8 +143,8 @@ get "__call_immediates", setProp "(" %"
     get "s", getProp "__currFuncToken"
     push
     get "s", setProp "__currFuncToken" ""
-    
-    
+
+
     get "s", getProp "__funcTokenSpotStack"
     get "s", getProp "__funcTokenSpot"
     push
@@ -154,14 +154,14 @@ get "__call_immediates", setProp "(" %"
 get "__call_immediates", setProp ")" %"
     get "s", callFuncAccessible
     as "s"
-    
+
     get "s"
     put "__currFuncToken"
         get "s", getProp "__funcTokenStack"
         pop
     setProp
-    
-    
+
+
     get "s"
     put "__funcTokenSpot"
         get "s", getProp "__funcTokenSpotStack"
@@ -177,17 +177,17 @@ get "__call_immediates", setProp ")" %"
 #             put "__fileName"
 #             get "s", getProp "__fileName"
 #         setProp
-# 
+#
 #         dup
 #             put "__i"
 #             get "s", getProp "__i"
 #         setProp
-# 
+#
 #         dup
 #             put "__code"
 #             get "s", getProp "__code"
 #         setProp
-# 
+#
 #         dup
 #             put "__vals", makeArray
 #         setProp
@@ -199,21 +199,21 @@ get "__call_immediates", setProp ")" %"
 #             put "__globals"
 #             get "s", getProp "__globals"
 #         setProp
-# 
+#
 #         dup
 #             put "__call_immediates"
 #             get "s", getProp "__call_immediates"
 #         setProp
-# 
-# 
+#
+#
 #         dup
 #             put "__currFuncToken" ""
 #         setProp
-#         
+#
 #         dup
 #             put "__funcTokenStack" makeArray
 #         setProp
-# 
+#
 #         dup
 #             put "__lexicalParent"
 #             get "s"
@@ -231,28 +231,28 @@ get "__call_immediates", setProp ")" %"
 #     # call without setting __currFuncToken so it doesn't recurse
 #     get "s", callFuncAccessible
 #     as "s"
-# 
+#
 #     # debug
 #     # get "s", getProp "__vals"
 #     # pop
 #     # say
 #     # exit
-# 
+#
 #     get "s", getProp "__lexicalParent"
 #     as "parentState"
-# 
+#
 #     get "parentState", getProp "__vals"
 #     getSubStateVals
 #     pushm
-# 
-# 
+#
+#
 #     get "parentState"
 #     put "__i"
-# 
+#
 #     get "s"
 #     getProp "__i"
 #     setProp
-# 
+#
 #     put __STATE "s"
 #     get "parentState"
 #     setProp
@@ -293,6 +293,20 @@ get "__stateChangers", setProp "goUp" %"
     get "s"
     put "__i"
     get "newI"
+    setProp
+"%
+
+get "__stateChangers", setProp "stop" %"
+    get "s"
+        put "__i"
+
+        get "s", getProp "__code", length
+            get "s", getProp "__i"
+        -
+
+        get "s", getProp "__i"
+        +
+
     setProp
 "%
 
@@ -359,27 +373,53 @@ as "(green)" "theColor"
 get "theColor", sayP "the var color: "
 # exit
 
-get "__call_immediates", setProp "it" %"
+get "__globals", setProp "let" %"
+    swap, as
+"%
+
+say "test parens"
+let "name" "Drew"
+getProp __STATE (cc "na" "me")
+say
+say "done parens"
+
+makeArray
+dup, push 0
+dup, push 100
+dup, push 200
+dup, push 300
+splice 2 1 null
+say
+
+
+get "__call_immediates", setProp "$it" %"
     say "calling it"
-    getProp (get "__s") "__funcTokenSpot"
+
+    say "ok0"
+    getProp (get "s") "__funcTokenSpot"
     as "spot"
-    # index of the first arg
 
     getSubStateVals, splice (get "spot") 1 null
+    at 0
     as "item"
-    
+
+
     getSubStateVals
     push (get "item")
 "%
 
+put "okie dokey"
+cc "val: " it
+say
+
+
 get "__globals", setProp "incr" %"
     as "__key"
-    
+
     get "__key"
     get
     + 1
-    dup, say
-    
+
     get "__key"
     as
 "%
@@ -396,17 +436,27 @@ incr "theCount"
 incr "theCount"
 say "count:"
 get "theCount", say
+
+
+
+get "__globals", setProp "__getVar" %"
+    get
+"%
+
+let "name" "Drew L."
+say name
+
+
+# let "a" "300"
+# say (cc "a is: " it)
+
+
 exit
 
 
 #yoink
-
 say "hmm....."
 goUp "yoink"
-
-
-
-
 exit
 
         # "__fileName": fileName,
