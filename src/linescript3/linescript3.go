@@ -7,9 +7,23 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"runtime/pprof"
 )
 
 func main() {
+	// Create a file to save the CPU profile
+	cpuProfile, err := os.Create("cpu.prof")
+	if err != nil {
+		panic(err)
+	}
+	defer cpuProfile.Close()
+
+	// Start CPU profiling
+	if err := pprof.StartCPUProfile(cpuProfile); err != nil {
+		panic(err)
+	}
+	defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
+
     // because of initialozation cycle issue
 	// ./linescript3.go:374:5: initialization cycle for builtins
 	// 	./linescript3.go:374:5: builtins refers to
@@ -176,6 +190,21 @@ func callFunc(state map[string]any) map[string]any {
     funcCode := state["__stateChangers"].(map[string]any)[fName]
     switch funcCode := funcCode.(type) {
     case string:
+        // this did not save anything
+        // evalState := map[string]any{
+        //     "__fileName": "__internal",
+        //     "__i": 0,
+        //     "__code": funcCode,
+        //     "__vals": &[]any{},
+        //     "__stateChangers": state["__stateChangers"],
+        //     "__globals": state["__globals"],
+        //     "__call_immediates": state["__call_immediates"],
+        //     "__argCount": 0,
+        //     "__currFuncToken": "",
+        //     "__funcTokenStack": &[]any{},
+        //     "__funcTokenSpot": -1,
+        //     "__funcTokenSpotStack": &[]any{},
+        // }
         evalState := makeState("__internal", funcCode)
         evalState["__stateChangers"] = state["__stateChangers"]
         evalState["__globals"] = state["__globals"]

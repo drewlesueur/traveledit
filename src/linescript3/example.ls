@@ -574,7 +574,7 @@ put val
 as "val"
 incr "i"
 # goUpIf "here" (< i 10000)
-put "here", < i 100000, goUpIf
+put "here", < i 10000, goUpIf
 let "theEnd" (now)
 say "+it took " (- theEnd theStart) " millis" (cc) (cc)
 say "and val is " val (cc)
