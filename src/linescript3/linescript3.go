@@ -12,17 +12,19 @@ import (
 
 func main() {
 	// Create a file to save the CPU profile
-	cpuProfile, err := os.Create("cpu.prof")
-	if err != nil {
-		panic(err)
-	}
-	defer cpuProfile.Close()
-
-	// Start CPU profiling
-	if err := pprof.StartCPUProfile(cpuProfile); err != nil {
-		panic(err)
-	}
-	defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
+	
+	
+	_ = pprof.StartCPUProfile
+	// cpuProfile, err := os.Create("cpu.prof")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer cpuProfile.Close()
+	// // Start CPU profiling
+	// if err := pprof.StartCPUProfile(cpuProfile); err != nil {
+	// 	panic(err)
+	// }
+	// defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
 
     // because of initialozation cycle issue
 	// ./linescript3.go:374:5: initialization cycle for builtins
@@ -78,7 +80,7 @@ func eval(state map[string]any) map[string]any {
         }
 
         if immediateCode, ok := state["__call_immediates"].(map[string]any)[token].(string); ok {
-            evalState := makeState("__internal", immediateCode)
+            evalState := makeState("__immediate" + token, immediateCode)
             evalState["__stateChangers"] = state["__stateChangers"]
             evalState["__globals"] = state["__globals"]
             evalState["__call_immediates"] = state["__call_immediates"]
@@ -208,7 +210,7 @@ func callFunc(state map[string]any) map[string]any {
         //     "__funcTokenSpot": -1,
         //     "__funcTokenSpotStack": &[]any{},
         // }
-        evalState := makeState("__internal", funcCode)
+        evalState := makeState("__changer_" + fName, funcCode)
         evalState["__stateChangers"] = state["__stateChangers"]
         evalState["__globals"] = state["__globals"]
         evalState["__call_immediates"] = state["__call_immediates"]
@@ -221,7 +223,7 @@ func callFunc(state map[string]any) map[string]any {
     case map[string]any:
         callFuncString, ok := state["__stateChangers"].(map[string]any)["__callFunc"].(string)
         if ok {
-            evalState := makeState("__internal", callFuncString)
+            evalState := makeState("__changer_" + "__callFunc", callFuncString)
             evalState["__stateChangers"] = state["__stateChangers"]
             evalState["__globals"] = state["__globals"]
             evalState["__call_immediates"] = state["__call_immediates"]
@@ -245,7 +247,7 @@ func callFunc(state map[string]any) map[string]any {
         state["__code"] = funcCode
         // state["__cache"] = codeCache[funcCode]
         state["__i"] = 0
-        state["__fileName"] = "__internal"
+        state["__fileName"] = "__globals_" + fName
         state["__currFuncToken"] = ""
         eval(state)
         state["__funcTokenSpot"] = -1
@@ -261,9 +263,35 @@ func callFunc(state map[string]any) map[string]any {
     return state
 }
 
+type TokenCacheValue struct {
+    I int
+    Token string
+}
+var cache2 = map[string][]*TokenCacheValue{}
 func nextToken(state map[string]any) (string) {
-    var token string
-    token, state["__i"] = nextTokenRaw(state["__code"].(string), state["__i"].(int))
+    
+    code := state["__code"].(string)
+    fileName := state["__fileName"].(string)
+    i := state["__i"].(int)
+    
+    // fileName = code
+    
+    if cache2[fileName] == nil {
+        cache2[fileName] = make([]*TokenCacheValue, len(code)+1)
+    }
+    
+    if cached := cache2[fileName][i]; cached != nil {
+        // fmt.Println("cache hit!")
+        state["__i"] = cached.I
+        return cached.Token
+    }
+    // // fmt.Println("cache miss!")
+    
+    token, newI := nextTokenRaw(code, i)
+    state["__i"] = newI
+    
+    cache2[fileName][i] = &TokenCacheValue{I: newI, Token: token}
+    
     return token
 }
 

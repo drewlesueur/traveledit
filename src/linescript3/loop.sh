@@ -9,6 +9,8 @@ end=$(date +%s)    # Get the current time in milliseconds
 
 # Calculate elapsed time in milliseconds
 elapsed=$((end - start))
+echo ""
 echo $elapsed
+echo $val
 
 

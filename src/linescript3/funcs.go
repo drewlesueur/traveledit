@@ -7,6 +7,7 @@ import (
 	"math"
 	"strconv"
 	"time"
+	"hash/crc32"
 )
 
 func callFuncAccessible(state any) any {
@@ -631,6 +632,7 @@ func optimized() {
         // push(state["__vals"], state[a])
         return state
     }
+    
     builtins["loop"] = func(state map[string]any) map[string]any {
         // say(state["__vals"])
         code := pop(state["__vals"]).(string)
@@ -639,12 +641,15 @@ func optimized() {
 
         oldCode := state["__code"]
         oldI := state["__i"]
+        oldFileName := state["__fileName"]
         oldCurrFuncToken := state["__currFuncToken"]
         oldFuncTokenSpot := state["__funcTokenSpot"]
 
         state["__code"] = code
         state["__currFuncToken"] = ""
         state["__funcTokenSpot"] = -1
+        
+        state["__fileName"] = crc32Hash(code)
         for i := 0; i < count; i++ {
             state["__i"] = 0
             state[varName] = i
@@ -652,9 +657,16 @@ func optimized() {
         }
         state["__code"] = oldCode
         state["__i"] = oldI
+        state["__fileName"] = oldFileName
         state["__currFuncToken"] = oldCurrFuncToken
         state["__funcTokenSpot"] = oldFuncTokenSpot
 
         return state
     }
+}
+
+func crc32Hash(s string) string {
+    table := crc32.MakeTable(crc32.IEEE)
+    crc := crc32.Checksum([]byte(s), table)
+    return fmt.Sprintf("%x", crc)
 }
