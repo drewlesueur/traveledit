@@ -153,27 +153,29 @@ func initBuiltins() {
 			myArr := state.Vals
 			state.Vals = state.ValsStack[len(state.ValsStack)-1]
 			state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
+
 			push(state.Vals, myArr)
 			return state
 		},
 		"{": func(state *State) *State {
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "object"
-			state.VarsStack = append(state.VarsStack, state.Vars)
-			state.Vars = map[string]any{}
-			state.KeyStack = append(state.KeyStack, state.Key)
-			state.Key = ""
+			state.ValsStack = append(state.ValsStack, state.Vals)
+			state.Vals = &[]any{}
 			return state
 		},
 		"}": func(state *State) *State {
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
-			myObj := state.Vars
-			state.Vars = state.VarsStack[len(state.VarsStack)-1]
-			state.VarsStack = state.VarsStack[:len(state.VarsStack)-1]
+			myObj := map[string]any{}
+			for i := 0; i < len(*state.Vals); i += 2 {
+				key := (*state.Vals)[i]
+				value := (*state.Vals)[i+1]
+				myObj[toString(key).(string)] = value
+			}
+			state.Vals = state.ValsStack[len(state.ValsStack)-1]
+			state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
 
-			state.Key = state.KeyStack[len(state.KeyStack)-1]
-			state.KeyStack = state.KeyStack[:len(state.KeyStack)-1]
 			push(state.Vals, myObj)
 			return state
 		},

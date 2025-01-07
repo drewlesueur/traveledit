@@ -18,18 +18,18 @@ type Func struct {
 	LexicalParent *State
 }
 type State struct {
-	FileName           string
-	I                  int
-	Code               string
-	CachedTokens       []*TokenCacheValue
-	Mode               string
-	ModeStack          []string
-	GoUpCache          []*int
-	Vals               *[]any
-	ValsStack          []*[]any
-	EndStack           []func(*State) *State
-	Vars               map[string]any
-	VarsStack          []map[string]any
+	FileName     string
+	I            int
+	Code         string
+	CachedTokens []*TokenCacheValue
+	Mode         string
+	ModeStack    []string
+	GoUpCache    []*int
+	Vals         *[]any
+	ValsStack    []*[]any
+	EndStack     []func(*State) *State
+	Vars         map[string]any
+	// VarsStack          []map[string]any
 	CurrFuncToken      string
 	FuncTokenStack     []string
 	FuncTokenSpot      int
@@ -48,15 +48,15 @@ func makeState(fileName, code string) *State {
 		I:        0,
 		Code:     code,
 		// CachedTokens : []*TokenCacheValue{},
-		Mode:               "normal",
-		ModeStack:          []string{},
-		CachedTokens:       nil,
-		GoUpCache:          nil,
-		Vals:               &[]any{},
-		ValsStack:          []*[]any{},
-		EndStack:           []func(*State) *State{},
-		Vars:               map[string]any{},
-		VarsStack:          []map[string]any{},
+		Mode:         "normal",
+		ModeStack:    []string{},
+		CachedTokens: nil,
+		GoUpCache:    nil,
+		Vals:         &[]any{},
+		ValsStack:    []*[]any{},
+		EndStack:     []func(*State) *State{},
+		Vars:         map[string]any{},
+		// VarsStack:          []map[string]any{},
 		CurrFuncToken:      "",
 		FuncTokenStack:     []string{},
 		FuncTokenSpot:      -1,
@@ -137,29 +137,14 @@ func eval(state *State) *State {
 				} else {
 					push(state.Vals, evalToken(state, token))
 				}
-			case "array":
+			case "array", "object":
 				if token == "\n" {
 					continue
 				}
 				push(state.Vals, evalToken(state, token))
-			case "object":
-				if token == "\n" {
-					continue
-				}
-				if state.Key == "" {
-					state.Key = evalToken(state, token).(string)
-				} else {
-					state.Vars[state.Key] = token
-				}
-				// not done
-				// push(state.Vals, evalToken(state, token))
 			}
 		default:
-			if state.Mode == "object" {
-				state.Vars[state.Key] = token
-			} else {
-				push(state.Vals, token)
-			}
+			push(state.Vals, token)
 		}
 	}
 	return state

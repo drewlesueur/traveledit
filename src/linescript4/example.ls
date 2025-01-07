@@ -3,7 +3,13 @@
 # let "loopCount" 100000
 let "loopCount" 100000
 
+[1 2] say
 
+{
+"foo" "bar"
+"biz" [9, {"dokay" "blur"} 7 ["ok"]]
+}
+say
 
 # let "theStart" (now)
 # let "val" 0.0
