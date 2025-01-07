@@ -333,7 +333,7 @@ func getPrevIndent(state *State) string {
 	i := state.I
 	lastNonSpace := i
 loopy:
-	for i = i; i >= 0; i-- {
+	for i = i-2; i >= 0; i-- {
 		chr := code[i]
 		switch chr {
 		case '\n':

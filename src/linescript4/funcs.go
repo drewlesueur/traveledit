@@ -201,7 +201,8 @@ func initBuiltins() {
 		},
 		// "loopN":
 		"end": func(state *State) *State {
-			if length(state.EndStack) == 0 {
+			if len(state.EndStack) == 0 {
+				fmt.Println("+no end stack")
 				return state.CallingParent
 			}
 
@@ -459,6 +460,8 @@ func plus(a, b any) any {
 		return a + b.(int)
 	case float64:
 		return a + b.(float64)
+	default:
+	    fmt.Printf("bad type lol: %T\n", a)
 	}
 	return nil
 }
@@ -661,7 +664,7 @@ func say(val any) {
 		} else {
 			fmt.Println(string(jsonData))
 		}
-	case *[]any:
+	case *[]any, []any:
 		jsonData, err := json.MarshalIndent(val, "", "    ")
 		if err != nil {
 			panic(err)

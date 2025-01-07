@@ -10,7 +10,17 @@ let "loopCount" 100000
 "biz" [9, {"dokay" "blur"} 7 ["ok"]]
 }
 say
++ 2 3
 
+if true (not)
+    say "block 1"
+else if true (not)
+    say "block 2"
+else
+    say "block 3"
+end
+
+say "what?!"
 # let "theStart" (now)
 # let "val" 0.0
 # let "i" 0
