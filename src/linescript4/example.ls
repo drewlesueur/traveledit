@@ -11,6 +11,7 @@ let "loopCount" 100000
 }
 say
 + 2 3
+say
 
 if true (not)
     say "block 1"
@@ -19,6 +20,18 @@ else if true (not)
 else
     say "block 3"
 end
+
+let "foo" "This is foo"
+
+def :greet [:name]
+    let :myFoo "bar"
+    let :foo "bar"
+    say "hello " name (cc)
+end
+
+greet "Drew"
+say myFoo
+say foo
 
 say "what?!"
 # let "theStart" (now)

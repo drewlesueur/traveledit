@@ -155,6 +155,11 @@ func evalToken(state *State, field string) any {
 	if field[0] == '\'' {
 		return raw
 	}
+	
+	// string shortcut
+	if raw[0] == ':' {
+	    return raw[1:]
+	}
 	return getVar(state, raw)
 }
 func getVar(state *State, varName string) any {
