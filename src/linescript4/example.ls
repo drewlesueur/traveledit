@@ -33,6 +33,8 @@ greet "Drew"
 say myFoo
 say foo
 
+(greet "Drew")
+
 say "what?!"
 # let "theStart" (now)
 # let "val" 0.0

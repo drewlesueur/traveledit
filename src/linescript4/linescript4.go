@@ -81,13 +81,14 @@ func main() {
 
 	initBuiltins()
 
-	start := time.Now()
-	val := float64(0)
-	for i := 0; i < 100_000; i++ {
-		val = float64(i) - 0.1 + val
-	}
-	fmt.Println(time.Since(start))
-	fmt.Println("val is", val)
+    _ = time.Now()
+	// start := time.Now()
+	// val := float64(0)
+	// for i := 0; i < 100_000; i++ {
+	// 	val = float64(i) - 0.1 + val
+	// }
+	// fmt.Println(time.Since(start))
+	// fmt.Println("val is", val)
 
 	if len(os.Args) < 2 {
 		fmt.Println("Please provide a file name.")
@@ -101,6 +102,7 @@ func main() {
 		return
 	}
 	code := string(data)
+	// fmt.Println(code)
 	state := makeState(fileName, code)
 	eval(state)
 }
@@ -114,6 +116,9 @@ func eval(state *State) *State {
 			return nil
 		}
 		token = nextToken(state)
+		if state.I == -1 {
+			break
+		}
 
 		switch token := token.(type) {
 		case string:
@@ -317,6 +322,8 @@ func makeToken(val string) any {
 		return true
 	case "false":
 		return false
+	case "newline":
+		return "'\n"
 	case "null":
 		return nil
 	}
@@ -367,4 +374,18 @@ func findNext(state *State, things []string) int {
 		}
 	}
 	return minDiff + state.I + len(things[closestIndex])
+}
+func findNextBefore(state *State, things []string) int {
+	// TODO: add caching
+	toSearch := state.Code[state.I:]
+
+	minDiff := len(toSearch)
+
+	for _, thing := range things {
+		index := strings.Index(toSearch, thing)
+		if index != -1 && index < minDiff {
+			minDiff = index
+		}
+	}
+	return minDiff + state.I
 }

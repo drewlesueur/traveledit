@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"os/exec"
+	"os"
 )
 
 func callFuncAccessible(state any) any {
@@ -30,10 +32,12 @@ func initBuiltins() {
 		"<=":          makeBuiltin_2_1(lte),
 		">=":          makeBuiltin_2_1(gte),
 		"==":          makeBuiltin_2_1(eq),
+		"!=":          makeBuiltin_2_1(neq),
 		"not":         makeBuiltin_1_1(not),
 		"cc":          makeBuiltin_2_1(cc),
 		"indexOf":     makeBuiltin_2_1(indexOf),
 		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
+		"split": makeBuiltin_2_1(split),
 		"toString":    makeBuiltin_1_1(toString),
 		"toInt":       makeBuiltin_1_1(toInt),
 		"toFloat":     makeBuiltin_1_1(toFloat),
@@ -45,6 +49,7 @@ func initBuiltins() {
 		"pop":         makeBuiltin_1_1(pop),
 		"unshift":     makeBuiltin_2_0(unshift),
 		"shift":       makeBuiltin_1_1(shift),
+		"setIndex":     makeBuiltin_3_0(setIndex),
 		"at":          makeBuiltin_2_1(at),
 		"sliceFrom":   makeBuiltin_2_1(sliceFrom),
 		"slice":       makeBuiltin_3_1(slice),
@@ -131,12 +136,13 @@ func initBuiltins() {
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
 
+            oldState := state
 			state = callFunc(state)
-			state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
-			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
+			oldState.CurrFuncToken = oldState.FuncTokenStack[len(oldState.FuncTokenStack)-1]
+			oldState.FuncTokenStack = oldState.FuncTokenStack[:len(oldState.FuncTokenStack)-1]
 
-			state.FuncTokenSpot = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
-			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
+			oldState.FuncTokenSpot = oldState.FuncTokenSpotStack[len(oldState.FuncTokenSpotStack)-1]
+			oldState.FuncTokenSpotStack = oldState.FuncTokenSpotStack[:len(oldState.FuncTokenSpotStack)-1]
 
 			return state
 		},
@@ -179,6 +185,33 @@ func initBuiltins() {
 			push(state.Vals, myObj)
 			return state
 		},
+		"each": func(state *State) *State {
+			theIndex := -1
+			itemVar := pop(state.Vals).(string)
+			indexVar := pop(state.Vals).(string)
+			arr := pop(state.Vals).(*[]any)
+			state.Vars[indexVar] = -1
+			state.Vars[itemVar] = nil
+			var spot = state.I
+			var endEach func(state *State) *State
+			endEach = func(state *State) *State {
+			    theIndex++
+			    if theIndex >= len(*arr) {
+			        return state
+			    } else {
+			        state.Vars[indexVar] = theIndex
+			        state.Vars[itemVar] = (*arr)[theIndex]
+			        state.I = spot
+					state.EndStack = append(state.EndStack, endEach)
+			    }
+			    return state
+			}
+			state.EndStack = append(state.EndStack, endEach)
+			indent := getPrevIndent(state)
+			i := findNextBefore(state, []string{"\n" + indent + "end"})
+			state.I = i
+			return state
+		},
 		"if": func(state *State) *State {
 			cond := pop(state.Vals)
 			state.EndStack = append(state.EndStack, endIf)
@@ -210,6 +243,9 @@ func initBuiltins() {
 			state.EndStack = state.EndStack[:len(state.EndStack)-1]
 
 			return endFunc(state)
+		},
+		"return": func(state *State) *State {
+			return state.CallingParent
 		},
 		"def": func(state *State) *State {
 			params := pop(state.Vals).(*[]any)
@@ -264,6 +300,25 @@ func initBuiltins() {
 		//
 		//     return state
 		// },
+		"execBashCombined": func(state *State) *State {
+    	    val := pop(state.Vals).(string)
+    	    cmd := exec.Command("bash", "-c", val)
+    	    cmdOutput, err := cmd.CombinedOutput()
+    	    if err != nil {
+    	        panic(err)
+    	    }
+    	    push(state.Vals, string(cmdOutput))
+    	    return state
+    	},
+		"loadFile": func(state *State) *State {
+    	    fileName := pop(state.Vals).(string)
+    	    b, err := os.ReadFile(fileName)
+    	    if err != nil {
+    	        panic(err)
+    	    }
+    	    push(state.Vals, string(b))
+    	    return state
+    	},
 	}
 }
 
@@ -453,6 +508,14 @@ func lastIndexOf(a any, b any) any {
 	}
 	return -1
 }
+func split(a any, b any) any {
+	r := strings.Split(a.(string), b.(string))
+	rr := []any{}
+	for _, value := range r {
+	    rr = append(rr, value)
+	}
+	return &rr
+}
 
 func plus(a, b any) any {
 	switch a := a.(type) {
@@ -524,6 +587,10 @@ func eq(a, b any) any {
 		return a == b.(string)
 	}
 	return false
+}
+
+func neq(a, b any) any {
+    return !(eq(a, b).(bool))
 }
 
 func minus(a, b any) any {
@@ -693,6 +760,11 @@ func keys(a any) any {
 }
 func setProp(a, b, c any) {
 	a.(map[string]any)[b.(string)] = c
+}
+func setIndex(a, b, c any) {
+	theArrPointer := a.(*[]any)
+	theArr := *theArrPointer
+	theArr[b.(int)] = c
 }
 func setPropVKO(v, k, o any) {
 	o.(map[string]any)[k.(string)] = v
