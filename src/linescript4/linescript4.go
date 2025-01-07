@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
-	"runtime/pprof"
 )
 
 type Func struct {
@@ -22,11 +22,14 @@ type State struct {
 	I                  int
 	Code               string
 	CachedTokens       []*TokenCacheValue
+	Mode               string
+	ModeStack          []string
 	GoUpCache          []*int
 	Vals               *[]any
-	// EndStack           *[]func(*State) *State
-	EndStack           *[]any // TODO: make an actual type
+	ValsStack          []*[]any
+	EndStack           []func(*State) *State
 	Vars               map[string]any
+	VarsStack          []map[string]any
 	CurrFuncToken      string
 	FuncTokenStack     []string
 	FuncTokenSpot      int
@@ -34,25 +37,32 @@ type State struct {
 	LexicalParent      *State
 	CallingParent      *State
 	IntA               int
+	Key                string
+	KeyStack           []string
 }
 
 func makeState(fileName, code string) *State {
+	// TODO: you may be ok initing some as nil
 	return &State{
 		FileName: fileName,
 		I:        0,
 		Code:     code,
 		// CachedTokens : []*TokenCacheValue{},
+		Mode:               "normal",
+		ModeStack:          []string{},
 		CachedTokens:       nil,
 		GoUpCache:          nil,
 		Vals:               &[]any{},
-		// EndStack:           &[]func(*State) *State{},
-		EndStack:           &[]any{},
+		ValsStack:          []*[]any{},
+		EndStack:           []func(*State) *State{},
 		Vars:               map[string]any{},
+		VarsStack:          []map[string]any{},
 		CurrFuncToken:      "",
 		FuncTokenStack:     []string{},
 		FuncTokenSpot:      -1,
 		FuncTokenSpotStack: []int{},
 		IntA:               0,
+		Key:                "",
 	}
 }
 
@@ -70,16 +80,14 @@ func main() {
 	defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
 
 	initBuiltins()
-	
-	
+
 	start := time.Now()
 	val := float64(0)
 	for i := 0; i < 100_000; i++ {
-	    val = float64(i) - 0.1 + val
+		val = float64(i) - 0.1 + val
 	}
 	fmt.Println(time.Since(start))
 	fmt.Println("val is", val)
-
 
 	if len(os.Args) < 2 {
 		fmt.Println("Please provide a file name.")
@@ -107,31 +115,52 @@ func eval(state *State) *State {
 		}
 		token = nextToken(state)
 
+		switch token := token.(type) {
+		case string:
+			if token == "" {
+				break
+			}
 
-        switch token := token.(type) {
-        case string:
-		    if token == "" {
-		    	break
-		    }
-		    switch token {
-		    case "\n":
-		    	state = callFunc(state)
-		    	continue
-		    }
-		    if strings.Index("()[]{}", token) != -1 {
-		    	state = builtins[token](state)
-		    	continue
-		    }
-  
-		    if state.CurrFuncToken == "" {
-		    	state.CurrFuncToken = token
-		    	state.FuncTokenSpot = len(*state.Vals) - 1
-		    } else {
-		    	push(state.Vals, evalToken(state, token))
-		    }
-        default:
-	    	push(state.Vals, token)
-        }
+			if strings.Index("()[]{}", token) != -1 {
+				state = builtins[token](state)
+				continue
+			}
+			switch state.Mode {
+			case "normal":
+				if token == "\n" {
+					state = callFunc(state)
+					continue
+				}
+				if state.CurrFuncToken == "" {
+					state.CurrFuncToken = token
+					state.FuncTokenSpot = len(*state.Vals) - 1
+				} else {
+					push(state.Vals, evalToken(state, token))
+				}
+			case "array":
+				if token == "\n" {
+					continue
+				}
+				push(state.Vals, evalToken(state, token))
+			case "object":
+				if token == "\n" {
+					continue
+				}
+				if state.Key == "" {
+					state.Key = evalToken(state, token).(string)
+				} else {
+					state.Vars[state.Key] = token
+				}
+				// not done
+				// push(state.Vals, evalToken(state, token))
+			}
+		default:
+			if state.Mode == "object" {
+				state.Vars[state.Key] = token
+			} else {
+				push(state.Vals, token)
+			}
+		}
 	}
 	return state
 }
@@ -281,25 +310,25 @@ func nextTokenRaw(code string, i int) (any, int) {
 func makeToken(val string) any {
 	if isNumeric(val) {
 		if strings.Contains(val, ".") {
-        	f, err := strconv.ParseFloat(val, 64)
-        	if err != nil {
-        	    panic(err)
-        	}
-        	return f
+			f, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				panic(err)
+			}
+			return f
 		}
-        i, err := strconv.Atoi(val)
-        if err != nil {
-            panic(err)
-        }
+		i, err := strconv.Atoi(val)
+		if err != nil {
+			panic(err)
+		}
 		return i
 	}
 	switch val {
 	case "true":
-	    return true
+		return true
 	case "false":
-	    return false
+		return false
 	case "null":
-	    return nil
+		return nil
 	}
 	return "$" + val
 }
@@ -314,38 +343,38 @@ func isNumeric(s string) bool {
 }
 
 func getPrevIndent(state *State) string {
-    // TODO: add caching
-    code := state.Code
-    i := state.I
-    lastNonSpace := i
-    loopy:
-    for i = i; i >= 0; i-- {
-        chr := code[i]
-        switch chr {
-        case '\n':
-            i++
-            break loopy
-        case ' ', '\t':
-        default:
-            lastNonSpace = i
-        }
-    }
-    return code[i:lastNonSpace]
+	// TODO: add caching
+	code := state.Code
+	i := state.I
+	lastNonSpace := i
+loopy:
+	for i = i; i >= 0; i-- {
+		chr := code[i]
+		switch chr {
+		case '\n':
+			i++
+			break loopy
+		case ' ', '\t':
+		default:
+			lastNonSpace = i
+		}
+	}
+	return code[i:lastNonSpace]
 }
 
 func findNext(state *State, things []string) int {
-    // TODO: add caching
-    toSearch := state.Code[state.I:]
+	// TODO: add caching
+	toSearch := state.Code[state.I:]
 
-    closestIndex := -1
-    minDiff := len(toSearch)
+	closestIndex := -1
+	minDiff := len(toSearch)
 
-    for j, thing := range things {
-        index := strings.Index(toSearch, thing)
-        if index != -1 && index < minDiff {
-            minDiff = index
-            closestIndex = j
-        }
-    }
-    return minDiff + state.I + len(things[closestIndex])
+	for j, thing := range things {
+		index := strings.Index(toSearch, thing)
+		if index != -1 && index < minDiff {
+			minDiff = index
+			closestIndex = j
+		}
+	}
+	return minDiff + state.I + len(things[closestIndex])
 }

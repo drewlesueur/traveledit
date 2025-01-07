@@ -116,6 +116,9 @@ func initBuiltins() {
 			return state
 		},
 		"(": func(state *State) *State {
+			state.ModeStack = append(state.ModeStack, state.Mode)
+			state.Mode = "normal"
+
 			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
 			state.CurrFuncToken = ""
 
@@ -125,6 +128,9 @@ func initBuiltins() {
 			return state
 		},
 		")": func(state *State) *State {
+			state.Mode = state.ModeStack[len(state.ModeStack)-1]
+			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+
 			state = callFunc(state)
 			state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
 			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
@@ -134,60 +140,97 @@ func initBuiltins() {
 
 			return state
 		},
-    	"if": func(state *State) *State {
-    	    cond := pop(state.Vals)
-    	    push(state.EndStack, endIf)
-    	    if cond.(bool) == true {
-    	        // lol
-    	    } else {
-    	        indent := getPrevIndent(state)
-    	        // fmt.Printf("wanting to find: %q\n", indent + "end")
-    	        i := findNext(state, []string{"\n" + indent + "end", "\n" + indent + "else"})
-    	        state.I = i
-    	    }
-    	    return state
-    	},
-    	"else": func(state *State) *State {
-    	    indent := getPrevIndent(state)
-    	    // fmt.Printf("wanting to find: %q\n", indent + "end")
-    	    i := findNext(state, []string{"\n" + indent + "end"})
-    	    state.I = i
-    	    return state
-    	},
-    	// "loopN": 
-    	"end": func(state *State) *State {
-    	    if length(state.EndStack) == 0 {
-    	        return state.CallingParent
-    	    }
-    
-    	    // endInfo := endStack[len(endStack)-1].(map[string]any)
-    	    // state["__endStack"] = endStack[:len(endStack)-1]
-    	    endFunc := pop(state.EndStack).(func(*State) *State)
-    	    return endFunc(state)
-    	},
-        "def": func(state *State) *State {
-            params := pop(state.Vals).(*[]any)
-            funcName := pop(state.Vals).(string)
-            paramStrings := make([]string, len(*params))
-            for i, p := range *params{
-                paramStrings[i] = p.(string)
-            }
-            state.Vars[funcName] = &Func{
-                FileName: state.FileName,
-                I: state.I,
-                Code: state.Code,
-                Params: paramStrings,
-                LexicalParent: state,
-            }
-            // todo you could keep track of indent better
-            indent := getPrevIndent(state)
-            // fmt.Printf("wanting to find: %q\n", indent + "end")
-            i := findNext(state, []string{"\n" + indent + "end"})
-            state.I = i
-    
-            // fmt.Printf("found: %q\n", getCode(state)[i:])
-            return state
-        },
+		"[": func(state *State) *State {
+			state.ModeStack = append(state.ModeStack, state.Mode)
+			state.Mode = "array"
+			state.ValsStack = append(state.ValsStack, state.Vals)
+			state.Vals = &[]any{}
+			return state
+		},
+		"]": func(state *State) *State {
+			state.Mode = state.ModeStack[len(state.ModeStack)-1]
+			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+			myArr := state.Vals
+			state.Vals = state.ValsStack[len(state.ValsStack)-1]
+			state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
+			push(state.Vals, myArr)
+			return state
+		},
+		"{": func(state *State) *State {
+			state.ModeStack = append(state.ModeStack, state.Mode)
+			state.Mode = "object"
+			state.VarsStack = append(state.VarsStack, state.Vars)
+			state.Vars = map[string]any{}
+			state.KeyStack = append(state.KeyStack, state.Key)
+			state.Key = ""
+			return state
+		},
+		"}": func(state *State) *State {
+			state.Mode = state.ModeStack[len(state.ModeStack)-1]
+			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+			myObj := state.Vars
+			state.Vars = state.VarsStack[len(state.VarsStack)-1]
+			state.VarsStack = state.VarsStack[:len(state.VarsStack)-1]
+
+			state.Key = state.KeyStack[len(state.KeyStack)-1]
+			state.KeyStack = state.KeyStack[:len(state.KeyStack)-1]
+			push(state.Vals, myObj)
+			return state
+		},
+		"if": func(state *State) *State {
+			cond := pop(state.Vals)
+			state.EndStack = append(state.EndStack, endIf)
+			if cond.(bool) == true {
+				// lol
+			} else {
+				indent := getPrevIndent(state)
+				// fmt.Printf("wanting to find: %q\n", indent + "end")
+				i := findNext(state, []string{"\n" + indent + "end", "\n" + indent + "else"})
+				state.I = i
+			}
+			return state
+		},
+		"else": func(state *State) *State {
+			indent := getPrevIndent(state)
+			// fmt.Printf("wanting to find: %q\n", indent + "end")
+			i := findNext(state, []string{"\n" + indent + "end"})
+			state.I = i
+			return state
+		},
+		// "loopN":
+		"end": func(state *State) *State {
+			if length(state.EndStack) == 0 {
+				return state.CallingParent
+			}
+
+			endFunc := state.EndStack[len(state.EndStack)-1]
+			state.EndStack = state.EndStack[:len(state.EndStack)-1]
+
+			return endFunc(state)
+		},
+		"def": func(state *State) *State {
+			params := pop(state.Vals).(*[]any)
+			funcName := pop(state.Vals).(string)
+			paramStrings := make([]string, len(*params))
+			for i, p := range *params {
+				paramStrings[i] = p.(string)
+			}
+			state.Vars[funcName] = &Func{
+				FileName:      state.FileName,
+				I:             state.I,
+				Code:          state.Code,
+				Params:        paramStrings,
+				LexicalParent: state,
+			}
+			// todo you could keep track of indent better
+			indent := getPrevIndent(state)
+			// fmt.Printf("wanting to find: %q\n", indent + "end")
+			i := findNext(state, []string{"\n" + indent + "end"})
+			state.I = i
+
+			// fmt.Printf("found: %q\n", getCode(state)[i:])
+			return state
+		},
 		// "loop": func(state *State) *State {
 		//     // say(state.Vals)
 		//     code := pop(state.Vals).(string)
@@ -736,5 +779,5 @@ func crc32Hash(s string) string {
 }
 
 func endIf(state *State) *State {
-    return state
+	return state
 }
