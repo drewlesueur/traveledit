@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"runtime/pprof"
 )
 
 type Func struct {
@@ -52,7 +53,21 @@ func makeState(fileName, code string) *State {
 }
 
 func main() {
+	_ = pprof.StartCPUProfile
+	cpuProfile, err := os.Create("cpu.prof")
+	if err != nil {
+		panic(err)
+	}
+	defer cpuProfile.Close()
+	// Start CPU profiling
+	if err := pprof.StartCPUProfile(cpuProfile); err != nil {
+		panic(err)
+	}
+	defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
+
 	initBuiltins()
+	
+	
 	start := time.Now()
 	val := 0
 	// for i := 0; i<1_000_000; i++ {
@@ -61,6 +76,7 @@ func main() {
 	}
 	fmt.Println(time.Since(start))
 	fmt.Println("val is", val)
+
 
 	if len(os.Args) < 2 {
 		fmt.Println("Please provide a file name.")
