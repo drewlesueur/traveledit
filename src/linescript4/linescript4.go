@@ -318,5 +318,5 @@ func makeToken(val string) string {
 // }
 
 func isNumeric(s string) bool {
-	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || s[0] == '-')
+	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || (s[0] == '-' && len(s) > 1))
 }
