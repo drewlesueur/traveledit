@@ -95,14 +95,22 @@ func initBuiltins() {
             return state
         },
         "goUpIf": func(state *State) *State {
-            cond := pop(state.Vals).(bool)
             locText := pop(state.Vals).(string)
+            cond := pop(state.Vals).(bool)
         
-            toSearch := "#" + locText
             if cond {
-                code := state.Code
-                i := state.I
-                newI := strings.LastIndex(code[0:i], toSearch)
+                // assuming static location
+                
+                if len(state.GoUpCache) == 0 {
+                    state.GoUpCache = make([]*int, len(state.Code)+1)
+                }
+                if cachedI := state.GoUpCache[state.I]; cachedI != nil {
+                    state.I = *cachedI
+                    return state
+                }
+                toSearch := "#" + locText
+                newI := strings.LastIndex(state.Code[0:state.I], toSearch)
+                state.GoUpCache[state.I] = &newI
                 state.I = newI
             }
             // push(state.Vals, state[a])

@@ -21,6 +21,7 @@ type State struct {
     I              int
     Code               string
     CachedTokens []*TokenCacheValue
+    GoUpCache []*int
     Vals             *[]any
     Vars               map[string]any
     CurrFuncToken      string
@@ -38,7 +39,9 @@ func makeState(fileName, code string) *State {
         FileName:           fileName,
         I:              0,
         Code:               code,
-        CachedTokens : []*TokenCacheValue{},
+        // CachedTokens : []*TokenCacheValue{},
+        CachedTokens: nil,
+        GoUpCache: nil,
         Vals:             &[]any{},
         Vars:             map[string]any{},
         CurrFuncToken:      "",
