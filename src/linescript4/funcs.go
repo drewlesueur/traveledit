@@ -36,6 +36,7 @@ func initBuiltins() {
 		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
 		"toString":    makeBuiltin_1_1(toString),
 		"toInt":       makeBuiltin_1_1(toInt),
+		"toFloat":     makeBuiltin_1_1(toFloat),
 		"is":          makeBuiltin_2_1(is),
 		"say":         makeBuiltin_1_0(say),
 		"put":         makeNoop(),
@@ -133,6 +134,60 @@ func initBuiltins() {
 
 			return state
 		},
+    	"if": func(state *State) *State {
+    	    cond := pop(state.Vals)
+    	    push(state.EndStack, endIf)
+    	    if cond.(bool) == true {
+    	        // lol
+    	    } else {
+    	        indent := getPrevIndent(state)
+    	        // fmt.Printf("wanting to find: %q\n", indent + "end")
+    	        i := findNext(state, []string{"\n" + indent + "end", "\n" + indent + "else"})
+    	        state.I = i
+    	    }
+    	    return state
+    	},
+    	"else": func(state *State) *State {
+    	    indent := getPrevIndent(state)
+    	    // fmt.Printf("wanting to find: %q\n", indent + "end")
+    	    i := findNext(state, []string{"\n" + indent + "end"})
+    	    state.I = i
+    	    return state
+    	},
+    	// "loopN": 
+    	"end": func(state *State) *State {
+    	    if length(state.EndStack) == 0 {
+    	        return state.CallingParent
+    	    }
+    
+    	    // endInfo := endStack[len(endStack)-1].(map[string]any)
+    	    // state["__endStack"] = endStack[:len(endStack)-1]
+    	    endFunc := pop(state.EndStack).(func(*State) *State)
+    	    return endFunc(state)
+    	},
+        "def": func(state *State) *State {
+            params := pop(state.Vals).(*[]any)
+            funcName := pop(state.Vals).(string)
+            paramStrings := make([]string, len(*params))
+            for i, p := range *params{
+                paramStrings[i] = p.(string)
+            }
+            state.Vars[funcName] = &Func{
+                FileName: state.FileName,
+                I: state.I,
+                Code: state.Code,
+                Params: paramStrings,
+                LexicalParent: state,
+            }
+            // todo you could keep track of indent better
+            indent := getPrevIndent(state)
+            // fmt.Printf("wanting to find: %q\n", indent + "end")
+            i := findNext(state, []string{"\n" + indent + "end"})
+            state.I = i
+    
+            // fmt.Printf("found: %q\n", getCode(state)[i:])
+            return state
+        },
 		// "loop": func(state *State) *State {
 		//     // say(state.Vals)
 		//     code := pop(state.Vals).(string)
@@ -530,6 +585,18 @@ func toInt(a any) any {
 	}
 	return nil
 }
+func toFloat(a any) any {
+	switch a := a.(type) {
+	case bool:
+		if a {
+			return float64(1)
+		}
+		return float64(0)
+	case int:
+		return float64(a)
+	}
+	return nil
+}
 func not(a any) any {
 	switch a := a.(type) {
 	case bool:
@@ -666,4 +733,8 @@ func crc32Hash(s string) string {
 	table := crc32.MakeTable(crc32.IEEE)
 	crc := crc32.Checksum([]byte(s), table)
 	return fmt.Sprintf("%x", crc)
+}
+
+func endIf(state *State) *State {
+    return state
 }

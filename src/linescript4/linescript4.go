@@ -24,6 +24,8 @@ type State struct {
 	CachedTokens       []*TokenCacheValue
 	GoUpCache          []*int
 	Vals               *[]any
+	// EndStack           *[]func(*State) *State
+	EndStack           *[]any // TODO: make an actual type
 	Vars               map[string]any
 	CurrFuncToken      string
 	FuncTokenStack     []string
@@ -43,6 +45,8 @@ func makeState(fileName, code string) *State {
 		CachedTokens:       nil,
 		GoUpCache:          nil,
 		Vals:               &[]any{},
+		// EndStack:           &[]func(*State) *State{},
+		EndStack:           &[]any{},
 		Vars:               map[string]any{},
 		CurrFuncToken:      "",
 		FuncTokenStack:     []string{},
@@ -69,10 +73,9 @@ func main() {
 	
 	
 	start := time.Now()
-	val := 0
-	// for i := 0; i<1_000_000; i++ {
+	val := float64(0)
 	for i := 0; i < 100_000; i++ {
-		val += i % 30
+	    val = float64(i) - 0.1 + val
 	}
 	fmt.Println(time.Since(start))
 	fmt.Println("val is", val)
@@ -95,7 +98,7 @@ func main() {
 }
 
 func eval(state *State) *State {
-	token := ""
+	var token any
 
 	// for j := 0; j < 10000; j++ {
 	for {
@@ -103,69 +106,42 @@ func eval(state *State) *State {
 			return nil
 		}
 		token = nextToken(state)
-		if token == "" {
-			break
-		}
 
-		switch token {
-		case "\n":
-			state = callFunc(state)
-			continue
-		}
 
-		if strings.Index("()[]{}", token) != -1 {
-			state = builtins[token](state)
-			continue
-		}
-
-		if state.CurrFuncToken == "" {
-			state.CurrFuncToken = token
-			state.FuncTokenSpot = len(*state.Vals) - 1
-		} else {
-			push(state.Vals, evalToken(state, token))
-		}
+        switch token := token.(type) {
+        case string:
+		    if token == "" {
+		    	break
+		    }
+		    switch token {
+		    case "\n":
+		    	state = callFunc(state)
+		    	continue
+		    }
+		    if strings.Index("()[]{}", token) != -1 {
+		    	state = builtins[token](state)
+		    	continue
+		    }
+  
+		    if state.CurrFuncToken == "" {
+		    	state.CurrFuncToken = token
+		    	state.FuncTokenSpot = len(*state.Vals) - 1
+		    } else {
+		    	push(state.Vals, evalToken(state, token))
+		    }
+        default:
+	    	push(state.Vals, token)
+        }
 	}
 	return state
 }
 func evalToken(state *State, field string) any {
 	// TODO: parse out dot
+	raw := field[1:]
 	if field[0] == '\'' {
-		return field[1:]
+		return raw
 	}
-
-	if field[0] == '#' {
-		// for numbers
-		f, err := strconv.ParseFloat(field[1:], 64)
-		if err != nil {
-			panic(err)
-		}
-		return f
-	}
-
-	if field[0] == 'i' {
-		// for integers
-		i, err := strconv.Atoi(field[1:])
-		if err != nil {
-			panic(err)
-		}
-		return i
-	}
-
-	if field == "$__STATE" {
-		return state
-	}
-	if field == "$true" {
-		return true
-	}
-	if field == "$false" {
-		return false
-	}
-	if field == "$null" {
-		return nil
-	}
-
-	varName := field[1:]
-	return getVar(state, varName)
+	return getVar(state, raw)
 }
 func getVar(state *State, varName string) any {
 	// if varName == "IntA" {
@@ -220,10 +196,10 @@ func callFunc(state *State) *State {
 
 type TokenCacheValue struct {
 	I     int
-	Token string
+	Token any
 }
 
-func nextToken(state *State) string {
+func nextToken(state *State) any {
 	code := state.Code
 	i := state.I
 	if len(state.CachedTokens) == 0 {
@@ -243,7 +219,7 @@ func nextToken(state *State) string {
 const stateOut = 0
 const stateIn = 1
 
-func nextTokenRaw(code string, i int) (string, int) {
+func nextTokenRaw(code string, i int) (any, int) {
 	if i > len(code) {
 		return "", -1
 	}
@@ -302,12 +278,28 @@ func nextTokenRaw(code string, i int) (string, int) {
 // $var_name
 // #300.23
 // i300
-func makeToken(val string) string {
+func makeToken(val string) any {
 	if isNumeric(val) {
 		if strings.Contains(val, ".") {
-			return "#" + val
+        	f, err := strconv.ParseFloat(val, 64)
+        	if err != nil {
+        	    panic(err)
+        	}
+        	return f
 		}
-		return "i" + val
+        i, err := strconv.Atoi(val)
+        if err != nil {
+            panic(err)
+        }
+		return i
+	}
+	switch val {
+	case "true":
+	    return true
+	case "false":
+	    return false
+	case "null":
+	    return nil
 	}
 	return "$" + val
 }
@@ -319,4 +311,41 @@ func makeToken(val string) string {
 
 func isNumeric(s string) bool {
 	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || (s[0] == '-' && len(s) > 1))
+}
+
+func getPrevIndent(state *State) string {
+    // TODO: add caching
+    code := state.Code
+    i := state.I
+    lastNonSpace := i
+    loopy:
+    for i = i; i >= 0; i-- {
+        chr := code[i]
+        switch chr {
+        case '\n':
+            i++
+            break loopy
+        case ' ', '\t':
+        default:
+            lastNonSpace = i
+        }
+    }
+    return code[i:lastNonSpace]
+}
+
+func findNext(state *State, things []string) int {
+    // TODO: add caching
+    toSearch := state.Code[state.I:]
+
+    closestIndex := -1
+    minDiff := len(toSearch)
+
+    for j, thing := range things {
+        index := strings.Index(toSearch, thing)
+        if index != -1 && index < minDiff {
+            minDiff = index
+            closestIndex = j
+        }
+    }
+    return minDiff + state.I + len(things[closestIndex])
 }

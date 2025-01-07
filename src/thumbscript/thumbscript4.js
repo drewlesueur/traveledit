@@ -4534,8 +4534,8 @@ if. lt(10 100) {
         0 :i
         nowmillis :start
         {
-            if. i gt(100_000) {
-            // if. i 100_000 gt {
+            // if. i gte(100_000) {
+            if. i 100_000 gte {
                 stopp
             }
             
@@ -4546,8 +4546,7 @@ if. lt(10 100) {
             // } ?
             // count: count plus. i
             // i count+=
-            // count: i 30 mod count plus
-            count = i 30 mod count plus
+            count = i .minus 0.1 .plus count
             // i: i plus. 1
             i++
             
