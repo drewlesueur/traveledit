@@ -1,0 +1,299 @@
+package main
+
+import (
+    "strings"
+    "time"
+    "fmt"
+    "os"
+    "strconv"
+)
+
+type Func struct {
+    FileName string
+    I int
+    Code string
+    CachedTokens []*TokenCacheValue
+    Params []string
+    LexicalParent *State
+}
+type State struct {
+    FileName           string
+    I              int
+    Code               string
+    CachedTokens []*TokenCacheValue
+    Vals             *[]any
+    Vars               map[string]any
+    CurrFuncToken      string
+    FuncTokenStack     []string
+    FuncTokenSpot      int
+    FuncTokenSpotStack []int
+    LexicalParent *State
+    CallingParent *State
+    // intA int
+    // intB int
+}
+
+func makeState(fileName, code string) *State {
+    return &State{
+        FileName:           fileName,
+        I:              0,
+        Code:               code,
+        CachedTokens : []*TokenCacheValue{},
+        Vals:             &[]any{},
+        Vars:             map[string]any{},
+        CurrFuncToken:      "",
+        FuncTokenStack:     []string{},
+        FuncTokenSpot:      -1,
+        FuncTokenSpotStack: []int{},
+    }
+}
+
+func main() {
+    initBuiltins()
+    start := time.Now()
+    val := 0
+    // for i := 0; i<1_000_000; i++ {
+    for i := 0; i<10_000; i++ {
+        val += i % 30
+    }
+    fmt.Println(time.Since(start))
+    fmt.Println("val is", val)
+
+    if len(os.Args) < 2 {
+        fmt.Println("Please provide a file name.")
+        return
+    }
+
+    fileName := os.Args[1]
+    data, err := os.ReadFile(fileName)
+    if err != nil {
+        fmt.Println("Error reading file:", err)
+        return
+    }
+    code := string(data)
+    state := makeState(fileName, code)
+    eval(state)
+}
+
+func eval(state *State) *State {
+    token := ""
+
+    // for j := 0; j < 10000; j++ {
+    for {
+        if state == nil {
+            return nil
+        }
+        token = nextToken(state)
+        if token == "" {
+            break
+        }
+
+        switch token {
+        case "\n":
+            state = callFunc(state)
+            continue
+        }
+        
+        if strings.Index("()[]{}", token) != -1 {
+            state = builtins[token](state)
+            continue
+        }
+
+        if state.CurrFuncToken == "" {
+            state.CurrFuncToken = token
+            state.FuncTokenSpot = len(*state.Vals) - 1
+        } else {
+            push(state.Vals, evalToken(state, token))
+        }
+    }
+    return state
+}
+func evalToken(state *State, field string) any {
+    // TODO: parse out dot
+    if field[0] == '\'' {
+        return field[1:]
+    }
+
+    if field[0] == '#' {
+        // for numbers
+        f, err := strconv.ParseFloat(field[1:], 64)
+        if err != nil {
+            panic(err)
+        }
+        return f
+    }
+
+    if field[0] == 'i' {
+        // for integers
+        i, err := strconv.Atoi(field[1:])
+        if err != nil {
+            panic(err)
+        }
+        return i
+    }
+
+    if field == "$__STATE" {
+        return state
+    }
+    if field == "$true" {
+        return true
+    }
+    if field == "$false" {
+        return false
+    }
+    if field == "$null" {
+        return nil
+    }
+
+    varName := field[1:]
+    return getVar(state, varName)
+}
+func getVar(state *State, varName string) any {
+    if v, ok := state.Vars[varName]; ok {
+        return v
+    }
+    if state.LexicalParent != nil {
+        return getVar(state.LexicalParent, varName)
+    }
+    return nil
+}
+func callFunc(state *State) *State {
+    var fName string
+    fNameToken := state.CurrFuncToken
+    if (fNameToken == "") {
+        return state
+    }
+    fName = fNameToken[1:]
+
+    // phase 1: builtin
+    if f, ok := builtins[fName]; ok {
+        newState := f(state)
+        state.CurrFuncToken = ""
+        state.FuncTokenSpot = -1
+        return newState
+    }
+    
+    state.CurrFuncToken = ""
+    state.FuncTokenSpot = -1
+
+    if theFunc, ok := getVar(state, fName).(*Func); ok {
+        newState := makeState(theFunc.FileName, theFunc.Code)
+        newState.CachedTokens = theFunc.CachedTokens
+        newState.I = theFunc.I
+        newState.Vals = state.Vals
+        newState.CallingParent = state
+        newState.LexicalParent = theFunc.LexicalParent
+        for i := len(theFunc.Params) - 1; i >= 0; i-- {
+            param := theFunc.Params[i]
+            newState.Vars[param] = pop(state.Vals)
+        }
+        return newState
+    }
+
+    fmt.Println("-cannot find func", fName)
+    state.CurrFuncToken = ""
+    state.FuncTokenSpot = -1
+    return state
+}
+
+type TokenCacheValue struct {
+    I int
+    Token string
+}
+func nextToken(state *State) (string) {
+    code := state.Code
+    i := state.I
+    if len(state.CachedTokens) == 0 {
+        state.CachedTokens = make([]*TokenCacheValue, len(code)+1)
+    }
+    if cached := state.CachedTokens[i]; cached != nil {
+        state.I = cached.I
+        return cached.Token
+    }
+    token, newI := nextTokenRaw(code, i)
+    state.I = newI
+    state.CachedTokens[i] = &TokenCacheValue{I: newI, Token: token}
+    return token
+}
+
+
+const stateOut = 0
+const stateIn = 1
+func nextTokenRaw(code string, i int) (string, int) {
+    if i > len(code) {
+        return "", -1
+    }
+    state := stateOut
+    start := -1
+    for i = i; i < len(code); i++ {
+        b := code[i]
+        switch state {
+        case stateOut:
+            switch b {
+            case '{', '}', '(', ')', '[', ']':
+                return string(b), i+1
+            case ',', '\n':
+                return "\n", i+1
+            case ' ', '\t', '\r':
+                continue
+            case '"', '\'':
+                expectedQuoteEnd := string(code[i])
+                end := strings.Index(code[i+1:], expectedQuoteEnd)
+                return "'" + code[i+1:i+1+end], i+1+end+1
+            case '#':
+                // comments
+                end := strings.Index(code[i+1:], "\n")
+                if end == -1 {
+                    return "", -1
+                }
+                i = i+1+end
+            default:
+                state = stateIn
+                start = i
+            }
+        case stateIn:
+            switch b {
+            case '{', '}', '(', ')', '[', ']':
+                return makeToken(code[start:i]), i
+            case ',', '\n':
+                return makeToken(code[start:i]), i
+            case ' ', '\t', '\r':
+                return makeToken(code[start:i]), i+1
+            case '"', '\'':
+                expectedQuoteEnd := string(code[i]) + code[start:i]
+                endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
+                token := code[i+1:i+1+endIndex]
+                return "'" + token, i + 1 + endIndex + len(expectedQuoteEnd)
+            default:
+            }
+        }
+    }
+    if state == stateIn {
+        return makeToken(code[start:i]), i+1
+    }
+    return "", -1
+}
+
+// 'a string
+// $var_name
+// #300.23
+// i300
+func makeToken(val string) string {
+    if isNumeric(val) {
+        if strings.Contains(val, ".") {
+            return "#" + val
+        }
+        return "i" + val
+    }
+    return "$" + val
+}
+
+// func isNumeric(s string) bool {
+// 	_, err := strconv.ParseFloat(s, 64)
+// 	return err == nil
+// }
+
+
+func isNumeric(s string) bool {
+	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || s[0] == '-')
+}
