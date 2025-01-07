@@ -71,7 +71,7 @@ func main() {
 	start := time.Now()
 	val := 0
 	// for i := 0; i<1_000_000; i++ {
-	for i := 0; i < 10_000; i++ {
+	for i := 0; i < 100_000; i++ {
 		val += i % 30
 	}
 	fmt.Println(time.Since(start))

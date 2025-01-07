@@ -1,6 +1,6 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
-let "loopCount" 1000000
+let "loopCount" 100000
 
 
 
