@@ -17,115 +17,17 @@ func callFuncAccessible(state any) any {
 }
 
 var builtins map[string]func(state *State) *State
+var runImmediates map[string]func(state *State) *State
 
 func initBuiltins() {
-	builtins = map[string]func(state *State) *State{
-		"now":         makeBuiltin_0_1(now),
-		"+":           makeBuiltin_2_1(plus),
-		"-":           makeBuiltin_2_1(minus),
-		"*":           makeBuiltin_2_1(times),
-		"/":           makeBuiltin_2_1(divide),
-		"^":           makeBuiltin_2_1(exponent),
-		"%":           makeBuiltin_2_1(mod),
-		"<":           makeBuiltin_2_1(lt),
-		">":           makeBuiltin_2_1(gt),
-		"<=":          makeBuiltin_2_1(lte),
-		">=":          makeBuiltin_2_1(gte),
-		"==":          makeBuiltin_2_1(eq),
-		"!=":          makeBuiltin_2_1(neq),
-		"not":         makeBuiltin_1_1(not),
-		"cc":          makeBuiltin_2_1(cc),
-		"indexOf":     makeBuiltin_2_1(indexOf),
-		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
-		"split": makeBuiltin_2_1(split),
-		"toString":    makeBuiltin_1_1(toString),
-		"toInt":       makeBuiltin_1_1(toInt),
-		"toFloat":     makeBuiltin_1_1(toFloat),
-		"is":          makeBuiltin_2_1(is),
-		"say":         makeBuiltin_1_0(say),
-		"put":         makeNoop(),
-		"push":        makeBuiltin_2_0(push),
-		"pushm":       makeBuiltin_2_0(pushm),
-		"pop":         makeBuiltin_1_1(pop),
-		"unshift":     makeBuiltin_2_0(unshift),
-		"shift":       makeBuiltin_1_1(shift),
-		"setIndex":     makeBuiltin_3_0(setIndex),
-		"at":          makeBuiltin_2_1(at),
-		"sliceFrom":   makeBuiltin_2_1(sliceFrom),
-		"slice":       makeBuiltin_3_1(slice),
-		"splice":      makeBuiltin_4_1(splice),
-		"length":      makeBuiltin_1_1(length),
-		"setProp":     makeBuiltin_3_0(setProp),
-		"setPropVKO":  makeBuiltin_3_0(setPropVKO),
-		"getProp":     makeBuiltin_2_1(getProp),
-		"getPropKO":   makeBuiltin_2_1(getPropKO),
-		"deleteProp":  makeBuiltin_2_0(deleteProp),
-		"keys":        makeBuiltin_1_1(keys),
-		"exit": func(state *State) *State {
-			return nil
-		},
-		"makeObject": func(state *State) *State {
-			push(state.Vals, map[string]any{})
-			return state
-		},
-		"makeArray": func(state *State) *State {
-			push(state.Vals, &[]any{})
-			return state
-		},
-		"incr": func(state *State) *State {
-			a := pop(state.Vals).(string)
-			state.Vars[a] = state.Vars[a].(int) + 1
-			return state
-		},
-		"let": func(state *State) *State {
-			b := pop(state.Vals)
-			a := pop(state.Vals).(string)
-			// if a == "IntA" {
-			//     state.IntA = b.(int)
-			//     return state
-			// }
-			state.Vars[a] = b
-			return state
-		},
-		"as": func(state *State) *State {
-			// say(state.Vals)
-			b := pop(state.Vals).(string)
-			a := pop(state.Vals)
-			// if b == "IntA" {
-			//     state.IntA = a.(int)
-			//     return state
-			// }
-			state.Vars[b] = a
-			return state
-		},
-		"goUpIf": func(state *State) *State {
-			locText := pop(state.Vals).(string)
-			cond := pop(state.Vals).(bool)
-
-			if cond {
-				// assuming static location
-
-				if len(state.GoUpCache) == 0 {
-					state.GoUpCache = make([]*int, len(state.Code)+1)
-				}
-				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
-					state.I = *cachedI
-					return state
-				}
-				toSearch := "#" + locText
-				newI := strings.LastIndex(state.Code[0:state.I], toSearch)
-				state.GoUpCache[state.I] = &newI
-				state.I = newI
-			}
-			// push(state.Vals, state[a])
-			return state
-		},
+	runImmediates = map[string]func(state *State) *State{
+		"it": nil, // see linescript3 implementation
 		"(": func(state *State) *State {
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "normal"
 
 			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
-			state.CurrFuncToken = ""
+			state.CurrFuncToken = nil
 
 			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
 			state.FuncTokenSpot = -1
@@ -185,6 +87,109 @@ func initBuiltins() {
 			push(state.Vals, myObj)
 			return state
 		},
+	}
+	builtins = map[string]func(state *State) *State{
+		"now":         makeBuiltin_0_1(now),
+		"+":           makeBuiltin_2_1(plus),
+		"-":           makeBuiltin_2_1(minus),
+		"*":           makeBuiltin_2_1(times),
+		"/":           makeBuiltin_2_1(divide),
+		"^":           makeBuiltin_2_1(exponent),
+		"%":           makeBuiltin_2_1(mod),
+		"<":           makeBuiltin_2_1(lt),
+		">":           makeBuiltin_2_1(gt),
+		"<=":          makeBuiltin_2_1(lte),
+		">=":          makeBuiltin_2_1(gte),
+		"==":          makeBuiltin_2_1(eq),
+		"!=":          makeBuiltin_2_1(neq),
+		"not":         makeBuiltin_1_1(not),
+		"cc":          makeBuiltin_2_1(cc),
+		"indexOf":     makeBuiltin_2_1(indexOf),
+		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
+		"split": makeBuiltin_2_1(split),
+		"toString":    makeBuiltin_1_1(toString),
+		"toInt":       makeBuiltin_1_1(toInt),
+		"toFloat":     makeBuiltin_1_1(toFloat),
+		"is":          makeBuiltin_2_1(is),
+		"say":         makeBuiltin_1_0(say),
+		"put":         makeNoop(),
+		"push":        makeBuiltin_2_0(push),
+		"pushm":       makeBuiltin_2_0(pushm),
+		"pop":         makeBuiltin_1_1(pop),
+		"unshift":     makeBuiltin_2_0(unshift),
+		"shift":       makeBuiltin_1_1(shift),
+		"setIndex":     makeBuiltin_3_0(setIndex),
+		"at":          makeBuiltin_2_1(at),
+		"sliceFrom":   makeBuiltin_2_1(sliceFrom),
+		"slice":       makeBuiltin_3_1(slice),
+		"splice":      makeBuiltin_4_1(splice),
+		"length":      makeBuiltin_1_1(length),
+		"setProp":     makeBuiltin_3_0(setProp),
+		"setPropVKO":  makeBuiltin_3_0(setPropVKO),
+		"getProp":     makeBuiltin_2_1(getProp),
+		"getPropKO":   makeBuiltin_2_1(getPropKO),
+		"deleteProp":  makeBuiltin_2_0(deleteProp),
+		"keys":        makeBuiltin_1_1(keys),
+		"populate":    makeBuiltin_2_1(populateString),
+		"exit": func(state *State) *State {
+			return nil
+		},
+		"makeObject": func(state *State) *State {
+			push(state.Vals, map[string]any{})
+			return state
+		},
+		"makeArray": func(state *State) *State {
+			push(state.Vals, &[]any{})
+			return state
+		},
+		"incr": func(state *State) *State {
+			a := pop(state.Vals).(string)
+			state.Vars[a] = state.Vars[a].(int) + 1
+			return state
+		},
+		"let": func(state *State) *State {
+			b := pop(state.Vals)
+			a := pop(state.Vals).(string)
+			// if a == "IntA" {
+			//     state.IntA = b.(int)
+			//     return state
+			// }
+			state.Vars[a] = b
+			return state
+		},
+		"as": func(state *State) *State {
+			// say(state.Vals)
+			b := pop(state.Vals).(string)
+			a := pop(state.Vals)
+			// if b == "IntA" {
+			//     state.IntA = a.(int)
+			//     return state
+			// }
+			state.Vars[b] = a
+			return state
+		},
+		"goUpIf": func(state *State) *State {
+			locText := pop(state.Vals).(string)
+			cond := pop(state.Vals).(bool)
+
+			if cond {
+				// assuming static location
+
+				if len(state.GoUpCache) == 0 {
+					state.GoUpCache = make([]*int, len(state.Code)+1)
+				}
+				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
+					state.I = *cachedI
+					return state
+				}
+				toSearch := "#" + locText
+				newI := strings.LastIndex(state.Code[0:state.I], toSearch)
+				state.GoUpCache[state.I] = &newI
+				state.I = newI
+			}
+			// push(state.Vals, state[a])
+			return state
+		},
 		"each": func(state *State) *State {
 			theIndex := -1
 			itemVar := pop(state.Vals).(string)
@@ -235,7 +240,6 @@ func initBuiltins() {
 		// "loopN":
 		"end": func(state *State) *State {
 			if len(state.EndStack) == 0 {
-				fmt.Println("+no end stack")
 				return state.CallingParent
 			}
 
@@ -858,3 +862,18 @@ func crc32Hash(s string) string {
 func endIf(state *State) *State {
 	return state
 }
+
+func populateString(a, b any) any {
+    theMap := a.(map[string]any)
+    theString := b.(string)
+    theArgs := make([]string, len(theMap)*2)
+    i := 0
+    for k, v := range theMap {
+        theArgs[i*2] = k
+        theArgs[(i*2)+1] = v.(string)
+        i++
+    }
+    r := strings.NewReplacer(theArgs...)
+    return r.Replace(theString)
+}
+

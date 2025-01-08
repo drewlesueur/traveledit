@@ -16,7 +16,14 @@ type Func struct {
 	CachedTokens  []*TokenCacheValue
 	Params        []string
 	LexicalParent *State
+	Builtin func(state *State) *State
+	Name string
 }
+
+type RunImmediate func(state *State) *State
+
+
+
 type State struct {
 	FileName     string
 	I            int
@@ -30,8 +37,8 @@ type State struct {
 	EndStack     []func(*State) *State
 	Vars         map[string]any
 	// VarsStack          []map[string]any
-	CurrFuncToken      string
-	FuncTokenStack     []string
+	CurrFuncToken      *Func
+	FuncTokenStack     []*Func
 	FuncTokenSpot      int
 	FuncTokenSpotStack []int
 	LexicalParent      *State
@@ -57,8 +64,8 @@ func makeState(fileName, code string) *State {
 		EndStack:     []func(*State) *State{},
 		Vars:         map[string]any{},
 		// VarsStack:          []map[string]any{},
-		CurrFuncToken:      "",
-		FuncTokenStack:     []string{},
+		CurrFuncToken:      nil,
+		FuncTokenStack:     []*Func{},
 		FuncTokenSpot:      -1,
 		FuncTokenSpotStack: []int{},
 		IntA:               0,
@@ -120,27 +127,57 @@ func eval(state *State) *State {
 			break
 		}
 
+        // todo: maybe a special type for var too and also newline
+        
+        // #cyan
+        // if token == "\n" {
+        //     fmt.Println("token:", "<\\n>")
+        // } else {
+        //     fmt.Println("token:", token)
+        // }
+        
 		switch token := token.(type) {
+		case RunImmediate:
+			state = token(state)
+			continue
+		case *Func:
+			switch state.Mode {
+			case "normal":
+				if state.CurrFuncToken == nil {
+				    // fmt.Printf("yay2 %T\n", token)
+					state.CurrFuncToken = token
+					state.FuncTokenSpot = len(*state.Vals) - 1
+				} else {
+					push(state.Vals, token)
+				}
+			case "array", "object":
+				push(state.Vals, token)
+			}
 		case string:
 			if token == "" {
 				break
 			}
 
-			if strings.Index("()[]{}", token) != -1 {
-				state = builtins[token](state)
-				continue
-			}
 			switch state.Mode {
 			case "normal":
 				if token == "\n" {
+					// fmt.Println("calling", state.Vals) // _red
 					state = callFunc(state)
+					// fmt.Println("done calling", state.Vals) // _red
 					continue
 				}
-				if state.CurrFuncToken == "" {
-					state.CurrFuncToken = token
-					state.FuncTokenSpot = len(*state.Vals) - 1
+
+				evaled := evalToken(state, token)
+				if state.CurrFuncToken == nil {
+				    // fmt.Printf("yay! %T\n", evaled)
+				    if evaledFunc, ok := evaled.(*Func); ok {
+						state.CurrFuncToken = evaledFunc
+						state.FuncTokenSpot = len(*state.Vals) - 1
+					} else {
+						push(state.Vals, evaled)
+					}
 				} else {
-					push(state.Vals, evalToken(state, token))
+					push(state.Vals, evaled)
 				}
 			case "array", "object":
 				if token == "\n" {
@@ -160,9 +197,8 @@ func evalToken(state *State, field string) any {
 	if field[0] == '\'' {
 		return raw
 	}
-	
 	// string shortcut
-	if raw[0] == ':' {
+	if len(raw) > 0 && raw[0] == ':' {
 	    return raw[1:]
 	}
 	return getVar(state, raw)
@@ -179,43 +215,39 @@ func getVar(state *State, varName string) any {
 	}
 	return nil
 }
-func callFunc(state *State) *State {
-	var fName string
-	fNameToken := state.CurrFuncToken
-	if fNameToken == "" {
-		return state
-	}
-	fName = fNameToken[1:]
 
-	// phase 1: builtin
-	if f, ok := builtins[fName]; ok {
+func callFunc(state *State) *State {
+    if state.CurrFuncToken == nil {
+        return state
+    }
+    theFunc := state.CurrFuncToken
+    f := theFunc.Builtin
+    if f != nil {
 		newState := f(state)
-		state.CurrFuncToken = ""
+		state.CurrFuncToken = nil
 		state.FuncTokenSpot = -1
 		return newState
-	}
-
-	state.CurrFuncToken = ""
+    }
+    
+	state.CurrFuncToken = nil
 	state.FuncTokenSpot = -1
 
-	if theFunc, ok := getVar(state, fName).(*Func); ok {
-		newState := makeState(theFunc.FileName, theFunc.Code)
-		newState.CachedTokens = theFunc.CachedTokens
-		newState.I = theFunc.I
-		newState.Vals = state.Vals
-		newState.CallingParent = state
-		newState.LexicalParent = theFunc.LexicalParent
-		for i := len(theFunc.Params) - 1; i >= 0; i-- {
-			param := theFunc.Params[i]
-			newState.Vars[param] = pop(state.Vals)
-		}
-		return newState
+	newState := makeState(theFunc.FileName, theFunc.Code)
+	newState.CachedTokens = theFunc.CachedTokens
+	newState.I = theFunc.I
+	newState.Vals = state.Vals
+	newState.CallingParent = state
+	newState.LexicalParent = theFunc.LexicalParent
+	for i := len(theFunc.Params) - 1; i >= 0; i-- {
+		param := theFunc.Params[i]
+		newState.Vars[param] = pop(state.Vals)
 	}
+	return newState
 
-	fmt.Println("-cannot find func", fName)
-	state.CurrFuncToken = ""
-	state.FuncTokenSpot = -1
-	return state
+	// fmt.Println("-cannot find func", fName)
+	// state.CurrFuncToken = ""
+	// state.FuncTokenSpot = -1
+	// return state
 }
 
 type TokenCacheValue struct {
@@ -255,7 +287,7 @@ func nextTokenRaw(code string, i int) (any, int) {
 		case stateOut:
 			switch b {
 			case '{', '}', '(', ')', '[', ']':
-				return string(b), i + 1
+				return makeToken(string(b)), i + 1
 			case ',', '\n':
 				return "\n", i + 1
 			case ' ', '\t', '\r':
@@ -303,6 +335,15 @@ func nextTokenRaw(code string, i int) (any, int) {
 // #300.23
 // i300
 func makeToken(val string) any {
+	if b, ok := builtins[val]; ok {
+	    return &Func{
+	        Builtin: b,
+	        Name: val,
+	    }
+	}
+	if f, ok := runImmediates[val]; ok {
+	    return RunImmediate(f)
+	}
 	if isNumeric(val) {
 		if strings.Contains(val, ".") {
 			f, err := strconv.ParseFloat(val, 64)

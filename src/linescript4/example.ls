@@ -1,9 +1,11 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
-# let "loopCount" 100000
-let "loopCount" 100000
+say "hi"
+"yo" say
 
 [1 2] say
+
+
 
 {
 "foo" "bar"
@@ -51,6 +53,7 @@ say "what?!"
 # say "and val is " val (cc)
 
 
+let "loopCount" 100000
 let "theStart" (now)
 let "val" 0.0
 let "i" 0
