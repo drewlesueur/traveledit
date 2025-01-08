@@ -8,10 +8,48 @@ else
     say "block 3"
 end
 
+if true (not)
+    say "block 1"
+else if true
+    say "block 2"
+else
+    say "block 3"
+end
+
+if true
+    say "block 1"
+else if true
+    say "block 2"
+else
+    say "block 3"
+end
+
+if true (not)
+    say "block a"
+else
+    say "block b"
+end
+
+if true
+    say "block a"
+else
+    say "block b"
+end
+
+if true (not)
+    say "block A"
+end
+
+if true
+    say "block A"
+end
+
+
 say "wow"
 
 loop 2 :i
     say "i " (cc i)
+    
     if true
         say "  true1"
     end
@@ -20,6 +58,52 @@ loop 2 :i
     end
     if true
         say "  true2"
+    end
+
+
+    if true (not)
+        say "  block 1"
+    else if true (not)
+        say "  block 2"
+    else
+        say "  block 3"
+    end
+    
+    
+    if true (not)
+        say "  block 1"
+    else if true
+        say "  block 2"
+    else
+        say "  block 3"
+    end
+    
+    if true
+        say "  block 1"
+    else if true
+        say "  block 2"
+    else
+        say "  block 3"
+    end
+    
+    if true (not)
+        say "  block a"
+    else
+        say "  block b"
+    end
+    
+    if true
+        say "  block a"
+    else
+        say "  block b"
+    end
+    
+    if true (not)
+        say "  block A"
+    end
+    
+    if true
+        say "  block A"
     end
 end
 
@@ -33,10 +117,9 @@ end
 say "done"
 
 
-exit
-    
-    
-    
+
+
+
 "foo bar"
 say {
     "foo" "Foo"
@@ -44,7 +127,6 @@ say {
 }
 say
 
-exit
 say "hi"
 "yo" say
 
@@ -129,7 +211,7 @@ exit
 # loop loopCount :i
 #     toFloat i, - 0.1, + val, as "val"
 # end
-# 
+#
 # <?php
 # for ($i = 0; $i < $loopCount; $i++) {
 #     $val = (float)$i - 0.1 + $val;

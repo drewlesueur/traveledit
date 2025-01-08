@@ -8,13 +8,20 @@ import (
 	"strings"
 	"time"
 )
-
+type FindMatchingResult struct {
+    Match string
+    I int
+}
 type Func struct {
 	FileName      string
 	I             int
+	
+	// Todo, the code and the cache should be bundled? (check perf)
 	Code          string
-	CachedTokens  []*TokenCacheValue
+	CachedTokens  []*TokenCacheValue // these aren't pointers, could be problem?
+	// TODO check these caches
 	GoUpCache  []*int
+	FindMatchingCache  []*FindMatchingResult
 	Params        []string
 	LexicalParent *State
 	Builtin func(state *State) *State
@@ -33,6 +40,7 @@ type State struct {
 	Mode         string
 	ModeStack    []string
 	GoUpCache    []*int
+	FindMatchingCache  []*FindMatchingResult
 	Vals         *[]any
 	ValsStack    []*[]any
 	EndStack     []func(*State) *State
@@ -60,6 +68,7 @@ func makeState(fileName, code string) *State {
 		ModeStack:    nil,
 		CachedTokens: nil,
 		GoUpCache:    nil,
+		FindMatchingCache:    nil,
 		Vals:         &[]any{},
 		ValsStack:    nil,
 		EndStack:     nil,
@@ -212,6 +221,7 @@ func callFunc(state *State) *State {
 	newState := makeState(theFunc.FileName, theFunc.Code)
 	newState.CachedTokens = theFunc.CachedTokens
 	newState.GoUpCache = theFunc.GoUpCache
+	newState.FindMatchingCache = theFunc.FindMatchingCache
 	newState.I = theFunc.I
 	newState.Vals = state.Vals
 	newState.CallingParent = state
@@ -381,54 +391,45 @@ loopy:
 	return code[i:lastNonSpace]
 }
 
-func findNext(state *State, things []string) int {
-	// TODO: reusing GoUpCache, only ever one spot to go?
-	initGoUpCache(state)
-	if cachedI := state.GoUpCache[state.I]; cachedI != nil {
-	    return *cachedI
+func findMatchingAfter(state *State, things []string) *FindMatchingResult {
+	initFindMatchingCache(state)
+	if c := state.FindMatchingCache[state.I]; c != nil {
+	    return c
 	}
-				
+	indent := getPrevIndent(state)
 	toSearch := state.Code[state.I:]
 
 	closestIndex := -1
 	minDiff := len(toSearch)
 
 	for j, thing := range things {
-		index := strings.Index(toSearch, thing)
+		toFind := "\n" + indent + thing // + 1 + len(indent)
+		index := strings.Index(toSearch, toFind)
 		if index != -1 && index < minDiff {
 			minDiff = index
 			closestIndex = j
 		}
 	}
-	
-    ret := minDiff + state.I + len(things[closestIndex])
-	state.GoUpCache[state.I] = &ret
+    ret := &FindMatchingResult{
+        I: minDiff + state.I + len(things[closestIndex]) + 1 + len(indent),
+        Match: things[closestIndex],
+    }
+	state.FindMatchingCache[state.I] = ret
 	return ret
 }
-func findNextBefore(state *State, things []string) int {
-	// TODO: reusing GoUpCache, only ever one spot to go?
-	initGoUpCache(state)
-	if cachedI := state.GoUpCache[state.I]; cachedI != nil {
-	    return *cachedI
-	}
-	// TODO: add caching
-	toSearch := state.Code[state.I:]
 
-	minDiff := len(toSearch)
-
-	for _, thing := range things {
-		index := strings.Index(toSearch, thing)
-		if index != -1 && index < minDiff {
-			minDiff = index
-		}
-	}
-    ret := minDiff + state.I
-	state.GoUpCache[state.I] = &ret
-	return ret
+func findMatchingBefore(state *State, things []string) int {
+    r := findMatchingAfter(state, things)
+    return r.I - len(r.Match)
 }
 
 func initGoUpCache(state *State) {
 	if len(state.GoUpCache) == 0 {
 		state.GoUpCache = make([]*int, len(state.Code)+1)
+	}
+}
+func initFindMatchingCache(state *State) {
+	if len(state.FindMatchingCache) == 0 {
+		state.FindMatchingCache = make([]*FindMatchingResult, len(state.Code)+1)
 	}
 }

@@ -268,8 +268,7 @@ func initBuiltins() {
 			    return state
 			}
 			state.EndStack = append(state.EndStack, endEach)
-			indent := getPrevIndent(state)
-			i := findNextBefore(state, []string{"\n" + indent + "end"})
+			i := findMatchingBefore(state, []string{"end"})
 			state.I = i
 			return state
 		},
@@ -303,21 +302,48 @@ func initBuiltins() {
 			    return state
 			}
 			state.EndStack = append(state.EndStack, endEach)
-			indent := getPrevIndent(state)
-			i := findNextBefore(state, []string{"\n" + indent + "end"})
+			i := findMatchingBefore(state, []string{"end"})
 			state.I = i
 			return state
 		},
 		"if": func(state *State) *State {
 			cond := pop(state.Vals)
-			state.EndStack = append(state.EndStack, endIf)
 			if cond.(bool) == true {
+				state.EndStack = append(state.EndStack, endIf)
 			} else {
-				indent := getPrevIndent(state)
 				// fmt.Printf("wanting to find: %q\n", indent + "end")
-				i := findNext(state, []string{"\n" + indent + "end", "\n" + indent + "else"})
+				r := findMatchingAfter(state, []string{"end", "else if", "else"})
 				// fmt.Printf("found: %q\n", state.Code[i:])
-				state.I = i
+				if r.Match == "else if" {
+				    // don't append an endTack
+				    // to pick up the if
+					state.I = r.I - 2
+				} else if r.Match == "else" {
+					state.EndStack = append(state.EndStack, endIf)
+					state.I = r.I
+				} else {
+					state.I = r.I
+				}
+			}
+			return state
+		},
+		"elseif": func(state *State) *State {
+			endFunc := state.EndStack[len(state.EndStack)-1]
+			state.EndStack = state.EndStack[:len(state.EndStack)-1]
+			// don't need to call it cuz it's a noop
+			_ = endFunc
+			
+			cond := pop(state.Vals)
+			if cond.(bool) == true {
+				state.EndStack = append(state.EndStack, endIf)
+			} else {
+				// fmt.Printf("wanting to find: %q\n", indent + "end")
+				r := findMatchingAfter(state, []string{"end", "else", "elseif"})
+				// fmt.Printf("found: %q\n", state.Code[i:])
+				if r.Match == "else" {
+					state.EndStack = append(state.EndStack, endIf)
+				}
+				state.I = r.I
 			}
 			return state
 		},
@@ -327,11 +353,9 @@ func initBuiltins() {
 			// don't need to call it cuz it's a noop
 			_ = endFunc
 			
-			
-			indent := getPrevIndent(state)
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
-			i := findNext(state, []string{"\n" + indent + "end"})
-			state.I = i
+			r := findMatchingAfter(state, []string{"end"})
+			state.I = r.I
 			return state
 		},
 		// "loopN":
@@ -361,14 +385,14 @@ func initBuiltins() {
 				Code:          state.Code,
 				CachedTokens:  state.CachedTokens,
 				GoUpCache:  state.GoUpCache,
+				FindMatchingCache:  state.FindMatchingCache,
 				Params:        paramStrings,
 				LexicalParent: state,
 			}
 			// todo you could keep track of indent better
-			indent := getPrevIndent(state)
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
-			i := findNext(state, []string{"\n" + indent + "end"})
-			state.I = i
+			r := findMatchingAfter(state, []string{"end"})
+			state.I = r.I
 
 			// fmt.Printf("found: %q\n", getCode(state)[i:])
 			return state
