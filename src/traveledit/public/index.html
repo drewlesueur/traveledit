@@ -4229,6 +4229,16 @@ function runScript() {
         })
         return
     }
+    if (isWholeFile && fx.fullPath.endsWith(".py")) {
+        let filename = fx.fullPath.split("/").slice(-1)
+        addTerminalTab()
+        fx.terminalLoadPromise.then(function () {
+            sendTerminal("python3 " + filename, function() {
+                saveWrapper() // hits Enter
+            })
+        })
+        return
+    }
     if (theScriptLines[0] == "#thumbscript" || theScriptLines[0] == "#ths") {
             // lol
             thumbscriptWorld = thumbscript4.eval(theScriptLines.join("\n"), window) // lol the window

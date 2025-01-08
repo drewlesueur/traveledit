@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 	"os/exec"
+	"unsafe"
 	"os"
 )
 
@@ -22,6 +23,16 @@ var runImmediates map[string]func(state *State) *State
 func initBuiltins() {
 	runImmediates = map[string]func(state *State) *State{
 		"it": nil, // see linescript3 implementation
+		"\n": func(state *State) *State {
+			// fmt.Println("calling", state.Vals) // _red
+			state = callFunc(state)
+			// fmt.Println("done calling", state.Vals) // _red
+			return state
+		},
+		",": func(state *State) *State {
+			state = callFunc(state)
+			return state
+		},
 		"(": func(state *State) *State {
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "normal"
@@ -175,9 +186,7 @@ func initBuiltins() {
 			if cond {
 				// assuming static location
 
-				if len(state.GoUpCache) == 0 {
-					state.GoUpCache = make([]*int, len(state.Code)+1)
-				}
+	            initGoUpCache(state)
 				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 					state.I = *cachedI
 					return state
@@ -188,6 +197,33 @@ func initBuiltins() {
 				state.I = newI
 			}
 			// push(state.Vals, state[a])
+			return state
+		},
+		"forever": func(state *State) *State {
+		    return state
+		},
+		"loop": func(state *State) *State {
+			theIndex := -1
+			indexVar := pop(state.Vals).(string)
+			loops := pop(state.Vals).(int)
+			state.Vars[indexVar] = -1
+			var spot = state.I
+			var endEach func(state *State) *State
+			endEach = func(state *State) *State {
+			    theIndex++
+			    if theIndex >= loops {
+			        return state
+			    } else {
+			        state.Vars[indexVar] = theIndex
+			        state.I = spot
+					state.EndStack = append(state.EndStack, endEach)
+			    }
+			    return state
+			}
+			state.EndStack = append(state.EndStack, endEach)
+			indent := getPrevIndent(state)
+			i := findNextBefore(state, []string{"\n" + indent + "end"})
+			state.I = i
 			return state
 		},
 		"each": func(state *State) *State {
@@ -262,6 +298,8 @@ func initBuiltins() {
 				FileName:      state.FileName,
 				I:             state.I,
 				Code:          state.Code,
+				CachedTokens:  state.CachedTokens,
+				GoUpCache:  state.GoUpCache,
 				Params:        paramStrings,
 				LexicalParent: state,
 			}
@@ -323,8 +361,23 @@ func initBuiltins() {
     	    push(state.Vals, string(b))
     	    return state
     	},
+		"eval": func(state *State) *State {
+    	    code := pop(state.Vals).(string)
+    	    // fmt.Println(unsafe.Pointer(&code))
+    	    // if strings come from source then we can cache it, but not worth it
+    	    evalState := makeState("__eval", code)
+    	    evalState.Vals = state.Vals
+    	    evalState.Vars = state.Vars
+    	    
+    	    evalState.CallingParent = state
+    	    // eval(evalState)
+    	    // return state
+    	    return evalState
+    	},
 	}
 }
+
+var evalCache = map[*unsafe.Pointer]*State{}
 
 func now() any {
 	return int(time.Now().UnixMilli())

@@ -14,6 +14,7 @@ type Func struct {
 	I             int
 	Code          string
 	CachedTokens  []*TokenCacheValue
+	GoUpCache  []*int
 	Params        []string
 	LexicalParent *State
 	Builtin func(state *State) *State
@@ -56,18 +57,17 @@ func makeState(fileName, code string) *State {
 		Code:     code,
 		// CachedTokens : []*TokenCacheValue{},
 		Mode:         "normal",
-		ModeStack:    []string{},
+		ModeStack:    nil,
 		CachedTokens: nil,
 		GoUpCache:    nil,
 		Vals:         &[]any{},
-		ValsStack:    []*[]any{},
-		EndStack:     []func(*State) *State{},
+		ValsStack:    nil,
+		EndStack:     nil,
 		Vars:         map[string]any{},
-		// VarsStack:          []map[string]any{},
 		CurrFuncToken:      nil,
-		FuncTokenStack:     []*Func{},
+		FuncTokenStack:     nil,
 		FuncTokenSpot:      -1,
-		FuncTokenSpotStack: []int{},
+		FuncTokenSpotStack: nil,
 		IntA:               0,
 		Key:                "",
 	}
@@ -124,10 +124,10 @@ func eval(state *State) *State {
 		}
 		token = nextToken(state)
 		if state.I == -1 {
-			break
+			state = runImmediates["\n"](state)
+			state = state.CallingParent
+			continue
 		}
-
-        // todo: maybe a special type for var too and also newline
         
         // #cyan
         // if token == "\n" {
@@ -153,21 +153,10 @@ func eval(state *State) *State {
 			case "array", "object":
 				push(state.Vals, token)
 			}
-		case string:
-			if token == "" {
-				break
-			}
-
+		case VarName:
+			evaled := getVar(state, string(token))
 			switch state.Mode {
 			case "normal":
-				if token == "\n" {
-					// fmt.Println("calling", state.Vals) // _red
-					state = callFunc(state)
-					// fmt.Println("done calling", state.Vals) // _red
-					continue
-				}
-
-				evaled := evalToken(state, token)
 				if state.CurrFuncToken == nil {
 				    // fmt.Printf("yay! %T\n", evaled)
 				    if evaledFunc, ok := evaled.(*Func); ok {
@@ -183,25 +172,13 @@ func eval(state *State) *State {
 				if token == "\n" {
 					continue
 				}
-				push(state.Vals, evalToken(state, token))
+				push(state.Vals, evaled)
 			}
 		default:
 			push(state.Vals, token)
 		}
 	}
 	return state
-}
-func evalToken(state *State, field string) any {
-	// TODO: parse out dot
-	raw := field[1:]
-	if field[0] == '\'' {
-		return raw
-	}
-	// string shortcut
-	if len(raw) > 0 && raw[0] == ':' {
-	    return raw[1:]
-	}
-	return getVar(state, raw)
 }
 func getVar(state *State, varName string) any {
 	// if varName == "IntA" {
@@ -234,6 +211,7 @@ func callFunc(state *State) *State {
 
 	newState := makeState(theFunc.FileName, theFunc.Code)
 	newState.CachedTokens = theFunc.CachedTokens
+	newState.GoUpCache = theFunc.GoUpCache
 	newState.I = theFunc.I
 	newState.Vals = state.Vals
 	newState.CallingParent = state
@@ -277,7 +255,7 @@ const stateIn = 1
 
 func nextTokenRaw(code string, i int) (any, int) {
 	if i > len(code) {
-		return "", -1
+		return nil, -1
 	}
 	state := stateOut
 	start := -1
@@ -286,16 +264,14 @@ func nextTokenRaw(code string, i int) (any, int) {
 		switch state {
 		case stateOut:
 			switch b {
-			case '{', '}', '(', ')', '[', ']':
+			case '{', '}', '(', ')', '[', ']', ',', '\n':
 				return makeToken(string(b)), i + 1
-			case ',', '\n':
-				return "\n", i + 1
 			case ' ', '\t', '\r':
 				continue
 			case '"', '\'':
 				expectedQuoteEnd := string(code[i])
 				end := strings.Index(code[i+1:], expectedQuoteEnd)
-				return "'" + code[i+1:i+1+end], i + 1 + end + 1
+				return code[i+1:i+1+end], i + 1 + end + 1
 			case '#':
 				// comments
 				end := strings.Index(code[i+1:], "\n")
@@ -309,9 +285,7 @@ func nextTokenRaw(code string, i int) (any, int) {
 			}
 		case stateIn:
 			switch b {
-			case '{', '}', '(', ')', '[', ']':
-				return makeToken(code[start:i]), i
-			case ',', '\n':
+			case '{', '}', '(', ')', '[', ']', ',', '\n':
 				return makeToken(code[start:i]), i
 			case ' ', '\t', '\r':
 				return makeToken(code[start:i]), i + 1
@@ -319,7 +293,7 @@ func nextTokenRaw(code string, i int) (any, int) {
 				expectedQuoteEnd := string(code[i]) + code[start:i]
 				endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
 				token := code[i+1 : i+1+endIndex]
-				return "'" + token, i + 1 + endIndex + len(expectedQuoteEnd)
+				return token, i + 1 + endIndex + len(expectedQuoteEnd)
 			default:
 			}
 		}
@@ -343,6 +317,10 @@ func makeToken(val string) any {
 	}
 	if f, ok := runImmediates[val]; ok {
 	    return RunImmediate(f)
+	}
+	// string shortcut
+	if val[0] == ':' {
+	    return val[1:]
 	}
 	if isNumeric(val) {
 		if strings.Contains(val, ".") {
@@ -368,8 +346,10 @@ func makeToken(val string) any {
 	case "null":
 		return nil
 	}
-	return "$" + val
+	return VarName(val)
 }
+
+type VarName string
 
 // func isNumeric(s string) bool {
 // 	_, err := strconv.ParseFloat(s, 64)
@@ -401,7 +381,12 @@ loopy:
 }
 
 func findNext(state *State, things []string) int {
-	// TODO: add caching
+	// TODO: reusing GoUpCache, only ever one spot to go?
+	initGoUpCache(state)
+	if cachedI := state.GoUpCache[state.I]; cachedI != nil {
+	    return *cachedI
+	}
+				
 	toSearch := state.Code[state.I:]
 
 	closestIndex := -1
@@ -414,9 +399,17 @@ func findNext(state *State, things []string) int {
 			closestIndex = j
 		}
 	}
-	return minDiff + state.I + len(things[closestIndex])
+	
+    ret := minDiff + state.I + len(things[closestIndex])
+	state.GoUpCache[state.I] = &ret
+	return ret
 }
 func findNextBefore(state *State, things []string) int {
+	// TODO: reusing GoUpCache, only ever one spot to go?
+	initGoUpCache(state)
+	if cachedI := state.GoUpCache[state.I]; cachedI != nil {
+	    return *cachedI
+	}
 	// TODO: add caching
 	toSearch := state.Code[state.I:]
 
@@ -428,5 +421,13 @@ func findNextBefore(state *State, things []string) int {
 			minDiff = index
 		}
 	}
-	return minDiff + state.I
+    ret := minDiff + state.I
+	state.GoUpCache[state.I] = &ret
+	return ret
+}
+
+func initGoUpCache(state *State) {
+	if len(state.GoUpCache) == 0 {
+		state.GoUpCache = make([]*int, len(state.Code)+1)
+	}
 }

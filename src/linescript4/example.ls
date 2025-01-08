@@ -1,5 +1,6 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+
 say "hi"
 "yo" say
 
@@ -53,23 +54,50 @@ say "what?!"
 # say "and val is " val (cc)
 
 
-let "loopCount" 100000
+let "loopCount" 1000000
 let "theStart" (now)
 let "val" 0.0
 let "i" 0
 #here
 toFloat i, - 0.1, + val, as "val"
 incr "i"
-goUpIf (< i loopCount) "here"
+goUpIf (i < loopCount) "here"
 # < i loopCount, goUpIf "here"
 let "theEnd" (now)
 say "+it took " (- theEnd theStart) " millis" (cc) (cc)
+say "+loops: " loopCount (cc)
 say "and val is " val (cc)
 
+# +it took 398 millis
+# +loops: 1000000
+# and val is 499999400004.4008
+
+
+let "loopCount" 1000000
+let "theStart" (now)
+let "val" 0.0
+let "i" 0
+loop loopCount :i
+    toFloat i, - 0.1, + val, as "val"
+end
+let "theEnd" (now)
+say "+it took " (- theEnd theStart) " millis" (cc) (cc)
+say "+loops: " loopCount (cc)
+say "and val is " val (cc)
 
 exit
 
 
+# convert this script (written in custom lang in stack-based style) to php
+# loop loopCount :i
+#     toFloat i, - 0.1, + val, as "val"
+# end
+# 
+# <?php
+# for ($i = 0; $i < $loopCount; $i++) {
+#     $val = (float)$i - 0.1 + $val;
+# }
+# ?>
 
 
 
