@@ -264,7 +264,7 @@ func nextTokenRaw(code string, i int) (any, int) {
 		switch state {
 		case stateOut:
 			switch b {
-			case '{', '}', '(', ')', '[', ']', ',', '\n':
+			case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
 				return makeToken(string(b)), i + 1
 			case ' ', '\t', '\r':
 				continue
@@ -285,12 +285,13 @@ func nextTokenRaw(code string, i int) (any, int) {
 			}
 		case stateIn:
 			switch b {
-			case '{', '}', '(', ')', '[', ']', ',', '\n':
+			case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
 				return makeToken(code[start:i]), i
 			case ' ', '\t', '\r':
 				return makeToken(code[start:i]), i + 1
 			case '"', '\'':
-				expectedQuoteEnd := string(code[i]) + code[start:i]
+				str := code[start:i]
+				expectedQuoteEnd := string(code[i]) + str
 				endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
 				token := code[i+1 : i+1+endIndex]
 				return token, i + 1 + endIndex + len(expectedQuoteEnd)
@@ -342,7 +343,7 @@ func makeToken(val string) any {
 	case "false":
 		return false
 	case "newline":
-		return "'\n"
+		return "\n"
 	case "null":
 		return nil
 	}

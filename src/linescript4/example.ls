@@ -1,6 +1,50 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+if true (not)
+    say "block 1"
+else if true (not)
+    say "block 2"
+else
+    say "block 3"
+end
 
+say "wow"
+
+loop 2 :i
+    say "i " (cc i)
+    if true
+        say "  true1"
+    end
+    if false
+        say "+error"
+    end
+    if true
+        say "  true2"
+    end
+end
+
+[:a :b :c]
+each :i :w
+    say w
+    if false
+        say w
+    end
+end
+say "done"
+
+
+exit
+    
+    
+    
+"foo bar"
+say {
+    "foo" "Foo"
+    "bar" "Bar"
+}
+say
+
+exit
 say "hi"
 "yo" say
 
@@ -16,13 +60,6 @@ say
 + 2 3
 say
 
-if true (not)
-    say "block 1"
-else if true (not)
-    say "block 2"
-else
-    say "block 3"
-end
 
 let "foo" "This is foo"
 

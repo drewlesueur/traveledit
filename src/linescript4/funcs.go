@@ -24,13 +24,23 @@ func initBuiltins() {
 	runImmediates = map[string]func(state *State) *State{
 		"it": nil, // see linescript3 implementation
 		"\n": func(state *State) *State {
+			if state.Mode == "normal" {
+				state = callFunc(state)
+			}
 			// fmt.Println("calling", state.Vals) // _red
-			state = callFunc(state)
 			// fmt.Println("done calling", state.Vals) // _red
 			return state
 		},
 		",": func(state *State) *State {
-			state = callFunc(state)
+			if state.Mode == "normal" {
+				state = callFunc(state)
+			}
+			return state
+		},
+		"|": func(state *State) *State {
+			if state.Mode == "normal" {
+				state = callFunc(state)
+			}
 			return state
 		},
 		"(": func(state *State) *State {
@@ -113,6 +123,24 @@ func initBuiltins() {
 		">=":          makeBuiltin_2_1(gte),
 		"==":          makeBuiltin_2_1(eq),
 		"!=":          makeBuiltin_2_1(neq),
+		
+		"plus":           makeBuiltin_2_1(plus),
+		"minus":      makeBuiltin_2_1(minus),
+		"times":      makeBuiltin_2_1(times),
+		"divBy":        makeBuiltin_2_1(divide),
+		"toThe":      makeBuiltin_2_1(exponent),
+		"mod":        makeBuiltin_2_1(mod),
+		"lt":          makeBuiltin_2_1(lt),
+		"gt":       makeBuiltin_2_1(gt),
+		"lte":       makeBuiltin_2_1(lte),
+		"gte":    makeBuiltin_2_1(gte),
+		"eq":         makeBuiltin_2_1(eq),
+		"neq":     makeBuiltin_2_1(neq),
+		"is":         makeBuiltin_2_1(eq),
+		"isnt":     makeBuiltin_2_1(neq),
+		// "is":          makeBuiltin_2_1(is),
+		
+		
 		"not":         makeBuiltin_1_1(not),
 		"cc":          makeBuiltin_2_1(cc),
 		"indexOf":     makeBuiltin_2_1(indexOf),
@@ -121,7 +149,6 @@ func initBuiltins() {
 		"toString":    makeBuiltin_1_1(toString),
 		"toInt":       makeBuiltin_1_1(toInt),
 		"toFloat":     makeBuiltin_1_1(toFloat),
-		"is":          makeBuiltin_2_1(is),
 		"say":         makeBuiltin_1_0(say),
 		"put":         makeNoop(),
 		"push":        makeBuiltin_2_0(push),
@@ -142,6 +169,26 @@ func initBuiltins() {
 		"deleteProp":  makeBuiltin_2_0(deleteProp),
 		"keys":        makeBuiltin_1_1(keys),
 		"populate":    makeBuiltin_2_1(populateString),
+		"fromJson":    makeBuiltin_1_1(func(a any) any {
+		    j := a.(string)
+		    var r any
+		    json.Unmarshal([]byte(j), &r)
+		    return r
+		}),
+		"toJson":    makeBuiltin_1_1(func(a any) any {
+		    b, err := json.Marshal(a)
+		    if err != nil {
+		        panic(err)
+		    }
+		    return b
+		}),
+		"toJsonF":    makeBuiltin_1_1(func(a any) any {
+		    b, err := json.MarshalIndent(a, "", "    ")
+		    if err != nil {
+		        panic(err)
+		    }
+		    return b
+		}),
 		"exit": func(state *State) *State {
 			return nil
 		},
@@ -230,7 +277,15 @@ func initBuiltins() {
 			theIndex := -1
 			itemVar := pop(state.Vals).(string)
 			indexVar := pop(state.Vals).(string)
-			arr := pop(state.Vals).(*[]any)
+
+			var arr *[]any
+			switch actualArr := pop(state.Vals).(type) {
+			case *[]any:
+			    arr = actualArr
+			case []any:
+			    arr = &actualArr
+			}
+
 			state.Vars[indexVar] = -1
 			state.Vars[itemVar] = nil
 			var spot = state.I
@@ -257,16 +312,22 @@ func initBuiltins() {
 			cond := pop(state.Vals)
 			state.EndStack = append(state.EndStack, endIf)
 			if cond.(bool) == true {
-				// lol
 			} else {
 				indent := getPrevIndent(state)
 				// fmt.Printf("wanting to find: %q\n", indent + "end")
 				i := findNext(state, []string{"\n" + indent + "end", "\n" + indent + "else"})
+				// fmt.Printf("found: %q\n", state.Code[i:])
 				state.I = i
 			}
 			return state
 		},
 		"else": func(state *State) *State {
+			endFunc := state.EndStack[len(state.EndStack)-1]
+			state.EndStack = state.EndStack[:len(state.EndStack)-1]
+			// don't need to call it cuz it's a noop
+			_ = endFunc
+			
+			
 			indent := getPrevIndent(state)
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			i := findNext(state, []string{"\n" + indent + "end"})
@@ -342,6 +403,16 @@ func initBuiltins() {
 		//
 		//     return state
 		// },
+		"execBash": func(state *State) *State {
+    	    val := pop(state.Vals).(string)
+    	    cmd := exec.Command("bash", "-c", val)
+    	    cmdOutput, err := cmd.Output()
+    	    if err != nil {
+    	        panic(err)
+    	    }
+    	    push(state.Vals, string(cmdOutput))
+    	    return state
+    	},
 		"execBashCombined": func(state *State) *State {
     	    val := pop(state.Vals).(string)
     	    cmd := exec.Command("bash", "-c", val)
@@ -374,6 +445,25 @@ func initBuiltins() {
     	    // return state
     	    return evalState
     	},
+		"dup": func(state *State) *State {
+    	    v := pop(state.Vals)
+    	    push(state.Vals, v)
+    	    push(state.Vals, v)
+    	    return state
+    	},
+		"swap": func(state *State) *State {
+    	    a := pop(state.Vals)
+    	    b := pop(state.Vals)
+    	    push(state.Vals, a)
+    	    push(state.Vals, b)
+    	    return state
+    	},
+		"see": func(state *State) *State {
+    	    a := pop(state.Vals)
+    	    say(a)
+    	    push(state.Vals, a)
+    	    return state
+    	},
 	}
 }
 
@@ -400,6 +490,9 @@ func pushm(slice any, values any) {
 func at(slice any, index any) any {
 	if s, ok := slice.(*[]any); ok {
 		return (*s)[index.(int)]
+	}
+	if m, ok := slice.(map[string]any); ok {
+		return m[index.(string)]
 	}
 	return nil
 }
@@ -643,7 +736,10 @@ func eq(a, b any) any {
 	case string:
 		return a == b.(string)
 	}
-	return false
+	return a == b
+}
+func is(a, b any) any {
+	return a == b
 }
 
 func neq(a, b any) any {
@@ -712,9 +808,6 @@ func exponent(a, b any) any {
 	return nil
 }
 
-func is(a, b any) any {
-	return a == b
-}
 
 func cc(a, b any) any {
 	if aArr, ok1 := a.(*[]any); ok1 {
@@ -917,8 +1010,8 @@ func endIf(state *State) *State {
 }
 
 func populateString(a, b any) any {
-    theMap := a.(map[string]any)
-    theString := b.(string)
+    theString := a.(string)
+    theMap := b.(map[string]any)
     theArgs := make([]string, len(theMap)*2)
     i := 0
     for k, v := range theMap {
