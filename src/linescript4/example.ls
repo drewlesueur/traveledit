@@ -1,5 +1,24 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+
+{"foo"  "bar" "biz": "baz"}
+say
+exit
+
+
+
+
+# def :doIt [:f]
+#     say "doing"
+#     say f
+#     f "yay"
+#     say "done"
+# end
+# 
+# doIt func [:v]
+#     say "here" (cc v)
+# end
+
 if true (not)
     say "block 1"
 else if true (not)

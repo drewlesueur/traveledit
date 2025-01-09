@@ -142,7 +142,7 @@ func eval(state *State) *State {
         // if token == "\n" {
         //     fmt.Println("token:", "<\\n>")
         // } else {
-        //     fmt.Println("token:", token)
+            // fmt.Println("token:", token)
         // }
         
 		switch token := token.(type) {
@@ -183,6 +183,8 @@ func eval(state *State) *State {
 				}
 				push(state.Vals, evaled)
 			}
+		case Skip:
+			continue
 		default:
 			push(state.Vals, token)
 		}
@@ -319,6 +321,8 @@ func nextTokenRaw(code string, i int) (any, int) {
 // $var_name
 // #300.23
 // i300
+
+type Skip string
 func makeToken(val string) any {
 	if b, ok := builtins[val]; ok {
 	    return &Func{
@@ -331,6 +335,10 @@ func makeToken(val string) any {
 	}
 	// string shortcut
 	if val[0] == ':' {
+	    if len(val) == 1 {
+	        // panic("skipping!!")
+	        return Skip("")
+	    }
 	    return val[1:]
 	}
 	if isNumeric(val) {

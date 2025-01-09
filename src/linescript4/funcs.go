@@ -180,14 +180,14 @@ func initBuiltins() {
 		    if err != nil {
 		        panic(err)
 		    }
-		    return b
+		    return string(b)
 		}),
 		"toJsonF":    makeBuiltin_1_1(func(a any) any {
 		    b, err := json.MarshalIndent(a, "", "    ")
 		    if err != nil {
 		        panic(err)
 		    }
-		    return b
+		    return string(b)
 		}),
 		"exit": func(state *State) *State {
 			return nil
@@ -389,6 +389,30 @@ func initBuiltins() {
 				Params:        paramStrings,
 				LexicalParent: state,
 			}
+			// todo you could keep track of indent better
+			// fmt.Printf("wanting to find: %q\n", indent + "end")
+			r := findMatchingAfter(state, []string{"end"})
+			state.I = r.I
+
+			// fmt.Printf("found: %q\n", getCode(state)[i:])
+			return state
+		},
+		"func": func(state *State) *State {
+			params := pop(state.Vals).(*[]any)
+			paramStrings := make([]string, len(*params))
+			for i, p := range *params {
+				paramStrings[i] = p.(string)
+			}
+			push(state.Vals, &Func{
+				FileName:      state.FileName,
+				I:             state.I,
+				Code:          state.Code,
+				CachedTokens:  state.CachedTokens,
+				GoUpCache:  state.GoUpCache,
+				FindMatchingCache:  state.FindMatchingCache,
+				Params:        paramStrings,
+				LexicalParent: state,
+			})
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			r := findMatchingAfter(state, []string{"end"})
