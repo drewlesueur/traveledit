@@ -1,12 +1,49 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 #!/usr/bin/env -S bun linescript4.js
 
+say "what1" # inline comment
+say "what2"
+say "here1"
+
+goDown :spot1
+say "here2"
+say "here3"
+#spot1
+say "here4"
+
 let :sayHiFunc func [:name]
     say "from function: hello " (cc name)
 end
 
 sayHiFunc "Drew"
 # say sayHiFunc
+
+def :increr [:v]
+    local :x v
+    func []
+        let :x (x + 1)
+        x
+    end
+end
+
+let :counter (increr 5000)
+counter, say
+counter, say
+counter, say
+counter, say
+counter, say
+
+
+let :name "Drew"
+let :age 40
+
+def :update []
+    let :name "Ted"
+    local :age 50
+    say "the name is " (cc name) (cc " and age is ") (cc age)
+end
+update
+say "the name is " (cc name) (cc " and age is ") (cc age)
 
 def :map [:theList :f]
     let :ret (makeArray)
@@ -17,6 +54,13 @@ def :map [:theList :f]
     end
     ret
 end
+
+loop 100 :i
+    say i
+    if (i gte 10)
+        goDown :endLoop
+    end
+end #endLoop
 
 let :mylist [1 2 3 4 5 6 7]
 map mylist func [:v]

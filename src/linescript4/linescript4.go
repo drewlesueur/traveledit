@@ -198,6 +198,16 @@ func getVar(state *State, varName string) any {
 	return nil
 }
 
+func findParent(state *State, varName string) *State {
+	if _, ok := state.Vars[varName]; ok {
+		return state
+	}
+	if state.LexicalParent != nil {
+		return findParent(state.LexicalParent, varName)
+	}
+	return nil
+}
+
 
 func callFunc(state *State) *State {
     if state.CurrFuncToken == nil {
@@ -291,7 +301,7 @@ func nextTokenRaw(code string, i int) (any, int) {
 				if end == -1 {
 					return "", -1
 				}
-				i = i + 1 + end
+				i = i + end
 			default:
 				state = stateIn
 				start = i
@@ -658,10 +668,20 @@ func initBuiltins() {
 			state.Vars[a] = state.Vars[a].(int) + 1
 			return state
 		},
-		"let": func(state *State) *State {
+		"local": func(state *State) *State {
 			b := pop(state.Vals)
 			a := pop(state.Vals).(string)
 			state.Vars[a] = b
+			return state
+		},
+		"let": func(state *State) *State {
+			b := pop(state.Vals)
+			a := pop(state.Vals).(string)
+			parentState := findParent(state, a)
+			if parentState == nil {
+			    parentState = state
+			}
+			parentState.Vars[a] = b
 			return state
 		},
 		"as": func(state *State) *State {
@@ -673,6 +693,19 @@ func initBuiltins() {
 			//     return state
 			// }
 			state.Vars[b] = a
+			return state
+		},
+		"goUp": func(state *State) *State {
+			locText := pop(state.Vals).(string)
+            initGoUpCache(state)
+			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
+				state.I = *cachedI
+				return state
+			}
+			toSearch := "#" + locText
+			newI := strings.LastIndex(state.Code[0:state.I], toSearch)
+			state.GoUpCache[state.I] = &newI
+			state.I = newI
 			return state
 		},
 		"goUpIf": func(state *State) *State {
@@ -689,6 +722,39 @@ func initBuiltins() {
 				}
 				toSearch := "#" + locText
 				newI := strings.LastIndex(state.Code[0:state.I], toSearch)
+				state.GoUpCache[state.I] = &newI
+				state.I = newI
+			}
+			// push(state.Vals, state[a])
+			return state
+		},
+		"goDown": func(state *State) *State {
+			locText := pop(state.Vals).(string)
+			// assuming static location
+            initGoUpCache(state)
+			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
+				state.I = *cachedI
+				return state
+			}
+			toSearch := "#" + locText
+			newI := strings.Index(state.Code[state.I:], toSearch) + state.I
+			state.GoUpCache[state.I] = &newI
+			state.I = newI
+			return state
+		},
+		"goDownIf": func(state *State) *State {
+			locText := pop(state.Vals).(string)
+			cond := pop(state.Vals).(bool)
+
+			if cond {
+				// assuming static location
+	            initGoUpCache(state)
+				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
+					state.I = *cachedI
+					return state
+				}
+				toSearch := "#" + locText
+				newI := strings.Index(state.Code[state.I:], toSearch) + state.I
 				state.GoUpCache[state.I] = &newI
 				state.I = newI
 			}
