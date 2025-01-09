@@ -1,9 +1,21 @@
+#!/usr/bin/env -S bun linescript4.js
+
 #!/usr/bin/env -S go run linescript4.go funcs.go
+
+say %"
+hi
+"%
+
+say "yo"
+
+say newline
+
+
 
 
 {"foo"  "bar" "biz": "baz"}
+
 say
-exit
 
 
 
@@ -125,6 +137,8 @@ loop 2 :i
         say "  block A"
     end
 end
+
+say "done loopie"
 
 [:a :b :c]
 each :i :w

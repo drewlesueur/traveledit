@@ -5789,6 +5789,7 @@ var isPollingTerminal = false
 var lastPolled = null
 var lastPollResponse = null
 var lastPollError = null
+var lastPollInFlight = null
 // allow hangups and newSession
 
 function pollTerminals() {
@@ -5805,11 +5806,13 @@ function pollTerminals() {
     //     isPollingTerminal = false
     //     return
     // }
+    lastPollInFlight = true
     fetch(proxyPath + "/myterminalpoll?clientid=" + clientId, {
         cache: "no-cache"
     }).then(r => {
         return r.json()
     }).then(wrapperR => {
+        lastPollInFlight = false
         lastPollResponse = new Date()
         // map of terminals and their payload and maybe meta info
         if (wrapperR.PasteBuffer) {
@@ -5983,6 +5986,7 @@ function pollTerminals() {
         // in-flight, don't poll again.
         // alert("polling error: " + e)
         lastPollError = new Date()
+        lastPollInFlight = false
         setTimeout(pollTerminals, 1)
     })
 }
@@ -7412,6 +7416,13 @@ function render() {
         theStatus.tvr = totalViewRequests
         theStatus.tvbs = (totalViewBytesSent).toLocaleString()
         theStatus.fileErrors = fx.fileErrors
+        theStatus.lastPolled = lastPolled
+        theStatus.lastPollResponse = lastPollResponse
+        theStatus.lastPollError = lastPollError
+        theStatus.isPollingTerminal = isPollingTerminal
+        
+        
+        
         // theStatus.overflowX = overflowX
         // theStatus.overflowY = overflowY
         // theStatus.hasDoneOverflowYAction = hasDoneOverflowYAction
