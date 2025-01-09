@@ -11,13 +11,15 @@ import (
 	"os/exec"
 	"strconv"
 	"time"
+	"context"
 )
 
 func openTerminal(cwd string, w http.ResponseWriter) {
 	log.Println("my terminal open!")
 	lastFileID++
 	// TODO: configurable shell, login shell (-l)?
-	cmd := exec.Command("bash", "-l")
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := exec.CommandContext(ctx, "bash", "-l")
 	// cmd := exec.Command("bash")
 	// cmd := exec.Command("zsh", "-l")
 	cmd.Dir = cwd
@@ -46,6 +48,8 @@ func openTerminal(cwd string, w http.ResponseWriter) {
 		ID:  lastFileID,
 		CWD: cwd,
 		Pty: f,
+		Context: ctx,
+		Cancel: cancel,
 	}
 	workspaceMu.Lock()
 	workspace.Files = append(workspace.Files, file)

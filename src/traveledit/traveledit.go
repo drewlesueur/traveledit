@@ -26,7 +26,7 @@ import "bufio"
 import "crypto/rand"
 import "encoding/hex"
 import "path/filepath"
-// import "context"
+import "context"
 
 import "mime/multipart"
 import "net/textproto"
@@ -322,6 +322,8 @@ type File struct {
 
 	// fields for terminal
 	Cmd           *exec.Cmd
+	Context       context.Context
+	Cancel        func()
 	Pty           *os.File
 	ReadBuffer    []byte
 	ChatGPTBuffer []string
@@ -329,6 +331,8 @@ type File struct {
 	// pop
 	Closed        bool
 	Name          string
+	
+	
 }
 
 type Workspace struct {
@@ -1540,6 +1544,7 @@ func main() {
 					logAndErr(w, "closing pty: %d: %v", ID, err)
 					return
 				}
+				t.Cancel()
 			}
 		}
 	})
