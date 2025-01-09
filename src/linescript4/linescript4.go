@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	
+
 	"encoding/json"
 	"math"
 	"os/exec"
@@ -138,10 +138,10 @@ func eval(state *State) *State {
 			state = state.CallingParent
 			continue
 		}
-        
+
         // #cyan
-        // fmt.Println("token:", token)
-        
+        // fmt.Printf("#cyan token: %v, %T, (%v): %v\n", token, token, runImmediates["\n"], state.CurrFuncToken)
+
 		switch token := token.(type) {
 		case RunImmediate:
 			state = token(state)
@@ -198,6 +198,7 @@ func getVar(state *State, varName string) any {
 	return nil
 }
 
+
 func callFunc(state *State) *State {
     if state.CurrFuncToken == nil {
         return state
@@ -206,11 +207,17 @@ func callFunc(state *State) *State {
     f := theFunc.Builtin
     if f != nil {
 		newState := f(state)
-		state.CurrFuncToken = nil
-		state.FuncTokenSpot = -1
+		if theFunc == state.CurrFuncToken {
+			// TODO: you could have each builtin set these to eliminate the if
+			// this being a conditional is only used now for the "func" builtin
+			// or you can make func only be an immediate
+			// but it's not so we can parse the args
+			state.CurrFuncToken = nil
+			state.FuncTokenSpot = -1
+		}
 		return newState
     }
-    
+
 	state.CurrFuncToken = nil
 	state.FuncTokenSpot = -1
 
@@ -313,14 +320,16 @@ func nextTokenRaw(code string, i int) (any, int) {
 
 type Skip string
 func makeToken(val string) any {
+	// immediates go first, because it could be an immediate and builtin
+	if f, ok := runImmediates[val]; ok {
+	    // fmt.Println("#cyan", val)
+	    return RunImmediate(f)
+	}
 	if b, ok := builtins[val]; ok {
 	    return &Func{
 	        Builtin: b,
 	        Name: val,
 	    }
-	}
-	if f, ok := runImmediates[val]; ok {
-	    return RunImmediate(f)
 	}
 	// string shortcut
 	if val[0] == ':' {
@@ -372,7 +381,7 @@ func getPrevIndent(state *State) string {
 	code := state.Code
 	i := state.I
 	lastNonSpace := i
-	i = i - 2
+	i = i - 1
 loopy:
 	for i = i-2; i >= 0; i-- {
 		chr := code[i]
@@ -444,10 +453,18 @@ func initBuiltins() {
 		},
 		"\n": func(state *State) *State {
 			if state.Mode == "normal" {
+				// if state.CurrFuncToken != nil {
+				// 	// fmt.Println("calling", state.Vals) // _red
+				// 	// fmt.Println("calling", state.CurrFuncToken) // _red
+				// }
+
 				state = callFunc(state)
+
+				// if state != nil && state.CurrFuncToken != nil {
+				// 	// fmt.Println("done calling", state.Vals) // _red
+				// 	// fmt.Println("done calling") // _red
+				// }
 			}
-			// fmt.Println("calling", state.Vals) // _red
-			// fmt.Println("done calling", state.Vals) // _red
 			return state
 		},
 		",": func(state *State) *State {
@@ -527,6 +544,22 @@ func initBuiltins() {
 			push(state.Vals, myObj)
 			return state
 		},
+		"func": func(state *State) *State {
+			fmt.Println("call immediate: func")
+			state.ModeStack = append(state.ModeStack, state.Mode)
+			state.Mode = "normal"
+
+            // open parens
+			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
+			state.CurrFuncToken = &Func{
+	        	Builtin: builtins["func"],
+	        	Name: "func",
+	    	}
+			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
+			state.FuncTokenSpot = len(*state.Vals) - 1
+
+			return state
+		},
 	}
 	builtins = map[string]func(state *State) *State{
 		"now":         makeBuiltin_0_1(now),
@@ -542,7 +575,7 @@ func initBuiltins() {
 		">=":          makeBuiltin_2_1(gte),
 		"==":          makeBuiltin_2_1(eq),
 		"!=":          makeBuiltin_2_1(neq),
-		
+
 		"plus":           makeBuiltin_2_1(plus),
 		"minus":      makeBuiltin_2_1(minus),
 		"times":      makeBuiltin_2_1(times),
@@ -558,8 +591,8 @@ func initBuiltins() {
 		"is":         makeBuiltin_2_1(eq),
 		"isnt":     makeBuiltin_2_1(neq),
 		// "is":          makeBuiltin_2_1(is),
-		
-		
+
+
 		"not":         makeBuiltin_1_1(not),
 		"cc":          makeBuiltin_2_1(cc),
 		"indexOf":     makeBuiltin_2_1(indexOf),
@@ -571,6 +604,7 @@ func initBuiltins() {
 		"say":         makeBuiltin_1_0(say),
 		"put":         makeNoop(),
 		"push":        makeBuiltin_2_0(push),
+		"push2":        makeBuiltin_2_0(push2),
 		"pushm":       makeBuiltin_2_0(pushm),
 		"pop":         makeBuiltin_1_1(pop),
 		"unshift":     makeBuiltin_2_0(unshift),
@@ -627,10 +661,6 @@ func initBuiltins() {
 		"let": func(state *State) *State {
 			b := pop(state.Vals)
 			a := pop(state.Vals).(string)
-			// if a == "IntA" {
-			//     state.IntA = b.(int)
-			//     return state
-			// }
 			state.Vars[a] = b
 			return state
 		},
@@ -751,7 +781,7 @@ func initBuiltins() {
 			state.EndStack = state.EndStack[:len(state.EndStack)-1]
 			// don't need to call it cuz it's a noop
 			_ = endFunc
-			
+
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			r := findMatchingAfter(state, []string{"end"})
 			state.I = r.I
@@ -817,8 +847,24 @@ func initBuiltins() {
 			r := findMatchingAfter(state, []string{"end"})
 			state.I = r.I
 
-			// fmt.Printf("found: %q\n", getCode(state)[i:])
+            // close parens
+			state.Mode = state.ModeStack[len(state.ModeStack)-1]
+			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+
+			state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
+			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
+			// fmt.Println("#gold **cft is:", state.CurrFuncToken)
+			// fmt.Println("mode", state.Mode)
+
+			state.FuncTokenSpot = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
+			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
+			
+			// token, _ := nextTokenRaw(state.Code, state.I)
+			// fmt.Printf("next token: %v %T\n", token, token)
+			// fmt.Printf("next token: %v\n", runImmediates["\n"])
+
 			return state
+
 		},
 		"execBash": func(state *State) *State {
     	    val := pop(state.Vals).(string)
@@ -856,7 +902,7 @@ func initBuiltins() {
     	    evalState := makeState("__eval", code)
             evalState.Vals = state.Vals
             evalState.Vars = state.Vars
-    	    
+
     	    evalState.CallingParent = state
     	    // eval(evalState)
     	    // return state
@@ -884,6 +930,8 @@ func initBuiltins() {
 	}
 }
 
+var funcBuiltin = builtins["func"]
+
 func now() any {
 	return int(time.Now().UnixMilli())
 }
@@ -891,6 +939,14 @@ func now() any {
 func push(slice any, value any) {
 	if s, ok := slice.(*[]any); ok {
 		*s = append(*s, value)
+	}
+}
+func push2(slice any, value any) {
+	if s, ok := slice.(*[]any); ok {
+		*s = append(*s, value)
+		fmt.Println("pushed",*s)
+	} else {
+		fmt.Printf("no pushed: %T\n", slice)
 	}
 }
 
@@ -1437,29 +1493,28 @@ func populateString(a, b any) any {
 
 // That was some code that implements a little interpreted
 // programming language
-// 
+//
 // a key feature is that it operates on the source code as a string
 // there is no converting to an AST or anythign like that
-// 
+//
 // please convert this code to efficient javascript
-// 
+//
 // The original code makes use of go type assertions
 // much of that won't be needed in the javascript code
-// 
+//
 // although there will likely be some sort of type switch on the token
-// 
+//
 // there is no difference between []any and *[]any in javascript
 // so the code can likely be simplified
-// 
+//
 // but the main structure I want to be the same
-// 
+//
 // prefer global functions and object over "classes"
-// 
+//
 // Converting this Go code to JavaScript while maintaining its structure requires some careful attention to detail. JavaScript differs from Go in typing and syntax, but functions and the flow of the program can remain largely the same. Below is a JavaScript version of your interpreted programming language implementation.
-// 
+//
 // Add all the code, don't leave it partially finished
-// 
+//
 // in the type switch on the token
 // you'll need to differentiate between the VarName, Skip, and string types
 // not sure the best way, maybe maybe them objects with constructors?
-

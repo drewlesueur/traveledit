@@ -1,6 +1,34 @@
+#!/usr/bin/env -S go run linescript4.go funcs.go
 #!/usr/bin/env -S bun linescript4.js
 
-#!/usr/bin/env -S go run linescript4.go funcs.go
+let :sayHiFunc func [:name]
+    say "from function: hello " (cc name)
+end
+
+sayHiFunc "Drew"
+# say sayHiFunc
+
+def :map [:theList :f]
+    let :ret (makeArray)
+    each theList :i :v
+        f v | if
+            ret push v
+        end
+    end
+    ret
+end
+
+let :mylist [1 2 3 4 5 6 7]
+map mylist func [:v]
+    v mod 2, is 0
+end
+say
+exit
+
+
+
+
+say "wow"
 
 say %"
 hi
@@ -183,6 +211,22 @@ def :greet [:name]
     let :foo "bar"
     say "hello " name (cc)
 end
+
+# map myList func 
+# end
+
+# inline comments
+# break return
+# function literals
+# assignment in outer scope
+# you can use state.mode when getting tokens
+
+
+myVar
+
+
+
+
 
 greet "Drew"
 say myFoo
