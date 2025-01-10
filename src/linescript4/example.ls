@@ -3,6 +3,22 @@
 
 say ""
 
+def pretendHeavy
+    loop 100 i
+        say "uy got in loop" i
+    end
+end
+
+if false and (pretendHeavy)
+    say "FAIL"
+else
+    say "yay else"
+end
+
+
+
+say ""
+
 say "yo" "ho"
 
 "ok" say "skipping ok"
@@ -73,23 +89,16 @@ end
 sayHiFunc "Drew"
 # say sayHiFunc
 
-def :increr :v
-    local :x v
+def increr v
+    local x v
+    say "incrementer x is" x
     func
-        let :x (x + 1)
+        let x (x + 1)
         x
     end
 end
 
-# def increr v
-#     local x v
-#     func
-#         let x (x + 1)
-#         x
-#     end
-# end
-
-
+say "Incrementer test"
 let :counter (increr 5000)
 counter, say
 counter, say

@@ -375,7 +375,10 @@ func makeToken(state *State, val string) any {
 		return nil
 	}
 	if state.CurrFuncToken != nil {
-	    if state.CurrFuncToken.Name == "let" {
+	    if state.CurrFuncToken.Name == "let" && (length(state.Vals).(int) - state.FuncTokenSpot == 0) {
+	    	return val
+		}
+	    if state.CurrFuncToken.Name == "local" && (length(state.Vals).(int) - state.FuncTokenSpot == 0) {
 	    	return val
 		}
 	    if state.CurrFuncToken.Name == "def" {
@@ -423,6 +426,45 @@ loopy:
 		}
 	}
 	return code[i:lastNonSpace]
+}
+
+func findBeforeEndLine(state *State) int {
+	// line or parens or alternate line enders (, |)
+	// reusing this helpful cache
+	initFindMatchingCache(state)
+	if c := state.FindMatchingCache[state.I]; c != nil {
+	    return c.I
+	}
+    parenCount := 0
+    var i int
+    for i = state.I; i < len(state.Code); i++ {
+        chr := state.Code[i]
+        if chr == '(' {
+            parenCount++
+            continue
+        }
+        if chr == ')' {
+            parenCount--
+            if parenCount < 0 {
+                // i--
+                break
+            }
+            continue
+        }
+        if chr == '\n' || chr == ',' || chr == '|' {
+            if parenCount == 0 {
+                // i--
+                break
+            }
+            continue
+        }
+    }
+    ret := &FindMatchingResult{
+        I: i,
+        Match: "",
+    }
+	state.FindMatchingCache[state.I] = ret
+	return ret.I
 }
 
 func findMatchingAfter(state *State, things []string) *FindMatchingResult {
@@ -477,6 +519,25 @@ func initBuiltins() {
 		    items := splice(state.Vals, state.FuncTokenSpot-1, 1, nil).(*[]any)
 			item := (*items)[0]
 		    push(state.Vals, item)
+		    return state
+		},
+		"and": func(state *State) *State {
+		    // lazy eval lol
+		    v := peek(state.Vals).(bool)
+		    if !v {
+		        i := findBeforeEndLine(state)
+		        // fmt.Println("found:", state.Code[i:i+20])
+		        state.I = i
+		    }
+		    return state
+		},
+		"or": func(state *State) *State {
+		    // lazy eval lol
+		    v := peek(state.Vals).(bool)
+		    if v {
+		        i := findBeforeEndLine(state)
+		        state.I = i
+		    }
 		    return state
 		},
 		"\n": func(state *State) *State {
@@ -1091,6 +1152,13 @@ func pop(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
 		val := (*s)[len(*s)-1]
 		*s = (*s)[:len(*s)-1]
+		return val
+	}
+	return nil
+}
+func peek(slice any) any {
+	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
+		val := (*s)[len(*s)-1]
 		return val
 	}
 	return nil
