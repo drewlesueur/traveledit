@@ -515,6 +515,10 @@ var runImmediates map[string]func(state *State) *State
 
 func initBuiltins() {
 	runImmediates = map[string]func(state *State) *State{
+		"__vals": func(state *State) *State {
+		    push(state.Vals, state.Vals)
+		    return state
+		},
 		"it": func(state *State) *State {
 		    items := splice(state.Vals, state.FuncTokenSpot-1, 1, nil).(*[]any)
 		    state.FuncTokenSpot--
@@ -530,7 +534,7 @@ func initBuiltins() {
 		        // fmt.Println("found:", state.Code[i:i+20])
 		        state.I = i
 		    } else {
-		        
+		        pop(state.Vals)
 		    }
 		    return state
 		},
@@ -540,6 +544,8 @@ func initBuiltins() {
 		    if toBool(v).(bool) {
 		        i := findBeforeEndLine(state)
 		        state.I = i
+		    } else {
+		        pop(state.Vals)
 		    }
 		    return state
 		},

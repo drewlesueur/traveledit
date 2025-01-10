@@ -11,6 +11,8 @@ end
 "apples" or "bananas" | say "should be apples:" it
 "" or "bananas" | say "should be bananas:" it
 
+say __vals # should be empty
+
 # say "should be true:" it
 # say "should be true:" it
 
