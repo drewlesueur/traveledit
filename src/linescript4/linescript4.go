@@ -517,24 +517,27 @@ func initBuiltins() {
 	runImmediates = map[string]func(state *State) *State{
 		"it": func(state *State) *State {
 		    items := splice(state.Vals, state.FuncTokenSpot-1, 1, nil).(*[]any)
+		    state.FuncTokenSpot--
 			item := (*items)[0]
 		    push(state.Vals, item)
 		    return state
 		},
 		"and": func(state *State) *State {
 		    // lazy eval lol
-		    v := peek(state.Vals).(bool)
-		    if !v {
+		    v := peek(state.Vals)
+		    if !toBool(v).(bool) {
 		        i := findBeforeEndLine(state)
 		        // fmt.Println("found:", state.Code[i:i+20])
 		        state.I = i
+		    } else {
+		        
 		    }
 		    return state
 		},
 		"or": func(state *State) *State {
 		    // lazy eval lol
-		    v := peek(state.Vals).(bool)
-		    if v {
+		    v := peek(state.Vals)
+		    if toBool(v).(bool) {
 		        i := findBeforeEndLine(state)
 		        state.I = i
 		    }
@@ -932,7 +935,7 @@ func initBuiltins() {
 		},
 		"if": func(state *State) *State {
 			cond := pop(state.Vals)
-			if cond.(bool) == true {
+			if toBool(cond).(bool) == true {
 				state.EndStack = append(state.EndStack, endIf)
 			} else {
 				// fmt.Printf("wanting to find: %q\n", indent + "end")
@@ -1519,6 +1522,24 @@ func say(vals ...any) {
             fmt.Printf("%s\n", toString(v).(string))
         }
     }
+}
+func toBool(a any) any {
+	switch a := a.(type) {
+	case int:
+		return a != 0
+	case float64:
+		return a != 0
+	case string:
+		return a != ""
+	case bool:
+	    return a
+	case nil:
+	    return false
+	case *Func:
+	    return a != nil
+	default:
+	    return true
+	}
 }
 func toString(a any) any {
 	switch a := a.(type) {

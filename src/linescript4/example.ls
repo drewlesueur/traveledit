@@ -2,20 +2,99 @@
 #!/usr/bin/env -S bun linescript4.js
 
 say ""
-
-def pretendHeavy
-    loop 100 i
-        say "uy got in loop" i
-    end
+def heavyTrue
+    say "BANG!"
 end
 
-if false and (pretendHeavy)
-    say "FAIL"
+"apples" and "bananas" | say "should be bananas:" it
+"" and "bananas" | say "should be empty:" it
+"apples" or "bananas" | say "should be apples:" it
+"" or "bananas" | say "should be bananas:" it
+
+# say "should be true:" it
+# say "should be true:" it
+
+def heavyTrue
+    say "BANG!"
+    return true
+end
+def heavyFalse
+    say "BANG!"
+    return false
+end
+
+say ""
+say ""
+say "1----and"
+if false and (heavyFalse)
+    say "FAIL 1"
+    exit
 else
-    say "yay else"
+    say "no bang 1"
+end
+
+say "2----and"
+if false and (heavyTrue)
+    say "FAIL 2"
+    exit
+else
+    say "no bang 2"
 end
 
 
+say "3----and"
+if true and (heavyFalse)
+    say "FAIL 3"
+    exit
+else
+    say "yes bang 3"
+end
+
+say "4----and"
+if true and (heavyTrue)
+    say "yes bang 4"
+else
+    say "FAIL 4"
+    exit
+end
+
+say ""
+say ""
+say "1----or"
+if false or (heavyFalse)
+    say "FAIL 1"
+    exit
+else
+    say "yes bang 1"
+end
+
+say "2----or"
+if false or (heavyTrue)
+    say "yes bang 2"
+else
+    say "FAIL 2"
+    exit
+end
+
+
+say "3----or"
+if true or (heavyFalse)
+    say "no bang 3"
+else
+    say "FAIL 3"
+    exit
+end
+
+say "4----or"
+if true or (heavyTrue)
+    say "no bang 4"
+else
+    say "FAIL 4"
+    exit
+end
+
+
+exit
 
 say ""
 
