@@ -651,7 +651,15 @@ func initBuiltins() {
 		"toString":    makeBuiltin_1_1(toString),
 		"toInt":       makeBuiltin_1_1(toInt),
 		"toFloat":     makeBuiltin_1_1(toFloat),
-		"say":         makeBuiltin_1_0(say),
+		"say": func(state *State) *State {
+			things := splice(state.Vals, state.FuncTokenSpot, length(state.Vals).(int) - (state.FuncTokenSpot), nil).(*[]any)
+	        thingsVal := *things
+	        if len(thingsVal) == 0 {
+        	    thingsVal = append(thingsVal, pop(state.Vals))
+	        }
+	        say(thingsVal...)
+	        return state
+	    },
 		"put":         makeNoop(),
 		"push":        makeBuiltin_2_0(push),
 		"push2":        makeBuiltin_2_0(push2),
@@ -908,7 +916,7 @@ func initBuiltins() {
 			return state.CallingParent
 		},
 		"def": func(state *State) *State {
-			params := splice(state.Vals, state.FuncTokenSpot+1, length(state.Vals).(int) - (state.FuncTokenSpot+1), nil).(*[]any)
+			params := splice(state.Vals, state.FuncTokenSpot+1, len(*state.Vals) - (state.FuncTokenSpot+1), nil).(*[]any)
 			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
 				paramStrings[i] = p.(string)
@@ -935,7 +943,7 @@ func initBuiltins() {
 			return state
 		},
 		"func": func(state *State) *State {
-			params := splice(state.Vals, state.FuncTokenSpot, length(state.Vals).(int) - (state.FuncTokenSpot), nil).(*[]any)
+			params := splice(state.Vals, state.FuncTokenSpot, len(*state.Vals) - (state.FuncTokenSpot), nil).(*[]any)
 			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
 				paramStrings[i] = p.(string)
@@ -1404,24 +1412,6 @@ func cc(a, b any) any {
 	return toString(a).(string) + toString(b).(string)
 }
 
-func toString(a any) any {
-	switch a := a.(type) {
-	case int:
-		return strconv.Itoa(a)
-	case float64:
-		return strconv.FormatFloat(a, 'f', -1, 64)
-	case string:
-		return a
-	case bool:
-		if a {
-			return "true"
-		}
-		return "false"
-	case nil:
-		return ""
-	}
-	return nil
-}
 
 func toInt(a any) any {
 	switch a := a.(type) {
@@ -1453,41 +1443,54 @@ func not(a any) any {
 	return nil
 }
 
-func say(val any) {
-	switch val := val.(type) {
-	case string:
-		fmt.Printf("%v\n", val)
+func say(vals ...any) {
+    for i, v := range vals {
+        if i < len(vals) - 1 {
+            fmt.Printf("%s ", toString(v).(string))
+        } else {
+            fmt.Printf("%s\n", toString(v).(string))
+        }
+    }
+}
+func toString(a any) any {
+	switch a := a.(type) {
 	case map[string]any:
-		jsonData, err := json.MarshalIndent(val, "", "    ")
+		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
 			panic(err)
 		} else {
-			fmt.Println(string(jsonData))
+			return string(jsonData)
 		}
 	case *[]any, []any:
-		jsonData, err := json.MarshalIndent(val, "", "    ")
+		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
 			panic(err)
 		} else {
-			fmt.Println(string(jsonData))
+			return string(jsonData)
 		}
-	case float64:
-		fmt.Printf("%v\n", val)
 	case int:
-		fmt.Printf("%v\n", val)
+		return strconv.Itoa(a)
+	case float64:
+		return strconv.FormatFloat(a, 'f', -1, 64)
+	case string:
+		return a
 	case bool:
-		fmt.Printf("%t\n", val)
+		if a {
+			return "true"
+		}
+		return "false"
 	case nil:
-		fmt.Println("<nil>")
+		return "<nil>"
 	case *Func:
-	    if val.Builtin != nil {
-	        fmt.Printf("builtin %s (native code)\n", val.Name)
+	    if a.Builtin != nil {
+	        return fmt.Sprintf("builtin %s (native code)\n", a.Name)
 	    } else {
-	        fmt.Printf(val.Code[val.I:  val.EndI])
+	        return fmt.Sprintf(a.Code[a.I: a.EndI])
 	    }
 	default:
-		fmt.Printf("error: the type is %T\n", val)
+		fmt.Printf("type is %T, value is %v\n", a, a)
 	}
+	return nil
 }
 
 func keys(a any) any {

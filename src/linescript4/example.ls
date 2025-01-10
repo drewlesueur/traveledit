@@ -3,29 +3,35 @@
 
 say ""
 
+say "yo" "ho"
+
+"ok" say "skipping ok"
+
+say "----"
+
 let items [10 20 30 40]
 each items i v
-    say "the item is " (cc v)
+    say "the item is" v
 end
 
 each [:aa :bb :cc] i v
-    say "the item is " (cc v)
+    say "the item is" v
 end
 
 each items (sliceFrom 2) i v
-    say "the item is " (cc v)
+    say "the item is" v
 end
 
 def greet name
-    say "hi " (cc name)
+    say "hi " name
 end
 
 loop 10 i
-    say "looping and i is " (cc i)
+    say "looping and i is" i
 end
 
 loop 5 :i
-    say "looping and i is " (cc i)
+    say "looping and i is" i
 end
 
 greet "Drew"
