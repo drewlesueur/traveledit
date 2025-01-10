@@ -1,6 +1,55 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 #!/usr/bin/env -S bun linescript4.js
 
+say ""
+
+let items [10 20 30 40]
+each items i v
+    say "the item is " (cc v)
+end
+
+each [:aa :bb :cc] i v
+    say "the item is " (cc v)
+end
+
+each items (sliceFrom 2) i v
+    say "the item is " (cc v)
+end
+
+def greet name
+    say "hi " (cc name)
+end
+
+loop 10 i
+    say "looping and i is " (cc i)
+end
+
+loop 5 :i
+    say "looping and i is " (cc i)
+end
+
+greet "Drew"
+
+let greet2 func name
+    say "hi2 " (cc name)
+end
+greet2 "Ted"
+
+def :greet :name
+    say "hi " (cc name)
+end
+greet "Drew"
+
+let :greet2 func :name
+    say "hi2 " (cc name)
+end
+greet2 "Ted"
+
+
+
+let MyVar "some var here"
+say "-->" (cc MyVar)
+
 say "what1" # inline comment
 say "what2"
 say "here1"
@@ -11,20 +60,29 @@ say "here3"
 #spot1
 say "here4"
 
-let :sayHiFunc func [:name]
+let :sayHiFunc func :name
     say "from function: hello " (cc name)
 end
 
 sayHiFunc "Drew"
 # say sayHiFunc
 
-def :increr [:v]
+def :increr :v
     local :x v
-    func []
+    func
         let :x (x + 1)
         x
     end
 end
+
+# def increr v
+#     local x v
+#     func
+#         let x (x + 1)
+#         x
+#     end
+# end
+
 
 let :counter (increr 5000)
 counter, say
@@ -37,7 +95,7 @@ counter, say
 let :name "Drew"
 let :age 40
 
-def :update []
+def :update
     let :name "Ted"
     local :age 50
     say "the name is " (cc name) (cc " and age is ") (cc age)
@@ -45,7 +103,7 @@ end
 update
 say "the name is " (cc name) (cc " and age is ") (cc age)
 
-def :map [:theList :f]
+def :map :theList :f
     let :ret (makeArray)
     each theList :i :v
         f v | if
@@ -63,11 +121,11 @@ loop 100 :i
 end #endLoop
 
 let :mylist [1 2 3 4 5 6 7]
-map mylist func [:v]
+map mylist func :v
     v mod 2, is 0
 end
 say
-exit
+# exit
 
 
 
@@ -250,7 +308,7 @@ say
 
 let "foo" "This is foo"
 
-def :greet [:name]
+def :greet :name
     let :myFoo "bar"
     let :foo "bar"
     say "hello " name (cc)
