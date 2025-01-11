@@ -307,7 +307,7 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 		switch parseState {
 		case stateOut:
 			switch b {
-			// case '{', '}', '(', ')', '[', ']', ',', '\n', '|', ':':
+			// leave off the : here so if it's a word starting with :, that can be a string
 			case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
 				return makeToken(state, string(b)), i + 1
 			case ' ', '\t', '\r':
@@ -1491,6 +1491,8 @@ func plus(a, b any) any {
 		return a + b.(int)
 	case float64:
 		return a + b.(float64)
+	case string:
+		return a + b.(string)
 	default:
 	    fmt.Printf("bad type lol: %T\n", a)
 	}
