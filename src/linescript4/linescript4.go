@@ -39,11 +39,11 @@ type Func struct {
 	OneLiner bool
 }
 
-// type RunImmediate func(state *State) *State
-type RunImmediate struct {
-    Name string
-    Func func(state *State) *State
-}
+type RunImmediate func(state *State) *State
+// type RunImmediate struct {
+//     Name string
+//     Func func(state *State) *State
+// }
 
 
 
@@ -155,12 +155,12 @@ func eval(state *State) *State {
         // fmt.Printf("#cyan token: %v\n", toString(token))
 
 		switch token := token.(type) {
-		// case RunImmediate:
-		// 	state = token(state)
-		// 	continue
-		case *RunImmediate:
-			state = token.Func(state)
+		case RunImmediate:
+			state = token(state)
 			continue
+		// case *RunImmediate:
+		// 	state = token.Func(state)
+		// 	continue
 		case *Func:
 			switch state.Mode {
 			case "normal":
@@ -352,12 +352,12 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 type Skip string
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
-	// if f, ok := runImmediates[val]; ok {
-	//     return RunImmediate(f)
-	// }
 	if f, ok := runImmediates[val]; ok {
-	    return &RunImmediate{Func: f, Name: "Immediate " + fmt.Sprintf("%q", val)}
+	    return RunImmediate(f)
 	}
+	// if f, ok := runImmediates[val]; ok {
+	//     return &RunImmediate{Func: f, Name: "Immediate " + fmt.Sprintf("%q", val)}
+	// }
 	if b, ok := builtins[val]; ok {
 	    return &Func{
 	        Builtin: b,
@@ -1740,11 +1740,14 @@ func toString(a any) any {
 	    } else {
 	        return fmt.Sprintf("func(%t) %v: %s", a.OneLiner, a.Params, a.Code[a.I: a.EndI])
 	    }
-	case *RunImmediate:
-	    if a == nil {
-	        return "<nil func>"
-	    }
-        return a.Name
+	case func(*State) State:
+	    // todo use unsafe ptr to see what it is
+	    return "a func, immediate"
+	// case *RunImmediate:
+	//     if a == nil {
+	//         return "<nil func>"
+	//     }
+ //        return a.Name
 	case VarName:
         return "VarName: " + a
 	default:
