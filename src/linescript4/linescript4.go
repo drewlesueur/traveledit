@@ -39,7 +39,11 @@ type Func struct {
 	OneLiner bool
 }
 
-type RunImmediate func(state *State) *State
+// type RunImmediate func(state *State) *State
+type RunImmediate struct {
+    Name string
+    Func func(state *State) *State
+}
 
 
 
@@ -148,12 +152,14 @@ func eval(state *State) *State {
 		}
 
         // #cyan
-        // fmt.Printf("#cyan token: %v, %T, (%v): %v\n", token, token, runImmediates["\n"], state.CurrFuncToken)
-        // fmt.Printf("#cyan token: %v, %T, (%v): %v\n", token, token, runImmediates["\n"], )
+        // fmt.Printf("#cyan token: %v\n", toString(token))
 
 		switch token := token.(type) {
-		case RunImmediate:
-			state = token(state)
+		// case RunImmediate:
+		// 	state = token(state)
+		// 	continue
+		case *RunImmediate:
+			state = token.Func(state)
 			continue
 		case *Func:
 			switch state.Mode {
@@ -301,8 +307,8 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 		switch parseState {
 		case stateOut:
 			switch b {
-			case '{', '}', '(', ')', '[', ']', ',', '\n', '|', ':':
-			// case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
+			// case '{', '}', '(', ')', '[', ']', ',', '\n', '|', ':':
+			case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
 				return makeToken(state, string(b)), i + 1
 			case ' ', '\t', '\r':
 				continue
@@ -346,8 +352,11 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 type Skip string
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
+	// if f, ok := runImmediates[val]; ok {
+	//     return RunImmediate(f)
+	// }
 	if f, ok := runImmediates[val]; ok {
-	    return RunImmediate(f)
+	    return &RunImmediate{Func: f, Name: "Immediate " + fmt.Sprintf("%q", val)}
 	}
 	if b, ok := builtins[val]; ok {
 	    return &Func{
@@ -1721,13 +1730,23 @@ func toString(a any) any {
 	case nil:
 		return "<nil>"
 	case *Func:
+	    if a == nil {
+	        return "<nil func>"
+	    }
 	    if a.Builtin != nil {
 	        return fmt.Sprintf("builtin %s (native code)\n", a.Name)
 	    } else {
 	        return fmt.Sprintf("func(%t) %v: %s", a.OneLiner, a.Params, a.Code[a.I: a.EndI])
 	    }
+	case *RunImmediate:
+	    if a == nil {
+	        return "<nil func>"
+	    }
+        return a.Name
+	case VarName:
+        return "VarName: " + a
 	default:
-		fmt.Printf("type is %T, value is %v\n", a, a)
+		return fmt.Sprintf("type is %T, value is %#v\n", a, a)
 	}
 	return nil
 }

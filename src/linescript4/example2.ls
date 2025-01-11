@@ -1,5 +1,6 @@
-#!/usr/bin/env linescript4
+#!/usr/bin/env -S go run linescript4.go funcs.go
 
+#!/usr/bin/env linescript4
 let "loopCount" 1000000
 let "theStart" (now)
 let "val" 0.0

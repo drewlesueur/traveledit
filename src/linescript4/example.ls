@@ -1,8 +1,7 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
-#!/usr/bin/env -S bun linescript4.js
-say ""
 
 
+loop 10 :i : say "it's " i
 
 {}
 [
