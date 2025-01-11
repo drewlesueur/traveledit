@@ -1,10 +1,111 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 #!/usr/bin/env -S bun linescript4.js
-
 say ""
-def heavyTrue
-    say "BANG!"
+
+
+{}
+[
+1 2 3
+# (func: + 290)
+func: + 290
+4
+5
+]
+debugVals
+
+{
+    "a" (func: 99)
+    "b" func: 22
+}
+dup | at "a" | call | say
+dup | at "b" | call | say
+
+
+
+# dup | .a | call | say
+# dup | .b | call | say
+
+debugVals
+
+
+  
+
+let b func: 300
+say (b)
+say (b)
+say (b)
+
+let add290 [(func: + 290)]
+add290 at 0
+debugVals
+as "foo"
+foo 20
+say
+
+exit
+# # say (b)
+exit
+
+let a {
+    "foo": "bar" "biz": "baz"
+     "foo2": "bar", "biz2": "baz"
+     "other": (10 + 20)
+}
+say a
+
+
+exit
+
+loop 10 "i"
+   say i
 end
+
+func a: a + 2
+see
+call it 30
+say
+# func: + 2
+# as "plus2"
+# say "plus2 is " plus2
+# plus2 300
+# say
+
+
+# say 3 (plus2)
+
+
+# def plus1 a: + 1 a
+def plus1 a: a (+ 1) | * 21
+plus1 20
+say
+say "done"
+exit
+
+
+loop 10 i: say i
+say "wow"
+
+if true: say "true!"
+say "done if"
+
+each [99 100] i v: say v (+ 1)
+say "done each"
+
+def plus1 a: a (+ 1)
+say plus1
+# say 30 (plus1)
+
+say "done def"
+
+
+exit
+
+if true: say ok!
+loop 10 i: say i
+
+let a func a b c: 
+
+
 
 "apples" and "bananas" | say "should be bananas:" it
 "" and "bananas" | say "should be empty:" it
@@ -12,6 +113,7 @@ end
 "" or "bananas" | say "should be bananas:" it
 
 say __vals # should be empty
+
 
 # say "should be true:" it
 # say "should be true:" it
@@ -111,7 +213,8 @@ each items i v
     say "the item is" v
 end
 
-each [:aa :bb :cc] i v
+
+each ["aa" "bb" "cc"] i v
     say "the item is" v
 end
 
@@ -127,7 +230,7 @@ loop 10 i
     say "looping and i is" i
 end
 
-loop 5 :i
+loop 5 i
     say "looping and i is" i
 end
 
@@ -138,12 +241,12 @@ let greet2 func name
 end
 greet2 "Ted"
 
-def :greet :name
+def greet name
     say "hi " (cc name)
 end
 greet "Drew"
 
-let :greet2 func :name
+let greet2 func name
     say "hi2 " (cc name)
 end
 greet2 "Ted"
@@ -157,13 +260,13 @@ say "what1" # inline comment
 say "what2"
 say "here1"
 
-goDown :spot1
+goDown spot1
 say "here2"
 say "here3"
 #spot1
 say "here4"
 
-let :sayHiFunc func :name
+let sayHiFunc func name
     say "from function: hello " (cc name)
 end
 
@@ -180,7 +283,7 @@ def increr v
 end
 
 say "Incrementer test"
-let :counter (increr 5000)
+let counter (increr 5000)
 counter, say
 counter, say
 counter, say
@@ -188,20 +291,20 @@ counter, say
 counter, say
 
 
-let :name "Drew"
-let :age 40
+let name "Drew"
+let age 40
 
-def :update
-    let :name "Ted"
-    local :age 50
+def update
+    let name "Ted"
+    local age 50
     say "the name is " (cc name) (cc " and age is ") (cc age)
 end
 update
 say "the name is " (cc name) (cc " and age is ") (cc age)
 
-def :map :theList :f
-    let :ret (makeArray)
-    each theList :i :v
+def map theList f
+    let ret (makeArray)
+    each theList i v
         f v | if
             ret push v
         end
@@ -209,15 +312,15 @@ def :map :theList :f
     ret
 end
 
-loop 100 :i
+loop 100 i
     say i
     if (i gte 10)
-        goDown :endLoop
+        goDown endLoop
     end
 end #endLoop
 
-let :mylist [1 2 3 4 5 6 7]
-map mylist func :v
+let mylist [1 2 3 4 5 6 7]
+map mylist func v
     v mod 2, is 0
 end
 say
@@ -246,7 +349,7 @@ say
 
 
 
-# def :doIt [:f]
+# def doIt [:f]
 #     say "doing"
 #     say f
 #     f "yay"
@@ -304,7 +407,7 @@ end
 
 say "wow"
 
-loop 2 :i
+loop 2 i
     say "i " (cc i)
     
     if true
@@ -366,8 +469,8 @@ end
 
 say "done loopie"
 
-[:a :b :c]
-each :i :w
+[:a b c]
+each i w
     say w
     if false
         say w
@@ -404,9 +507,9 @@ say
 
 let "foo" "This is foo"
 
-def :greet :name
-    let :myFoo "bar"
-    let :foo "bar"
+def greet name
+    let myFoo "bar"
+    let foo "bar"
     say "hello " name (cc)
 end
 
@@ -471,7 +574,7 @@ let "loopCount" 1000000
 let "theStart" (now)
 let "val" 0.0
 let "i" 0
-loop loopCount :i
+loop loopCount i
     toFloat i, - 0.1, + val, as "val"
 end
 let "theEnd" (now)
@@ -483,7 +586,7 @@ exit
 
 
 # convert this script (written in custom lang in stack-based style) to php
-# loop loopCount :i
+# loop loopCount i
 #     toFloat i, - 0.1, + val, as "val"
 # end
 #

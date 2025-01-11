@@ -31,6 +31,12 @@ type Func struct {
 	LexicalParent *State
 	Builtin func(state *State) *State
 	Name string
+	
+	// oneliner serves 2 things
+	// one after def: func: loop: each: if:
+	// and the other the state in the function
+	// very closely related?
+	OneLiner bool
 }
 
 type RunImmediate func(state *State) *State
@@ -43,6 +49,7 @@ type State struct {
 	Code         string
 	CachedTokens []*TokenCacheValue
 	Mode         string
+	OneLiner     bool
 	ModeStack    []string
 	GoUpCache    []*int
 	FindMatchingCache  []*FindMatchingResult
@@ -142,6 +149,7 @@ func eval(state *State) *State {
 
         // #cyan
         // fmt.Printf("#cyan token: %v, %T, (%v): %v\n", token, token, runImmediates["\n"], state.CurrFuncToken)
+        // fmt.Printf("#cyan token: %v, %T, (%v): %v\n", token, token, runImmediates["\n"], )
 
 		switch token := token.(type) {
 		case RunImmediate:
@@ -214,6 +222,7 @@ func callFunc(state *State) *State {
     if state.CurrFuncToken == nil {
         return state
     }
+    // fmt.Println("#aquamarine actually calling", toString(state.CurrFuncToken))
     theFunc := state.CurrFuncToken
     f := theFunc.Builtin
     if f != nil {
@@ -240,10 +249,14 @@ func callFunc(state *State) *State {
 	newState.Vals = state.Vals
 	newState.CallingParent = state
 	newState.LexicalParent = theFunc.LexicalParent
+	newState.OneLiner = theFunc.OneLiner
 	for i := len(theFunc.Params) - 1; i >= 0; i-- {
 		param := theFunc.Params[i]
 		newState.Vars[param] = pop(state.Vals)
 	}
+    // nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
+    // fmt.Println("#yellow peek", toString(nt))
+    // fmt.Println("#yellow currentstate one liner", state.OneLiner)
 	return newState
 
 	// fmt.Println("-cannot find func", fName)
@@ -288,7 +301,7 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 		switch parseState {
 		case stateOut:
 			switch b {
-			case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
+			case '{', '}', '(', ')', '[', ']', ',', '\n', '|', ':':
 				return makeToken(state, string(b)), i + 1
 			case ' ', '\t', '\r':
 				continue
@@ -309,7 +322,7 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 			}
 		case stateIn:
 			switch b {
-			case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
+			case '{', '}', '(', ')', '[', ']', ',', '\n', '|', ':':
 				return makeToken(state, code[start:i]), i
 			case ' ', '\t', '\r':
 				return makeToken(state, code[start:i]), i + 1
@@ -333,7 +346,6 @@ type Skip string
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
 	if f, ok := runImmediates[val]; ok {
-	    // fmt.Println("#cyan", val)
 	    return RunImmediate(f)
 	}
 	if b, ok := builtins[val]; ok {
@@ -375,10 +387,10 @@ func makeToken(state *State, val string) any {
 		return nil
 	}
 	if state.CurrFuncToken != nil {
-	    if state.CurrFuncToken.Name == "let" && (length(state.Vals).(int) - state.FuncTokenSpot == 0) {
+	    if state.CurrFuncToken.Name == "let" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
 	    	return val
 		}
-	    if state.CurrFuncToken.Name == "local" && (length(state.Vals).(int) - state.FuncTokenSpot == 0) {
+	    if state.CurrFuncToken.Name == "local" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
 	    	return val
 		}
 	    if state.CurrFuncToken.Name == "def" {
@@ -387,10 +399,10 @@ func makeToken(state *State, val string) any {
 	    if state.CurrFuncToken.Name == "func" {
 	    	return val
 		}
-	    if state.CurrFuncToken.Name == "each" && (length(state.Vals).(int) - state.FuncTokenSpot > 0) {
+	    if state.CurrFuncToken.Name == "each" && (len(*state.Vals) - state.FuncTokenSpot > 0) {
 	    	return val
 		}
-	    if state.CurrFuncToken.Name == "loop" && (length(state.Vals).(int) - state.FuncTokenSpot > 0) {
+	    if state.CurrFuncToken.Name == "loop" && (len(*state.Vals) - state.FuncTokenSpot > 0) {
 	    	return val
 		}
 	}
@@ -466,6 +478,53 @@ func findBeforeEndLine(state *State) int {
 	state.FindMatchingCache[state.I] = ret
 	return ret.I
 }
+func findBeforeEndLineOnlyLine(state *State) int {
+	// reusing this helpful cache
+	initFindMatchingCache(state)
+	if c := state.FindMatchingCache[state.I]; c != nil {
+	    return c.I
+	}
+    parenCount := 0
+    var i int
+    for i = state.I; i < len(state.Code); i++ {
+        chr := state.Code[i]
+        if chr == '(' {
+            parenCount++
+            continue
+        }
+        if chr == ')' {
+            parenCount--
+            if parenCount < 0 {
+                // i--
+                break
+            }
+            continue
+        }
+        if chr == '\n' {
+            if parenCount == 0 {
+                // i--
+                break
+            }
+            continue
+        }
+    }
+    ret := &FindMatchingResult{
+        I: i,
+        Match: "",
+    }
+	state.FindMatchingCache[state.I] = ret
+	return ret.I
+}
+
+func findAfterEndLine(state *State) int {
+    i := findBeforeEndLine(state)
+    return i + 1
+}
+func findAfterEndLineOnlyLine(state *State) int {
+    i := findBeforeEndLineOnlyLine(state)
+    return i + 1
+}
+
 
 func findMatchingAfter(state *State, things []string) *FindMatchingResult {
 	initFindMatchingCache(state)
@@ -551,17 +610,30 @@ func initBuiltins() {
 		},
 		"\n": func(state *State) *State {
 			if state.Mode == "normal" {
-				// if state.CurrFuncToken != nil {
-				// 	// fmt.Println("calling", state.Vals) // _red
-				// 	// fmt.Println("calling", state.CurrFuncToken) // _red
-				// }
-
+				if state.CurrFuncToken != nil {
+					// fmt.Println("calling", state.Vals) // _red
+					// fmt.Println("calling", toString(state.CurrFuncToken)) // _red
+				}
+                oldState := state
 				state = callFunc(state)
+
+                // oldState == state check becauze the moment you change state when calling function, you don't want it to end right away
+				if oldState == state && oldState.OneLiner {
+				    state = doEnd(state)
+				}
 
 				// if state != nil && state.CurrFuncToken != nil {
 				// 	// fmt.Println("done calling", state.Vals) // _red
 				// 	// fmt.Println("done calling") // _red
 				// }
+			}
+			return state
+		},
+		":": func(state *State) *State {
+			if state.Mode == "normal" {
+				state.OneLiner = true
+				state = callFunc(state)
+				// state.OneLiner = false
 			}
 			return state
 		},
@@ -589,6 +661,14 @@ func initBuiltins() {
 			return state
 		},
 		")": func(state *State) *State {
+			// we could get in here cuz of: (func: 200)
+			if len(state.ModeStack) == 0 {
+				if state.OneLiner {
+				    say("yay got here")
+				    state = doEnd(state)
+				    return state
+				}
+			}
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
 
@@ -722,12 +802,24 @@ func initBuiltins() {
 		"toInt":       makeBuiltin_1_1(toInt),
 		"toFloat":     makeBuiltin_1_1(toFloat),
 		"say": func(state *State) *State {
-			things := splice(state.Vals, state.FuncTokenSpot, length(state.Vals).(int) - (state.FuncTokenSpot), nil).(*[]any)
+			things := splice(state.Vals, state.FuncTokenSpot, len(*state.Vals) - (state.FuncTokenSpot), nil).(*[]any)
 	        thingsVal := *things
 	        if len(thingsVal) == 0 {
         	    thingsVal = append(thingsVal, pop(state.Vals))
 	        }
 	        say(thingsVal...)
+	        return state
+	    },
+		"say2": func(state *State) *State {
+			things := splice(state.Vals, state.FuncTokenSpot, len(*state.Vals) - (state.FuncTokenSpot), nil).(*[]any)
+	        thingsVal := *things
+	        if len(thingsVal) == 0 {
+        	    thingsVal = append(thingsVal, pop(state.Vals))
+	        }
+	        fmt.Println("#deepskyblue say2", len(*things))
+	        for i, v := range *things {
+	            fmt.Printf("%d %#v\n", i, v)
+	        }
 	        return state
 	    },
 		"put":         makeNoop(),
@@ -800,6 +892,12 @@ func initBuiltins() {
 			    parentState = state
 			}
 			parentState.Vars[a] = b
+			return state
+		},
+		"debugVals": func(state *State) *State {
+			for i, v := range *state.Vals {
+			    fmt.Printf("-->%d: %s\n", i, toString(v))
+			}
 			return state
 		},
 		"as": func(state *State) *State {
@@ -892,6 +990,7 @@ func initBuiltins() {
 			endEach = func(state *State) *State {
 			    theIndex++
 			    if theIndex >= loops {
+					state.OneLiner = false
 			        return state
 			    } else {
 			        state.Vars[indexVar] = theIndex
@@ -901,7 +1000,12 @@ func initBuiltins() {
 			    return state
 			}
 			state.EndStack = append(state.EndStack, endEach)
-			i := findMatchingBefore(state, []string{"end"})
+			var i int
+			if state.OneLiner {
+				i = findBeforeEndLineOnlyLine(state)
+		    } else {
+				i = findMatchingBefore(state, []string{"end"})
+			}
 			state.I = i
 			return state
 		},
@@ -925,6 +1029,7 @@ func initBuiltins() {
 			endEach = func(state *State) *State {
 			    theIndex++
 			    if theIndex >= len(*arr) {
+					state.OneLiner = false
 			        return state
 			    } else {
 			        state.Vars[indexVar] = theIndex
@@ -935,7 +1040,12 @@ func initBuiltins() {
 			    return state
 			}
 			state.EndStack = append(state.EndStack, endEach)
-			i := findMatchingBefore(state, []string{"end"})
+			var i int
+			if state.OneLiner {
+				i = findBeforeEndLineOnlyLine(state)
+		    } else {
+				i = findMatchingBefore(state, []string{"end"})
+			}
 			state.I = i
 			return state
 		},
@@ -945,17 +1055,22 @@ func initBuiltins() {
 				state.EndStack = append(state.EndStack, endIf)
 			} else {
 				// fmt.Printf("wanting to find: %q\n", indent + "end")
-				r := findMatchingAfter(state, []string{"end", "else if", "else"})
-				// fmt.Printf("found: %q\n", state.Code[i:])
-				if r.Match == "else if" {
-				    // don't append an endTack
-				    // to pick up the if
-					state.I = r.I - 2
-				} else if r.Match == "else" {
-					state.EndStack = append(state.EndStack, endIf)
-					state.I = r.I
+				if state.OneLiner {
+					state.I = findAfterEndLine(state)
+					state.OneLiner = false
 				} else {
-					state.I = r.I
+					r := findMatchingAfter(state, []string{"end", "else if", "else"})
+					// fmt.Printf("found: %q\n", state.Code[i:])
+					if r.Match == "else if" {
+					    // don't append an endTack
+					    // to pick up the if
+						state.I = r.I - 2
+					} else if r.Match == "else" {
+						state.EndStack = append(state.EndStack, endIf)
+						state.I = r.I
+					} else {
+						state.I = r.I
+					}
 				}
 			}
 			return state
@@ -972,16 +1087,7 @@ func initBuiltins() {
 			return state
 		},
 		// "loopN":
-		"end": func(state *State) *State {
-			if len(state.EndStack) == 0 {
-				return state.CallingParent
-			}
-
-			endFunc := state.EndStack[len(state.EndStack)-1]
-			state.EndStack = state.EndStack[:len(state.EndStack)-1]
-
-			return endFunc(state)
-		},
+		"end": doEnd,
 		"return": func(state *State) *State {
 			return state.CallingParent
 		},
@@ -1001,13 +1107,20 @@ func initBuiltins() {
 				FindMatchingCache:  state.FindMatchingCache,
 				Params:        paramStrings,
 				LexicalParent: state,
+				OneLiner: state.OneLiner,
 			}
 			state.Vars[funcName] = f
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
-			r := findMatchingAfter(state, []string{"end"})
-			state.I = r.I
-			f.EndI = r.I
+			if state.OneLiner {
+				state.I = findAfterEndLineOnlyLine(state)
+				f.EndI = state.I
+				state.OneLiner = false
+			} else {
+				r := findMatchingAfter(state, []string{"end"})
+				state.I = r.I
+				f.EndI = r.I
+			}
 
 			// fmt.Printf("found: %q\n", getCode(state)[i:])
 			return state
@@ -1027,14 +1140,22 @@ func initBuiltins() {
 				FindMatchingCache:  state.FindMatchingCache,
 				Params:        paramStrings,
 				LexicalParent: state,
+				OneLiner: state.OneLiner,
 			}
 			// fmt.Println(f.Code[f.I:f.I+100])
 			push(state.Vals, f)
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
-			r := findMatchingAfter(state, []string{"end"})
-			state.I = r.I
-			f.EndI = r.I
+			if state.OneLiner {
+				// we go before newline so the newline can still trigger an action
+				state.I = findBeforeEndLineOnlyLine(state)
+				state.OneLiner = false
+				f.EndI = state.I
+			} else {
+				r := findMatchingAfter(state, []string{"end"})
+				state.I = r.I
+				f.EndI = r.I
+			}
 
             // close implied parens
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
@@ -1114,6 +1235,21 @@ func initBuiltins() {
     	    a := pop(state.Vals)
     	    say(a)
     	    push(state.Vals, a)
+    	    return state
+    	},
+		"call": func(state *State) *State {
+			// for i, v := range *state.Vals {
+			//     fmt.Printf("#pink val: %d %q\n", i, toString(v))
+			// }
+			var f *Func
+			if len(*state.Vals) - state.FuncTokenSpot == 0 {
+			    f = pop(state.Vals).(*Func)
+			} else {
+				fWrapper := splice(state.Vals, state.FuncTokenSpot, 1, nil).(*[]any)
+		 	   f = (*fWrapper)[0].(*Func)
+			}
+    	    state.CurrFuncToken = f
+    	    state = callFunc(state)
     	    return state
     	},
 	}
@@ -1552,14 +1688,17 @@ func toString(a any) any {
 	case map[string]any:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
-			panic(err)
+			// panic(err)
+			return fmt.Sprintf("%#v", a)
 		} else {
 			return string(jsonData)
 		}
 	case *[]any, []any:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
-			panic(err)
+			// panic(err)
+			return fmt.Sprintf("%#v", a)
+			// return string(jsonData)
 		} else {
 			return string(jsonData)
 		}
@@ -1580,7 +1719,7 @@ func toString(a any) any {
 	    if a.Builtin != nil {
 	        return fmt.Sprintf("builtin %s (native code)\n", a.Name)
 	    } else {
-	        return fmt.Sprintf(a.Code[a.I: a.EndI])
+	        return fmt.Sprintf("func(%t) %v: %s", a.OneLiner, a.Params, a.Code[a.I: a.EndI])
 	    }
 	default:
 		fmt.Printf("type is %T, value is %v\n", a, a)
@@ -1687,6 +1826,7 @@ func makeBuiltin_4_1(f func(any, any, any, any) any) func(state *State) *State {
 }
 
 func endIf(state *State) *State {
+	state.OneLiner = false
 	return state
 }
 
@@ -1702,6 +1842,17 @@ func populateString(a, b any) any {
     }
     r := strings.NewReplacer(theArgs...)
     return r.Replace(theString)
+}
+
+func doEnd (state *State) *State {
+	if len(state.EndStack) == 0 {
+		return state.CallingParent
+	}
+
+	endFunc := state.EndStack[len(state.EndStack)-1]
+	state.EndStack = state.EndStack[:len(state.EndStack)-1]
+
+	return endFunc(state)
 }
 
 // </code>

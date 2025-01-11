@@ -4,7 +4,7 @@ let "loopCount" 1000000
 let "theStart" (now)
 let "val" 0.0
 let "i" 0
-loop loopCount :i
+loop loopCount i
     toFloat i, - 0.1, + val, as "val"
 end
 let "theEnd" (now)
@@ -19,7 +19,7 @@ let "loopCount" 1000000
 let "theStart" (now)
 let "val" 0.0
 let "i" 0
-loop loopCount :i
+loop loopCount i
     toFloat i, - 0.1, + val, as "val"
 end
 let "theEnd" (now)
@@ -34,7 +34,7 @@ let "loopCount" 1000000
 let "theStart" (now)
 let "val" 0.0
 let "i" 0
-loop loopCount :i
+loop loopCount i
     eval 'toFloat i, - 0.1, + val, as "val"'
 end
 let "theEnd" (now)
