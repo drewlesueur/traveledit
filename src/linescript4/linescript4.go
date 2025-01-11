@@ -39,11 +39,13 @@ type Func struct {
 	OneLiner bool
 }
 
+// deprecated
 type RunImmediate func(state *State) *State
-// type RunImmediate struct {
-//     Name string
-//     Func func(state *State) *State
-// }
+
+type RunImmediate2 struct {
+    Name string
+    Func func(state *State) *State
+}
 
 
 
@@ -155,10 +157,13 @@ func eval(state *State) *State {
         // fmt.Printf("#cyan token: %v\n", toString(token))
 
 		switch token := token.(type) {
-		case RunImmediate:
-			state = token(state)
+		// case RunImmediate:
+		// 	state = token(state)
+		// 	continue
+		case *RunImmediate2:
+			state = token.Func(state)
 			continue
-		// case *RunImmediate:
+		// case RunImmediate2:
 		// 	state = token.Func(state)
 		// 	continue
 		case *Func:
@@ -353,11 +358,17 @@ type Skip string
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
 	if f, ok := runImmediates[val]; ok {
-	    return RunImmediate(f)
+	    // return RunImmediate(f)
+	    
+	    // return &RunImmediate2{Func: f, Name: "Immediate " + fmt.Sprintf("%q", val)}
+	    // return RunImmediate2{Func: f, Name: "Immediate " + fmt.Sprintf("%q", val)}
+	    
+	    // return RunImmediate2{Func: f, Name: "Immediate " + val}
+	    // return &RunImmediate2{Func: f, Name: "Immediate " + val}
+	    
+	    return &RunImmediate2{Func: f, Name: val}
+    	// return RunImmediate2{Func: f, Name: val}
 	}
-	// if f, ok := runImmediates[val]; ok {
-	//     return &RunImmediate{Func: f, Name: "Immediate " + fmt.Sprintf("%q", val)}
-	// }
 	if b, ok := builtins[val]; ok {
 	    return &Func{
 	        Builtin: b,
