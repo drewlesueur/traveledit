@@ -3,6 +3,7 @@
 say ""
 
 
+
 {}
 [
 1 2 3
@@ -11,21 +12,16 @@ func: + 290
 4
 5
 ]
-debugVals
 
 {
     "a" (func: 99)
     "b" func: 22
 }
-dup | at "a" | call | say
-dup | at "b" | call | say
+dup | at "a" | call | say "a result is" it
+dup | at "b" | call | say "b result is" it
 
+say "hello done"
 
-
-# dup | .a | call | say
-# dup | .b | call | say
-
-debugVals
 
 
   
@@ -37,14 +33,11 @@ say (b)
 
 let add290 [(func: + 290)]
 add290 at 0
-debugVals
 as "foo"
 foo 20
 say
 
-exit
 # # say (b)
-exit
 
 let a {
     "foo": "bar" "biz": "baz"
@@ -53,8 +46,8 @@ let a {
 }
 say a
 
+clear
 
-exit
 
 loop 10 "i"
    say i
@@ -79,7 +72,6 @@ def plus1 a: a (+ 1) | * 21
 plus1 20
 say
 say "done"
-exit
 
 
 loop 10 i: say i
@@ -98,7 +90,6 @@ say plus1
 say "done def"
 
 
-exit
 
 if true: say ok!
 loop 10 i: say i
@@ -198,7 +189,6 @@ else
 end
 
 
-exit
 
 say ""
 
@@ -260,7 +250,7 @@ say "what1" # inline comment
 say "what2"
 say "here1"
 
-goDown spot1
+goDown "spot1"
 say "here2"
 say "here3"
 #spot1
@@ -315,7 +305,7 @@ end
 loop 100 i
     say i
     if (i gte 10)
-        goDown endLoop
+        goDown "endLoop"
     end
 end #endLoop
 
@@ -469,8 +459,8 @@ end
 
 say "done loopie"
 
-[:a b c]
-each i w
+["a" "b" "c"]
+each it i w
     say w
     if false
         say w
@@ -582,7 +572,6 @@ say "+it took " (- theEnd theStart) " millis" (cc) (cc)
 say "+loops: " loopCount (cc)
 say "and val is " val (cc)
 
-exit
 
 
 # convert this script (written in custom lang in stack-based style) to php

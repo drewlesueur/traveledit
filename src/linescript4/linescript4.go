@@ -302,6 +302,7 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 		case stateOut:
 			switch b {
 			case '{', '}', '(', ')', '[', ']', ',', '\n', '|', ':':
+			// case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
 				return makeToken(state, string(b)), i + 1
 			case ' ', '\t', '\r':
 				continue
@@ -1250,6 +1251,10 @@ func initBuiltins() {
 			}
     	    state.CurrFuncToken = f
     	    state = callFunc(state)
+    	    return state
+    	},
+		"clear": func(state *State) *State {
+            splice(state.Vals, 0, len(*state.Vals), nil)
     	    return state
     	},
 	}
