@@ -47,8 +47,6 @@ type RunImmediate2 struct {
     Func func(state *State) *State
 }
 
-
-
 type State struct {
 	FileName     string
 	I            int
@@ -57,6 +55,7 @@ type State struct {
 	Mode         string
 	OneLiner     bool
 	ModeStack    []string
+	// todo: caches need to be pointers???
 	GoUpCache    []*int
 	FindMatchingCache  []*FindMatchingResult
 	Vals         *[]any
@@ -81,6 +80,7 @@ func makeState(fileName, code string) *State {
 		Code:     code,
 		Mode:         "normal",
 		ModeStack:    nil,
+		
 		CachedTokens: nil,
 		GoUpCache:    nil,
 		FindMatchingCache:    nil,
@@ -133,7 +133,8 @@ func main() {
 		return
 	}
 	code := string(data)
-	// fmt.Println(code)
+  	// fmt.Println(code)
+	// TODO: init caches here?
 	state := makeState(fileName, code)
 	eval(state)
 }
@@ -786,6 +787,14 @@ func initBuiltins() {
 		"now":         makeBuiltin_0_1(now),
 		"+":           makeBuiltin_2_1(plus),
 		"-":           makeBuiltin_2_1(minus),
+		"+f": func(state *State) *State {
+	        push(state.Vals, pop(state.Vals).(float64) + pop(state.Vals).(float64))
+	        return state
+	    },
+		"-f": func(state *State) *State {
+	        push(state.Vals, pop(state.Vals).(float64) - pop(state.Vals).(float64))
+	        return state
+	    },
 		"*":           makeBuiltin_2_1(times),
 		"/":           makeBuiltin_2_1(divide),
 		"^":           makeBuiltin_2_1(exponent),
@@ -1015,6 +1024,33 @@ func initBuiltins() {
 			        return state
 			    } else {
 			        state.Vars[indexVar] = theIndex
+			        state.I = spot
+					state.EndStack = append(state.EndStack, endEach)
+			    }
+			    return state
+			}
+			state.EndStack = append(state.EndStack, endEach)
+			var i int
+			if state.OneLiner {
+				i = findBeforeEndLineOnlyLine(state)
+		    } else {
+				i = findMatchingBefore(state, []string{"end"})
+			}
+			state.I = i
+			return state
+		},
+		"loopx": func(state *State) *State {
+			theIndex := -1
+			loops := pop(state.Vals).(int)
+			var spot = state.I
+			var endEach func(state *State) *State
+			endEach = func(state *State) *State {
+			    theIndex++
+			    if theIndex >= loops {
+					state.OneLiner = false
+			        return state
+			    } else {
+			        push(state.Vals, theIndex)
 			        state.I = spot
 					state.EndStack = append(state.EndStack, endEach)
 			    }
