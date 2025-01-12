@@ -141,10 +141,6 @@ func main() {
 	eval(state)
 }
 
-type Token interface{
-    Process(*State) *State
-}
-
 func eval(state *State) *State {
 	// for j := 0; j < 10000; j++ {
 	for {

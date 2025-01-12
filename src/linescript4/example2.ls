@@ -1,6 +1,7 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
 let :loopCount 1000000
+# let :loopCount 1
 let :theStart (now)
 let :val 0.0
 let :i 0
@@ -16,6 +17,7 @@ say "---"
 
 eval %"
 let :loopCount 1000000
+# let :loopCount 1
 let :theStart (now)
 let :val 0.0
 let :i 0
@@ -28,9 +30,11 @@ say "+loops: " loopCount
 say "and val is " val
 "%
 
+
 say "---"
 
 let "loopCount" 1000000
+# let "loopCount" 1
 let "theStart" (now)
 let "val" 0.0
 let "i" 0
