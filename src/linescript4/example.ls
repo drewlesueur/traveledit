@@ -1,7 +1,9 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
 say "Hello"
-exit
+let :name "Drew"
+
+say "Hello" name
 
 {
     "foo": "bar":::
@@ -13,6 +15,7 @@ loop 3 :i: say "it's" i
 loop 3 "i": say "it's" i
 loop 3 i: say "it's" i
 10 loop :i: say "ok" i
+exit
 
 
 

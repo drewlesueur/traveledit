@@ -25,7 +25,8 @@ type Func struct {
 	// Note: the code and the cache should be bundled? (check perf)
 	Code         string
 	CachedTokens []*TokenCacheValue // these aren't pointers, could be problem?
-	// TODO check these caches
+	// TODO check these caches, or combine them ?
+	// in a function are they correctly copied?
 	GoUpCache         []*int
 	FindMatchingCache []*FindMatchingResult
 	Params            []string
@@ -141,15 +142,14 @@ func main() {
 }
 
 func eval(state *State) *State {
-
 	// for j := 0; j < 10000; j++ {
 	for {
 		if state == nil {
 			return nil
 		}
-		token := nextToken(state)
+		token, name := nextToken(state)
 		// #cyan
-		fmt.Printf("#cyan token: %v\n", toString(token))
+		fmt.Printf("#cyan token: %v\n", name)
 		state = token(state)
 	}
 	return state
@@ -190,9 +190,10 @@ func callFunc(state *State) *State {
 type TokenCacheValue struct {
 	I     int
 	Token func(*State) *State
+	Name string
 }
 
-func nextToken(state *State) func(*State) *State {
+func nextToken(state *State) (func(*State) *State, string) {
 	code := state.Code
 	i := state.I
 	if len(state.CachedTokens) == 0 {
@@ -200,22 +201,22 @@ func nextToken(state *State) func(*State) *State {
 	}
 	if cached := state.CachedTokens[i]; cached != nil {
 		state.I = cached.I
-		return cached.Token
+		return cached.Token, cached.Name
 	}
 	// fmt.Println("cache miss")
-	token, newI := nextTokenRaw(state, code, i)
+	token, name, newI := nextTokenRaw(state, code, i)
 	state.I = newI
-	state.CachedTokens[i] = &TokenCacheValue{I: newI, Token: token}
-	return token
+	state.CachedTokens[i] = &TokenCacheValue{I: newI, Token: token, Name: name}
+	return token, name
 }
 
 const stateOut = 0
 const stateIn = 1
 
-func nextTokenRaw(state *State, code string, i int) (func(*State) *State, int) {
+func nextTokenRaw(state *State, code string, i int) (func(*State) *State, string, int) {
 	// TODO: count subsequent newlines as a single newline.
 	if i > len(code) {
-		return exitToken("past end?"), -1
+		return exitToken("past end?"), "<past end>", -1
 	}
 	parseState := stateOut
 	start := -1
@@ -226,18 +227,20 @@ func nextTokenRaw(state *State, code string, i int) (func(*State) *State, int) {
 			switch b {
 			// leave off the : here so if it's a word starting with :, that can be a string
 			case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
-				return makeToken(state, string(b)), i + 1
+				str := string(b)
+				return makeToken(state, str), str, i + 1
 			case ' ', '\t', '\r':
 				continue
 			case '"', '\'':
 				expectedQuoteEnd := string(code[i])
 				end := strings.Index(code[i+1:], expectedQuoteEnd)
-				return stringToken(code[i+1 : i+1+end]), i + 1 + end + 1
+				str := code[i+1 : i+1+end]
+				return stringToken(str), str, i + 1 + end + 1
 			case '#':
 				// comments
 				end := strings.Index(code[i+1:], "\n")
 				if end == -1 {
-					return exitToken("end in comment"), -1
+					return exitToken("end in comment"), "end in comment", -1
 				}
 				i = i + end
 			default:
@@ -247,23 +250,26 @@ func nextTokenRaw(state *State, code string, i int) (func(*State) *State, int) {
 		case stateIn:
 			switch b {
 			case '{', '}', '(', ')', '[', ']', ',', '\n', '|', ':':
-				return makeToken(state, code[start:i]), i
+				str := code[start:i]
+				return makeToken(state, str), str, i
 			case ' ', '\t', '\r':
-				return makeToken(state, code[start:i]), i + 1
+				str := code[start:i]
+				return makeToken(state, str), str, i + 1
 			case '"', '\'':
 				str := code[start:i]
 				expectedQuoteEnd := string(code[i]) + str
 				endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
 				token := code[i+1 : i+1+endIndex]
-				return stringToken(token), i + 1 + endIndex + len(expectedQuoteEnd)
+				return stringToken(token), token, i + 1 + endIndex + len(expectedQuoteEnd)
 			default:
 			}
 		}
 	}
 	if parseState == stateIn {
-		return makeToken(state, code[start:i]), i + 1
+		str := code[start:i]
+		return makeToken(state, str), str, i + 1
 	}
-	return exitToken("got to end?"), -1
+	return exitToken("got to end?"), "got to end?", -1
 }
 
 func makeFuncToken(theFunc *Func) func(*State) *State {
@@ -410,6 +416,7 @@ func makeToken(state *State, val string) func(*State) *State {
 			return state
 		}
 	}
+	
 	if state.CurrFuncToken != nil {
 		// if state.CurrFuncToken.Name == "let" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
 		// 	return stringToken(s)
@@ -626,6 +633,7 @@ func initFindMatchingCache(state *State) {
 
 var builtins map[string]func(state *State) *State
 var runImmediates map[string]func(state *State) *State
+
 
 func initBuiltins() {
 	runImmediates = map[string]func(state *State) *State{
@@ -1382,9 +1390,11 @@ func initBuiltins() {
 			return state
 		},
 	}
+	funcBuiltin = builtins["func"]
 }
 
-var funcBuiltin = builtins["func"]
+var funcBuiltin func(*State) *State
+
 
 func now() any {
 	return int(time.Now().UnixMilli())
