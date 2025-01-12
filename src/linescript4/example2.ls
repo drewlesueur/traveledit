@@ -35,7 +35,8 @@ let "theStart" (now)
 let "val" 0.0
 let "i" 0
 loop loopCount :i
-    eval 'toFloat i, - 0.1, + val, as "val"'
+    eval 'toFloat i, - 0.1, + val, as "val"
+'
 end
 let "theEnd" (now)
 say "+it took " (- theEnd theStart) " millis" (cc) (cc)

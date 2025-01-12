@@ -1,9 +1,12 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+
 say "Hello"
 let :name "Drew"
-
 say "Hello" name
+eval 'say "Hello2" name
+'
+exit
 
 {
     "foo": "bar":::
