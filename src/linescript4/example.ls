@@ -1,6 +1,5 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
-
 say "Hello"
 exit
 

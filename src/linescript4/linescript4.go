@@ -140,40 +140,16 @@ func main() {
 }
 
 func eval(state *State) *State {
-	var token any
 
 	// for j := 0; j < 10000; j++ {
 	for {
 		if state == nil {
 			return nil
 		}
-		token = nextToken(state)
-		if state.I == -1 {
-			state = runImmediates["\n"](state)
-			state = state.CallingParent
-			continue
-		}
-
+		token := nextToken(state)
         // #cyan
-        // fmt.Printf("#cyan token: %v\n", toString(token))
-
-		switch token := token.(type) {
-		// case RunImmediate:
-		// 	state = token(state)
-		// 	continue
-		case *RunImmediate2:
-			state = token.Func(state)
-			continue
-		// case RunImmediate2:
-		// 	state = token.Func(state)
-		// 	continue
-		case *Func:
-		case VarName:
-		case Skip:
-			continue
-		default:
-			push(state.Vals, token)
-		}
+        fmt.Printf("#cyan token: %v\n", toString(token))
+        state = token(state)
 	}
 	return state
 }
@@ -215,7 +191,7 @@ type TokenCacheValue struct {
 	Token func(*State) *State
 }
 
-func nextToken(state *State) any {
+func nextToken(state *State) func(*State) *State {
 	code := state.Code
 	i := state.I
 	if len(state.CachedTokens) == 0 {
@@ -320,9 +296,12 @@ func stringToken(s string) func(*State) *State {
         return state
     }
 }
+// TODO: files must end in newline!
+
 func exitToken(s string) func(*State) *State {
     return func(state *State) *State {
-		push(state.Vals, s)
+		// state = runImmediates["\n"](state)
+		state = state.CallingParent
         return state
     }
 }
