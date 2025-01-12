@@ -162,18 +162,18 @@ func eval(state *State) *State {
 		case builtinFuncToken:
 			state.CurrFuncToken = token
 			state.FuncTokenSpot = len(*state.Vals)
-		case string:
-			push(state.Vals, token)
-		case int:
-			push(state.Vals, token)
-		case float64:
-			push(state.Vals, token)
-		case bool:
-			push(state.Vals, token)
+		// case string:
+		// 	push(state.Vals, token)
+		// case int:
+		// 	push(state.Vals, token)
+		// case float64:
+		// 	push(state.Vals, token)
+		// case bool:
+		// 	push(state.Vals, token)
 		case *Func:
 			state.CurrFuncToken = nil
 			state.FuncTokenSpot = -1
-   
+  
 			newState := makeState(token.FileName, token.Code)
 			newState.CachedTokens = token.CachedTokens
 			newState.GoUpCache = token.GoUpCache
@@ -200,14 +200,17 @@ func eval(state *State) *State {
 			evaledFunc := getVar(state, string(token)).(func(*State) *State)
 			state.CurrFuncToken = evaledFunc
 			state.FuncTokenSpot = len(*state.Vals)
-		case nil:
-			push(state.Vals, nil)
 		case exitToken:
 		    // fmt.Println("exiting:", token)
 		    state = state.CallingParent
 		default:
-		    fmt.Printf("oops type %T\n", token)
-		    panic("fail")
+		    // wow, adding the string, int, float, bool cases
+		    // made the 1 million item loop in example2.js go from 24xms to 32xms
+		    // I tried interfaces with a ProcessMethod and that was also slow
+		    // see jump_alt and jump_table branches
+			push(state.Vals, token)
+		    // fmt.Printf("oops type %T\n", token)
+		    // panic("fail")
 		}
 	}
 	return state
