@@ -4,7 +4,7 @@ package main
 import (
 	"fmt"
 	"os"
-	// "runtime/pprof"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"time"
@@ -100,17 +100,17 @@ func makeState(fileName, code string) *State {
 }
 
 func main() {
-	// _ = pprof.StartCPUProfile
-	// cpuProfile, err := os.Create("cpu.prof")
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// defer cpuProfile.Close()
-	// // Start CPU profiling
-	// if err := pprof.StartCPUProfile(cpuProfile); err != nil {
-	// 	panic(err)
-	// }
-	// defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
+	_ = pprof.StartCPUProfile
+	cpuProfile, err := os.Create("cpu.prof")
+	if err != nil {
+		panic(err)
+	}
+	defer cpuProfile.Close()
+	// Start CPU profiling
+	if err := pprof.StartCPUProfile(cpuProfile); err != nil {
+		panic(err)
+	}
+	defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
 
 	initBuiltins()
 
@@ -149,7 +149,8 @@ func eval(state *State) *State {
 		}
 		token, name := nextToken(state)
 		// #cyan
-		fmt.Printf("#cyan token: %v\n", name)
+		// fmt.Printf("#cyan token: %v\n", name)
+		_ = name
 		state = token(state)
 	}
 	return state
@@ -303,6 +304,46 @@ func stringToken(s string) func(*State) *State {
 		return state
 	}
 }
+func boolToken(v bool) func(*State) *State {
+	return func(state *State) *State {
+		push(state.Vals, v)
+		return state
+	}
+}
+func float64Token(v float64) func(*State) *State {
+	return func(state *State) *State {
+		push(state.Vals, v)
+		return state
+	}
+}
+func intToken(v int) func(*State) *State {
+	return func(state *State) *State {
+		push(state.Vals, v)
+		return state
+	}
+}
+func nullToken() func(*State) *State {
+	return func(state *State) *State {
+		push(state.Vals, nil)
+		return state
+	}
+}
+
+func getVarFuncToken(val string) func(*State) *State {
+	return func(state *State) *State {
+		evaledFunc := getVar(state, val).(func(*State) *State)
+		state.CurrFuncToken = evaledFunc
+		state.FuncTokenSpot = len(*state.Vals)
+		return state
+	}
+}
+func getVarToken(val string) func(*State) *State {
+	return func(state *State) *State {
+		evaled := getVar(state, val)
+		push(state.Vals, evaled)
+		return state
+	}
+}
 
 // TODO: files must end in newline!
 
@@ -330,7 +371,9 @@ func makeToken(state *State, val string) func(*State) *State {
 		// return RunImmediate2{Func: f, Name: val}
 
 		// return &RunImmediate2{Func: f, Name: val}
-		return f
+		if state.Mode == "normal" {
+			return f
+		}
 	}
 	if b, ok := builtins[val]; ok {
 		// wow we can switch on the mode at compile time?!
@@ -362,16 +405,10 @@ func makeToken(state *State, val string) func(*State) *State {
 			// panic("skipping!!")
 			// return Skip("")
 			// is this hit?
-			return func(*State) *State {
-				push(state.Vals, val)
-				return state
-			}
+			return stringToken(val)
 		}
 		theString := val[1:]
-		return func(*State) *State {
-			push(state.Vals, theString)
-			return state
-		}
+		return stringToken(theString)
 	}
 	if isNumeric(val) {
 		if strings.Contains(val, ".") {
@@ -379,42 +416,24 @@ func makeToken(state *State, val string) func(*State) *State {
 			if err != nil {
 				panic(err)
 			}
-			return func(*State) *State {
-				push(state.Vals, f)
-				return state
-			}
+			return float64Token(f)
 		}
 		i, err := strconv.Atoi(val)
 		if err != nil {
 			panic(err)
 		}
-		return func(*State) *State {
-			push(state.Vals, i)
-			return state
-		}
+		return intToken(i)
 	}
 
 	switch val {
 	case "true":
-		return func(*State) *State {
-			push(state.Vals, true)
-			return state
-		}
+		return boolToken(true)
 	case "false":
-		return func(*State) *State {
-			push(state.Vals, false)
-			return state
-		}
+		return boolToken(false)
 	case "newline":
-		return func(*State) *State {
-			push(state.Vals, "\n")
-			return state
-		}
+		return stringToken("\n")
 	case "null":
-		return func(*State) *State {
-			push(state.Vals, nil)
-			return state
-		}
+		return nullToken()
 	}
 	
 	if state.CurrFuncToken != nil {
@@ -441,32 +460,20 @@ func makeToken(state *State, val string) func(*State) *State {
 	switch state.Mode {
 	case "normal":
 		if state.CurrFuncToken == nil {
-			return func(*State) *State {
-				// TODO: !!
-				// Somehow replace this func once we know it should be a func call?
-				// or at least eval it once the first time!
-				evaled := getVar(state, val)
-				if evaledFunc, ok := evaled.(func(*State) *State); ok {
-					state.CurrFuncToken = evaledFunc
-					state.FuncTokenSpot = len(*state.Vals)
-				} else {
-					push(state.Vals, evaled)
-				}
-				return state
+			evaled := getVar(state, val)
+			// once a func, always a func
+			// but have to eval twice the first round?!
+			// TODO: fix the double eval
+			if _, ok := evaled.(func(*State) *State); ok {
+			    return getVarFuncToken(val)
+			} else {
+		    	return getVarToken(val)
 			}
 		} else {
-			return func(*State) *State {
-				evaled := getVar(state, val)
-				push(state.Vals, evaled)
-				return state
-			}
+	    	return getVarToken(val)
 		}
 	case "array", "object":
-		return func(*State) *State {
-			evaled := getVar(state, val)
-			push(state.Vals, evaled)
-			return state
-		}
+    	return getVarToken(val)
 	}
 	panic("no slash?")
 	return nil
@@ -672,7 +679,7 @@ func initBuiltins() {
 			return state
 		},
 		"\n": func(state *State) *State {
-			if state.Mode == "normal" {
+			// if state.Mode == "normal" {
 				if state.CurrFuncToken != nil {
 					// fmt.Println("calling", state.Vals) // _red
 					// fmt.Println("calling", toString(state.CurrFuncToken)) // _red
@@ -689,27 +696,27 @@ func initBuiltins() {
 				// 	// fmt.Println("done calling", state.Vals) // _red
 				// 	// fmt.Println("done calling") // _red
 				// }
-			}
+			// }
 			return state
 		},
 		":": func(state *State) *State {
-			if state.Mode == "normal" {
+			// if state.Mode == "normal" {
 				state.OneLiner = true
 				state = callFunc(state)
 				// state.OneLiner = false
-			}
+			// }
 			return state
 		},
 		",": func(state *State) *State {
-			if state.Mode == "normal" {
+			// if state.Mode == "normal" {
 				state = callFunc(state)
-			}
+			// }
 			return state
 		},
 		"|": func(state *State) *State {
-			if state.Mode == "normal" {
+			// if state.Mode == "normal" {
 				state = callFunc(state)
-			}
+			// }
 			return state
 		},
 		"(": func(state *State) *State {
@@ -827,10 +834,12 @@ func initBuiltins() {
 		"-":   makeBuiltin_2_1(minus),
 		"+f": func(state *State) *State {
 			push(state.Vals, pop(state.Vals).(float64)+pop(state.Vals).(float64))
+			clearFuncToken(state)
 			return state
 		},
 		"-f": func(state *State) *State {
 			push(state.Vals, pop(state.Vals).(float64)-pop(state.Vals).(float64))
+			clearFuncToken(state)
 			return state
 		},
 		"*":  makeBuiltin_2_1(times),
