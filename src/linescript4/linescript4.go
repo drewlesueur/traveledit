@@ -62,8 +62,8 @@ type State struct {
 	ValsStack    []*[]any
 	EndStack     []func(*State) *State
 	Vars         map[string]any
-	CurrFuncToken      *Func
-	FuncTokenStack     []*Func
+	CurrFuncToken      func(*State) *State
+	FuncTokenStack     []func(*State) *State
 	FuncTokenSpot      int // position of the first "argument" in vals, even tho it can grab from earlier
 	FuncTokenSpotStack []int
 	LexicalParent      *State
@@ -168,39 +168,7 @@ func eval(state *State) *State {
 		// 	state = token.Func(state)
 		// 	continue
 		case *Func:
-			switch state.Mode {
-			case "normal":
-				if state.CurrFuncToken == nil {
-				    // fmt.Printf("yay2 %T\n", token)
-					state.CurrFuncToken = token
-					state.FuncTokenSpot = len(*state.Vals)
-				} else {
-					push(state.Vals, token)
-				}
-			case "array", "object":
-				push(state.Vals, token)
-			}
 		case VarName:
-			evaled := getVar(state, string(token))
-			switch state.Mode {
-			case "normal":
-				if state.CurrFuncToken == nil {
-				    // fmt.Printf("yay! %T\n", evaled)
-				    if evaledFunc, ok := evaled.(*Func); ok {
-						state.CurrFuncToken = evaledFunc
-						state.FuncTokenSpot = len(*state.Vals)
-					} else {
-						push(state.Vals, evaled)
-					}
-				} else {
-					push(state.Vals, evaled)
-				}
-			case "array", "object":
-				if token == "\n" {
-					continue
-				}
-				push(state.Vals, evaled)
-			}
 		case Skip:
 			continue
 		default:
@@ -229,57 +197,22 @@ func findParent(state *State, varName string) *State {
 	return nil
 }
 
+func clearFuncToken(state *State) {
+	state.CurrFuncToken = nil
+	state.FuncTokenSpot = -1
+}
 
 func callFunc(state *State) *State {
     if state.CurrFuncToken == nil {
         return state
     }
-    // fmt.Println("#aquamarine actually calling", toString(state.CurrFuncToken))
-    theFunc := state.CurrFuncToken
-    f := theFunc.Builtin
-    if f != nil {
-		newState := f(state)
-		if theFunc == state.CurrFuncToken {
-			// TODO: you could have each builtin set these to eliminate the if
-			// this being a conditional is only used now for the "func" builtin
-			// or you can make func only be an immediate
-			// but it's not so we can parse the args
-			state.CurrFuncToken = nil
-			state.FuncTokenSpot = -1
-		}
-		return newState
-    }
-
-	state.CurrFuncToken = nil
-	state.FuncTokenSpot = -1
-
-	newState := makeState(theFunc.FileName, theFunc.Code)
-	newState.CachedTokens = theFunc.CachedTokens
-	newState.GoUpCache = theFunc.GoUpCache
-	newState.FindMatchingCache = theFunc.FindMatchingCache
-	newState.I = theFunc.I
-	newState.Vals = state.Vals
-	newState.CallingParent = state
-	newState.LexicalParent = theFunc.LexicalParent
-	newState.OneLiner = theFunc.OneLiner
-	for i := len(theFunc.Params) - 1; i >= 0; i-- {
-		param := theFunc.Params[i]
-		newState.Vars[param] = pop(state.Vals)
-	}
-    // nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
-    // fmt.Println("#yellow peek", toString(nt))
-    // fmt.Println("#yellow currentstate one liner", state.OneLiner)
+    newState := state.CurrFuncToken(state)
 	return newState
-
-	// fmt.Println("-cannot find func", fName)
-	// state.CurrFuncToken = ""
-	// state.FuncTokenSpot = -1
-	// return state
 }
 
 type TokenCacheValue struct {
 	I     int
-	Token any
+	Token func(*State) *State
 }
 
 func nextToken(state *State) any {
@@ -302,9 +235,10 @@ func nextToken(state *State) any {
 const stateOut = 0
 const stateIn = 1
 
-func nextTokenRaw(state *State, code string, i int) (any, int) {
+func nextTokenRaw(state *State, code string, i int) (func(*State) *State, int) {
+	// TODO: count subsequent newlines as a single newline.
 	if i > len(code) {
-		return nil, -1
+		return exitToken("past end?"), -1
 	}
 	parseState := stateOut
 	start := -1
@@ -321,12 +255,12 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 			case '"', '\'':
 				expectedQuoteEnd := string(code[i])
 				end := strings.Index(code[i+1:], expectedQuoteEnd)
-				return code[i+1:i+1+end], i + 1 + end + 1
+				return stringToken(code[i+1:i+1+end]), i + 1 + end + 1
 			case '#':
 				// comments
 				end := strings.Index(code[i+1:], "\n")
 				if end == -1 {
-					return "", -1
+					return exitToken("end in comment"), -1
 				}
 				i = i + end
 			default:
@@ -344,7 +278,7 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 				expectedQuoteEnd := string(code[i]) + str
 				endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
 				token := code[i+1 : i+1+endIndex]
-				return token, i + 1 + endIndex + len(expectedQuoteEnd)
+				return stringToken(token), i + 1 + endIndex + len(expectedQuoteEnd)
 			default:
 			}
 		}
@@ -352,11 +286,50 @@ func nextTokenRaw(state *State, code string, i int) (any, int) {
 	if parseState == stateIn {
 		return makeToken(state, code[start:i]), i + 1
 	}
-	return "", -1
+	return exitToken("got to end?"), -1
 }
 
+func makeFuncToken(theFunc *Func) func(*State) *State {
+    return func(state *State) *State {
+		state.CurrFuncToken = nil
+		state.FuncTokenSpot = -1
+ 
+		newState := makeState(theFunc.FileName, theFunc.Code)
+		newState.CachedTokens = theFunc.CachedTokens
+		newState.GoUpCache = theFunc.GoUpCache
+		newState.FindMatchingCache = theFunc.FindMatchingCache
+		newState.I = theFunc.I
+		newState.Vals = state.Vals
+		newState.CallingParent = state
+		newState.LexicalParent = theFunc.LexicalParent
+		newState.OneLiner = theFunc.OneLiner
+		for i := len(theFunc.Params) - 1; i >= 0; i-- {
+			param := theFunc.Params[i]
+			newState.Vars[param] = pop(state.Vals)
+		}
+ 	   // nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
+ 	   // fmt.Println("#yellow peek", toString(nt))
+ 	   // fmt.Println("#yellow currentstate one liner", state.OneLiner)
+		return newState
+    }
+}
+
+func stringToken(s string) func(*State) *State {
+    return func(state *State) *State {
+		push(state.Vals, s)
+        return state
+    }
+}
+func exitToken(s string) func(*State) *State {
+    return func(state *State) *State {
+		push(state.Vals, s)
+        return state
+    }
+}
+
+
 type Skip string
-func makeToken(state *State, val string) any {
+func makeToken(state *State, val string) func(*State) *State {
 	// immediates go first, because it could be an immediate and builtin
 	if f, ok := runImmediates[val]; ok {
 	    // return RunImmediate(f)
@@ -367,22 +340,52 @@ func makeToken(state *State, val string) any {
 	    // return RunImmediate2{Func: f, Name: "Immediate " + val}
 	    // return &RunImmediate2{Func: f, Name: "Immediate " + val}
 	    
-	    return &RunImmediate2{Func: f, Name: val}
     	// return RunImmediate2{Func: f, Name: val}
+    	
+    	
+	    // return &RunImmediate2{Func: f, Name: val}
+	    return f
 	}
 	if b, ok := builtins[val]; ok {
-	    return &Func{
-	        Builtin: b,
-	        Name: val,
-	    }
+	    // wow we can switch on the mode at compile time?!
+	    // the first run is compile time, interesting
+		switch state.Mode {
+		case "normal":
+			if state.CurrFuncToken == nil {
+	    		return func(*State) *State {
+				        state.CurrFuncToken = b
+				        state.FuncTokenSpot = len(*state.Vals)
+                        return state
+	    		}
+			} else {
+	    		return func(*State) *State {
+						push(state.Vals, b)
+                        return state
+	    		}
+			}
+		case "array", "object":
+    		return func(*State) *State {
+					push(state.Vals, b)
+                    return state
+    		}
+		}
 	}
 	// string shortcut
 	if val[0] == ':' {
 	    if len(val) == 1 {
 	        // panic("skipping!!")
-	        return Skip("")
+	        // return Skip("")
+    		// is this hit?
+    		return func(*State) *State {
+					push(state.Vals, val)
+	            	return state
+    		}
 	    }
-	    return val[1:]
+	    theString := val[1:]
+    	return func(*State) *State {
+				push(state.Vals, theString)
+                return state
+    	}
 	}
 	if isNumeric(val) {
 		if strings.Contains(val, ".") {
@@ -390,45 +393,96 @@ func makeToken(state *State, val string) any {
 			if err != nil {
 				panic(err)
 			}
-			return f
+    		return func(*State) *State {
+					push(state.Vals, f)
+                    return state
+    		}
 		}
 		i, err := strconv.Atoi(val)
 		if err != nil {
 			panic(err)
 		}
-		return i
+    	return func(*State) *State {
+				push(state.Vals, i)
+                return state
+    	}
 	}
+	
 	switch val {
 	case "true":
-		return true
+    	return func(*State) *State {
+   				push(state.Vals, true)
+                return state
+    	}
 	case "false":
-		return false
+    	return func(*State) *State {
+				push(state.Vals, false)
+                return state
+    	}
 	case "newline":
-		return "\n"
+    	return func(*State) *State {
+  				push(state.Vals, "\n")
+                return state
+    	}
 	case "null":
-		return nil
+    	return func(*State) *State {
+				push(state.Vals, nil)
+                return state
+    	}
 	}
 	if state.CurrFuncToken != nil {
-	    if state.CurrFuncToken.Name == "let" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
-	    	return val
-		}
-	    if state.CurrFuncToken.Name == "local" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
-	    	return val
-		}
-	    if state.CurrFuncToken.Name == "def" {
-	    	return val
-		}
-	    if state.CurrFuncToken.Name == "func" {
-	    	return val
-		}
-	    if state.CurrFuncToken.Name == "each" && (len(*state.Vals) - state.FuncTokenSpot > 0) {
-	    	return val
-		}
-	    if state.CurrFuncToken.Name == "loop" && (len(*state.Vals) - state.FuncTokenSpot > 0) {
-	    	return val
-		}
+	    // if state.CurrFuncToken.Name == "let" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
+    	// 	return stringToken(s)
+		// }
+	    // if state.CurrFuncToken.Name == "local" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
+    	// 	return stringToken(s)
+		// }
+	    // if state.CurrFuncToken.Name == "def" {
+    	// 	return stringToken(s)
+		// }
+	    // if state.CurrFuncToken.Name == "func" {
+    	// 	return stringToken(s)
+		// }
+	    // if state.CurrFuncToken.Name == "each" && (len(*state.Vals) - state.FuncTokenSpot > 0) {
+    	// 	return stringToken(s)
+		// }
+	    // if state.CurrFuncToken.Name == "loop" && (len(*state.Vals) - state.FuncTokenSpot > 0) {
+    	// 	return stringToken(s)
+		// }
 	}
-	return VarName(val)
+	
+	switch state.Mode {
+	case "normal":
+		if state.CurrFuncToken == nil {
+    		return func(*State) *State {
+    		       // TODO: !!
+    		       // Somehow replace this func once we know it should be a func call?
+    		       // or at least eval it once the first time!
+				   evaled := getVar(state, val)
+		 		   if evaledFunc, ok := evaled.(func(*State) *State); ok {
+						state.CurrFuncToken = evaledFunc
+						state.FuncTokenSpot = len(*state.Vals)
+					} else {
+						push(state.Vals, evaled)
+					}
+                	return state
+    		}
+		} else {
+    		return func(*State) *State {
+				   evaled := getVar(state, val)
+					push(state.Vals, evaled)
+                    return state
+    		}
+		}
+	case "array", "object":
+    	return func(*State) *State {
+				evaled := getVar(state, val)
+				push(state.Vals, evaled)
+                return state
+    	}
+	}
+	panic("no slash?")
+	return nil
 }
 
 type VarName string
@@ -773,10 +827,7 @@ func initBuiltins() {
 
             // open implied parens
 			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
-			state.CurrFuncToken = &Func{
-	        	Builtin: builtins["func"],
-	        	Name: "func",
-	    	}
+			state.CurrFuncToken = funcBuiltin
 			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
 			state.FuncTokenSpot = len(*state.Vals)
 
@@ -838,6 +889,7 @@ func initBuiltins() {
         	    thingsVal = append(thingsVal, pop(state.Vals))
 	        }
 	        say(thingsVal...)
+		    clearFuncToken(state)
 	        return state
 	    },
 		"say2": func(state *State) *State {
@@ -850,6 +902,7 @@ func initBuiltins() {
 	        for i, v := range *things {
 	            fmt.Printf("%d %#v\n", i, v)
 	        }
+		    clearFuncToken(state)
 	        return state
 	    },
 		"put":         makeNoop(),
@@ -893,25 +946,30 @@ func initBuiltins() {
 		    return string(b)
 		}),
 		"exit": func(state *State) *State {
+		    clearFuncToken(state)
 			return nil
 		},
 		"makeObject": func(state *State) *State {
 			push(state.Vals, map[string]any{})
+		    clearFuncToken(state)
 			return state
 		},
 		"makeArray": func(state *State) *State {
 			push(state.Vals, &[]any{})
+		    clearFuncToken(state)
 			return state
 		},
 		"incr": func(state *State) *State {
 			a := pop(state.Vals).(string)
 			state.Vars[a] = state.Vars[a].(int) + 1
+		    clearFuncToken(state)
 			return state
 		},
 		"local": func(state *State) *State {
 			b := pop(state.Vals)
 			a := pop(state.Vals).(string)
 			state.Vars[a] = b
+		    clearFuncToken(state)
 			return state
 		},
 		"let": func(state *State) *State {
@@ -922,12 +980,14 @@ func initBuiltins() {
 			    parentState = state
 			}
 			parentState.Vars[a] = b
+		    clearFuncToken(state)
 			return state
 		},
 		"debugVals": func(state *State) *State {
 			for i, v := range *state.Vals {
 			    fmt.Printf("-->%d: %s\n", i, toString(v))
 			}
+		    clearFuncToken(state)
 			return state
 		},
 		"as": func(state *State) *State {
@@ -939,6 +999,7 @@ func initBuiltins() {
 			//     return state
 			// }
 			state.Vars[b] = a
+		    clearFuncToken(state)
 			return state
 		},
 		"goUp": func(state *State) *State {
@@ -946,12 +1007,14 @@ func initBuiltins() {
             initGoUpCache(state)
 			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 				state.I = *cachedI
+		    	clearFuncToken(state)
 				return state
 			}
 			toSearch := "#" + locText
 			newI := strings.LastIndex(state.Code[0:state.I], toSearch)
 			state.GoUpCache[state.I] = &newI
 			state.I = newI
+		    clearFuncToken(state)
 			return state
 		},
 		"goUpIf": func(state *State) *State {
@@ -965,6 +1028,7 @@ func initBuiltins() {
 				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 					state.I = *cachedI
 					return state
+		    		clearFuncToken(state)
 				}
 				toSearch := "#" + locText
 				newI := strings.LastIndex(state.Code[0:state.I], toSearch)
@@ -972,6 +1036,7 @@ func initBuiltins() {
 				state.I = newI
 			}
 			// push(state.Vals, state[a])
+		    clearFuncToken(state)
 			return state
 		},
 		"goDown": func(state *State) *State {
@@ -980,12 +1045,14 @@ func initBuiltins() {
             initGoUpCache(state)
 			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 				state.I = *cachedI
+		    	clearFuncToken(state)
 				return state
 			}
 			toSearch := "#" + locText
 			newI := strings.Index(state.Code[state.I:], toSearch) + state.I
 			state.GoUpCache[state.I] = &newI
 			state.I = newI
+		    clearFuncToken(state)
 			return state
 		},
 		"goDownIf": func(state *State) *State {
@@ -997,6 +1064,7 @@ func initBuiltins() {
 	            initGoUpCache(state)
 				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 					state.I = *cachedI
+	    			clearFuncToken(state)
 					return state
 				}
 				toSearch := "#" + locText
@@ -1005,9 +1073,11 @@ func initBuiltins() {
 				state.I = newI
 			}
 			// push(state.Vals, state[a])
+		    clearFuncToken(state)
 			return state
 		},
 		"forever": func(state *State) *State {
+		    clearFuncToken(state)
 		    return state
 		},
 		"loop": func(state *State) *State {
@@ -1037,6 +1107,7 @@ func initBuiltins() {
 				i = findMatchingBefore(state, []string{"end"})
 			}
 			state.I = i
+		    clearFuncToken(state)
 			return state
 		},
 		"loopx": func(state *State) *State {
@@ -1064,6 +1135,7 @@ func initBuiltins() {
 				i = findMatchingBefore(state, []string{"end"})
 			}
 			state.I = i
+	    	clearFuncToken(state)
 			return state
 		},
 		"each": func(state *State) *State {
@@ -1104,6 +1176,7 @@ func initBuiltins() {
 				i = findMatchingBefore(state, []string{"end"})
 			}
 			state.I = i
+	    	clearFuncToken(state)
 			return state
 		},
 		"if": func(state *State) *State {
@@ -1130,6 +1203,7 @@ func initBuiltins() {
 					}
 				}
 			}
+	    	clearFuncToken(state)
 			return state
 		},
 		"else": func(state *State) *State {
@@ -1141,11 +1215,13 @@ func initBuiltins() {
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			r := findMatchingAfter(state, []string{"end"})
 			state.I = r.I
+	    	clearFuncToken(state)
 			return state
 		},
 		// "loopN":
 		"end": doEnd,
 		"return": func(state *State) *State {
+	    	clearFuncToken(state) // needed?
 			return state.CallingParent
 		},
 		"def": func(state *State) *State {
@@ -1166,7 +1242,8 @@ func initBuiltins() {
 				LexicalParent: state,
 				OneLiner: state.OneLiner,
 			}
-			state.Vars[funcName] = f
+            stateFunc := makeFuncToken(f)
+			state.Vars[funcName] = stateFunc
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			if state.OneLiner {
@@ -1180,6 +1257,7 @@ func initBuiltins() {
 			}
 
 			// fmt.Printf("found: %q\n", getCode(state)[i:])
+	    	clearFuncToken(state)
 			return state
 		},
 		"func": func(state *State) *State {
@@ -1188,7 +1266,7 @@ func initBuiltins() {
 			for i, p := range *params {
 				paramStrings[i] = p.(string)
 			}
-			f := &Func{
+            f := &Func{
 				FileName:      state.FileName,
 				I:             state.I,
 				Code:          state.Code,
@@ -1199,8 +1277,9 @@ func initBuiltins() {
 				LexicalParent: state,
 				OneLiner: state.OneLiner,
 			}
+			stateFunc := makeFuncToken(f)
 			// fmt.Println(f.Code[f.I:f.I+100])
-			push(state.Vals, f)
+			push(state.Vals, stateFunc)
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			if state.OneLiner {
@@ -1218,6 +1297,7 @@ func initBuiltins() {
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
 
+
 			state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
 			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
 			// fmt.Println("#gold **cft is:", state.CurrFuncToken)
@@ -1230,6 +1310,8 @@ func initBuiltins() {
 			// fmt.Printf("next token: %v %T\n", token, token)
 			// fmt.Printf("next token: %v\n", runImmediates["\n"])
 
+            // not calling clear because we re-assigned it above
+	    	// clearFuncToken(state)
 			return state
 
 		},
@@ -1241,6 +1323,7 @@ func initBuiltins() {
     	        panic(err)
     	    }
     	    push(state.Vals, string(cmdOutput))
+	    	clearFuncToken(state)
     	    return state
     	},
 		"execBashCombined": func(state *State) *State {
@@ -1251,6 +1334,7 @@ func initBuiltins() {
     	        panic(err)
     	    }
     	    push(state.Vals, string(cmdOutput))
+	    	clearFuncToken(state)
     	    return state
     	},
 		"loadFile": func(state *State) *State {
@@ -1260,6 +1344,7 @@ func initBuiltins() {
     	        panic(err)
     	    }
     	    push(state.Vals, string(b))
+	    	clearFuncToken(state)
     	    return state
     	},
 		"eval": func(state *State) *State {
@@ -1273,12 +1358,14 @@ func initBuiltins() {
     	    evalState.CallingParent = state
     	    // eval(evalState)
     	    // return state
+	    	clearFuncToken(state)
     	    return evalState
     	},
 		"dup": func(state *State) *State {
     	    v := pop(state.Vals)
     	    push(state.Vals, v)
     	    push(state.Vals, v)
+	    	clearFuncToken(state)
     	    return state
     	},
 		"swap": func(state *State) *State {
@@ -1286,31 +1373,35 @@ func initBuiltins() {
     	    b := pop(state.Vals)
     	    push(state.Vals, a)
     	    push(state.Vals, b)
+	    	clearFuncToken(state)
     	    return state
     	},
 		"see": func(state *State) *State {
     	    a := pop(state.Vals)
     	    say(a)
     	    push(state.Vals, a)
+	    	clearFuncToken(state)
     	    return state
     	},
 		"call": func(state *State) *State {
 			// for i, v := range *state.Vals {
 			//     fmt.Printf("#pink val: %d %q\n", i, toString(v))
 			// }
-			var f *Func
+			var f func(state *State) *State
 			if len(*state.Vals) - state.FuncTokenSpot == 0 {
-			    f = pop(state.Vals).(*Func)
+			    f = pop(state.Vals).(func(state *State) *State)
 			} else {
 				fWrapper := splice(state.Vals, state.FuncTokenSpot, 1, nil).(*[]any)
-		 	   f = (*fWrapper)[0].(*Func)
+		 	   f = (*fWrapper)[0].(func(state *State) *State)
 			}
     	    state.CurrFuncToken = f
-    	    state = callFunc(state)
-    	    return state
+    	    newState := callFunc(state)
+	    	clearFuncToken(state) // needed here?
+    	    return newState
     	},
 		"clear": func(state *State) *State {
             splice(state.Vals, 0, len(*state.Vals), nil)
+	    	clearFuncToken(state)
     	    return state
     	},
 	}
@@ -1833,6 +1924,7 @@ func deleteProp(a, b any) {
 
 func makeNoop() func(state *State) *State {
 	return func(state *State) *State {
+	    clearFuncToken(state)
 		return state
 	}
 }
@@ -1840,6 +1932,7 @@ func makeBuiltin_1_0(f func(any)) func(state *State) *State {
 	return func(state *State) *State {
 		a := pop(state.Vals)
 		f(a)
+	    clearFuncToken(state)
 		return state
 	}
 }
@@ -1848,6 +1941,7 @@ func makeBuiltin_2_0(f func(any, any)) func(state *State) *State {
 		b := pop(state.Vals)
 		a := pop(state.Vals)
 		f(a, b)
+	    clearFuncToken(state)
 		return state
 	}
 }
@@ -1857,12 +1951,14 @@ func makeBuiltin_3_0(f func(any, any, any)) func(state *State) *State {
 		b := pop(state.Vals)
 		a := pop(state.Vals)
 		f(a, b, c)
+	    clearFuncToken(state)
 		return state
 	}
 }
 func makeBuiltin_0_1(f func() any) func(state *State) *State {
 	return func(state *State) *State {
 		push(state.Vals, f())
+	    clearFuncToken(state)
 		return state
 	}
 }
@@ -1870,6 +1966,7 @@ func makeBuiltin_1_1(f func(any) any) func(state *State) *State {
 	return func(state *State) *State {
 		a := pop(state.Vals)
 		push(state.Vals, f(a))
+	    clearFuncToken(state)
 		return state
 	}
 }
@@ -1878,6 +1975,7 @@ func makeBuiltin_2_1(f func(any, any) any) func(state *State) *State {
 		b := pop(state.Vals)
 		a := pop(state.Vals)
 		push(state.Vals, f(a, b))
+	    clearFuncToken(state)
 		return state
 	}
 }
@@ -1887,6 +1985,7 @@ func makeBuiltin_3_1(f func(any, any, any) any) func(state *State) *State {
 		b := pop(state.Vals)
 		a := pop(state.Vals)
 		push(state.Vals, f(a, b, c))
+	    clearFuncToken(state)
 		return state
 	}
 }
@@ -1897,6 +1996,7 @@ func makeBuiltin_4_1(f func(any, any, any, any) any) func(state *State) *State {
 		b := pop(state.Vals)
 		a := pop(state.Vals)
 		push(state.Vals, f(a, b, c, d))
+	    clearFuncToken(state)
 		return state
 	}
 }
@@ -1928,6 +2028,7 @@ func doEnd (state *State) *State {
 	endFunc := state.EndStack[len(state.EndStack)-1]
 	state.EndStack = state.EndStack[:len(state.EndStack)-1]
 
+    clearFuncToken(state)
 	return endFunc(state)
 }
 
