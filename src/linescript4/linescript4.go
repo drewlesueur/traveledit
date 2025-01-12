@@ -329,6 +329,20 @@ func nullToken() func(*State) *State {
 	}
 }
 
+func builtinToken(b func(*State) *State) func(*State) *State {
+	return func(state *State) *State {
+		push(state.Vals, b)
+		return state
+	}
+}
+func builtinFuncToken(b func(*State) *State) func(*State) *State {
+	return func(state *State) *State {
+		state.CurrFuncToken = b
+		state.FuncTokenSpot = len(*state.Vals)
+		return state
+	}
+}
+
 func getVarFuncToken(val string) func(*State) *State {
 	return func(state *State) *State {
 		evaledFunc := getVar(state, val).(func(*State) *State)
@@ -360,17 +374,6 @@ type Skip string
 func makeToken(state *State, val string) func(*State) *State {
 	// immediates go first, because it could be an immediate and builtin
 	if f, ok := runImmediates[val]; ok {
-		// return RunImmediate(f)
-
-		// return &RunImmediate2{Func: f, Name: "Immediate " + fmt.Sprintf("%q", val)}
-		// return RunImmediate2{Func: f, Name: "Immediate " + fmt.Sprintf("%q", val)}
-
-		// return RunImmediate2{Func: f, Name: "Immediate " + val}
-		// return &RunImmediate2{Func: f, Name: "Immediate " + val}
-
-		// return RunImmediate2{Func: f, Name: val}
-
-		// return &RunImmediate2{Func: f, Name: val}
 		if state.Mode == "normal" {
 			return f
 		}
@@ -381,22 +384,12 @@ func makeToken(state *State, val string) func(*State) *State {
 		switch state.Mode {
 		case "normal":
 			if state.CurrFuncToken == nil {
-				return func(*State) *State {
-					state.CurrFuncToken = b
-					state.FuncTokenSpot = len(*state.Vals)
-					return state
-				}
+				return builtinFuncToken(b)
 			} else {
-				return func(*State) *State {
-					push(state.Vals, b)
-					return state
-				}
+				return builtinToken(b)
 			}
 		case "array", "object":
-			return func(*State) *State {
-				push(state.Vals, b)
-				return state
-			}
+			return builtinToken(b)
 		}
 	}
 	// string shortcut
