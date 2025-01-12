@@ -151,11 +151,68 @@ func eval(state *State) *State {
 		if state == nil {
 			return nil
 		}
+		// if state.I == -1 {
+		// 	state = runImmediates["\n"](state)
+		// 	state = state.CallingParent
+		// 	continue
+		// }
 		token, name := nextToken(state)
 		// #cyan
-		// fmt.Printf("#cyan token: %v\n", name)
+		// fmt.Printf("#cyan token: %T %q\n", token, name)
 		_ = name
-		state = token.Process(state)
+		switch token := token.(type){
+		case immediateToken:
+    		state = token(state)
+		case builtinFuncToken:
+			state.CurrFuncToken = token
+			state.FuncTokenSpot = len(*state.Vals)
+		case string:
+			push(state.Vals, token)
+		case int:
+			push(state.Vals, token)
+		case float64:
+			push(state.Vals, token)
+		case bool:
+			push(state.Vals, token)
+		case *Func:
+			state.CurrFuncToken = nil
+			state.FuncTokenSpot = -1
+   
+			newState := makeState(token.FileName, token.Code)
+			newState.CachedTokens = token.CachedTokens
+			newState.GoUpCache = token.GoUpCache
+			newState.FindMatchingCache = token.FindMatchingCache
+			newState.I = token.I
+			newState.Vals = state.Vals
+			newState.CallingParent = state
+			newState.LexicalParent = token.LexicalParent
+			newState.OneLiner = token.OneLiner
+			for i := len(token.Params) - 1; i >= 0; i-- {
+				param := token.Params[i]
+				newState.Vars[param] = pop(state.Vals)
+			}
+			// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
+			// fmt.Println("#yellow peek", toString(nt))
+			// fmt.Println("#yellow currentstate one liner", state.OneLiner)
+			state = newState
+		case builtinToken:
+			push(state.Vals, token)
+		case getVarToken:
+			evaled := getVar(state, string(token))
+			push(state.Vals, evaled)
+		case getVarFuncToken:
+			evaledFunc := getVar(state, string(token)).(func(*State) *State)
+			state.CurrFuncToken = evaledFunc
+			state.FuncTokenSpot = len(*state.Vals)
+		case nil:
+			push(state.Vals, nil)
+		case exitToken:
+		    // fmt.Println("exiting:", token)
+		    state = state.CallingParent
+		default:
+		    fmt.Printf("oops type %T\n", token)
+		    panic("fail")
+		}
 	}
 	return state
 }
@@ -194,11 +251,11 @@ func callFunc(state *State) *State {
 
 type TokenCacheValue struct {
 	I     int
-	Token Token
+	Token any
 	Name string
 }
 
-func nextToken(state *State) (Token, string) {
+func nextToken(state *State) (any, string) {
 	code := state.Code
 	i := state.I
 	if len(state.CachedTokens) == 0 {
@@ -218,7 +275,7 @@ func nextToken(state *State) (Token, string) {
 const stateOut = 0
 const stateIn = 1
 
-func nextTokenRaw(state *State, code string, i int) (Token, string, int) {
+func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 	// TODO: count subsequent newlines as a single newline.
 	if i > len(code) {
 		return exitToken("past end?"), "<past end>", -1
@@ -240,7 +297,7 @@ func nextTokenRaw(state *State, code string, i int) (Token, string, int) {
 				expectedQuoteEnd := string(code[i])
 				end := strings.Index(code[i+1:], expectedQuoteEnd)
 				str := code[i+1 : i+1+end]
-				return stringToken(str), str, i + 1 + end + 1
+				return str, str, i + 1 + end + 1
 			case '#':
 				// comments
 				end := strings.Index(code[i+1:], "\n")
@@ -265,7 +322,7 @@ func nextTokenRaw(state *State, code string, i int) (Token, string, int) {
 				expectedQuoteEnd := string(code[i]) + str
 				endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
 				token := code[i+1 : i+1+endIndex]
-				return stringToken(token), token, i + 1 + endIndex + len(expectedQuoteEnd)
+				return token, token, i + 1 + endIndex + len(expectedQuoteEnd)
 			default:
 			}
 		}
@@ -277,102 +334,19 @@ func nextTokenRaw(state *State, code string, i int) (Token, string, int) {
 	return exitToken("got to end?"), "got to end?", -1
 }
 
-func (theFunc *Func) Process(state *State) *State {
-	state.CurrFuncToken = nil
-	state.FuncTokenSpot = -1
 
-	newState := makeState(theFunc.FileName, theFunc.Code)
-	newState.CachedTokens = theFunc.CachedTokens
-	newState.GoUpCache = theFunc.GoUpCache
-	newState.FindMatchingCache = theFunc.FindMatchingCache
-	newState.I = theFunc.I
-	newState.Vals = state.Vals
-	newState.CallingParent = state
-	newState.LexicalParent = theFunc.LexicalParent
-	newState.OneLiner = theFunc.OneLiner
-	for i := len(theFunc.Params) - 1; i >= 0; i-- {
-		param := theFunc.Params[i]
-		newState.Vars[param] = pop(state.Vals)
-	}
-	// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
-	// fmt.Println("#yellow peek", toString(nt))
-	// fmt.Println("#yellow currentstate one liner", state.OneLiner)
-	return newState
-}
-
-type stringToken string
-func (s stringToken) Process(state *State) *State {
-	push(state.Vals, string(s))
-	return state
-}
-
-type boolToken bool
-func (v boolToken) Process(state *State) *State {
-	push(state.Vals, bool(v))
-	return state
-}
-
-type float64Token float64
-func (v float64Token) Process(state *State) *State {
-	push(state.Vals, float64(v))
-	return state
-}
-
-type intToken int
-func (v intToken) Process(state *State) *State {
-	push(state.Vals, int(v))
-	return state
-}
-
-type nullToken struct{}
-func (v nullToken) Process(state *State) *State {
-	push(state.Vals, nil)
-	return state
-}
 
 type getVarFuncToken string
-func (v getVarFuncToken) Process(state *State) *State {
-	evaledFunc := getVar(state, string(v)).(func(*State) *State)
-	state.CurrFuncToken = evaledFunc
-	state.FuncTokenSpot = len(*state.Vals)
-	return state
-}
-
 type getVarToken string
-func (v getVarToken) Process(state *State) *State {
-	evaled := getVar(state, string(v))
-	push(state.Vals, evaled)
-	return state
-}
-
 type exitToken string
-func (v exitToken) Process(state *State) *State {
-	state = state.CallingParent
-	return state
-}
-
 type builtinToken func(*State) *State
-func (b builtinToken) Process(state *State) *State {
-	push(state.Vals, b)
-	return state
-}
-
 type builtinFuncToken func(*State) *State
-func (b builtinFuncToken) Process(state *State) *State {
-	state.CurrFuncToken = b
-	state.FuncTokenSpot = len(*state.Vals)
-	return state
-}
-
 type immediateToken func(*State) *State
-func (i immediateToken) Process(state *State) *State {
-    return i(state)
-}
 
 // TODO: files must end in newline!
 type Skip string
 
-func makeToken(state *State, val string) Token {
+func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
 	if f, ok := runImmediates[val]; ok {
 		if state.Mode == "normal" {
@@ -399,10 +373,10 @@ func makeToken(state *State, val string) Token {
 			// panic("skipping!!")
 			// return Skip("")
 			// is this hit?
-			return stringToken(val)
+			return val
 		}
 		theString := val[1:]
-		return stringToken(theString)
+		return theString
 	}
 	if isNumeric(val) {
 		if strings.Contains(val, ".") {
@@ -410,24 +384,24 @@ func makeToken(state *State, val string) Token {
 			if err != nil {
 				panic(err)
 			}
-			return float64Token(f)
+			return f
 		}
 		i, err := strconv.Atoi(val)
 		if err != nil {
 			panic(err)
 		}
-		return intToken(i)
+		return i
 	}
 
 	switch val {
 	case "true":
-		return boolToken(true)
+		return true
 	case "false":
-		return boolToken(false)
+		return false
 	case "newline":
-		return stringToken("\n")
+		return "\n"
 	case "null":
-		return nullToken{}
+		return nil
 	}
 	
 	if state.CurrFuncToken != nil {
