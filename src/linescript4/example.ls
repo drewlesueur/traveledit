@@ -1,9 +1,10 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
 say ""
-def :plus1 :a
-    a + 1
-end
+# def :plus1 :a
+#     a + 1
+# end
+def :plus1 :a: a (+ 1) | * 21
 plus1 20
 # debugVals
 say
@@ -23,7 +24,6 @@ eval 'say "Hello2" name'
 if true: say "true!"
 say "done if"
 
-# def :plus1 :a: a (+ 1) | * 21
 
 
 exit

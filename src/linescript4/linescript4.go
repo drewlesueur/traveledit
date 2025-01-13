@@ -149,9 +149,9 @@ func main() {
 func eval(state *State) *State {
 	// for j := 0; j < 10000; j++ {
 	for {
-		if state == nil {
-			return nil
-		}
+    	if state == nil {
+    		return nil
+    	}
 		// if state.I == -1 {
 		// 	state = runImmediates["\n"](state)
 		// 	state = state.CallingParent
@@ -175,8 +175,6 @@ func eval(state *State) *State {
 		// 	pushT(state.Vals, token)
 		// case bool:
 		// 	pushT(state.Vals, token)
-		case builtinToken:
-			pushT(state.Vals, token)
 		case getVarToken:
 			evaled := getVar(state, string(token))
 			pushT(state.Vals, evaled)
@@ -184,9 +182,6 @@ func eval(state *State) *State {
 			evaledFunc := getVar(state, string(token)).(func(*State) *State)
 			state.CurrFuncToken = evaledFunc
 			state.FuncTokenSpot = len(*state.Vals)
-		case exitToken:
-		    // fmt.Println("exiting:", token)
-		    state = state.CallingParent
 		default:
 		    // wow, adding the string, int, float, bool cases
 		    // made the 1 million item loop in example2.js go from 24xms to 32xms
@@ -258,7 +253,7 @@ const stateIn = 1
 func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 	// TODO: count subsequent newlines as a single newline.
 	if i >= len(code) {
-		return exitToken("past end?"), "<past end>", -1
+		return immediateToken(endOfCodeImmediate), "past end?", -1
 	}
 	parseState := stateOut
 	start := -1
@@ -282,7 +277,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 				// comments
 				end := strings.Index(code[i+1:], "\n")
 				if end == -1 {
-					return exitToken("end in comment"), "end in comment", -1
+					return immediateToken(endOfCodeImmediate), "end in comment", -1
 				}
 				i = i + end
 			default:
@@ -312,17 +307,25 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 		// return makeToken(state, str), str, i + 1
 		return makeToken(state, str), str, i
 	}
-	return exitToken("got to end?"), "got to end?", -1
+	return immediateToken(endOfCodeImmediate), "got to end?", -1
 }
 
 
 
 type getVarFuncToken string
 type getVarToken string
-type exitToken string
 type builtinToken func(*State) *State
 type builtinFuncToken func(*State) *State
 type immediateToken func(*State) *State
+
+// attempt
+func makeImmediateFromBuiltinFuncToken(token func(*State) *State) immediateToken {
+    return immediateToken(func (state *State) *State {
+		state.CurrFuncToken = token
+		state.FuncTokenSpot = len(*state.Vals)
+        return state
+    })
+}
 
 // TODO: files must end in newline!
 type Skip string
@@ -341,6 +344,10 @@ func makeToken(state *State, val string) any {
 		case "normal":
 			if state.CurrFuncToken == nil {
 				return builtinFuncToken(b)
+				
+				// attempt to require fewer cases in token switch
+				// but it's slower, with closure and even polymorphic types, it's slower.
+				// return makeImmediateFromBuiltinFuncToken(b)
 			} else {
 				return builtinToken(b)
 			}
@@ -852,9 +859,9 @@ func initBuiltins() {
 			return string(b)
 		}),
 		"exit": func(state *State) *State {
-			clearFuncToken(state)
-			return nil
-		},
+	        clearFuncToken(state)
+	        return nil
+        },
 		"makeObject": func(state *State) *State {
 			pushT(state.Vals, map[string]any{})
 			clearFuncToken(state)
@@ -1335,6 +1342,11 @@ func makeFuncToken(token *Func) func(*State) *State {
 }
 
 var funcBuiltin func(*State) *State
+
+func endOfCodeImmediate(state *State) *State {
+	clearFuncToken(state)
+	return state.CallingParent
+}
 
 
 func now() any {
