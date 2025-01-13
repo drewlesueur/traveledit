@@ -4,8 +4,7 @@
 say "Hello"
 let :name "Drew"
 say "Hello" name
-eval 'say "Hello2" name
-'
+eval 'say "Hello2" name'
 exit
 
 {

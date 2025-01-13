@@ -154,7 +154,7 @@ func eval(state *State) *State {
 		// }
 		token, name := nextToken(state)
 		// #cyan
-		// fmt.Printf("#cyan token: %T %q\n", token, name)
+		// fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
 		_ = name
 		switch token := token.(type){
 		case immediateToken:
@@ -276,7 +276,7 @@ const stateIn = 1
 
 func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 	// TODO: count subsequent newlines as a single newline.
-	if i > len(code) {
+	if i >= len(code) {
 		return exitToken("past end?"), "<past end>", -1
 	}
 	parseState := stateOut
@@ -328,7 +328,8 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 	}
 	if parseState == stateIn {
 		str := code[start:i]
-		return makeToken(state, str), str, i + 1
+		// return makeToken(state, str), str, i + 1
+		return makeToken(state, str), str, i
 	}
 	return exitToken("got to end?"), "got to end?", -1
 }
