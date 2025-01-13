@@ -149,9 +149,9 @@ func main() {
 func eval(state *State) *State {
 	// for j := 0; j < 10000; j++ {
 	for {
-    	if state == nil {
-    		return nil
-    	}
+    	// if state == nil {
+    	// 	return nil
+    	// }
 		// if state.I == -1 {
 		// 	state = runImmediates["\n"](state)
 		// 	state = state.CallingParent
@@ -164,6 +164,9 @@ func eval(state *State) *State {
 		switch token := token.(type){
 		case immediateToken:
     		state = token(state)
+    	    if state == nil {
+    	    	return nil
+    	    }
 		case builtinFuncToken:
 			state.CurrFuncToken = token
 			state.FuncTokenSpot = len(*state.Vals)
