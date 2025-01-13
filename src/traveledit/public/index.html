@@ -5789,7 +5789,7 @@ var isPollingTerminal = false
 var lastPolled = null
 var lastPollResponse = null
 var lastPollError = null
-var lastPollInFlight = null
+var pollInFlight = null
 // allow hangups and newSession
 
 function pollTerminals() {
@@ -5806,13 +5806,13 @@ function pollTerminals() {
     //     isPollingTerminal = false
     //     return
     // }
-    lastPollInFlight = true
+    pollInFlight = true
     fetch(proxyPath + "/myterminalpoll?clientid=" + clientId, {
         cache: "no-cache"
     }).then(r => {
         return r.json()
     }).then(wrapperR => {
-        lastPollInFlight = false
+        pollInFlight = false
         lastPollResponse = new Date()
         // map of terminals and their payload and maybe meta info
         if (wrapperR.PasteBuffer) {
@@ -5986,7 +5986,7 @@ function pollTerminals() {
         // in-flight, don't poll again.
         // alert("polling error: " + e)
         lastPollError = new Date()
-        lastPollInFlight = false
+        pollInFlight = false
         setTimeout(pollTerminals, 1)
     })
 }
@@ -7420,6 +7420,7 @@ function render() {
         theStatus.lastPollResponse = lastPollResponse
         theStatus.lastPollError = lastPollError
         theStatus.isPollingTerminal = isPollingTerminal
+        theStatus.pollInFlight = pollInFlight
         
         
         
@@ -8944,6 +8945,11 @@ var keywords = {
     "new": true,
 
     "func": true,
+    "def": true,
+    "end": true,
+    "loop": true,
+    "local": true,
+    "each": true,
     "go": true,
     "range": true,
     "len": true,
