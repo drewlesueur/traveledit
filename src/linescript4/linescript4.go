@@ -167,6 +167,22 @@ func eval(state *State) *State {
 		case builtinFuncToken:
 			state.CurrFuncToken = token
 			state.FuncTokenSpot = len(*state.Vals)
+		case getVarToken:
+			evaled := getVar(state, string(token))
+			pushT(state.Vals, evaled)
+		case getVarFuncToken:
+			evaledFunc := getVar(state, string(token)).(func(*State) *State)
+			state.CurrFuncToken = evaledFunc
+			state.FuncTokenSpot = len(*state.Vals)
+        
+        // this was an attempt to replace the above cases, but slower than switch
+        // every added case is slow, but interfaces (and closures) are even slower
+        // probably unless there are lots of cases
+        // case Immediate:
+        //     state = token.Process(state)
+		
+		
+		
 		// case string:
 		// 	pushT(state.Vals, token)
 		// case int:
@@ -175,13 +191,20 @@ func eval(state *State) *State {
 		// 	pushT(state.Vals, token)
 		// case bool:
 		// 	pushT(state.Vals, token)
-		case getVarToken:
-			evaled := getVar(state, string(token))
-			pushT(state.Vals, evaled)
-		case getVarFuncToken:
-			evaledFunc := getVar(state, string(token)).(func(*State) *State)
-			state.CurrFuncToken = evaledFunc
-			state.FuncTokenSpot = len(*state.Vals)
+		
+		// slower
+		// case getVarToken:
+		// 	evaled := getVar(state, string(token))
+		// 	if evaledFunc, ok := evaled.(func(*State) *State); ok {
+		// 		state.CurrFuncToken = evaledFunc
+		// 		state.FuncTokenSpot = len(*state.Vals)
+		// 	} else {
+		// 		pushT(state.Vals, evaled)
+		// 	}
+		
+		// faster
+
+
 		default:
 		    // wow, adding the string, int, float, bool cases
 		    // made the 1 million item loop in example2.js go from 24xms to 32xms
@@ -327,6 +350,33 @@ func makeImmediateFromBuiltinFuncToken(token func(*State) *State) immediateToken
     })
 }
 
+type Immediate interface{
+    Process(state *State) *State
+}
+
+func (token builtinFuncToken) Process(state *State) *State {
+	state.CurrFuncToken = token
+	state.FuncTokenSpot = len(*state.Vals)
+    return state
+}
+func (token getVarToken) Process(state *State) *State {
+	evaled := getVar(state, string(token))
+	pushT(state.Vals, evaled)
+    return state
+}
+func (token getVarFuncToken) Process(state *State) *State {
+	evaledFunc := getVar(state, string(token)).(func(*State) *State)
+	state.CurrFuncToken = evaledFunc
+	state.FuncTokenSpot = len(*state.Vals)
+    return state
+}
+func (token immediateToken) Process(state *State) *State {
+    state = token(state)
+    return state
+}
+
+
+
 // TODO: files must end in newline!
 type Skip string
 
@@ -416,6 +466,8 @@ func makeToken(state *State, val string) any {
 	switch state.Mode {
 	case "normal":
 		if state.CurrFuncToken == nil {
+	    	// return getVarToken(val)
+	    	
 			evaled := getVar(state, val)
 			// once a func, always a func
 			// but have to eval twice the first round?!
