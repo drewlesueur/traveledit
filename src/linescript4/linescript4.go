@@ -83,9 +83,14 @@ func makeState(fileName, code string) *State {
 		Mode:      "normal",
 		ModeStack: nil,
 
-		CachedTokens:       nil,
-		GoUpCache:          nil,
-		FindMatchingCache:  nil,
+		CachedTokens:       make([]*TokenCacheValue, len(code)+1),
+		
+		// Preinitializing this makes eval in a loop slower if it doesn't use these
+		// though if you eval in a loop with a static string, you should be able to optimize
+		GoUpCache:          make([]*int, len(code)+1),
+		FindMatchingCache:  make([]*FindMatchingResult, len(code)+1),
+		
+		
 		Vals:               &[]any{},
 		ValsStack:          nil,
 		EndStack:           nil,
@@ -257,9 +262,6 @@ type TokenCacheValue struct {
 func nextToken(state *State) (any, string) {
 	code := state.Code
 	i := state.I
-	if len(state.CachedTokens) == 0 {
-		state.CachedTokens = make([]*TokenCacheValue, len(code)+1)
-	}
 	if cached := state.CachedTokens[i]; cached != nil {
 		state.I = cached.I
 		return cached.Token, cached.Name
@@ -447,13 +449,6 @@ func makeToken(state *State, val string) any {
 	return nil
 }
 
-type VarName string
-
-// func isNumeric(s string) bool {
-// 	_, err := strconv.ParseFloat(s, 64)
-// 	return err == nil
-// }
-
 func isNumeric(s string) bool {
 	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || (s[0] == '-' && len(s) > 1))
 }
@@ -481,7 +476,6 @@ loopy:
 func findBeforeEndLine(state *State) int {
 	// line or parens or alternate line enders (, |)
 	// reusing this helpful cache
-	initFindMatchingCache(state)
 	if c := state.FindMatchingCache[state.I]; c != nil {
 		return c.I
 	}
@@ -518,7 +512,6 @@ func findBeforeEndLine(state *State) int {
 }
 func findBeforeEndLineOnlyLine(state *State) int {
 	// reusing this helpful cache
-	initFindMatchingCache(state)
 	if c := state.FindMatchingCache[state.I]; c != nil {
 		return c.I
 	}
@@ -564,7 +557,6 @@ func findAfterEndLineOnlyLine(state *State) int {
 }
 
 func findMatchingAfter(state *State, things []string) *FindMatchingResult {
-	initFindMatchingCache(state)
 	if c := state.FindMatchingCache[state.I]; c != nil {
 		return c
 	}
@@ -595,16 +587,6 @@ func findMatchingBefore(state *State, things []string) int {
 	return r.I - len(r.Match)
 }
 
-func initGoUpCache(state *State) {
-	if len(state.GoUpCache) == 0 {
-		state.GoUpCache = make([]*int, len(state.Code)+1)
-	}
-}
-func initFindMatchingCache(state *State) {
-	if len(state.FindMatchingCache) == 0 {
-		state.FindMatchingCache = make([]*FindMatchingResult, len(state.Code)+1)
-	}
-}
 
 var builtins map[string]func(state *State) *State
 var runImmediates map[string]func(state *State) *State
@@ -647,44 +629,27 @@ func initBuiltins() {
 			return state
 		},
 		"\n": func(state *State) *State {
-			// if state.Mode == "normal" {
-				if state.CurrFuncToken != nil {
-					// fmt.Println("calling", state.Vals) // _red
-					// fmt.Println("calling", toString(state.CurrFuncToken)) // _red
-				}
-				oldState := state
-				state = callFunc(state)
+			oldState := state
+			state = callFunc(state)
 
-				// oldState == state check becauze the moment you change state when calling function, you don't want it to end right away
-				if oldState == state && oldState.OneLiner {
-					state = doEnd(state)
-				}
-
-				// if state != nil && state.CurrFuncToken != nil {
-				// 	// fmt.Println("done calling", state.Vals) // _red
-				// 	// fmt.Println("done calling") // _red
-				// }
-			// }
+			// oldState == state check becauze the moment you change state when calling function, you don't want it to end right away
+			if oldState == state && oldState.OneLiner {
+				state = doEnd(state)
+			}
 			return state
 		},
 		":": func(state *State) *State {
-			// if state.Mode == "normal" {
-				state.OneLiner = true
-				state = callFunc(state)
-				// state.OneLiner = false
-			// }
+			state.OneLiner = true
+			state = callFunc(state)
+			// state.OneLiner = false
 			return state
 		},
 		",": func(state *State) *State {
-			// if state.Mode == "normal" {
-				state = callFunc(state)
-			// }
+			state = callFunc(state)
 			return state
 		},
 		"|": func(state *State) *State {
-			// if state.Mode == "normal" {
-				state = callFunc(state)
-			// }
+			state = callFunc(state)
 			return state
 		},
 		"(": func(state *State) *State {
@@ -966,7 +931,6 @@ func initBuiltins() {
 		},
 		"goUp": func(state *State) *State {
 			locText := popT(state.Vals).(string)
-			initGoUpCache(state)
 			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 				state.I = *cachedI
 				clearFuncToken(state)
@@ -986,7 +950,6 @@ func initBuiltins() {
 			if cond {
 				// assuming static location
 
-				initGoUpCache(state)
 				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 					state.I = *cachedI
 					return state
@@ -1004,7 +967,6 @@ func initBuiltins() {
 		"goDown": func(state *State) *State {
 			locText := popT(state.Vals).(string)
 			// assuming static location
-			initGoUpCache(state)
 			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 				state.I = *cachedI
 				clearFuncToken(state)
@@ -1023,7 +985,6 @@ func initBuiltins() {
 
 			if cond {
 				// assuming static location
-				initGoUpCache(state)
 				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 					state.I = *cachedI
 					clearFuncToken(state)
@@ -1849,8 +1810,6 @@ func toString(a any) any {
 	//         return "<nil func>"
 	//     }
 	//        return a.Name
-	case VarName:
-		return "VarName: " + a
 	default:
 		return fmt.Sprintf("type is %T, value is %#v\n", a, a)
 	}

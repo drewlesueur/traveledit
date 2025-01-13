@@ -1,5 +1,9 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+"apples" and "bananas" | say "should be bananas:" it
+"" and "bananas" | say "should be empty:" it
+"apples" or "bananas" | say "should be apples:" it
+"" or "bananas" | say "should be bananas:" it
 
 say "Hello"
 let :name "Drew"
@@ -57,7 +61,7 @@ say
 
 # # say (b)
 
-let a {
+let :a {
     "foo": "bar" "biz": "baz"
      "foo2": "bar", "biz2": "baz"
      "other": (10 + 20)
