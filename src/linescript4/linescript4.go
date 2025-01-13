@@ -70,9 +70,7 @@ type State struct {
 	FuncTokenSpotStack []int
 	LexicalParent      *State
 	CallingParent      *State
-	IntA               int
-	Key                string
-	KeyStack           []string
+	DebugTokens bool
 }
 
 func makeState(fileName, code string) *State {
@@ -99,8 +97,7 @@ func makeState(fileName, code string) *State {
 		FuncTokenStack:     nil,
 		FuncTokenSpot:      -1,
 		FuncTokenSpotStack: nil,
-		IntA:               0,
-		Key:                "",
+		DebugTokens: false,
 	}
 }
 
@@ -172,7 +169,9 @@ func eval(state *State) *State {
 		// state.I = r.I
 		token, name := nextToken(state)
 		// #cyan
-		// fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
+		if state.DebugTokens {
+			fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
+		}
 		_ = name
 		switch token := token.(type){
 		case immediateToken:
@@ -391,6 +390,9 @@ func (token immediateToken) Process(state *State) *State {
     return state
 }
 
+func noop(state *State) *State {
+    return state
+}
 
 
 // TODO: files must end in newline!
@@ -398,9 +400,14 @@ type Skip string
 
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
+	if f, ok := runAlwaysImmediates[val]; ok {
+		return immediateToken(f)
+	}
 	if f, ok := runImmediates[val]; ok {
 		if state.Mode == "normal" {
 			return immediateToken(f)
+		} else {
+		    return immediateToken(noop)
 		}
 	}
 	if b, ok := builtins[val]; ok {
@@ -644,68 +651,11 @@ func findMatchingBefore(state *State, things []string) int {
 
 var builtins map[string]func(state *State) *State
 var runImmediates map[string]func(state *State) *State
+var runAlwaysImmediates map[string]func(state *State) *State
 
 
 func initBuiltins() {
-	runImmediates = map[string]func(state *State) *State{
-		"__vals": func(state *State) *State {
-			pushT(state.Vals, state.Vals)
-			return state
-		},
-		"it": func(state *State) *State {
-			items := spliceT(state.Vals, state.FuncTokenSpot-1, 1, nil)
-			state.FuncTokenSpot--
-			item := (*items)[0]
-			pushT(state.Vals, item)
-			return state
-		},
-		"and": func(state *State) *State {
-			// lazy eval lol
-			v := peek(state.Vals)
-			if !toBool(v).(bool) {
-				i := findBeforeEndLine(state)
-				// fmt.Println("found:", state.Code[i:i+20])
-				state.I = i
-			} else {
-				popT(state.Vals)
-			}
-			return state
-		},
-		"or": func(state *State) *State {
-			// lazy eval lol
-			v := peek(state.Vals)
-			if toBool(v).(bool) {
-				i := findBeforeEndLine(state)
-				state.I = i
-			} else {
-				popT(state.Vals)
-			}
-			return state
-		},
-		"\n": func(state *State) *State {
-			oldState := state
-			state = callFunc(state)
-
-			// oldState == state check becauze the moment you change state when calling function, you don't want it to end right away
-			if oldState == state && oldState.OneLiner {
-				state = doEnd(state)
-			}
-			return state
-		},
-		":": func(state *State) *State {
-			state.OneLiner = true
-			state = callFunc(state)
-			// state.OneLiner = false
-			return state
-		},
-		",": func(state *State) *State {
-			state = callFunc(state)
-			return state
-		},
-		"|": func(state *State) *State {
-			state = callFunc(state)
-			return state
-		},
+	runAlwaysImmediates = map[string]func(state *State) *State{
 		"(": func(state *State) *State {
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "normal"
@@ -800,6 +750,66 @@ func initBuiltins() {
 			state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
 
 			pushT(state.Vals, myObj)
+			return state
+		},
+    }
+	runImmediates = map[string]func(state *State) *State{
+		"__vals": func(state *State) *State {
+			pushT(state.Vals, state.Vals)
+			return state
+		},
+		"it": func(state *State) *State {
+			items := spliceT(state.Vals, state.FuncTokenSpot-1, 1, nil)
+			state.FuncTokenSpot--
+			item := (*items)[0]
+			pushT(state.Vals, item)
+			return state
+		},
+		"and": func(state *State) *State {
+			// lazy eval lol
+			v := peek(state.Vals)
+			if !toBool(v).(bool) {
+				i := findBeforeEndLine(state)
+				// fmt.Println("found:", state.Code[i:i+20])
+				state.I = i
+			} else {
+				popT(state.Vals)
+			}
+			return state
+		},
+		"or": func(state *State) *State {
+			// lazy eval lol
+			v := peek(state.Vals)
+			if toBool(v).(bool) {
+				i := findBeforeEndLine(state)
+				state.I = i
+			} else {
+				popT(state.Vals)
+			}
+			return state
+		},
+		"\n": func(state *State) *State {
+			oldState := state
+			state = callFunc(state)
+
+			// oldState == state check becauze the moment you change state when calling function, you don't want it to end right away
+			if oldState == state && oldState.OneLiner {
+				state = doEnd(state)
+			}
+			return state
+		},
+		":": func(state *State) *State {
+			state.OneLiner = true
+			state = callFunc(state)
+			// state.OneLiner = false
+			return state
+		},
+		",": func(state *State) *State {
+			state = callFunc(state)
+			return state
+		},
+		"|": func(state *State) *State {
+			state = callFunc(state)
 			return state
 		},
 		"func": func(state *State) *State {
@@ -1378,6 +1388,16 @@ func initBuiltins() {
 		},
 		"clear": func(state *State) *State {
 			spliceT(state.Vals, 0, len(*state.Vals), nil)
+			clearFuncToken(state)
+			return state
+		},
+		"debugTokensOn": func(state *State) *State {
+			state.DebugTokens = true
+			clearFuncToken(state)
+			return state
+		},
+		"debugTokensOff": func(state *State) *State {
+			state.DebugTokens = false
 			clearFuncToken(state)
 			return state
 		},
