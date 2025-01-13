@@ -143,6 +143,16 @@ func main() {
 	// fmt.Println(code)
 	// TODO: init caches here?
 	state := makeState(fileName, code)
+	
+    // start := time.Now()
+	// for state.I >= 0 {
+		// _, name := nextToken(state)
+		// _ = name
+		// // fmt.Println("#deeppink:", name)
+	// }
+	// state.I = 0
+	// fmt.Println(time.Since(start))
+	
 	eval(state)
 }
 
@@ -157,6 +167,9 @@ func eval(state *State) *State {
 		// 	state = state.CallingParent
 		// 	continue
 		// }
+		// r := state.CachedTokens[state.I]
+		// token := r.Token
+		// state.I = r.I
 		token, name := nextToken(state)
 		// #cyan
 		// fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
