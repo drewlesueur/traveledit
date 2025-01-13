@@ -1,5 +1,15 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+say ""
+def :plus1 :a
+    a + 1
+end
+plus1 20
+# debugVals
+say
+say "done"
+exit
+
 "apples" and "bananas" | say "should be bananas:" it
 "" and "bananas" | say "should be empty:" it
 "apples" or "bananas" | say "should be apples:" it
@@ -9,6 +19,13 @@ say "Hello"
 let :name "Drew"
 say "Hello" name
 eval 'say "Hello2" name'
+
+if true: say "true!"
+say "done if"
+
+# def :plus1 :a: a (+ 1) | * 21
+
+
 exit
 
 {

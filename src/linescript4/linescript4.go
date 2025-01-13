@@ -175,27 +175,6 @@ func eval(state *State) *State {
 		// 	pushT(state.Vals, token)
 		// case bool:
 		// 	pushT(state.Vals, token)
-		case *Func:
-			state.CurrFuncToken = nil
-			state.FuncTokenSpot = -1
-  
-			newState := makeState(token.FileName, token.Code)
-			newState.CachedTokens = token.CachedTokens
-			newState.GoUpCache = token.GoUpCache
-			newState.FindMatchingCache = token.FindMatchingCache
-			newState.I = token.I
-			newState.Vals = state.Vals
-			newState.CallingParent = state
-			newState.LexicalParent = token.LexicalParent
-			newState.OneLiner = token.OneLiner
-			for i := len(token.Params) - 1; i >= 0; i-- {
-				param := token.Params[i]
-				newState.Vars[param] = popT(state.Vals)
-			}
-			// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
-			// fmt.Println("#yellow peek", toString(nt))
-			// fmt.Println("#yellow currentstate one liner", state.OneLiner)
-			state = newState
 		case builtinToken:
 			pushT(state.Vals, token)
 		case getVarToken:
@@ -1165,9 +1144,9 @@ func initBuiltins() {
 				LexicalParent:     state,
 				OneLiner:          state.OneLiner,
 			}
-			// stateFunc := makeFuncToken(f)
-			// state.Vars[funcName] = stateFunc
-			state.Vars[funcName] = f
+			stateFunc := makeFuncToken(f)
+			state.Vars[funcName] = stateFunc
+			// state.Vars[funcName] = f
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			if state.OneLiner {
@@ -1201,9 +1180,9 @@ func initBuiltins() {
 				LexicalParent:     state,
 				OneLiner:          state.OneLiner,
 			}
-			// stateFunc := makeFuncToken(f)
-			// pushT(state.Vals, stateFunc)
-			pushT(state.Vals, f)
+			stateFunc := makeFuncToken(f)
+			pushT(state.Vals, stateFunc)
+			// pushT(state.Vals, f)
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			if state.OneLiner {
@@ -1329,6 +1308,30 @@ func initBuiltins() {
 		},
 	}
 	funcBuiltin = builtins["func"]
+}
+
+func makeFuncToken(token *Func) func(*State) *State {
+    return func(state *State) *State {
+		state.CurrFuncToken = nil
+		state.FuncTokenSpot = -1
+		newState := makeState(token.FileName, token.Code)
+		newState.CachedTokens = token.CachedTokens
+		newState.GoUpCache = token.GoUpCache
+		newState.FindMatchingCache = token.FindMatchingCache
+		newState.I = token.I
+		newState.Vals = state.Vals
+		newState.CallingParent = state
+		newState.LexicalParent = token.LexicalParent
+		newState.OneLiner = token.OneLiner
+		for i := len(token.Params) - 1; i >= 0; i-- {
+			param := token.Params[i]
+			newState.Vars[param] = popT(state.Vals)
+		}
+		// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
+		// fmt.Println("#yellow peek", toString(nt))
+		// fmt.Println("#yellow currentstate one liner", state.OneLiner)
+		return newState
+    }
 }
 
 var funcBuiltin func(*State) *State
