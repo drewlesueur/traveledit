@@ -163,13 +163,13 @@ func eval(state *State) *State {
 			state.CurrFuncToken = token
 			state.FuncTokenSpot = len(*state.Vals)
 		// case string:
-		// 	push(state.Vals, token)
+		// 	pushT(state.Vals, token)
 		// case int:
-		// 	push(state.Vals, token)
+		// 	pushT(state.Vals, token)
 		// case float64:
-		// 	push(state.Vals, token)
+		// 	pushT(state.Vals, token)
 		// case bool:
-		// 	push(state.Vals, token)
+		// 	pushT(state.Vals, token)
 		case *Func:
 			state.CurrFuncToken = nil
 			state.FuncTokenSpot = -1
@@ -185,17 +185,17 @@ func eval(state *State) *State {
 			newState.OneLiner = token.OneLiner
 			for i := len(token.Params) - 1; i >= 0; i-- {
 				param := token.Params[i]
-				newState.Vars[param] = pop(state.Vals)
+				newState.Vars[param] = popT(state.Vals)
 			}
 			// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
 			// fmt.Println("#yellow peek", toString(nt))
 			// fmt.Println("#yellow currentstate one liner", state.OneLiner)
 			state = newState
 		case builtinToken:
-			push(state.Vals, token)
+			pushT(state.Vals, token)
 		case getVarToken:
 			evaled := getVar(state, string(token))
-			push(state.Vals, evaled)
+			pushT(state.Vals, evaled)
 		case getVarFuncToken:
 			evaledFunc := getVar(state, string(token)).(func(*State) *State)
 			state.CurrFuncToken = evaledFunc
@@ -208,7 +208,7 @@ func eval(state *State) *State {
 		    // made the 1 million item loop in example2.js go from 24xms to 32xms
 		    // I tried interfaces with a ProcessMethod and that was also slow
 		    // see jump_alt and jump_table branches
-			push(state.Vals, token)
+			pushT(state.Vals, token)
 		    // fmt.Printf("oops type %T\n", token)
 		    // panic("fail")
 		}
@@ -613,14 +613,14 @@ var runImmediates map[string]func(state *State) *State
 func initBuiltins() {
 	runImmediates = map[string]func(state *State) *State{
 		"__vals": func(state *State) *State {
-			push(state.Vals, state.Vals)
+			pushT(state.Vals, state.Vals)
 			return state
 		},
 		"it": func(state *State) *State {
-			items := splice(state.Vals, state.FuncTokenSpot-1, 1, nil).(*[]any)
+			items := spliceT(state.Vals, state.FuncTokenSpot-1, 1, nil)
 			state.FuncTokenSpot--
 			item := (*items)[0]
-			push(state.Vals, item)
+			pushT(state.Vals, item)
 			return state
 		},
 		"and": func(state *State) *State {
@@ -631,7 +631,7 @@ func initBuiltins() {
 				// fmt.Println("found:", state.Code[i:i+20])
 				state.I = i
 			} else {
-				pop(state.Vals)
+				popT(state.Vals)
 			}
 			return state
 		},
@@ -642,7 +642,7 @@ func initBuiltins() {
 				i := findBeforeEndLine(state)
 				state.I = i
 			} else {
-				pop(state.Vals)
+				popT(state.Vals)
 			}
 			return state
 		},
@@ -746,7 +746,7 @@ func initBuiltins() {
 			state.Vals = state.ValsStack[len(state.ValsStack)-1]
 			state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
 
-			push(state.Vals, myArr)
+			pushT(state.Vals, myArr)
 			return state
 		},
 		"{": func(state *State) *State {
@@ -780,7 +780,7 @@ func initBuiltins() {
 			state.Vals = state.ValsStack[len(state.ValsStack)-1]
 			state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
 
-			push(state.Vals, myObj)
+			pushT(state.Vals, myObj)
 			return state
 		},
 		"func": func(state *State) *State {
@@ -801,12 +801,12 @@ func initBuiltins() {
 		"+":   makeBuiltin_2_1(plus),
 		"-":   makeBuiltin_2_1(minus),
 		"+f": func(state *State) *State {
-			push(state.Vals, pop(state.Vals).(float64)+pop(state.Vals).(float64))
+			pushT(state.Vals, popT(state.Vals).(float64)+popT(state.Vals).(float64))
 			clearFuncToken(state)
 			return state
 		},
 		"-f": func(state *State) *State {
-			push(state.Vals, pop(state.Vals).(float64)-pop(state.Vals).(float64))
+			pushT(state.Vals, popT(state.Vals).(float64)-popT(state.Vals).(float64))
 			clearFuncToken(state)
 			return state
 		},
@@ -846,20 +846,20 @@ func initBuiltins() {
 		"toInt":       makeBuiltin_1_1(toInt),
 		"toFloat":     makeBuiltin_1_1(toFloat),
 		"say": func(state *State) *State {
-			things := splice(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil).(*[]any)
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 			thingsVal := *things
 			if len(thingsVal) == 0 {
-				thingsVal = append(thingsVal, pop(state.Vals))
+				thingsVal = append(thingsVal, popT(state.Vals))
 			}
 			say(thingsVal...)
 			clearFuncToken(state)
 			return state
 		},
 		"say2": func(state *State) *State {
-			things := splice(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil).(*[]any)
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 			thingsVal := *things
 			if len(thingsVal) == 0 {
-				thingsVal = append(thingsVal, pop(state.Vals))
+				thingsVal = append(thingsVal, popT(state.Vals))
 			}
 			fmt.Println("#deepskyblue say2", len(*things))
 			for i, v := range *things {
@@ -870,7 +870,6 @@ func initBuiltins() {
 		},
 		"put":        makeNoop(),
 		"push":       makeBuiltin_2_0(push),
-		"push2":      makeBuiltin_2_0(push2),
 		"pushm":      makeBuiltin_2_0(pushm),
 		"pop":        makeBuiltin_1_1(pop),
 		"unshift":    makeBuiltin_2_0(unshift),
@@ -913,31 +912,31 @@ func initBuiltins() {
 			return nil
 		},
 		"makeObject": func(state *State) *State {
-			push(state.Vals, map[string]any{})
+			pushT(state.Vals, map[string]any{})
 			clearFuncToken(state)
 			return state
 		},
 		"makeArray": func(state *State) *State {
-			push(state.Vals, &[]any{})
+			pushT(state.Vals, &[]any{})
 			clearFuncToken(state)
 			return state
 		},
 		"incr": func(state *State) *State {
-			a := pop(state.Vals).(string)
+			a := popT(state.Vals).(string)
 			state.Vars[a] = state.Vars[a].(int) + 1
 			clearFuncToken(state)
 			return state
 		},
 		"local": func(state *State) *State {
-			b := pop(state.Vals)
-			a := pop(state.Vals).(string)
+			b := popT(state.Vals)
+			a := popT(state.Vals).(string)
 			state.Vars[a] = b
 			clearFuncToken(state)
 			return state
 		},
 		"let": func(state *State) *State {
-			b := pop(state.Vals)
-			a := pop(state.Vals).(string)
+			b := popT(state.Vals)
+			a := popT(state.Vals).(string)
 			parentState := findParent(state, a)
 			if parentState == nil {
 				parentState = state
@@ -955,8 +954,8 @@ func initBuiltins() {
 		},
 		"as": func(state *State) *State {
 			// say(state.Vals)
-			b := pop(state.Vals).(string)
-			a := pop(state.Vals)
+			b := popT(state.Vals).(string)
+			a := popT(state.Vals)
 			// if b == "IntA" {
 			//     state.IntA = a.(int)
 			//     return state
@@ -966,7 +965,7 @@ func initBuiltins() {
 			return state
 		},
 		"goUp": func(state *State) *State {
-			locText := pop(state.Vals).(string)
+			locText := popT(state.Vals).(string)
 			initGoUpCache(state)
 			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 				state.I = *cachedI
@@ -981,8 +980,8 @@ func initBuiltins() {
 			return state
 		},
 		"goUpIf": func(state *State) *State {
-			locText := pop(state.Vals).(string)
-			cond := pop(state.Vals).(bool)
+			locText := popT(state.Vals).(string)
+			cond := popT(state.Vals).(bool)
 
 			if cond {
 				// assuming static location
@@ -998,12 +997,12 @@ func initBuiltins() {
 				state.GoUpCache[state.I] = &newI
 				state.I = newI
 			}
-			// push(state.Vals, state[a])
+			// pushT(state.Vals, state[a])
 			clearFuncToken(state)
 			return state
 		},
 		"goDown": func(state *State) *State {
-			locText := pop(state.Vals).(string)
+			locText := popT(state.Vals).(string)
 			// assuming static location
 			initGoUpCache(state)
 			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
@@ -1019,8 +1018,8 @@ func initBuiltins() {
 			return state
 		},
 		"goDownIf": func(state *State) *State {
-			locText := pop(state.Vals).(string)
-			cond := pop(state.Vals).(bool)
+			locText := popT(state.Vals).(string)
+			cond := popT(state.Vals).(bool)
 
 			if cond {
 				// assuming static location
@@ -1035,7 +1034,7 @@ func initBuiltins() {
 				state.GoUpCache[state.I] = &newI
 				state.I = newI
 			}
-			// push(state.Vals, state[a])
+			// pushT(state.Vals, state[a])
 			clearFuncToken(state)
 			return state
 		},
@@ -1045,8 +1044,8 @@ func initBuiltins() {
 		},
 		"loop": func(state *State) *State {
 			theIndex := -1
-			indexVar := pop(state.Vals).(string)
-			loops := pop(state.Vals).(int)
+			indexVar := popT(state.Vals).(string)
+			loops := popT(state.Vals).(int)
 			state.Vars[indexVar] = -1
 			var spot = state.I
 			var endEach func(state *State) *State
@@ -1075,7 +1074,7 @@ func initBuiltins() {
 		},
 		"loopx": func(state *State) *State {
 			theIndex := -1
-			loops := pop(state.Vals).(int)
+			loops := popT(state.Vals).(int)
 			var spot = state.I
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
@@ -1084,7 +1083,7 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				} else {
-					push(state.Vals, theIndex)
+					pushT(state.Vals, theIndex)
 					state.I = spot
 					state.EndStack = append(state.EndStack, endEach)
 				}
@@ -1103,11 +1102,11 @@ func initBuiltins() {
 		},
 		"each": func(state *State) *State {
 			theIndex := -1
-			itemVar := pop(state.Vals).(string)
-			indexVar := pop(state.Vals).(string)
+			itemVar := popT(state.Vals).(string)
+			indexVar := popT(state.Vals).(string)
 
 			var arr *[]any
-			switch actualArr := pop(state.Vals).(type) {
+			switch actualArr := popT(state.Vals).(type) {
 			case *[]any:
 				arr = actualArr
 			case []any:
@@ -1143,7 +1142,7 @@ func initBuiltins() {
 			return state
 		},
 		"if": func(state *State) *State {
-			cond := pop(state.Vals)
+			cond := popT(state.Vals)
 			if toBool(cond).(bool) == true {
 				state.EndStack = append(state.EndStack, endIf)
 			} else {
@@ -1188,12 +1187,12 @@ func initBuiltins() {
 			return state.CallingParent
 		},
 		"def": func(state *State) *State {
-			params := splice(state.Vals, state.FuncTokenSpot+1, len(*state.Vals)-(state.FuncTokenSpot+1), nil).(*[]any)
+			params := spliceT(state.Vals, state.FuncTokenSpot+1, len(*state.Vals)-(state.FuncTokenSpot+1), nil)
 			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
 				paramStrings[i] = p.(string)
 			}
-			funcName := pop(state.Vals).(string)
+			funcName := popT(state.Vals).(string)
 			f := &Func{
 				FileName:          state.FileName,
 				I:                 state.I,
@@ -1225,7 +1224,7 @@ func initBuiltins() {
 			return state
 		},
 		"func": func(state *State) *State {
-			params := splice(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil).(*[]any)
+			params := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
 				paramStrings[i] = p.(string)
@@ -1242,8 +1241,8 @@ func initBuiltins() {
 				OneLiner:          state.OneLiner,
 			}
 			// stateFunc := makeFuncToken(f)
-			// push(state.Vals, stateFunc)
-			push(state.Vals, f)
+			// pushT(state.Vals, stateFunc)
+			pushT(state.Vals, f)
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			if state.OneLiner {
@@ -1279,39 +1278,39 @@ func initBuiltins() {
 
 		},
 		"execBash": func(state *State) *State {
-			val := pop(state.Vals).(string)
+			val := popT(state.Vals).(string)
 			cmd := exec.Command("bash", "-c", val)
 			cmdOutput, err := cmd.Output()
 			if err != nil {
 				panic(err)
 			}
-			push(state.Vals, string(cmdOutput))
+			pushT(state.Vals, string(cmdOutput))
 			clearFuncToken(state)
 			return state
 		},
 		"execBashCombined": func(state *State) *State {
-			val := pop(state.Vals).(string)
+			val := popT(state.Vals).(string)
 			cmd := exec.Command("bash", "-c", val)
 			cmdOutput, err := cmd.CombinedOutput()
 			if err != nil {
 				panic(err)
 			}
-			push(state.Vals, string(cmdOutput))
+			pushT(state.Vals, string(cmdOutput))
 			clearFuncToken(state)
 			return state
 		},
 		"loadFile": func(state *State) *State {
-			fileName := pop(state.Vals).(string)
+			fileName := popT(state.Vals).(string)
 			b, err := os.ReadFile(fileName)
 			if err != nil {
 				panic(err)
 			}
-			push(state.Vals, string(b))
+			pushT(state.Vals, string(b))
 			clearFuncToken(state)
 			return state
 		},
 		"eval": func(state *State) *State {
-			code := pop(state.Vals).(string)
+			code := popT(state.Vals).(string)
 			// fmt.Println(unsafe.Pointer(&code))
 			// if strings come from source then we can cache it, but not worth it
 			evalState := makeState("__eval", code)
@@ -1325,24 +1324,24 @@ func initBuiltins() {
 			return evalState
 		},
 		"dup": func(state *State) *State {
-			v := pop(state.Vals)
-			push(state.Vals, v)
-			push(state.Vals, v)
+			v := popT(state.Vals)
+			pushT(state.Vals, v)
+			pushT(state.Vals, v)
 			clearFuncToken(state)
 			return state
 		},
 		"swap": func(state *State) *State {
-			a := pop(state.Vals)
-			b := pop(state.Vals)
-			push(state.Vals, a)
-			push(state.Vals, b)
+			a := popT(state.Vals)
+			b := popT(state.Vals)
+			pushT(state.Vals, a)
+			pushT(state.Vals, b)
 			clearFuncToken(state)
 			return state
 		},
 		"see": func(state *State) *State {
-			a := pop(state.Vals)
+			a := popT(state.Vals)
 			say(a)
-			push(state.Vals, a)
+			pushT(state.Vals, a)
 			clearFuncToken(state)
 			return state
 		},
@@ -1352,9 +1351,9 @@ func initBuiltins() {
 			// }
 			var f func(state *State) *State
 			if len(*state.Vals)-state.FuncTokenSpot == 0 {
-				f = pop(state.Vals).(func(state *State) *State)
+				f = popT(state.Vals).(func(state *State) *State)
 			} else {
-				fWrapper := splice(state.Vals, state.FuncTokenSpot, 1, nil).(*[]any)
+				fWrapper := spliceT(state.Vals, state.FuncTokenSpot, 1, nil)
 				f = (*fWrapper)[0].(func(state *State) *State)
 			}
 			state.CurrFuncToken = f
@@ -1363,7 +1362,7 @@ func initBuiltins() {
 			return newState
 		},
 		"clear": func(state *State) *State {
-			splice(state.Vals, 0, len(*state.Vals), nil)
+			spliceT(state.Vals, 0, len(*state.Vals), nil)
 			clearFuncToken(state)
 			return state
 		},
@@ -1380,16 +1379,11 @@ func now() any {
 
 func push(slice any, value any) {
 	if s, ok := slice.(*[]any); ok {
-		*s = append(*s, value)
+	    pushT(s, value)
 	}
 }
-func push2(slice any, value any) {
-	if s, ok := slice.(*[]any); ok {
-		*s = append(*s, value)
-		fmt.Println("pushed", *s)
-	} else {
-		fmt.Printf("no pushed: %T\n", slice)
-	}
+func pushT(s *[]any, value any) {
+	*s = append(*s, value)
 }
 
 func pushm(slice any, values any) {
@@ -1412,11 +1406,14 @@ func at(slice any, index any) any {
 
 func pop(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
-		val := (*s)[len(*s)-1]
-		*s = (*s)[:len(*s)-1]
-		return val
+	    return popT(s)
 	}
 	return nil
+}
+func popT(s *[]any) any {
+	val := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return val
 }
 func peek(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
@@ -1441,34 +1438,37 @@ func unshift(slice any, value any) {
 	}
 }
 
+func spliceT(s *[]any, start int, deleteCount int, elements *[]any) *[]any {
+	var elementsToAdd []any
+	if elements != nil {
+		elementsToAdd = *elements
+	}
+	if start < 0 {
+		start = len(*s) + start
+	}
+	if start < 0 {
+		start = 0
+	}
+	if start > len(*s) {
+		start = len(*s)
+	}
+	if deleteCount < 0 {
+		deleteCount = 0
+	}
+	if start+deleteCount > len(*s) {
+		deleteCount = len(*s) - start
+	}
+	removed := make([]any, deleteCount)
+	copy(removed, (*s)[start:start+deleteCount])
+	*s = append(append((*s)[:start], elementsToAdd...), (*s)[start+deleteCount:]...)
+	return &removed
+}
+
 func splice(slice any, start any, deleteCount any, elements any) any {
-	if s, ok := slice.(*[]any); ok {
-		start := start.(int)
-		deleteCount := deleteCount.(int)
-		var elementsToAdd []any
-		elements, ok := elements.(*[]any)
-		if ok {
-			elementsToAdd = *elements
-		}
-		if start < 0 {
-			start = len(*s) + start
-		}
-		if start < 0 {
-			start = 0
-		}
-		if start > len(*s) {
-			start = len(*s)
-		}
-		if deleteCount < 0 {
-			deleteCount = 0
-		}
-		if start+deleteCount > len(*s) {
-			deleteCount = len(*s) - start
-		}
-		removed := make([]any, deleteCount)
-		copy(removed, (*s)[start:start+deleteCount])
-		*s = append(append((*s)[:start], elementsToAdd...), (*s)[start+deleteCount:]...)
-		return &removed
+	if els, ok := elements.(*[]any); ok {
+		spliceT(slice.(*[]any), start.(int), deleteCount.(int), els)
+	} else {
+		spliceT(slice.(*[]any), start.(int), deleteCount.(int), nil)
 	}
 	return nil
 }
@@ -1893,7 +1893,7 @@ func makeNoop() func(state *State) *State {
 }
 func makeBuiltin_1_0(f func(any)) func(state *State) *State {
 	return func(state *State) *State {
-		a := pop(state.Vals)
+		a := popT(state.Vals)
 		f(a)
 		clearFuncToken(state)
 		return state
@@ -1901,8 +1901,8 @@ func makeBuiltin_1_0(f func(any)) func(state *State) *State {
 }
 func makeBuiltin_2_0(f func(any, any)) func(state *State) *State {
 	return func(state *State) *State {
-		b := pop(state.Vals)
-		a := pop(state.Vals)
+		b := popT(state.Vals)
+		a := popT(state.Vals)
 		f(a, b)
 		clearFuncToken(state)
 		return state
@@ -1910,9 +1910,9 @@ func makeBuiltin_2_0(f func(any, any)) func(state *State) *State {
 }
 func makeBuiltin_3_0(f func(any, any, any)) func(state *State) *State {
 	return func(state *State) *State {
-		c := pop(state.Vals)
-		b := pop(state.Vals)
-		a := pop(state.Vals)
+		c := popT(state.Vals)
+		b := popT(state.Vals)
+		a := popT(state.Vals)
 		f(a, b, c)
 		clearFuncToken(state)
 		return state
@@ -1920,45 +1920,45 @@ func makeBuiltin_3_0(f func(any, any, any)) func(state *State) *State {
 }
 func makeBuiltin_0_1(f func() any) func(state *State) *State {
 	return func(state *State) *State {
-		push(state.Vals, f())
+		pushT(state.Vals, f())
 		clearFuncToken(state)
 		return state
 	}
 }
 func makeBuiltin_1_1(f func(any) any) func(state *State) *State {
 	return func(state *State) *State {
-		a := pop(state.Vals)
-		push(state.Vals, f(a))
+		a := popT(state.Vals)
+		pushT(state.Vals, f(a))
 		clearFuncToken(state)
 		return state
 	}
 }
 func makeBuiltin_2_1(f func(any, any) any) func(state *State) *State {
 	return func(state *State) *State {
-		b := pop(state.Vals)
-		a := pop(state.Vals)
-		push(state.Vals, f(a, b))
+		b := popT(state.Vals)
+		a := popT(state.Vals)
+		pushT(state.Vals, f(a, b))
 		clearFuncToken(state)
 		return state
 	}
 }
 func makeBuiltin_3_1(f func(any, any, any) any) func(state *State) *State {
 	return func(state *State) *State {
-		c := pop(state.Vals)
-		b := pop(state.Vals)
-		a := pop(state.Vals)
-		push(state.Vals, f(a, b, c))
+		c := popT(state.Vals)
+		b := popT(state.Vals)
+		a := popT(state.Vals)
+		pushT(state.Vals, f(a, b, c))
 		clearFuncToken(state)
 		return state
 	}
 }
 func makeBuiltin_4_1(f func(any, any, any, any) any) func(state *State) *State {
 	return func(state *State) *State {
-		d := pop(state.Vals)
-		c := pop(state.Vals)
-		b := pop(state.Vals)
-		a := pop(state.Vals)
-		push(state.Vals, f(a, b, c, d))
+		d := popT(state.Vals)
+		c := popT(state.Vals)
+		b := popT(state.Vals)
+		a := popT(state.Vals)
+		pushT(state.Vals, f(a, b, c, d))
 		clearFuncToken(state)
 		return state
 	}
@@ -1996,31 +1996,3 @@ func doEnd(state *State) *State {
 }
 
 // </code>
-
-// That was some code that implements a little interpreted
-// programming language
-//
-// a key feature is that it operates on the source code as a string
-// there is no converting to an AST or anythign like that
-//
-// please convert this code to efficient javascript
-//
-// The original code makes use of go type assertions
-// much of that won't be needed in the javascript code
-//
-// although there will likely be some sort of type switch on the token
-//
-// there is no difference between []any and *[]any in javascript
-// so the code can likely be simplified
-//
-// but the main structure I want to be the same
-//
-// prefer global functions and object over "classes"
-//
-// Converting this Go code to JavaScript while maintaining its structure requires some careful attention to detail. JavaScript differs from Go in typing and syntax, but functions and the flow of the program can remain largely the same. Below is a JavaScript version of your interpreted programming language implementation.
-//
-// Add all the code, don't leave it partially finished
-//
-// in the type switch on the token
-// you'll need to differentiate between the VarName, Skip, and string types
-// not sure the best way, maybe maybe them objects with constructors?
