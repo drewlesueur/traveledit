@@ -17,6 +17,7 @@ import (
 type FindMatchingResult struct {
 	Match string
 	I     int
+	Indent string
 }
 type Func struct {
 	FileName string
@@ -515,6 +516,7 @@ func isNumeric(s string) bool {
 }
 
 func getPrevIndent(state *State) string {
+	// TODO audit the subtraction here
 	code := state.Code
 	i := state.I
 	lastNonSpace := i
@@ -567,6 +569,7 @@ func findBeforeEndLine(state *State) int {
 	ret := &FindMatchingResult{
 		I:     i,
 		Match: "",
+		Indent: "",
 	}
 	state.FindMatchingCache[state.I] = ret
 	return ret.I
@@ -603,6 +606,7 @@ func findBeforeEndLineOnlyLine(state *State) int {
 	ret := &FindMatchingResult{
 		I:     i,
 		Match: "",
+		Indent: "",
 	}
 	state.FindMatchingCache[state.I] = ret
 	return ret.I
@@ -638,6 +642,7 @@ func findMatchingAfter(state *State, things []string) *FindMatchingResult {
 	ret := &FindMatchingResult{
 		I:     minDiff + state.I + len(things[closestIndex]) + 1 + len(indent),
 		Match: things[closestIndex],
+		Indent: indent,
 	}
 	state.FindMatchingCache[state.I] = ret
 	return ret
@@ -752,6 +757,22 @@ func initBuiltins() {
 			pushT(state.Vals, myObj)
 			return state
 		},
+		"string": func(state *State) *State {
+			// TODO, this should happen in parsing step
+			// instead of doing this parsing everytime
+			r := findMatchingAfter(state, []string{"end"})
+			str := state.Code[state.I+1:r.I-4]
+			lines := strings.Split(str, "\n")
+			prefixToTrim := r.Indent + "    "
+			for i, line := range lines {
+			    // fmt.Printf("%q %q" prefixToTrim, line)
+			    lines[i] = strings.TrimPrefix(line, prefixToTrim)
+			}
+			str = strings.Join(lines, "\n")
+			pushT(state.Vals, str)
+			state.I = r.I
+			return state
+		},
     }
 	runImmediates = map[string]func(state *State) *State{
 		"__vals": func(state *State) *State {
@@ -827,6 +848,11 @@ func initBuiltins() {
 	}
 	builtins = map[string]func(state *State) *State{
 		"now": makeBuiltin_0_1(now),
+		"formatTimestamp": makeBuiltin_2_1(func(m any, f any) any {
+	    	t := time.Unix(0, int64(m.(int))*int64(time.Millisecond))
+	    	formattedTime := t.Format(f.(string))
+	    	return formattedTime
+		}),
 		"+":   makeBuiltin_2_1(plus),
 		"-":   makeBuiltin_2_1(minus),
 		"+f": func(state *State) *State {
@@ -1475,9 +1501,12 @@ func pop(slice any) any {
 	return nil
 }
 func popT(s *[]any) any {
-	val := (*s)[len(*s)-1]
-	*s = (*s)[:len(*s)-1]
-	return val
+    if len(*s) > 0 {
+		val := (*s)[len(*s)-1]
+		*s = (*s)[:len(*s)-1]
+		return val
+	}
+	return nil
 }
 func peek(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {

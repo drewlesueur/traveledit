@@ -1,5 +1,18 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+say string
+    why hello world
+    this is a multiline string
+end "ok?"
+exit
+
+
+let :x 33
+{
+    "myval" x
+}
+say
+
 say ""
 # def :plus1 :a
 #     a + 1
