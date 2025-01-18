@@ -897,6 +897,17 @@ func initBuiltins() {
 		"indexOf":     makeBuiltin_2_1(indexOf),
 		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
 		"split":       makeBuiltin_2_1(split),
+		"trim":       makeBuiltin_1_1(func(a any) any {
+		    return strings.TrimSpace(a.(string))
+		}),
+		"join":       makeBuiltin_2_1(func(a, b any) any {
+		    // TODO: allow anything to use slice of strings too
+		    strSlice := make([]string, len(*a.(*[]any)))
+		    for i, v := range *a.(*[]any) {
+		        strSlice[i] = v.(string)
+		    }
+		    return strings.Join(strSlice, b.(string))
+		}),
 		"toString":    makeBuiltin_1_1(toString),
 		"toInt":       makeBuiltin_1_1(toInt),
 		"toFloat":     makeBuiltin_1_1(toFloat),
@@ -1431,6 +1442,7 @@ func initBuiltins() {
 	funcBuiltin = builtins["func"]
 }
 
+// closures seem to be in par with interfaces
 func makeFuncToken(token *Func) func(*State) *State {
     return func(state *State) *State {
 		state.CurrFuncToken = nil
