@@ -1,5 +1,16 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+
+:colors let [:red :green :blue]
+say colors
+each colors :i :v
+    say i v
+end
+
+iter colors: say
+exit
+
+
 say string
     why hello world
     this is a multiline string
