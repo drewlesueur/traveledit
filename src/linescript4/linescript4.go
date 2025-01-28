@@ -1956,6 +1956,7 @@ func cc(a, b any) any {
 	return toString(a).(string) + toString(b).(string)
 }
 
+
 func toInt(a any) any {
 	switch a := a.(type) {
 	case bool:
@@ -1963,9 +1964,19 @@ func toInt(a any) any {
 			return 1
 		}
 		return 0
+	case float64:
+		return int(a)
+	// case string:
+	// 	var i int
+	// 	if _, err := fmt.Sscanf(a, "%d", &i); err == nil {
+	// 		return i
+	// 	}
+	// 	return nil
 	}
 	return nil
 }
+
+
 func toFloat(a any) any {
 	switch a := a.(type) {
 	case bool:
