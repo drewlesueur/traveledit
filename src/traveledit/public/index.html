@@ -5792,6 +5792,189 @@ var lastPollError = null
 var pollInFlight = null
 // allow hangups and newSession
 
+
+
+function processPollResponse(wrapperR) {
+    // map of terminals and their payload and maybe meta info
+    if (wrapperR.PasteBuffer) {
+        copyBuffer = wrapperR.PasteBuffer.split("\n")
+    }
+    var r = wrapperR.Files
+    for (var id in r) {
+        var termInfo = r[id]
+        var file = files.find(f => f.ID == id)
+        var lineLengthBeforeChange = file.lines.length
+        if (!file) {
+            // TODO: this can happen if we get the response for
+            // the poll before we even have the ID
+            // we could store these values temporarily?
+            // but for now we'll ignore them.
+            continue
+        }
+        if (termInfo.ChatGPTResponses && termInfo.ChatGPTResponses.length) {
+            handleChatGPTResponse(file, termInfo.ChatGPTResponses)
+        }
+        if (termInfo.FileErrors) {
+            // reset them all
+            file.fileErrors = termInfo.FileErrors
+            render()
+        }
+        if (!termInfo.Base64) {
+            continue
+        }
+        var oldCopyBuffer = copyBuffer
+        // btoa("hello")
+        // atob("aGVsbG8=")
+        // #todoterminal: add xterm parsing here!
+        var strToProcess = atob(termInfo.Base64)
+        // simple parsing for now
+
+        // TODO: what if the chunk we get ends on a control character.
+        // Maybe we need to preserve the parseState to the file object.
+        var parseState = "literal"
+        var controlValues = [""]
+        var lineBuffer = []
+        for (var i = 0; i < strToProcess.length; i++) {
+            // not calling docChanged because we don't care for terminals
+            // doing this very dumb now... more optimizations later
+            var theChr = strToProcess[i]
+            switch (parseState) {
+                case "literal":
+                    if (strToProcess[i] == "\n") {
+                        updateLineFile(file, file.lines.length-1, file.lines[file.lines.length-1] + lineBuffer.join(""))
+                        lineBuffer = []
+                        file.lines.push("")
+                        file.marginLeft = calcMarginLeft(file.lines.length)
+                    // for  now commenting out \r, later do I need to code the difference between newline and carriage return?
+                    } else if (strToProcess[i] == "\r") {
+                        // file.lines.push("")
+                        // do nothing for now
+                    } else if (strToProcess[i] == "\b") {
+                        // copied from another part of this code // == 8
+                        var theLine = file.lines[file.cursorLineIndex]
+                        if (theLine.length == 0) {
+                            file.lines.splice(file.cursorLineIndex, 1)
+                            adjustHighlightRanges(file.cursorLineIndex, -1, file)
+                            file.cursorLineIndex -= 1
+                            var prevLine = file.lines[file.cursorLineIndex]
+                            // file.lines[file.cursorLineIndex] = file.lines[file.cursorLineIndex] + theLine
+                            updateLineFile(file, file.cursorLineIndex, file.lines[file.cursorLineIndex] + theLine)
+                            // TODO: process the index here!!!
+                            file.cursorColIndex = prevLine.length
+                            setSelectionRangeForText(prevLine.length, prevLine.length)
+                        } else {
+                            // file.lines[file.lines.length-1] = theLine.slice(0, -1)
+                            updateLineFile(file, file.lines.length-1, theLine.slice(0, -1))
+                        }
+                    } else if (strToProcess[i] == "\x1b") { // escape
+                        parseState = "ESC"
+                    } else if (strToProcess[i] == "\x07") { // bell
+                        // do nothing
+                    // } else if (strToProcess[i] == "\t") { // tab
+                    } else {
+                        // file.lines[file.lines.length-1] += strToProcess[i]
+                        // updateLineFile(file, file.lines.length-1, file.lines[file.lines.length-1] + strToProcess[i])
+                        // Todo: look at how the \b works with lineBuffer. May be more optimal to do it that way.
+                        lineBuffer.push(strToProcess[i])
+                    }
+                    break;
+                case "ESC":
+                    switch (theChr) {
+                        case "[":
+                            controlValues = [""]
+                            parseState = "CSI"
+                            break;
+                        default:
+                            parseState = "literal" // for now
+
+                    }
+                    break;
+                case "CSI":
+                    switch (theChr) {
+                        case "0":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "1":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "2":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "3":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "4":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "5":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "6":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "7":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "8":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case "9":
+                            controlValues[controlValues.length-1] += theChr
+                            break;
+                        case ";":
+                            controlValues.push("")
+                            break;
+                        case "K":
+                            // TODO: clear parts of line according to rules
+                            parseState = "literal"
+                            break;
+                        default:
+                            // TODO: some action based the character here
+                            // add textual representation for debugging purposes
+                            // uncomment to debug
+                            // file.lines[file.lines.length - 1] += " <ESC[" + controlValues.join(";") + theChr + "> "
+                            // updateLineFile(file, file.lines.length - 1, file.lines[file.lines.length - 1] + " <ESC[" + controlValues.join(";") + theChr + "> ")
+
+                            parseState = "literal" // for now
+
+                    }
+                    break;
+            }
+        }
+        if (lineBuffer.length) {
+            updateLineFile(file, file.lines.length-1, file.lines[file.lines.length-1] + lineBuffer.join(""))
+        }
+
+        // don't move the cursor if they are looking up higher in the file
+        if (file.cursorLineIndex >= (lineLengthBeforeChange - 1)) {
+            file.cursorLineIndex = file.lines.length - 1
+            var theLine = file.lines[file.lines.length-1]
+            if (theLine != "") {
+                file.cursorColIndex = expandTabIndex(theLine, theLine.length, file.lines.length-1, file)
+            } else {
+                theLine = file.lines[file.lines.length-2] || ""
+                file.cursorColIndex = expandTabIndex(theLine, theLine.length, file.lines.length-2, file)
+            }
+            ensureCursorInScreen(file)
+        }
+    }
+    render()
+    setTimeout(pollTerminals, 1)
+}
+
+
+// this abortcontroller snippet needed for me since ios18
+// if the homescreen app was backgrounded for like 1 minuye
+// the current fetch request for polling would hang
+// it would eventually work but this helps it along
+var abortController = new AbortController()
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        abortController.abort()
+        abortController = new AbortController()
+    }
+});
+
 function pollTerminals() {
     lastPolled = new Date()
     lastPollResponse = null
@@ -5808,177 +5991,14 @@ function pollTerminals() {
     // }
     pollInFlight = true
     fetch(proxyPath + "/myterminalpoll?clientid=" + clientId, {
-        cache: "no-cache"
+        cache: "no-cache",
+        signal: abortController.signal
     }).then(r => {
         return r.json()
     }).then(wrapperR => {
         pollInFlight = false
         lastPollResponse = new Date()
-        // map of terminals and their payload and maybe meta info
-        if (wrapperR.PasteBuffer) {
-            copyBuffer = wrapperR.PasteBuffer.split("\n")
-        }
-        var r = wrapperR.Files
-        for (var id in r) {
-            var termInfo = r[id]
-            var file = files.find(f => f.ID == id)
-            var lineLengthBeforeChange = file.lines.length
-            if (!file) {
-                // TODO: this can happen if we get the response for
-                // the poll before we even have the ID
-                // we could store these values temporarily?
-                // but for now we'll ignore them.
-                continue
-            }
-            if (termInfo.ChatGPTResponses && termInfo.ChatGPTResponses.length) {
-                handleChatGPTResponse(file, termInfo.ChatGPTResponses)
-            }
-            if (termInfo.FileErrors) {
-                // reset them all
-                file.fileErrors = termInfo.FileErrors
-                render()
-            }
-            if (!termInfo.Base64) {
-                continue
-            }
-            var oldCopyBuffer = copyBuffer
-            // btoa("hello")
-            // atob("aGVsbG8=")
-            // #todoterminal: add xterm parsing here!
-            var strToProcess = atob(termInfo.Base64)
-            // simple parsing for now
-
-            // TODO: what if the chunk we get ends on a control character.
-            // Maybe we need to preserve the parseState to the file object.
-            var parseState = "literal"
-            var controlValues = [""]
-            var lineBuffer = []
-            for (var i = 0; i < strToProcess.length; i++) {
-                // not calling docChanged because we don't care for terminals
-                // doing this very dumb now... more optimizations later
-                var theChr = strToProcess[i]
-                switch (parseState) {
-                    case "literal":
-                        if (strToProcess[i] == "\n") {
-                            updateLineFile(file, file.lines.length-1, file.lines[file.lines.length-1] + lineBuffer.join(""))
-                            lineBuffer = []
-                            file.lines.push("")
-                            file.marginLeft = calcMarginLeft(file.lines.length)
-                        // for  now commenting out \r, later do I need to code the difference between newline and carriage return?
-                        } else if (strToProcess[i] == "\r") {
-                            // file.lines.push("")
-                            // do nothing for now
-                        } else if (strToProcess[i] == "\b") {
-                            // copied from another part of this code // == 8
-                            var theLine = file.lines[file.cursorLineIndex]
-                            if (theLine.length == 0) {
-                                file.lines.splice(file.cursorLineIndex, 1)
-                                adjustHighlightRanges(file.cursorLineIndex, -1, file)
-                                file.cursorLineIndex -= 1
-                                var prevLine = file.lines[file.cursorLineIndex]
-                                // file.lines[file.cursorLineIndex] = file.lines[file.cursorLineIndex] + theLine
-                                updateLineFile(file, file.cursorLineIndex, file.lines[file.cursorLineIndex] + theLine)
-                                // TODO: process the index here!!!
-                                file.cursorColIndex = prevLine.length
-                                setSelectionRangeForText(prevLine.length, prevLine.length)
-                            } else {
-                                // file.lines[file.lines.length-1] = theLine.slice(0, -1)
-                                updateLineFile(file, file.lines.length-1, theLine.slice(0, -1))
-                            }
-                        } else if (strToProcess[i] == "\x1b") { // escape
-                            parseState = "ESC"
-                        } else if (strToProcess[i] == "\x07") { // bell
-                            // do nothing
-                        // } else if (strToProcess[i] == "\t") { // tab
-                        } else {
-                            // file.lines[file.lines.length-1] += strToProcess[i]
-                            // updateLineFile(file, file.lines.length-1, file.lines[file.lines.length-1] + strToProcess[i])
-                            // Todo: look at how the \b works with lineBuffer. May be more optimal to do it that way.
-                            lineBuffer.push(strToProcess[i])
-                        }
-                        break;
-                    case "ESC":
-                        switch (theChr) {
-                            case "[":
-                                controlValues = [""]
-                                parseState = "CSI"
-                                break;
-                            default:
-                                parseState = "literal" // for now
-
-                        }
-                        break;
-                    case "CSI":
-                        switch (theChr) {
-                            case "0":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "1":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "2":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "3":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "4":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "5":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "6":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "7":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "8":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case "9":
-                                controlValues[controlValues.length-1] += theChr
-                                break;
-                            case ";":
-                                controlValues.push("")
-                                break;
-                            case "K":
-                                // TODO: clear parts of line according to rules
-                                parseState = "literal"
-                                break;
-                            default:
-                                // TODO: some action based the character here
-                                // add textual representation for debugging purposes
-                                // uncomment to debug
-                                // file.lines[file.lines.length - 1] += " <ESC[" + controlValues.join(";") + theChr + "> "
-                                // updateLineFile(file, file.lines.length - 1, file.lines[file.lines.length - 1] + " <ESC[" + controlValues.join(";") + theChr + "> ")
-
-                                parseState = "literal" // for now
-
-                        }
-                        break;
-                }
-            }
-            if (lineBuffer.length) {
-                updateLineFile(file, file.lines.length-1, file.lines[file.lines.length-1] + lineBuffer.join(""))
-            }
-
-            // don't move the cursor if they are looking up higher in the file
-            if (file.cursorLineIndex >= (lineLengthBeforeChange - 1)) {
-                file.cursorLineIndex = file.lines.length - 1
-                var theLine = file.lines[file.lines.length-1]
-                if (theLine != "") {
-                    file.cursorColIndex = expandTabIndex(theLine, theLine.length, file.lines.length-1, file)
-                } else {
-                    theLine = file.lines[file.lines.length-2] || ""
-                    file.cursorColIndex = expandTabIndex(theLine, theLine.length, file.lines.length-2, file)
-                }
-                ensureCursorInScreen(file)
-            }
-        }
-        render()
-        setTimeout(pollTerminals, 1)
+        processPollResponse(wrapperR)
     }).catch(e => {
         // todo: does an error in the prev block also go here
         // if so we need to make sure we don't double poll
