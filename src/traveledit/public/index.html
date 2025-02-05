@@ -355,17 +355,21 @@ They get changed later on.
     
     <div class=middleButton onclick=reloadFile(fx)>reload</div>
     <div class=middleButton onclick=goUpDirectory()>⬆️</div>
-    <div class=middleButton id="gptButton2" onclick=runChatGPT('gpt-4o')>4o</div>
-    <div class=middleButton id="gptButton2Code" onclick="runChatGPT('gpt-4o', {extra: onlyCode})">4o code</div>
+    <div class=middleButton id="gptButton" onclick="runChatGPT('o3-mini')">o3-mini</div>
+    <div class=middleButton onclick="runChatGPT('o3-mini', {extra: onlyCode})">o3-mini code</div>
     <div id=saveButton class=middleButton onclick=saveWrapper()>save</div>
     <div class=middleButton onclick="runScript()" id=statusBar>run script</div>
     <div class=square onclick="window.open(location.origin+location.pathname+'/saveload?browser=1&fullpath=' + encodeURIComponent(fx.fullPath))">open browser</div>
     <div class=middleButton onclick="runScript()">action2</div>
     <div class=middleButton onclick="runScript()">action3</div>
-    <div class=middleButton id="gptButton" onclick=runChatGPT('gpt-4o-mini')>4o mini</div>
-    <div class=middleButton id="gptButtonCode" onclick="runChatGPT('gpt-4o-mini', {extra: onlyCode})">4o mini code</div>
-    <div class=middleButton id="gptButton3" onclick=runChatGPTNonStreaming('o1-mini')>o1-mini</div>
-    <div class=middleButton id="gptButton3Code" onclick="runChatGPTNonStreaming('o1-mini', {extra: onlyCode})">o1-mini code</div>
+    <div class=middleButton onclick=runChatGPT('gpt-4o-mini')>4o mini</div>
+    <div class=middleButton onclick="runChatGPT('gpt-4o-mini', {extra: onlyCode})">4o mini code</div>
+    <div class=middleButton onclick=runChatGPTNonStreaming('o1-mini')>o1-mini</div>
+    <div class=middleButton onclick="runChatGPTNonStreaming('o1-mini', {extra: onlyCode})">o1-mini code</div>
+    <div class=middleButton onclick="runChatGPT('gpt-4o', {extra: onlyCode})">4o code</div>
+
+    <div class=middleButton id="gptButton" onclick="runChatGPT('o3-mini-high')">o3-mini-high</div>
+    <div class=middleButton onclick="runChatGPT('o3-mini-high', {extra: onlyCode})">o3-mini-high code</div>
 </div>
 <div class="toolbar hidden" id=terminalToolbar1 style="--display: none">
     <div class=middleButton onclick='sendTerminal("\x03"); event.preventDefault()'>^C</div>
