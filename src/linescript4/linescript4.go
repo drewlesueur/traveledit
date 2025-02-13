@@ -154,8 +154,15 @@ func main() {
 	eval(state)
 }
 
+
 func eval(state *State) *State {
 	// for j := 0; j < 10000; j++ {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered from panic:", r)
+			fmt.Println(state.Code)
+		}
+	}()
 	for {
     	// if state == nil {
     	// 	return nil
