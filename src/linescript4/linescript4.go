@@ -540,8 +540,8 @@ func debugStateI(state *State, startI int) {
 }
 
 func getPrevIndent(state *State) string {
-	fmt.Println("#aqua getting prev indent")
-	debugStateI(state, state.I)
+	// fmt.Println("#aqua getting prev indent")
+	// debugStateI(state, state.I)
 
 	// TODO audit the subtraction here
 	code := state.Code
@@ -564,7 +564,7 @@ loopy:
 			lastNonSpace = i
 		}
 	}
-	fmt.Println("#thistle prev indent", toJson(code[i:lastNonSpace]))
+	// fmt.Println("#thistle prev indent", toJson(code[i:lastNonSpace]))
 	return code[i:lastNonSpace]
 }
 
@@ -654,8 +654,8 @@ func findAfterEndLineOnlyLine(state *State) int {
 }
 
 func findMatchingAfter(state *State, things []string) *FindMatchingResult {
-	fmt.Println("#goldenrod findMatchingAfter")
-	debugStateI(state, state.I)
+	// fmt.Println("#goldenrod findMatchingAfter")
+	// debugStateI(state, state.I)
 
 	if c := state.FindMatchingCache[state.I]; c != nil {
 		return c
@@ -663,29 +663,37 @@ func findMatchingAfter(state *State, things []string) *FindMatchingResult {
 	indent := getPrevIndent(state)
 	
 	// subtract 1 because there could be no body of an if (etc)
-	toSearch := state.Code[state.I:]
-	// toSearch := state.Code[state.I-1:]
+	// toSearch := state.Code[state.I:]
+	toSearch := state.Code[state.I-1:] // #lawngreen
+	
+	// fmt.Println("#goldenrod but before")
+	// debugStateI(state, state.I-1)
 
 	closestIndex := -1
-	minDiff := len(toSearch)
+	minPos := len(toSearch)
+	theEnd := -1
+	
 
 	for j, thing := range things {
 		toFind := "\n" + indent + thing // + 1 + len(indent)
-		fmt.Println("#orange finding", toJson(toFind))
+		// fmt.Println("#orange finding", toJson(toFind))
+		// fmt.Println("#darkorange in", toJson(toSearch))
 		index := strings.Index(toSearch, toFind)
-		if index != -1 && index < minDiff {
-			minDiff = index
+		if index != -1 && index < minPos {
+			minPos = index
 			closestIndex = j
+			theEnd = state.I-1 + minPos + len(toFind)
 		}
 	}
 	ret := &FindMatchingResult{
-		I:     minDiff + state.I + len(things[closestIndex]) + 1 + len(indent),
+		// I:     minDiff + state.I + len(things[closestIndex]) + 1 + len(indent),
+		I:     theEnd,
 		Match: things[closestIndex],
 		Indent: indent,
 	}
 	state.FindMatchingCache[state.I] = ret
-	fmt.Println("#yellow foundMatchingAfter", toJson(ret.Match))
-	debugStateI(state, ret.I)
+	// fmt.Println("#yellow foundMatchingAfter", toJson(ret.Match))
+	// debugStateI(state, ret.I)
 	return ret
 }
 
@@ -1313,7 +1321,7 @@ func initBuiltins() {
 			return state
 		},
 		"if": func(state *State) *State {
-			fmt.Println("#skyblue IF")
+			// fmt.Println("#skyblue IF")
 			cond := popT(state.Vals)
 			if toBool(cond).(bool) == true {
 				state.EndStack = append(state.EndStack, endIf)
@@ -1330,6 +1338,9 @@ func initBuiltins() {
 						// don't append an endTack
 						// to pick up the if
 						state.I = r.I - 2
+						// fmt.Println("#aquamarine ok new I on else if")
+						// debugStateI(state, state.I)
+						// state.I = r.I - 1
 					} else if r.Match == "else" {
 						state.EndStack = append(state.EndStack, endIf)
 						state.I = r.I
@@ -1342,7 +1353,7 @@ func initBuiltins() {
 			return state
 		},
 		"else": func(state *State) *State {
-			fmt.Println("#skyblue ELSE")
+			// fmt.Println("#skyblue ELSE")
 			endFunc := state.EndStack[len(state.EndStack)-1]
 			state.EndStack = state.EndStack[:len(state.EndStack)-1]
 			// don't need to call it cuz it's a noop
@@ -2257,7 +2268,7 @@ func interpolate(a, b any) any {
 }
 
 func doEnd(state *State) *State {
-	fmt.Println("#skyblue END")
+	// fmt.Println("#skyblue END")
 	if len(state.EndStack) == 0 {
 		return state.CallingParent
 	}
