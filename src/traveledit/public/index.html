@@ -1586,6 +1586,20 @@ function doSizing() {
         navTouchSize = 60
     }
     
+    // iPhone 16 plus
+    if (screen.width == 430 && screen.height == 932) {
+        device = "iphone16plus"
+        var oneRow = 36*3
+        canvasHeightFull=2200
+        canvasHeightKeyboard=1365
+        navTouchSize = 35
+        if (innerWidth > innerHeight) {
+            canvasHeightFull = 900
+            canvasHeightKeyboard = 300
+            navTouchSize = 100
+        }
+    }
+    
     if (screen.width == 768 && screen.height == 1024) {
         device = "someipad"
         var oneRow = 36*3
