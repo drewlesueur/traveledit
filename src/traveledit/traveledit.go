@@ -27,6 +27,7 @@ import "crypto/rand"
 import "encoding/hex"
 import "path/filepath"
 import "context"
+import "regexp"
 
 import "mime/multipart"
 import "net/textproto"
@@ -1152,6 +1153,11 @@ func main() {
 		chatGPTShouldBeRunning = false
 	})
 	
+	
+	// atSignPathRe := regexp.MustCompile(`@(/[^\s]+)`)
+	atSignPathRe := regexp.MustCompile(`@`+`@file:(?:"([^"]+)"|(/[^ "]+(?: [^ "]+)*))`)
+	
+	
 	mux.HandleFunc("/chatgpt", func(w http.ResponseWriter, r *http.Request) {
 		chatGPTMu.Lock()
 		defer chatGPTMu.Unlock()
@@ -1182,6 +1188,54 @@ func main() {
 		go func() {
 			if f, ok := workspace.GetFile(ID); ok {
 				messagesJSON := r.FormValue("messages")
+
+				// take the messagesJSON and parse it into a []map[string]any
+				// then loop thru it
+				// get the "content" field of each map
+				// find all occurances of @/path/to/file
+				// where "/path/to/file" is any file path starting with a forward slash
+				// replace it with the this snippet
+                //
+				// 	<file>
+				// 	    <path>the full path to the file<path>
+				// 	    <contents>
+				// 	        The full contents of the file.
+				// 	    </contents>
+				// 	<file>
+                //
+			 	//    Then convert back to json and assign to the messagesJSON variable
+				var messages []map[string]any
+				if err := json.Unmarshal([]byte(messagesJSON), &messages); err != nil {
+					// handle error as needed
+					return
+				}
+				for i, msg := range messages {
+					content, ok := msg["content"].(string)
+					if !ok {
+						continue
+					}
+					newContent := atSignPathRe.ReplaceAllStringFunc(content, func(match string) string {
+						// match is like "@/path/to/file", extract file path.
+						filePath := match[1:]
+						data, err := os.ReadFile(filePath)
+						fileData := ""
+						if err == nil {
+							fileData = string(data)
+						}
+						return "<file>\n    <path>" + filePath + "</path>\n    <contents>\n        " + fileData + "\n    </contents>\n</file>"
+					})
+					messages[i]["content"] = newContent
+				}
+				newMessagesJSON, err := json.Marshal(messages)
+				if err != nil {
+					// handle error as needed
+					return
+				}
+				messagesJSON = string(newMessagesJSON)
+
+
+
+
 				payload := `{
           			"model": "` + model + `",
           			"stream": true,
@@ -1189,6 +1243,7 @@ func main() {
           	    }
 	        	`
 				log.Printf("chatgpt json: %s", payload)
+				
 				chatReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", strings.NewReader(payload))
 				if err != nil {
 					log.Printf("new request to chatgpt: %d: %v", ID, err)
