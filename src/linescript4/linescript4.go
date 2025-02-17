@@ -537,14 +537,37 @@ func isNumeric(s string) bool {
 	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || (s[0] == '-' && len(s) > 1))
 }
 
+func toJson(v any) string {
+    b, err := json.MarshalIndent(v, "", "    ")
+    if err != nil {
+        panic(err)
+    }
+    return string(b)
+}
+
+func debugStateI(state *State, startI int) {
+    endI := startI + 15
+    if endI >= len(state.Code) {
+        endI = len(state.Code) - 1
+    }
+    fmt.Println("state:", toJson(startI), toJson(state.Code[startI:endI]))
+}
+
 func getPrevIndent(state *State) string {
+	// fmt.Println("#aqua getting prev indent")
+	// debugStateI(state, state.I)
+
 	// TODO audit the subtraction here
 	code := state.Code
 	i := state.I
 	lastNonSpace := i
-	i = i - 1
+	
+	// back one to get to the newline
+	// another to get before newline
+	i = i - 2 
 loopy:
-	for i = i - 2; i >= 0; i-- {
+	// for i = i - 2; i >= 0; i-- {
+	for i = i - 0; i >= 0; i-- {
 		chr := code[i]
 		switch chr {
 		case '\n':
@@ -555,6 +578,7 @@ loopy:
 			lastNonSpace = i
 		}
 	}
+	// fmt.Println("#thistle prev indent", toJson(code[i:lastNonSpace]))
 	return code[i:lastNonSpace]
 }
 
@@ -644,29 +668,46 @@ func findAfterEndLineOnlyLine(state *State) int {
 }
 
 func findMatchingAfter(state *State, things []string) *FindMatchingResult {
+	// fmt.Println("#goldenrod findMatchingAfter")
+	// debugStateI(state, state.I)
+
 	if c := state.FindMatchingCache[state.I]; c != nil {
 		return c
 	}
 	indent := getPrevIndent(state)
-	toSearch := state.Code[state.I:]
+	
+	// subtract 1 because there could be no body of an if (etc)
+	// toSearch := state.Code[state.I:]
+	toSearch := state.Code[state.I-1:] // #lawngreen
+	
+	// fmt.Println("#goldenrod but before")
+	// debugStateI(state, state.I-1)
 
 	closestIndex := -1
-	minDiff := len(toSearch)
+	minPos := len(toSearch)
+	theEnd := -1
+	
 
 	for j, thing := range things {
 		toFind := "\n" + indent + thing // + 1 + len(indent)
+		// fmt.Println("#orange finding", toJson(toFind))
+		// fmt.Println("#darkorange in", toJson(toSearch))
 		index := strings.Index(toSearch, toFind)
-		if index != -1 && index < minDiff {
-			minDiff = index
+		if index != -1 && index < minPos {
+			minPos = index
 			closestIndex = j
+			theEnd = state.I-1 + minPos + len(toFind)
 		}
 	}
 	ret := &FindMatchingResult{
-		I:     minDiff + state.I + len(things[closestIndex]) + 1 + len(indent),
+		// I:     minDiff + state.I + len(things[closestIndex]) + 1 + len(indent),
+		I:     theEnd,
 		Match: things[closestIndex],
 		Indent: indent,
 	}
 	state.FindMatchingCache[state.I] = ret
+	// fmt.Println("#yellow foundMatchingAfter", toJson(ret.Match))
+	// debugStateI(state, ret.I)
 	return ret
 }
 
@@ -933,6 +974,12 @@ func initBuiltins() {
 		}),
 		"contains":       makeBuiltin_2_1(func(a, b any) any {
 		    return strings.Contains(a.(string), b.(string))
+		}),
+		"startsWith": makeBuiltin_2_1(func(a, b any) any {
+		    return strings.HasPrefix(a.(string), b.(string))
+		}),
+		"endsWith": makeBuiltin_2_1(func(a, b any) any {
+		    return strings.HasSuffix(a.(string), b.(string))
 		}),
 		"upper":       makeBuiltin_1_1(func(a any) any {
 		    return strings.ToUpper(a.(string))
@@ -1288,6 +1335,7 @@ func initBuiltins() {
 			return state
 		},
 		"if": func(state *State) *State {
+			// fmt.Println("#skyblue IF")
 			cond := popT(state.Vals)
 			if toBool(cond).(bool) == true {
 				state.EndStack = append(state.EndStack, endIf)
@@ -1299,10 +1347,14 @@ func initBuiltins() {
 				} else {
 					r := findMatchingAfter(state, []string{"end", "else if", "else"})
 					// fmt.Printf("found: %q\n", state.Code[i:])
+
 					if r.Match == "else if" {
 						// don't append an endTack
 						// to pick up the if
 						state.I = r.I - 2
+						// fmt.Println("#aquamarine ok new I on else if")
+						// debugStateI(state, state.I)
+						// state.I = r.I - 1
 					} else if r.Match == "else" {
 						state.EndStack = append(state.EndStack, endIf)
 						state.I = r.I
@@ -1315,6 +1367,7 @@ func initBuiltins() {
 			return state
 		},
 		"else": func(state *State) *State {
+			// fmt.Println("#skyblue ELSE")
 			endFunc := state.EndStack[len(state.EndStack)-1]
 			state.EndStack = state.EndStack[:len(state.EndStack)-1]
 			// don't need to call it cuz it's a noop
@@ -1322,6 +1375,7 @@ func initBuiltins() {
 
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
 			r := findMatchingAfter(state, []string{"end"})
+			
 			state.I = r.I
 			clearFuncToken(state)
 			return state
@@ -2228,6 +2282,7 @@ func interpolate(a, b any) any {
 }
 
 func doEnd(state *State) *State {
+	// fmt.Println("#skyblue END")
 	if len(state.EndStack) == 0 {
 		return state.CallingParent
 	}

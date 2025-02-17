@@ -4302,6 +4302,7 @@ function runScript() {
     }
 }
 
+// deprecated
 async function runChatGPTNonStreaming(model, options) {
     alert("yay!")
     var selectedLinesWrapper = getSelectedLines(fx, false, true);
@@ -4422,7 +4423,6 @@ async function runChatGPT(model, options) {
         fx.cursorLineIndex++
     }
 
-    
     // docChanged()
     if (selectedLinesWrapper.isWholeFile) {
         fx.chatGPTCursorLineIndex = fx.lines.length - 1
