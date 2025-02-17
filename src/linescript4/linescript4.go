@@ -155,12 +155,27 @@ func main() {
 }
 
 
+func substring(s string, start, length int) string {
+	runes := []rune(s)
+	if start < 0 || start >= len(runes) {
+		return ""
+	}
+	end := start + length
+	if end > len(runes) {
+		end = len(runes)
+	}
+	return string(runes[start:end])
+}
+
+
+
 func eval(state *State) *State {
 	// for j := 0; j < 10000; j++ {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Recovered from panic:", r)
-			fmt.Println(state.Code)
+			fmt.Println(toJson(substring(state.Code, state.I, 50)))
+			panic(r)
 		}
 	}()
 	for {
