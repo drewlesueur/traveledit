@@ -33,6 +33,8 @@ idea start with just a cgi server implement the whole thing in linescript with j
 
 fastcgi?
 
+another flow, it can ssh to a server and
+execute command
 
 */
 
@@ -182,18 +184,45 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
 
 func cgiHandler(w http.ResponseWriter, r *http.Request) {
 	scriptPath := filepath.Clean("." + r.URL.Path)
-	info, err := os.Stat(scriptPath)
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
+	found := false
+
+	for {
+		info, err := os.Stat(scriptPath)
+		if err == nil {
+			// If it's not a directory, we've found the script.
+			if !info.IsDir() {
+				found = true
+				break
+			}
+			// It's a directory so try to use its "index" file.
+			indexCandidate := filepath.Join(scriptPath, "index")
+			if indexInfo, err := os.Stat(indexCandidate); err == nil && !indexInfo.IsDir() {
+				scriptPath = indexCandidate
+				found = true
+				break
+			}
+		}
+
+		parent := filepath.Dir(scriptPath)
+		// If we are at the top level, we're done.
+		if parent == scriptPath {
+			break
+		}
+
+		// Try to see if parent's "index" exists.
+		indexCandidate := filepath.Join(parent, "index")
+		if indexInfo, err := os.Stat(indexCandidate); err == nil && !indexInfo.IsDir() {
+			scriptPath = indexCandidate
+			found = true
+			break
+		}
+
+		scriptPath = parent
 	}
 
-	if info.IsDir() {
-		scriptPath = filepath.Join(scriptPath, "index")
-		if _, err := os.Stat(scriptPath); err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return
-		}
+	if !found {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
 	}
 
 	env := os.Environ()
@@ -205,8 +234,7 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 		"CONTENT_LENGTH="+r.Header.Get("Content-Length"),
 	)
 
-	err = executeCGI(scriptPath, env, r.Body, w)
-	if err != nil {
+	if err := executeCGI(scriptPath, env, r.Body, w); err != nil {
 		log.Printf("Error executing CGI script: %v", err)
 	}
 }
