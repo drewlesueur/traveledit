@@ -141,7 +141,7 @@ func main() {
 	// fmt.Println(code)
 	// TODO: init caches here?
 	state := makeState(fileName, code)
-	
+
     // start := time.Now()
 	// for state.I >= 0 {
 		// _, name := nextToken(state)
@@ -151,8 +151,25 @@ func main() {
 	// state.I = 0
 	// fmt.Println(time.Since(start))
 	
+	// fmt.Println(unsafe.Pointer(&code))
+	// if strings come from source then we can cache it, but not worth it
+	
+	// see "eval" implementation,
+	// evalState := makeState("__stdlib", stdLib)
+	// evalState.Vals = state.Vals
+	// evalState.Vars = state.Vars
+	// evalState.CallingParent = state
+	// clearFuncToken(state)
+	// return evalState
+	
 	eval(state)
 }
+
+// var stdLib = `
+// def map:
+// 
+// end
+// `
 
 
 func substring(s string, start, length int) string {
@@ -739,7 +756,8 @@ func initBuiltins() {
 			// we could get in here cuz of: (func: 200)
 			if len(state.ModeStack) == 0 {
 				if state.OneLiner {
-					say("yay got here")
+					fmt.Println("#goldenrod doEnd from OneLiner")
+					// builtins["debugVals"](state)
 					state = doEnd(state)
 					return state
 				}
@@ -1190,7 +1208,15 @@ func initBuiltins() {
 		},
 		"loop": func(state *State) *State {
 			theIndex := -1
-			indexVar := popT(state.Vals).(string)
+
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			thingsVal := *things
+
+			var indexVar string
+
+            if len(thingsVal) >= 1 {
+				indexVar = popT(state.Vals).(string)
+            }
 			loops := popT(state.Vals).(int)
 			state.Vars[indexVar] = -1
 			var spot = state.I
@@ -1201,35 +1227,11 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				} else {
-					state.Vars[indexVar] = theIndex
-					state.I = spot
-					state.EndStack = append(state.EndStack, endEach)
-				}
-				return state
-			}
-			state.EndStack = append(state.EndStack, endEach)
-			var i int
-			if state.OneLiner {
-				i = findBeforeEndLineOnlyLine(state)
-			} else {
-				i = findMatchingBefore(state, []string{"end"})
-			}
-			state.I = i
-			clearFuncToken(state)
-			return state
-		},
-		"loopx": func(state *State) *State {
-			theIndex := -1
-			loops := popT(state.Vals).(int)
-			var spot = state.I
-			var endEach func(state *State) *State
-			endEach = func(state *State) *State {
-				theIndex++
-				if theIndex >= loops {
-					state.OneLiner = false
-					return state
-				} else {
-					pushT(state.Vals, theIndex)
+					if indexVar == "" {
+						state.Vars[indexVar] = theIndex
+					} else {
+						pushT(state.Vals, theIndex)
+					}
 					state.I = spot
 					state.EndStack = append(state.EndStack, endEach)
 				}
@@ -1248,13 +1250,20 @@ func initBuiltins() {
 		},
 		"each": func(state *State) *State {
 			theIndex := -1
-			
-			// things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
-			// thingsVal := *things
-			var itemVar string
+
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			thingsVal := *things
+
 			var indexVar string
-			itemVar = popT(state.Vals).(string)
-			indexVar = popT(state.Vals).(string)
+			var itemVar string
+
+			if len(thingsVal) == 2 {
+				indexVar = thingsVal[0].(string)
+				itemVar = thingsVal[1].(string)
+			} else if len(thingsVal) == 1 {
+				itemVar = thingsVal[0].(string)
+			}
+
 			var arr *[]any
 			switch actualArr := popT(state.Vals).(type) {
 			case *[]any:
@@ -1262,10 +1271,12 @@ func initBuiltins() {
 			case []any:
 				arr = &actualArr
 			}
-            // if itemVar != "" {
-				state.Vars[indexVar] = -1
+            if indexVar != "" {
+				state.Vars[indexVar] = theIndex
+            }
+            if itemVar != "" {
 				state.Vars[itemVar] = nil
-            // }
+            }
 			var spot = state.I
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
@@ -1274,13 +1285,15 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				} else {
-            		// if itemVar != "" {
+            		if indexVar != "" {
 						state.Vars[indexVar] = theIndex
+            		}
+            		if itemVar != "" {
 						state.Vars[itemVar] = (*arr)[theIndex]
-            		// } else {
-					    // pushT(state.Vals, theIndex)
-					    // pushT(state.Vals, (*arr)[theIndex])
-            		// }
+            		} else {
+				    	// pushT(state.Vals, theIndex)
+				    	pushT(state.Vals, (*arr)[theIndex])
+            		}
 					state.I = spot
 					state.EndStack = append(state.EndStack, endEach)
 				}
@@ -1297,10 +1310,24 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"iter": func(state *State) *State {
-			// like each but no new variables and only values
-			theIndex := -1
-			
+		"map": func(state *State) *State {
+			// alternate implementation where we don't
+			// jump to end first and we start at 0
+			theIndex := 0
+
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			thingsVal := *things
+
+			var indexVar string
+			var itemVar string
+
+			if len(thingsVal) == 2 {
+				indexVar = thingsVal[0].(string)
+				itemVar = thingsVal[1].(string)
+			} else if len(thingsVal) == 1 {
+				itemVar = thingsVal[0].(string)
+			}
+
 			var arr *[]any
 			switch actualArr := popT(state.Vals).(type) {
 			case *[]any:
@@ -1308,29 +1335,39 @@ func initBuiltins() {
 			case []any:
 				arr = &actualArr
 			}
+            if indexVar != "" {
+				state.Vars[indexVar] = theIndex
+            }
+            if itemVar != "" {
+				state.Vars[itemVar] = (*arr)[theIndex]
+            } else {
+		    	pushT(state.Vals, (*arr)[theIndex])
+            }
 			var spot = state.I
+			ret := []any{}
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
+                ret = append(ret, popT(state.Vals))
 				theIndex++
 				if theIndex >= len(*arr) {
 					state.OneLiner = false
+					pushT(state.Vals, &ret)
 					return state
 				} else {
-				    // pushT(state.Vals, theIndex)
-				    pushT(state.Vals, (*arr)[theIndex])
+            		if indexVar != "" {
+						state.Vars[indexVar] = theIndex
+            		}
+            		if itemVar != "" {
+						state.Vars[itemVar] = (*arr)[theIndex]
+            		} else {
+				    	pushT(state.Vals, (*arr)[theIndex])
+            		}
 					state.I = spot
 					state.EndStack = append(state.EndStack, endEach)
 				}
 				return state
 			}
 			state.EndStack = append(state.EndStack, endEach)
-			var i int
-			if state.OneLiner {
-				i = findBeforeEndLineOnlyLine(state)
-			} else {
-				i = findMatchingBefore(state, []string{"end"})
-			}
-			state.I = i
 			clearFuncToken(state)
 			return state
 		},
