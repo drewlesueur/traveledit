@@ -754,19 +754,22 @@ func initBuiltins() {
 		},
 		")": func(state *State) *State {
 			// we could get in here cuz of: (func: 200)
-			if len(state.ModeStack) == 0 {
+				
+			oldState := state
+			state = callFunc(state)
+			
+			if state.OneLiner {
+				state = doEnd(state)
 				if state.OneLiner {
-					fmt.Println("#goldenrod doEnd from OneLiner")
-					// builtins["debugVals"](state)
-					state = doEnd(state)
 					return state
 				}
 			}
+			
+
+			
+			// this mode stuff was above the callFunc before?
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
-
-			oldState := state
-			state = callFunc(state)
 
 			oldState.CurrFuncToken = oldState.FuncTokenStack[len(oldState.FuncTokenStack)-1]
 			oldState.FuncTokenStack = oldState.FuncTokenStack[:len(oldState.FuncTokenStack)-1]
