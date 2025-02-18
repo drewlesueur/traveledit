@@ -52,6 +52,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"linescript4"
 )
 
 type CertificateReloader struct {
@@ -184,47 +185,7 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
 
 func cgiHandler(w http.ResponseWriter, r *http.Request) {
 	scriptPath := filepath.Clean("." + r.URL.Path)
-	found := false
-
-	for {
-		info, err := os.Stat(scriptPath)
-		if err == nil {
-			// If it's not a directory, we've found the script.
-			if !info.IsDir() {
-				found = true
-				break
-			}
-			// It's a directory so try to use its "index" file.
-			indexCandidate := filepath.Join(scriptPath, "index")
-			if indexInfo, err := os.Stat(indexCandidate); err == nil && !indexInfo.IsDir() {
-				scriptPath = indexCandidate
-				found = true
-				break
-			}
-		}
-
-		parent := filepath.Dir(scriptPath)
-		// If we are at the top level, we're done.
-		if parent == scriptPath {
-			break
-		}
-
-		// Try to see if parent's "index" exists.
-		indexCandidate := filepath.Join(parent, "index")
-		if indexInfo, err := os.Stat(indexCandidate); err == nil && !indexInfo.IsDir() {
-			scriptPath = indexCandidate
-			found = true
-			break
-		}
-
-		scriptPath = parent
-	}
-
-	if !found {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
-	}
-
+	
 	env := os.Environ()
 	env = append(env,
 		"REQUEST_METHOD="+r.Method,
@@ -234,7 +195,7 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 		"CONTENT_LENGTH="+r.Header.Get("Content-Length"),
 	)
 
-	if err := executeCGI(scriptPath, env, r.Body, w); err != nil {
+	if err := executeCGI("index", env, r.Body, w); err != nil {
 		log.Printf("Error executing CGI script: %v", err)
 	}
 }
