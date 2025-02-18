@@ -1,5 +1,8 @@
 #!/usr/bin/env linescript4
 
+string: foo bar 
+toJson
+say
 
 let :names ("bob bill doug tom" split " ")
 say names (map: upper, cc "!")

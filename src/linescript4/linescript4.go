@@ -844,22 +844,49 @@ func initBuiltins() {
 		"string": func(state *State) *State {
 			// TODO, this should happen in parsing step
 			// instead of doing this parsing everytime
-			r := findMatchingAfter(state, []string{"end"})
-			str := state.Code[state.I+1:r.I-3]
-			lines := strings.Split(str, "\n")
-			lines = lines[0:len(lines)-1]
-			prefixToTrim := r.Indent + "    "
-			for i, line := range lines {
-			    // fmt.Printf("%q %q" prefixToTrim, line)
-			    lines[i] = strings.TrimPrefix(line, prefixToTrim)
+			if state.Code[state.I] == ':' {
+				end := strings.Index(state.Code[state.I+2:], "\n")
+				// 2 because of ": "
+				// 1 because we want after "\n"
+				pushT(state.Vals, state.Code[state.I+2:state.I+2+end])
+				state.I = state.I + 2 + end + 1
+			} else {
+				fmt.Println("#orange ", toJson(substring(state.Code, state.I, 50)))
+				r := findMatchingAfter(state, []string{"end"})
+				str := state.Code[state.I+1:r.I-3]
+				lines := strings.Split(str, "\n")
+				lines = lines[0:len(lines)-1]
+				prefixToTrim := r.Indent + "    "
+				for i, line := range lines {
+				    // fmt.Printf("%q %q" prefixToTrim, line)
+				    lines[i] = strings.TrimPrefix(line, prefixToTrim)
+				}
+				str = strings.Join(lines, "\n")
+				pushT(state.Vals, str)
+				state.I = r.I
 			}
-			str = strings.Join(lines, "\n")
-			pushT(state.Vals, str)
-			state.I = r.I
 			return state
 		},
     }
 	runImmediates = map[string]func(state *State) *State{
+		
+		// "gotoEnd": func(state *State) *State {
+		// 	things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+		// 	thingsVal := *things
+		// 	times := 1
+		// 	if len(thingsVal) > 0 {
+		// 	    times = thingsVal[0].(int)
+		// 	}
+		// 	// bug with indents,
+		// 	// make a new function get dedented end or something
+		// 	for i := 0; i<times-1; i++ {
+		// 		r := findMatchingAfter(state, []string{"end"})
+		// 		state.I = r.I
+		// 	}
+		// 	r := findMatchingAfter(state, []string{"end"})
+		// 	state.I = r.I - 3
+		// 	return state
+		// },
 		"__vals": func(state *State) *State {
 			pushT(state.Vals, state.Vals)
 			return state
@@ -1048,6 +1075,7 @@ func initBuiltins() {
 			return ok
 		}),
 		"sliceFrom":  makeBuiltin_2_1(sliceFrom),
+		"sliceTo":  makeBuiltin_2_1(sliceTo),
 		"slice":      makeBuiltin_3_1(slice),
 		"splice":     makeBuiltin_4_1(splice),
 		"length":     makeBuiltin_1_1(length),
@@ -1853,6 +1881,7 @@ func slice(s any, start any, end any) any {
 	return nil
 }
 
+
 func sliceFrom(slice any, start any) any {
 	startInt := start.(int)
 
@@ -1885,6 +1914,44 @@ func sliceFrom(slice any, start any) any {
 	}
 	return nil
 }
+
+
+func sliceTo(slice any, end any) any {
+	endInt := end.(int)
+
+	switch s := slice.(type) {
+	case *[]any:
+		n := len(*s)
+		if endInt < 0 {
+			endInt = n + endInt
+		}
+		if endInt < 0 {
+			endInt = 0
+		}
+		if endInt > n {
+			endInt = n
+		}
+		sliced := make([]any, endInt)
+		copy(sliced, (*s)[:endInt])
+		return &sliced
+	case string:
+		n := len(s)
+		if endInt < 0 {
+			endInt = n + endInt
+		}
+		if endInt < 0 {
+			endInt = 0
+		}
+		if endInt > n {
+			endInt = n
+		}
+		return s[:endInt]
+	}
+	return nil
+}
+
+
+
 
 func length(slice any) any {
 	switch s := slice.(type) {
