@@ -1,11 +1,19 @@
 #!/usr/bin/env linescript4
 
+
+"yo" startsWith "y", not
+say
+
+"yo" startsWith "y" 
+say
+exit
+
 string: foo bar 
 toJson
 say
 
 let :names ("bob bill doug tom" split " ")
-say names (map: upper, cc "!")
+say names (map: upper, cc "!" (cc "?"))
 names map: upper, cc "!"
 say
 exit

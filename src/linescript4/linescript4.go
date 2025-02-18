@@ -57,6 +57,7 @@ type State struct {
 	CachedTokens []*TokenCacheValue
 	Mode         string
 	OneLiner     bool
+	OneLinerParenLevel     int
 	ModeStack    []string
 	// todo: caches need to be pointers???
 	GoUpCache          []*int
@@ -758,7 +759,8 @@ func initBuiltins() {
 			oldState := state
 			state = callFunc(state)
 			
-			if state.OneLiner {
+			// using ModeStack as a representative of paren level
+			if state.OneLiner && state.OneLinerParenLevel == len(state.ModeStack) {
 				state = doEnd(state)
 				if state.OneLiner {
 					return state
@@ -933,6 +935,7 @@ func initBuiltins() {
 		},
 		":": func(state *State) *State {
 			state.OneLiner = true
+			state.OneLinerParenLevel = len(state.ModeStack)
 			state = callFunc(state)
 			// state.OneLiner = false
 			return state
@@ -1379,6 +1382,70 @@ func initBuiltins() {
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
                 ret = append(ret, popT(state.Vals))
+				theIndex++
+				if theIndex >= len(*arr) {
+					state.OneLiner = false
+					pushT(state.Vals, &ret)
+					return state
+				} else {
+            		if indexVar != "" {
+						state.Vars[indexVar] = theIndex
+            		}
+            		if itemVar != "" {
+						state.Vars[itemVar] = (*arr)[theIndex]
+            		} else {
+				    	pushT(state.Vals, (*arr)[theIndex])
+            		}
+					state.I = spot
+					state.EndStack = append(state.EndStack, endEach)
+				}
+				return state
+			}
+			state.EndStack = append(state.EndStack, endEach)
+			clearFuncToken(state)
+			return state
+		},
+		"filter": func(state *State) *State {
+			// alternate implementation where we don't
+			// jump to end first and we start at 0
+			theIndex := 0
+
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			thingsVal := *things
+
+			var indexVar string
+			var itemVar string
+
+			if len(thingsVal) == 2 {
+				indexVar = thingsVal[0].(string)
+				itemVar = thingsVal[1].(string)
+			} else if len(thingsVal) == 1 {
+				itemVar = thingsVal[0].(string)
+			}
+
+			var arr *[]any
+			switch actualArr := popT(state.Vals).(type) {
+			case *[]any:
+				arr = actualArr
+			case []any:
+				arr = &actualArr
+			}
+            if indexVar != "" {
+				state.Vars[indexVar] = theIndex
+            }
+            if itemVar != "" {
+				state.Vars[itemVar] = (*arr)[theIndex]
+            } else {
+		    	pushT(state.Vals, (*arr)[theIndex])
+            }
+			var spot = state.I
+			ret := []any{}
+			var endEach func(state *State) *State
+			endEach = func(state *State) *State {
+                v := popT(state.Vals).(bool)
+                if v {
+                    ret = append(ret, (*arr)[theIndex])
+                }
 				theIndex++
 				if theIndex >= len(*arr) {
 					state.OneLiner = false
