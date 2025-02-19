@@ -6,7 +6,6 @@ say
 
 "yo" startsWith "y" 
 say
-exit
 
 string: foo bar 
 toJson

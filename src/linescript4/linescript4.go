@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"math"
 	"os/exec"
+	"io"
 )
 
 type FindMatchingResult struct {
@@ -105,16 +106,16 @@ func MakeState(fileName, code string) *State {
 
 func main() {
 	_ = pprof.StartCPUProfile
-	cpuProfile, err := os.Create("cpu.prof")
-	if err != nil {
-		panic(err)
-	}
-	defer cpuProfile.Close()
-	// Start CPU profiling
-	if err := pprof.StartCPUProfile(cpuProfile); err != nil {
-		panic(err)
-	}
-	defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
+	// cpuProfile, err := os.Create("cpu.prof")
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// defer cpuProfile.Close()
+	// // Start CPU profiling
+	// if err := pprof.StartCPUProfile(cpuProfile); err != nil {
+	// 	panic(err)
+	// }
+	// defer pprof.StopCPUProfile() // Stop CPU profiling when the program ends
 
 	initBuiltins()
 
@@ -853,7 +854,6 @@ func initBuiltins() {
 				pushT(state.Vals, state.Code[state.I+2:state.I+2+end])
 				state.I = state.I + 2 + end + 1
 			} else {
-				fmt.Println("#orange ", toJson(substring(state.Code, state.I, 50)))
 				r := findMatchingAfter(state, []string{"end"})
 				str := state.Code[state.I+1:r.I-3]
 				lines := strings.Split(str, "\n")
@@ -1347,7 +1347,9 @@ func initBuiltins() {
 		"map": func(state *State) *State {
 			// alternate implementation where we don't
 			// jump to end first and we start at 0
-			theIndex := 0
+			
+			// start at -1 and jump to end to force the end check first
+			theIndex := -1
 
 			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 			thingsVal := *things
@@ -1369,82 +1371,12 @@ func initBuiltins() {
 			case []any:
 				arr = &actualArr
 			}
-            if indexVar != "" {
-				state.Vars[indexVar] = theIndex
-            }
-            if itemVar != "" {
-				state.Vars[itemVar] = (*arr)[theIndex]
-            } else {
-		    	pushT(state.Vals, (*arr)[theIndex])
-            }
 			var spot = state.I
 			ret := []any{}
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
-                ret = append(ret, popT(state.Vals))
-				theIndex++
-				if theIndex >= len(*arr) {
-					state.OneLiner = false
-					pushT(state.Vals, &ret)
-					return state
-				} else {
-            		if indexVar != "" {
-						state.Vars[indexVar] = theIndex
-            		}
-            		if itemVar != "" {
-						state.Vars[itemVar] = (*arr)[theIndex]
-            		} else {
-				    	pushT(state.Vals, (*arr)[theIndex])
-            		}
-					state.I = spot
-					state.EndStack = append(state.EndStack, endEach)
-				}
-				return state
-			}
-			state.EndStack = append(state.EndStack, endEach)
-			clearFuncToken(state)
-			return state
-		},
-		"filter": func(state *State) *State {
-			// alternate implementation where we don't
-			// jump to end first and we start at 0
-			theIndex := 0
-
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
-			thingsVal := *things
-
-			var indexVar string
-			var itemVar string
-
-			if len(thingsVal) == 2 {
-				indexVar = thingsVal[0].(string)
-				itemVar = thingsVal[1].(string)
-			} else if len(thingsVal) == 1 {
-				itemVar = thingsVal[0].(string)
-			}
-
-			var arr *[]any
-			switch actualArr := popT(state.Vals).(type) {
-			case *[]any:
-				arr = actualArr
-			case []any:
-				arr = &actualArr
-			}
-            if indexVar != "" {
-				state.Vars[indexVar] = theIndex
-            }
-            if itemVar != "" {
-				state.Vars[itemVar] = (*arr)[theIndex]
-            } else {
-		    	pushT(state.Vals, (*arr)[theIndex])
-            }
-			var spot = state.I
-			ret := []any{}
-			var endEach func(state *State) *State
-			endEach = func(state *State) *State {
-                v := popT(state.Vals).(bool)
-                if v {
-                    ret = append(ret, (*arr)[theIndex])
+                if theIndex != -1 {
+                    ret = append(ret, popT(state.Vals))
                 }
 				theIndex++
 				if theIndex >= len(*arr) {
@@ -1466,6 +1398,77 @@ func initBuiltins() {
 				return state
 			}
 			state.EndStack = append(state.EndStack, endEach)
+			var i int
+			if state.OneLiner {
+				i = findBeforeEndLineOnlyLine(state)
+			} else {
+				i = findMatchingBefore(state, []string{"end"})
+			}
+			state.I = i
+			clearFuncToken(state)
+			return state
+		},
+		"filter": func(state *State) *State {
+			// start at -1 and jump to end to force the length check first
+			theIndex := -1
+
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			thingsVal := *things
+
+			var indexVar string
+			var itemVar string
+
+			if len(thingsVal) == 2 {
+				indexVar = thingsVal[0].(string)
+				itemVar = thingsVal[1].(string)
+			} else if len(thingsVal) == 1 {
+				itemVar = thingsVal[0].(string)
+			}
+
+			var arr *[]any
+			switch actualArr := popT(state.Vals).(type) {
+			case *[]any:
+				arr = actualArr
+			case []any:
+				arr = &actualArr
+			}
+			var spot = state.I
+			ret := []any{}
+			var endEach func(state *State) *State
+			endEach = func(state *State) *State {
+                if theIndex != -1 {
+                    v := popT(state.Vals).(bool)
+                    if v {
+                        ret = append(ret, (*arr)[theIndex])
+                    }
+                }
+				theIndex++
+				if theIndex >= len(*arr) {
+					state.OneLiner = false
+					pushT(state.Vals, &ret)
+					return state
+				} else {
+            		if indexVar != "" {
+						state.Vars[indexVar] = theIndex
+            		}
+            		if itemVar != "" {
+						state.Vars[itemVar] = (*arr)[theIndex]
+            		} else {
+				    	pushT(state.Vals, (*arr)[theIndex])
+            		}
+					state.I = spot
+					state.EndStack = append(state.EndStack, endEach)
+				}
+				return state
+			}
+			state.EndStack = append(state.EndStack, endEach)
+			var i int
+			if state.OneLiner {
+				i = findBeforeEndLineOnlyLine(state)
+			} else {
+				i = findMatchingBefore(state, []string{"end"})
+			}
+			state.I = i
 			clearFuncToken(state)
 			return state
 		},
@@ -1612,27 +1615,59 @@ func initBuiltins() {
 			return state
 
 		},
+		"bashArg": func(state *State) *State {
+			arg := popT(state.Vals).(string)
+			modified := "'" + strings.Replace(arg, "'", "'\\''", -1) + "'"
+			pushT(state.Vals, string(modified))
+			clearFuncToken(state)
+			return state
+		},
 		"execBash": func(state *State) *State {
 			val := popT(state.Vals).(string)
-			cmd := exec.Command("bash", "-c", val)
+			cmd := exec.Command("/bin/bash", "-c", val)
 			cmdOutput, err := cmd.Output()
 			_ = err
-			// if err != nil {
-			// 	panic(err)
-			// }
+			if err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					fmt.Println("ExitError:", string(exitErr.Stderr))
+				} else {
+					fmt.Println("Error:", err)
+				}
+			}
 			pushT(state.Vals, string(cmdOutput))
 			clearFuncToken(state)
 			return state
 		},
 		"execBashCombined": func(state *State) *State {
 			val := popT(state.Vals).(string)
-			cmd := exec.Command("bash", "-c", val)
+			cmd := exec.Command("/bin/bash", "-c", val)
 			cmdOutput, err := cmd.CombinedOutput()
 			_ = err
-			// if err != nil {
-			// 	panic(err)
-			// }
+			if err != nil {
+				fmt.Println(err)
+			}
 			pushT(state.Vals, string(cmdOutput))
+			clearFuncToken(state)
+			return state
+		},
+		"getStdin": func(state *State) *State {
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+			    panic(err)
+			}
+			pushT(state.Vals, string(data))
+			clearFuncToken(state)
+			return state
+		},
+		"getEnvVars": func(state *State) *State {
+	    	m := make(map[string]any)
+	    	for _, env := range os.Environ() {
+	    		parts := strings.SplitN(env, "=", 2)
+	    		if len(parts) == 2 {
+	    			m[parts[0]] = parts[1]
+	    		}
+	    	}
+			pushT(state.Vals, m)
 			clearFuncToken(state)
 			return state
 		},
@@ -1646,7 +1681,23 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"saveFile": func(state *State) *State {
+		"readDirNames": func(state *State) *State {
+		    dirName := popT(state.Vals).(string)
+		    entries, err := os.ReadDir(dirName)
+		    if err != nil {
+		        panic(err)
+		    }
+		    var names []string
+		    for _, entry := range entries {
+		        if entry.Name() != "." && entry.Name() != ".." {
+		            names = append(names, entry.Name())
+		        }
+		    }
+		    pushT(state.Vals, &names)
+		    clearFuncToken(state)
+		    return state
+		},
+		"writeFile": func(state *State) *State {
 			contents := popT(state.Vals).(string)
 			fileName := popT(state.Vals).(string)
 			err := os.WriteFile(fileName, []byte(contents), 0644)
@@ -1671,7 +1722,7 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"deleteFile": func(state *State) *State {
+		"removeFile": func(state *State) *State {
 		    fileName := popT(state.Vals).(string)
 		    err := os.Remove(fileName)
 		    if err != nil && !os.IsNotExist(err) {
@@ -1680,6 +1731,9 @@ func initBuiltins() {
 		    clearFuncToken(state)
 		    return state
 		},
+		
+		
+		
 		"eval": func(state *State) *State {
 			code := popT(state.Vals).(string)
 			// fmt.Println(unsafe.Pointer(&code))
