@@ -13,7 +13,11 @@ import (
 	"math"
 	"os/exec"
 	"io"
+	"runtime"
+	"sync"
 )
+
+
 
 type FindMatchingResult struct {
 	Match string
@@ -74,6 +78,14 @@ type State struct {
 	LexicalParent      *State
 	CallingParent      *State
 	DebugTokens bool
+	
+	Ch chan bool
+	Done bool
+	Canceled bool // need this?
+	WaitingOn *State
+	Waiters []*State
+	Mu sync.Mutex
+	IsTop bool
 }
 
 func MakeState(fileName, code string) *State {
@@ -101,10 +113,13 @@ func MakeState(fileName, code string) *State {
 		FuncTokenSpot:      -1,
 		FuncTokenSpotStack: nil,
 		DebugTokens: false,
+		Waiters: []*State{},
+		Ch: make(chan bool),
 	}
 }
 
 func main() {
+	runtime.GOMAXPROCS(1)
 	_ = pprof.StartCPUProfile
 	// cpuProfile, err := os.Create("cpu.prof")
 	// if err != nil {
@@ -143,6 +158,7 @@ func main() {
 	// fmt.Println(code)
 	// TODO: init caches here?
 	state := MakeState(fileName, code)
+	state.IsTop = true
 
     // start := time.Now()
 	// for state.I >= 0 {
@@ -164,7 +180,8 @@ func main() {
 	// clearFuncToken(state)
 	// return evalState
 	
-	Eval(state)
+  	go Eval(state)
+    <- state.Ch
 }
 
 // var stdLib = `
@@ -189,7 +206,7 @@ func substring(s string, start, length int) string {
 
 
 func Eval(state *State) *State {
-	// for j := 0; j < 10000; j++ {
+	var origState = state
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Recovered from panic:", r)
@@ -198,17 +215,6 @@ func Eval(state *State) *State {
 		}
 	}()
 	for {
-    	// if state == nil {
-    	// 	return nil
-    	// }
-		// if state.I == -1 {
-		// 	state = runImmediates["\n"](state)
-		// 	state = state.CallingParent
-		// 	continue
-		// }
-		// r := state.CachedTokens[state.I]
-		// token := r.Token
-		// state.I = r.I
 		token, name := nextToken(state)
 		// #cyan
 		if state.DebugTokens {
@@ -217,10 +223,25 @@ func Eval(state *State) *State {
 		_ = name
 		switch token := token.(type){
 		case immediateToken:
+    		o := state
     		state = token(state)
-    	    if state == nil {
-    	    	return nil
-    	    }
+            if state == nil {
+            	if o.WaitingOn == nil {
+            	    fmt.Println("#crimson ending!", o.I)
+                    close(o.Ch)
+                    o.Mu.Lock()
+                    o.Done = true
+                    for _, w := range o.Waiters {
+                        for _, v := range *o.Vals {
+			                pushT(w.Vals, v)
+                        }
+                        go Eval(w)
+                    }
+                    o.Waiters = []*State{}
+                    o.Mu.Unlock()
+            	}
+            	return nil
+            }
 		case builtinFuncToken:
 			state.CurrFuncToken = token
 			state.FuncTokenSpot = len(*state.Vals)
@@ -271,8 +292,9 @@ func Eval(state *State) *State {
 		    // fmt.Printf("oops type %T\n", token)
 		    // panic("fail")
 		}
-	}
-	return state
+ 	}
+    
+	return origState
 }
 func getVar(state *State, varName string) any {
 	if v, ok := state.Vars[varName]; ok {
@@ -1524,6 +1546,56 @@ func initBuiltins() {
 			clearFuncToken(state) // needed?
 			return state.CallingParent
 		},
+		// 
+		"go": func(state *State) *State {
+			newState := MakeState(state.FileName, state.Code)
+			newState.CachedTokens = state.CachedTokens
+			newState.GoUpCache = state.GoUpCache
+			newState.FindMatchingCache = state.FindMatchingCache
+			newState.I = state.I
+			// newState.Vals = state.Vals
+			// the vals is of type *[]any (in Go)
+			// instead of assigning. I want newstate.Vals to be a shallow copy
+			temp := make([]any, len(*state.Vals))
+			copy(temp, *state.Vals)
+			newState.Vals = &temp
+			
+			// newState.CallingParent = state
+			newState.CallingParent = nil
+			newState.LexicalParent = state
+			newState.OneLiner = state.OneLiner
+			newState.IsTop = true
+
+			if state.OneLiner {
+				state.I = findAfterEndLineOnlyLine(state)
+				// f.EndI = state.I
+				state.OneLiner = false
+			} else {
+				r := findMatchingAfter(state, []string{"end"})
+				state.I = r.I
+				// f.EndI = r.I
+			}
+			go Eval(newState)
+			pushT(state.Vals, newState)
+			clearFuncToken(state)
+			return state
+		},
+		// TODO: cancel
+		"wait": func(state *State) *State {
+			newState := popT(state.Vals).(*State)
+		    state.WaitingOn = newState // Do I need this?
+		    newState.Mu.Lock()
+		    if newState.Done {
+		        for _, v := range *newState.Vals {
+					pushT(state.Vals, v)
+		        }
+		    } else {
+		    	newState.Waiters = append(newState.Waiters, state)
+		    }
+		    newState.Mu.Unlock()
+			clearFuncToken(state)
+			return nil
+		},
 		"def": func(state *State) *State {
 			params := spliceT(state.Vals, state.FuncTokenSpot+1, len(*state.Vals)-(state.FuncTokenSpot+1), nil)
 			paramStrings := make([]string, len(*params))
@@ -1752,6 +1824,12 @@ func initBuiltins() {
 			v := popT(state.Vals)
 			pushT(state.Vals, v)
 			pushT(state.Vals, v)
+			clearFuncToken(state)
+			return state
+		},
+		"sleep": func(state *State) *State {
+			ms := popT(state.Vals).(int)
+			time.Sleep(time.Duration(ms) * time.Millisecond)
 			clearFuncToken(state)
 			return state
 		},
