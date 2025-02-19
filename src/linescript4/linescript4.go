@@ -235,6 +235,7 @@ func Eval(state *State) *State {
                         for _, v := range *o.Vals {
 			                pushT(w.Vals, v)
                         }
+                        w.WaitingOn = nil
                         go Eval(w)
                     }
                     o.Waiters = []*State{}
@@ -1580,6 +1581,7 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		// todo, also pause/resume
 		// TODO: cancel
 		"wait": func(state *State) *State {
 			newState := popT(state.Vals).(*State)
