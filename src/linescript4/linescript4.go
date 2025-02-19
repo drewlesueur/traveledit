@@ -75,7 +75,7 @@ type State struct {
 	DebugTokens bool
 }
 
-func makeState(fileName, code string) *State {
+func MakeState(fileName, code string) *State {
 	return &State{
 		FileName:  fileName,
 		I:         0,
@@ -141,7 +141,7 @@ func main() {
 	code := string(data)
 	// fmt.Println(code)
 	// TODO: init caches here?
-	state := makeState(fileName, code)
+	state := MakeState(fileName, code)
 
     // start := time.Now()
 	// for state.I >= 0 {
@@ -156,14 +156,14 @@ func main() {
 	// if strings come from source then we can cache it, but not worth it
 	
 	// see "eval" implementation,
-	// evalState := makeState("__stdlib", stdLib)
+	// evalState := MakeState("__stdlib", stdLib)
 	// evalState.Vals = state.Vals
 	// evalState.Vars = state.Vars
 	// evalState.CallingParent = state
 	// clearFuncToken(state)
 	// return evalState
 	
-	eval(state)
+	Eval(state)
 }
 
 // var stdLib = `
@@ -187,7 +187,7 @@ func substring(s string, start, length int) string {
 
 
 
-func eval(state *State) *State {
+func Eval(state *State) *State {
 	// for j := 0; j < 10000; j++ {
 	defer func() {
 		if r := recover(); r != nil {
@@ -1684,7 +1684,7 @@ func initBuiltins() {
 			code := popT(state.Vals).(string)
 			// fmt.Println(unsafe.Pointer(&code))
 			// if strings come from source then we can cache it, but not worth it
-			evalState := makeState("__eval", code)
+			evalState := MakeState("__eval", code)
 			evalState.Vals = state.Vals
 			evalState.Vars = state.Vars
 
@@ -1761,7 +1761,7 @@ func makeFuncToken(token *Func) func(*State) *State {
     return func(state *State) *State {
 		state.CurrFuncToken = nil
 		state.FuncTokenSpot = -1
-		newState := makeState(token.FileName, token.Code)
+		newState := MakeState(token.FileName, token.Code)
 		newState.CachedTokens = token.CachedTokens
 		newState.GoUpCache = token.GoUpCache
 		newState.FindMatchingCache = token.FindMatchingCache

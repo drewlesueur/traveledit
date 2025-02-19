@@ -204,6 +204,21 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 // be sent as part of cgi spec?
 
 func main() {
+	// optional eval script
+	if len(os.Args) >= 2 {
+		fileName := os.Args[1]
+		data, err := os.ReadFile(fileName)
+		if err != nil {
+			fmt.Println("Error reading file:", err)
+			return
+		}
+		code := string(data)
+		// fmt.Println(code)
+		// TODO: init caches here?
+		state := makeState(fileName, code)
+		Eval(state)
+	}
+	
 	reloader := &CertificateReloader{}
 
 	http.HandleFunc("/", cgiHandler)
@@ -214,15 +229,24 @@ func main() {
 		fmt.Fprintln(w, "Certificate cache cleared")
 	})
 
-	server := &http.Server{
-		Addr: ":443",
-		TLSConfig: &tls.Config{
-			GetCertificate: reloader.GetCertificate,
-		},
-	}
+    if os.Getenv("HTTPS") != "" {
+		server := &http.Server{
+			Addr: os.Getenv("HTTPS"), // :443
+			TLSConfig: &tls.Config{
+				GetCertificate: reloader.GetCertificate,
+			},
+		}
+		log.Println("Starting HTTPS server on", os.Getenv("HTTPS"))
+		go log.Fatal(server.ListenAndServeTLS("", "")) // Certificates are loaded dynamically, based on the hostname
+    }
+    if os.Getenv("HTTP") != "" {
+		server := &http.Server{
+			Addr: os.Getenv("HTTP"), // :80
+		}
+		log.Println("Starting HTTPS server on", os.Getenv("HTTP"))
+		go log.Fatal(server.ListenAndServeTLS("", "")) // Certificates are loaded dynamically, based on the hostname
+    }
 
-	log.Println("Starting HTTPS server on :443")
-	log.Fatal(server.ListenAndServeTLS("", "")) // Certificates are loaded dynamically, based on the hostname
 }
 
 
