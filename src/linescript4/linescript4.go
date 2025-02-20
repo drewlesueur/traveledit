@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"io"
 	"runtime"
-	"sync"
 )
 
 type FindMatchingResult struct {
@@ -52,8 +51,13 @@ type RunImmediate2 struct {
 	Name string
 	Func func(state *State) *State
 }
+
+type Callback struct {
+    State *State
+    ReturnValues []any
+}
 type Machine struct {
-    CallbacksCh chan *State
+    CallbacksCh chan Callback
     Index int
 }
 
@@ -81,16 +85,19 @@ type State struct {
 	CallingParent      *State
 	DebugTokens bool
 	
-	Ch chan bool
 	Done bool
 	Canceled bool // need this?
-	WaitingOn *State
 	Waiters []*State
-	Mu sync.Mutex
 	IsTop bool
 	AsyncChildren map[int]*State
 	
 	Machine *Machine
+}
+
+func (state *State) AddCallback(callback Callback) {
+    go func() {
+        state.Machine.CallbacksCh <- callback
+    }()
 }
 
 func MakeState(fileName, code string) *State {
@@ -118,7 +125,6 @@ func MakeState(fileName, code string) *State {
 		FuncTokenSpotStack: nil,
 		DebugTokens: false,
 		Waiters: []*State{},
-		Ch: make(chan bool),
 	}
 }
 
@@ -163,7 +169,7 @@ func main() {
 	// TODO: init caches here?
 	state := MakeState(fileName, code)
     state.Machine = &Machine{
-        CallbacksCh: make(chan *State),
+        CallbacksCh: make(chan Callback),
         Index: 0,
     }
 	state.IsTop = true
@@ -224,9 +230,7 @@ func Eval(state *State) *State {
 	evalLoop:
 	for {
     	if state != nil && state.Canceled {
-    	    state.Mu.Lock()
     	    cancel(state)
-    	    state.Mu.Unlock()
     	    return nil
     	}
 		token, name := nextToken(state)
@@ -240,27 +244,27 @@ func Eval(state *State) *State {
     		o := state
     		state = token(state)
             if state == nil {
-            	if o.WaitingOn == nil {
+            	if o.Done {
             	    fmt.Println("#crimson ending!", o.I)
-                    close(o.Ch)
-                    o.Mu.Lock()
-                    o.Done = true
                     for _, w := range o.Waiters {
-                        for _, v := range *o.Vals {
-			                pushT(w.Vals, v)
-                        }
-                        w.WaitingOn = nil
-                        go Eval(w)
+                        o.AddCallback(Callback{
+                            State: w,
+                            ReturnValues: *w.Vals,
+                        })
                     }
-                    o.Waiters = []*State{}
-                    o.Mu.Unlock()
+                    o.Waiters = nil
             	}
-            	return nil
-            } else if state.Canceled {
-                state.Mu.Lock()
-                cancel(state)
-                state.Mu.Unlock()
-                return nil
+                // need another state, let's get one from callback channel
+                fmt.Println("#yellow waiting for new state")
+                callback, ok := <- o.Machine.CallbacksCh
+                if !ok {
+                    break evalLoop
+                }
+                fmt.Println("#lime got new state")
+                state = callback.State
+                for _, v := range callback.ReturnValues {
+                    pushT(state.Vals, v)
+                }
             }
 		case builtinFuncToken:
 			state.CurrFuncToken = token
@@ -1163,6 +1167,8 @@ func initBuiltins() {
 		}),
 		"exit": func(state *State) *State {
 	        clearFuncToken(state)
+	        close(state.Machine.CallbacksCh)
+	        state.Done = true
 	        return nil
         },
 		"makeObject": func(state *State) *State {
@@ -1574,6 +1580,9 @@ func initBuiltins() {
 		"end": doEnd,
 		"return": func(state *State) *State {
 			clearFuncToken(state) // needed?
+			if state.CallingParent == nil {
+			    state.Done = true
+			}
 			return state.CallingParent
 		},
 		// 
@@ -1611,7 +1620,9 @@ func initBuiltins() {
 			}
 			
 			// state.AsyncChildren[] = newState
-			go Eval(newState)
+            state.AddCallback(Callback{
+			    State: newState,
+			})
 			pushT(state.Vals, newState)
 			clearFuncToken(state)
 			return state
@@ -1620,8 +1631,6 @@ func initBuiltins() {
 		// TODO: cancel
 		"wait": func(state *State) *State {
 			newState := popT(state.Vals).(*State)
-		    state.WaitingOn = newState // Do I need this?
-		    newState.Mu.Lock()
 		    if newState.Done {
 		        for _, v := range *newState.Vals {
 					pushT(state.Vals, v)
@@ -1629,15 +1638,12 @@ func initBuiltins() {
 		    } else {
 		    	newState.Waiters = append(newState.Waiters, state)
 		    }
-		    newState.Mu.Unlock()
 			clearFuncToken(state)
 			return nil
 		},
 		"cancel": func(state *State) *State {
 			newState := popT(state.Vals).(*State)
-		    newState.Mu.Lock()
 	        newState.Canceled = true
-		    newState.Mu.Unlock()
 			clearFuncToken(state)
 			return state
 		},
@@ -1790,13 +1796,18 @@ func initBuiltins() {
 		},
 		"readFile": func(state *State) *State {
 			fileName := popT(state.Vals).(string)
-			b, err := os.ReadFile(fileName)
-			if err != nil {
-				panic(err)
-			}
-			pushT(state.Vals, string(b))
+			go func() {
+				b, err := os.ReadFile(fileName)
+				if err != nil {
+					panic(err)
+				}
+				state.AddCallback(Callback{
+				    State: state,
+				    ReturnValues: []any{string(b)},
+				})
+			}()
 			clearFuncToken(state)
-			return state
+			return nil
 		},
 		"readDirNames": func(state *State) *State {
 		    dirName := popT(state.Vals).(string)
@@ -1848,6 +1859,15 @@ func initBuiltins() {
 		    clearFuncToken(state)
 		    return state
 		},
+		"sleep": func(state *State) *State {
+			ms := popT(state.Vals).(int)
+			clearFuncToken(state)
+			go func() {
+				time.Sleep(time.Duration(ms) * time.Millisecond)	    
+				state.AddCallback(Callback{State: state})
+			}()
+			return nil
+		},
 		
 		
 		
@@ -1870,12 +1890,6 @@ func initBuiltins() {
 			v := popT(state.Vals)
 			pushT(state.Vals, v)
 			pushT(state.Vals, v)
-			clearFuncToken(state)
-			return state
-		},
-		"sleep": func(state *State) *State {
-			ms := popT(state.Vals).(int)
-			time.Sleep(time.Duration(ms) * time.Millisecond)
 			clearFuncToken(state)
 			return state
 		},
@@ -1965,6 +1979,9 @@ var funcBuiltin func(*State) *State
 
 func endOfCodeImmediate(state *State) *State {
 	clearFuncToken(state)
+	if state.CallingParent == nil {
+	    state.Done = true
+	}
 	return state.CallingParent
 }
 
@@ -2638,6 +2655,9 @@ func interpolate(a, b any) any {
 func doEnd(state *State) *State {
 	// fmt.Println("#skyblue END")
 	if len(state.EndStack) == 0 {
+		if state.CallingParent == nil {
+		    state.Done = true
+		}
 		return state.CallingParent
 	}
 
