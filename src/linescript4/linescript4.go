@@ -84,6 +84,9 @@ type State struct {
 	FuncTokenStack     []func(*State) *State
 	FuncTokenSpot      int // position of the first "argument" in vals, even tho it can grab from earlier
 	FuncTokenSpotStack []int
+	
+	NewlineSpot          int 
+	
 	LexicalParent      *State
 	CallingParent      *State
 	DebugTokens bool
@@ -126,6 +129,9 @@ func MakeState(fileName, code string) *State {
 		FuncTokenStack:     nil,
 		FuncTokenSpot:      -1,
 		FuncTokenSpotStack: nil,
+		
+		NewlineSpot:      -1,
+		
 		DebugTokens: false,
 		Waiters: []*State{},
 	}
@@ -953,7 +959,9 @@ func initBuiltins() {
 			return state
 		},
 		"it": func(state *State) *State {
-			items := spliceT(state.Vals, state.FuncTokenSpot-1, 1, nil)
+			// items := spliceT(state.Vals, state.FuncTokenSpot-1, 1, nil)
+			items := spliceT(state.Vals, state.NewlineSpot-1, 1, nil)
+			state.NewlineSpot--
 			state.FuncTokenSpot--
 			item := (*items)[0]
 			pushT(state.Vals, item)
@@ -990,6 +998,7 @@ func initBuiltins() {
 			if oldState == state && oldState.OneLiner {
 				state = doEnd(state)
 			}
+			oldState.NewlineSpot = len(*oldState.Vals)
 			return state
 		},
 		":": func(state *State) *State {
