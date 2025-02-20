@@ -1,6 +1,9 @@
 // <code>
 package main
 
+// fix "it" when there is another on line
+// "it" should reference newLineSpot, not funcTokenSpot
+
 import (
 	"fmt"
 	"os"
@@ -245,7 +248,7 @@ func Eval(state *State) *State {
     		state = token(state)
             if state == nil {
             	if o.Done {
-            	    fmt.Println("#crimson ending!", o.I)
+            	    // fmt.Println("#crimson ending!", o.I)
                     for _, w := range o.Waiters {
                         o.AddCallback(Callback{
                             State: w,
@@ -255,12 +258,12 @@ func Eval(state *State) *State {
                     o.Waiters = nil
             	}
                 // need another state, let's get one from callback channel
-                fmt.Println("#yellow waiting for new state")
+                // fmt.Println("#yellow waiting for new state")
                 callback, ok := <- o.Machine.CallbacksCh
                 if !ok {
                     break evalLoop
                 }
-                fmt.Println("#lime got new state")
+                // fmt.Println("#lime got new state")
                 state = callback.State
                 for _, v := range callback.ReturnValues {
                     pushT(state.Vals, v)
@@ -1305,12 +1308,19 @@ func initBuiltins() {
 			thingsVal := *things
 
 			var indexVar string
-
-            if len(thingsVal) >= 1 {
-				indexVar = popT(state.Vals).(string)
+            var loops int
+            if len(thingsVal) >= 2 {
+			    loops = thingsVal[0].(int)
+				indexVar = thingsVal[1].(string)
+            } else if len(thingsVal) == 1 {
+    			loops = popT(state.Vals).(int)
+				indexVar = thingsVal[0].(string)
+            } else {
+    			loops = popT(state.Vals).(int)
             }
-			loops := popT(state.Vals).(int)
-			state.Vars[indexVar] = -1
+            if indexVar != "" {
+				state.Vars[indexVar] = -1
+            }
 			var spot = state.I
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
@@ -1319,7 +1329,7 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				} else {
-					if indexVar == "" {
+					if indexVar != "" {
 						state.Vars[indexVar] = theIndex
 					} else {
 						pushT(state.Vals, theIndex)
@@ -1587,6 +1597,9 @@ func initBuiltins() {
 		},
 		// 
 		"go": func(state *State) *State {
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			thingsVal := *things
+			
 			newState := MakeState(state.FileName, state.Code)
 			newState.Machine = state.Machine
 			newState.CachedTokens = state.CachedTokens
@@ -1599,9 +1612,10 @@ func initBuiltins() {
 			
 			
 			
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
-			// thingsVal := *things
 			newState.Vals = things
+			for _, v := range thingsVal {
+			    newState.Vars[v.(string)] = getVar(state, v.(string))
+			}
 			
 			// newState.CallingParent = state
 			newState.CallingParent = nil
