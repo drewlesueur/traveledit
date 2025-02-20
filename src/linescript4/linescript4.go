@@ -17,8 +17,6 @@ import (
 	"sync"
 )
 
-
-
 type FindMatchingResult struct {
 	Match string
 	I     int
@@ -54,6 +52,10 @@ type RunImmediate2 struct {
 	Name string
 	Func func(state *State) *State
 }
+type Machine struct {
+    CallbacksCh chan *State
+    Index int
+}
 
 type State struct {
 	FileName     string
@@ -86,6 +88,9 @@ type State struct {
 	Waiters []*State
 	Mu sync.Mutex
 	IsTop bool
+	AsyncChildren map[int]*State
+	
+	Machine *Machine
 }
 
 func MakeState(fileName, code string) *State {
@@ -102,7 +107,6 @@ func MakeState(fileName, code string) *State {
 		// though if you eval in a loop with a static string, you should be able to optimize
 		GoUpCache:          make([]*int, len(code)+1),
 		FindMatchingCache:  make([]*FindMatchingResult, len(code)+1),
-		
 		
 		Vals:               &[]any{},
 		ValsStack:          nil,
@@ -158,6 +162,10 @@ func main() {
 	// fmt.Println(code)
 	// TODO: init caches here?
 	state := MakeState(fileName, code)
+    state.Machine = &Machine{
+        CallbacksCh: make(chan *State),
+        Index: 0,
+    }
 	state.IsTop = true
 
     // start := time.Now()
@@ -180,8 +188,7 @@ func main() {
 	// clearFuncToken(state)
 	// return evalState
 	
-  	go Eval(state)
-    <- state.Ch
+  	Eval(state)
 }
 
 // var stdLib = `
@@ -214,7 +221,14 @@ func Eval(state *State) *State {
 			panic(r)
 		}
 	}()
+	evalLoop:
 	for {
+    	if state != nil && state.Canceled {
+    	    state.Mu.Lock()
+    	    cancel(state)
+    	    state.Mu.Unlock()
+    	    return nil
+    	}
 		token, name := nextToken(state)
 		// #cyan
 		if state.DebugTokens {
@@ -242,6 +256,11 @@ func Eval(state *State) *State {
                     o.Mu.Unlock()
             	}
             	return nil
+            } else if state.Canceled {
+                state.Mu.Lock()
+                cancel(state)
+                state.Mu.Unlock()
+                return nil
             }
 		case builtinFuncToken:
 			state.CurrFuncToken = token
@@ -294,8 +313,18 @@ func Eval(state *State) *State {
 		    // panic("fail")
 		}
  	}
-    
+ 	
 	return origState
+}
+
+func cancel(state *State) {
+    state.Done = true
+    state.Canceled = true
+    fmt.Println("#coral canceling", state.Vars["name"])
+    for _, c := range state.AsyncChildren {
+        cancel(c)
+    }
+    state.AsyncChildren = map[int]*State{}
 }
 func getVar(state *State, varName string) any {
 	if v, ok := state.Vars[varName]; ok {
@@ -1550,6 +1579,7 @@ func initBuiltins() {
 		// 
 		"go": func(state *State) *State {
 			newState := MakeState(state.FileName, state.Code)
+			newState.Machine = state.Machine
 			newState.CachedTokens = state.CachedTokens
 			newState.GoUpCache = state.GoUpCache
 			newState.FindMatchingCache = state.FindMatchingCache
@@ -1557,9 +1587,12 @@ func initBuiltins() {
 			// newState.Vals = state.Vals
 			// the vals is of type *[]any (in Go)
 			// instead of assigning. I want newstate.Vals to be a shallow copy
-			temp := make([]any, len(*state.Vals))
-			copy(temp, *state.Vals)
-			newState.Vals = &temp
+			
+			
+			
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			// thingsVal := *things
+			newState.Vals = things
 			
 			// newState.CallingParent = state
 			newState.CallingParent = nil
@@ -1576,12 +1609,14 @@ func initBuiltins() {
 				state.I = r.I
 				// f.EndI = r.I
 			}
+			
+			// state.AsyncChildren[] = newState
 			go Eval(newState)
 			pushT(state.Vals, newState)
 			clearFuncToken(state)
 			return state
 		},
-		// todo, also pause/resume
+		// todo, also pause/resume as alternative to wait?
 		// TODO: cancel
 		"wait": func(state *State) *State {
 			newState := popT(state.Vals).(*State)
@@ -1597,6 +1632,14 @@ func initBuiltins() {
 		    newState.Mu.Unlock()
 			clearFuncToken(state)
 			return nil
+		},
+		"cancel": func(state *State) *State {
+			newState := popT(state.Vals).(*State)
+		    newState.Mu.Lock()
+	        newState.Canceled = true
+		    newState.Mu.Unlock()
+			clearFuncToken(state)
+			return state
 		},
 		"def": func(state *State) *State {
 			params := spliceT(state.Vals, state.FuncTokenSpot+1, len(*state.Vals)-(state.FuncTokenSpot+1), nil)
@@ -1813,6 +1856,7 @@ func initBuiltins() {
 			// fmt.Println(unsafe.Pointer(&code))
 			// if strings come from source then we can cache it, but not worth it
 			evalState := MakeState("__eval", code)
+			evalState.Machine = state.Machine
 			evalState.Vals = state.Vals
 			evalState.Vars = state.Vars
 
@@ -1896,6 +1940,7 @@ func makeFuncToken(token *Func) func(*State) *State {
 		state.CurrFuncToken = nil
 		state.FuncTokenSpot = -1
 		newState := MakeState(token.FileName, token.Code)
+		newState.Machine = state.Machine
 		newState.CachedTokens = token.CachedTokens
 		newState.GoUpCache = token.GoUpCache
 		newState.FindMatchingCache = token.FindMatchingCache
@@ -1908,6 +1953,7 @@ func makeFuncToken(token *Func) func(*State) *State {
 			param := token.Params[i]
 			newState.Vars[param] = popT(state.Vals)
 		}
+		newState.Machine = state.Machine
 		// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
 		// fmt.Println("#yellow peek", toString(nt))
 		// fmt.Println("#yellow currentstate one liner", state.OneLiner)
