@@ -1,5 +1,108 @@
 #!/usr/bin/env linescript4
 
+# "abcdefghijklmnopqestuvwxyz"
+# split ""
+# each :letter
+#     if letter (is "a")
+#         say "cool an A"
+#     else if letter (is "b")
+#         say "cool a B"
+#     else
+#     end #endif
+# end #endeach
+
+# "abcdefghijklmnopqestuvwxyz"
+# split ""
+# each :letter
+#     if letter (is "a")
+#         say "cool an A"
+#     else if letter (is "b")
+#         say "cool a B"
+#     else
+#         say "cool other"
+#     end #endif
+# end #endeach
+
+
+
+# let :letter "b"
+# if letter (is "a")
+#     say "cool an A"
+# else if letter (is "b")
+#     say "cool a B"
+# else
+#     say "cool other"
+# end #endif
+# exit
+
+# "abcdefghijklmnopqestuvwxyz"
+# split ""
+# each :letter
+#     if letter (is "a")
+#         say "cool an A"
+#     else if letter (is "b")
+#         say "cool a B"
+#     else
+#         say "cool other"
+#     end #endif
+# end #endeach
+# 
+# say "done"
+# exit
+
+
+# "abc"
+# split ""
+# each :letter
+#     if letter (is "a")
+#         say "cool an A"
+#     else if letter (is "b")
+#         say "cool a B"
+#     else
+#         say "cool other"
+#     end #endif
+#     say "loopend"
+# end #endeach
+# 
+# say "done"
+# exit
+
+
+
+
+
+# 3 loop :i
+#     if letter (is "a")
+#         say "#yellow cool an A"
+#     else if letter (is "b")
+#         say "#red cool a B"
+#     else
+#         say "#skyblue cool other"
+#     end
+# end
+
+
+
+
+
+# "abcdefghijklmnopqestuvwxyz"
+# split ""
+# each :letter
+#     say "letter is" letter
+#     if letter (is "a")
+#         say "#yellow cool an A"
+#     else if letter (is "b")
+#         say "#red cool a B"
+#     else
+#         say "#skyblue cool other"
+#     end
+# end
+
+say "wow"
+
+exit
+
+
 
 
 "yo" startsWith "y", not

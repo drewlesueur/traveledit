@@ -137,6 +137,13 @@ func MakeState(fileName, code string) *State {
 	}
 }
 
+var seeDebugLogs = false
+func debug(x string) {
+    if seeDebugLogs {
+        fmt.Println(x)
+    }
+}
+
 func main() {
 	runtime.GOMAXPROCS(1)
 	_ = pprof.StartCPUProfile
@@ -213,26 +220,21 @@ func main() {
 // `
 
 
-func substring(s string, start, length int) string {
-	runes := []rune(s)
-	if start < 0 || start >= len(runes) {
-		return ""
-	}
-	end := start + length
-	if end > len(runes) {
-		end = len(runes)
-	}
-	return string(runes[start:end])
+func debugStateI(state *State, startI int) {
+    endI := startI + 30
+    if endI >= len(state.Code) {
+        endI = len(state.Code) - 1
+    }
+    chunks := strings.Split(state.Code[startI:endI], "\n")
+    fmt.Println("state:", toJson(startI), toJson(chunks[0]))
 }
-
-
 
 func Eval(state *State) *State {
 	var origState = state
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Recovered from panic:", r)
-			fmt.Println(toJson(substring(state.Code, state.I, 50)))
+			debugStateI(state, state.I)
 			panic(r)
 		}
 	}()
@@ -366,6 +368,9 @@ func clearFuncToken(state *State) {
 
 func callFunc(state *State) *State {
 	if state.CurrFuncToken == nil {
+		for i, v := range *state.Vals {
+			fmt.Printf("-->%d: %s\n", i, toString(v))
+		}
 		return state
 	}
 	newState := state.CurrFuncToken(state)
@@ -527,8 +532,14 @@ func makeToken(state *State, val string) any {
 				
 				// attempt to require fewer cases in token switch
 				// but it's slower, with closure and even polymorphic types, it's slower.
+				// compared to switch
+				// tho too many switch cases bad
 				// return makeImmediateFromBuiltinFuncToken(b)
 			} else {
+				if val == "if" {
+				    fmt.Println("Warning if is not a function!")
+				    debugStateI(state, state.I)
+				}
 				return builtinToken(b)
 			}
 		case "array", "object":
@@ -568,6 +579,8 @@ func makeToken(state *State, val string) any {
 		return false
 	case "newline":
 		return "\n"
+	case "tab":
+		return "\t"
 	case "null":
 		return nil
 	}
@@ -629,13 +642,6 @@ func toJson(v any) string {
     return string(b)
 }
 
-func debugStateI(state *State, startI int) {
-    endI := startI + 15
-    if endI >= len(state.Code) {
-        endI = len(state.Code) - 1
-    }
-    fmt.Println("state:", toJson(startI), toJson(state.Code[startI:endI]))
-}
 
 func getPrevIndent(state *State) string {
 	// fmt.Println("#aqua getting prev indent")
@@ -1028,6 +1034,22 @@ func initBuiltins() {
 
 			return state
 		},
+		"else": func(state *State) *State {
+			debug("#skyblue ELSE")
+			debug("#pink remove end stack else")
+			endFunc := state.EndStack[len(state.EndStack)-1]
+			state.EndStack = state.EndStack[:len(state.EndStack)-1]
+			// don't need to call it cuz it's a noop
+			_ = endFunc
+
+			// fmt.Printf("wanting to find: %q\n", indent + "end")
+			r := findMatchingAfter(state, []string{"end"})
+			debug("#orange jumping to end")
+			state.I = r.I
+			// debugStateI(state, state.I)
+			clearFuncToken(state)
+			return state
+		},
 	}
 	builtins = map[string]func(state *State) *State{
 		"now": makeBuiltin_0_1(now),
@@ -1125,7 +1147,6 @@ func initBuiltins() {
 			if len(thingsVal) == 0 {
 				thingsVal = append(thingsVal, popT(state.Vals))
 			}
-			fmt.Println("#deepskyblue say2", len(*things))
 			for i, v := range *things {
 				fmt.Printf("%d %#v\n", i, v)
 			}
@@ -1391,6 +1412,7 @@ func initBuiltins() {
 			var spot = state.I
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
+				debug("#thistle each End")
 				theIndex++
 				if theIndex >= len(*arr) {
 					state.OneLiner = false
@@ -1406,10 +1428,12 @@ func initBuiltins() {
 				    	pushT(state.Vals, (*arr)[theIndex])
             		}
 					state.I = spot
+					debug("#white add end stack end each")
 					state.EndStack = append(state.EndStack, endEach)
 				}
 				return state
 			}
+			debug("#white add end stack start each")
 			state.EndStack = append(state.EndStack, endEach)
 			var i int
 			if state.OneLiner {
@@ -1550,9 +1574,11 @@ func initBuiltins() {
 			return state
 		},
 		"if": func(state *State) *State {
-			// fmt.Println("#skyblue IF")
+			debug("#skyblue IF")
+			// debugStateI(state, state.I)
 			cond := popT(state.Vals)
 			if toBool(cond).(bool) == true {
+				debug("#white add end stack true if")
 				state.EndStack = append(state.EndStack, endIf)
 			} else {
 				// fmt.Printf("wanting to find: %q\n", indent + "end")
@@ -1567,13 +1593,16 @@ func initBuiltins() {
 						// don't append an endTack
 						// to pick up the if
 						state.I = r.I - 2
-						// fmt.Println("#aquamarine ok new I on else if")
+						// state.I = r.I - 2 - 1
+						debug("#aquamarine jumping to else if")
 						// debugStateI(state, state.I)
-						// state.I = r.I - 1
 					} else if r.Match == "else" {
+						debug("#aqua jumping to else")
+						debug("#white add end stack, jump to else")
 						state.EndStack = append(state.EndStack, endIf)
 						state.I = r.I
 					} else {
+						debug("#orange jumping to end")
 						state.I = r.I
 					}
 				}
@@ -1581,20 +1610,7 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"else": func(state *State) *State {
-			// fmt.Println("#skyblue ELSE")
-			endFunc := state.EndStack[len(state.EndStack)-1]
-			state.EndStack = state.EndStack[:len(state.EndStack)-1]
-			// don't need to call it cuz it's a noop
-			_ = endFunc
-
-			// fmt.Printf("wanting to find: %q\n", indent + "end")
-			r := findMatchingAfter(state, []string{"end"})
-			
-			state.I = r.I
-			clearFuncToken(state)
-			return state
-		},
+		// else was here
 		// "loopN":
 		"end": doEnd,
 		"return": func(state *State) *State {
@@ -2549,6 +2565,8 @@ func toString(a any) any {
 	return nil
 }
 
+
+
 func keys(a any) any {
 	ret := []any{}
 	for k := range a.(map[string]any) {
@@ -2657,6 +2675,7 @@ func makeBuiltin_4_1(f func(any, any, any, any) any) func(state *State) *State {
 }
 
 func endIf(state *State) *State {
+	debug("#darkkhaki if End")
 	state.OneLiner = false
 	return state
 }
@@ -2676,14 +2695,16 @@ func interpolate(a, b any) any {
 }
 
 func doEnd(state *State) *State {
-	// fmt.Println("#skyblue END")
+	debug("#skyblue END")
 	if len(state.EndStack) == 0 {
+		debug("#crimson nothing in end stack")
 		if state.CallingParent == nil {
 		    state.Done = true
 		}
 		return state.CallingParent
 	}
 
+	debug("#pink remove end stack end")
 	endFunc := state.EndStack[len(state.EndStack)-1]
 	state.EndStack = state.EndStack[:len(state.EndStack)-1]
 
