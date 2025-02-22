@@ -1,5 +1,20 @@
 #!/usr/bin/env linescript4
 
+let foo bar
+say foo
+
+def DoSomething name
+    say "what do you want me do do? " name
+end
+
+DoSomething Drew
+
+
+let bizzy null
+say bizzy
+
+
+
 # "abcdefghijklmnopqestuvwxyz"
 # split ""
 # each :letter

@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"io"
 	"runtime"
+	"encoding/base64"
 )
 
 type FindMatchingResult struct {
@@ -348,7 +349,8 @@ func getVar(state *State, varName string) any {
 	if state.LexicalParent != nil {
 		return getVar(state.LexicalParent, varName)
 	}
-	return nil
+	// return nil
+	return varName
 }
 
 func findParent(state *State, varName string) *State {
@@ -1166,6 +1168,16 @@ func initBuiltins() {
 			_, ok := b.(map[string]any)[a.(string)]
 			return ok
 		}),
+		"btoa": makeBuiltin_1_1(func(a any) any {
+			return base64.StdEncoding.EncodeToString([]byte(a.(string)))
+		}),
+		"atob": makeBuiltin_1_1(func(a any) any {
+			data, err := base64.StdEncoding.DecodeString(a.(string))
+			if err != nil {
+				return ""
+			}
+			return string(data)
+		}),
 		"sliceFrom":  makeBuiltin_2_1(sliceFrom),
 		"sliceTo":  makeBuiltin_2_1(sliceTo),
 		"slice":      makeBuiltin_3_1(slice),
@@ -1611,6 +1623,7 @@ func initBuiltins() {
 			return state
 		},
 		// else was here
+		// but needs to be in the immediates
 		// "loopN":
 		"end": doEnd,
 		"return": func(state *State) *State {
