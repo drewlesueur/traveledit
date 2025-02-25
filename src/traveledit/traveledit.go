@@ -1155,7 +1155,8 @@ func main() {
 	
 	
 	// atSignPathRe := regexp.MustCompile(`@(/[^\s]+)`)
-	atSignPathRe := regexp.MustCompile(`@`+`@file:(?:"([^"]+)"|(/[^ "]+(?: [^ "]+)*))`)
+	atSignFilePathRe := regexp.MustCompile(`@`+`@file:(?:"([^"]+)"|(/[^ "]+(?: [^ "]+)*))`)
+	atSignDirPathRe := regexp.MustCompile(`@`+`@dir:(?:"([^"]+)"|(/[^ "]+(?: [^ "]+)*))`)
 	
 	
 	mux.HandleFunc("/chatgpt", func(w http.ResponseWriter, r *http.Request) {
@@ -1214,17 +1215,44 @@ func main() {
 					if !ok {
 						continue
 					}
-					newContent := atSignPathRe.ReplaceAllStringFunc(content, func(match string) string {
-						// match is like "@/path/to/file", extract file path.
-						filePath := match[1:]
-						data, err := os.ReadFile(filePath)
+					content = atSignFilePathRe.ReplaceAllStringFunc(content, func(match string) string {
+						theFilePath := match[8:len(match)-1] //.@file:""
+						data, err := os.ReadFile(theFilePath)
 						fileData := ""
 						if err == nil {
 							fileData = string(data)
 						}
-						return "<file>\n    <path>" + filePath + "</path>\n    <contents>\n        " + fileData + "\n    </contents>\n</file>"
+						return "<file>\n    <path>" + theFilePath + "</path>\n    <the_contents>\n        " + fileData + "\n    </the_contents>\n</file>"
 					})
-					messages[i]["content"] = newContent
+
+					content = atSignDirPathRe.ReplaceAllStringFunc(content, func(match string) string {
+					    dirPath := match[7:len(match)-1] //.@dir:""
+					    result := "<directory>\n    <path>" + dirPath + "</path>\n"
+					    entries, err := os.ReadDir(dirPath)
+					    if err == nil {
+					        for _, entry := range entries {
+					            if !entry.IsDir() {
+					                fileName := entry.Name()
+					                fullPath := filepath.Join(dirPath, fileName)
+					                data, err := os.ReadFile(fullPath)
+					                fileData := ""
+					                if err == nil {
+					                    fileData = string(data)
+					                }
+					                result += "    <file>\n        <path>" + fileName + "</path>\n        <the_contents>\n            " + fileData + "\n        </the_contents>\n    </file>\n"
+					            }
+					        }
+					    }
+					    result += "</directory>"
+					    return result
+					})
+					messages[i]["content"] = content
+					fmt.Println("chatgpt content:")
+					fmt.Println(content)
+
+
+
+
 				}
 				newMessagesJSON, err := json.Marshal(messages)
 				if err != nil {
