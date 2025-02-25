@@ -1,5 +1,31 @@
 #!/usr/bin/env linescript4
 
+let name Drew
+istring: Hello $name
+say
+
+exit
+
+say string
+    Hello {{name}}
+    
+    How are $you
+    
+    {{if x is 3}}
+       There are 3!
+    {{end}}
+end
+say string
+    Hello {{name}}
+    
+    How are $you
+    
+    {{if x is 3}}
+       There are 3!
+    {{end}}
+end
+
+
 let foo bar
 say foo
 

@@ -18,6 +18,7 @@ import (
 	"io"
 	"runtime"
 	"encoding/base64"
+	"regexp"
 )
 
 type FindMatchingResult struct {
@@ -370,9 +371,9 @@ func clearFuncToken(state *State) {
 
 func callFunc(state *State) *State {
 	if state.CurrFuncToken == nil {
-		for i, v := range *state.Vals {
-			fmt.Printf("-->%d: %s\n", i, toString(v))
-		}
+		// for i, v := range *state.Vals {
+		// 	fmt.Printf("-->%d: %s\n", i, toString(v))
+		// }
 		return state
 	}
 	newState := state.CurrFuncToken(state)
@@ -942,6 +943,31 @@ func initBuiltins() {
 			}
 			return state
 		},
+		"istring": func(state *State) *State {
+			// TODO, this should happen in parsing step
+			// instead of doing this parsing everytime
+			if state.Code[state.I] == ':' {
+				end := strings.Index(state.Code[state.I+2:], "\n")
+				// 2 because of ": "
+				// 1 because we want after "\n"
+				pushT(state.Vals, interpolateDollar(state, state.Code[state.I+2:state.I+2+end]))
+				state.I = state.I + 2 + end + 1
+			} else {
+				r := findMatchingAfter(state, []string{"end"})
+				str := state.Code[state.I+1:r.I-3]
+				lines := strings.Split(str, "\n")
+				lines = lines[0:len(lines)-1]
+				prefixToTrim := r.Indent + "    "
+				for i, line := range lines {
+				    // fmt.Printf("%q %q" prefixToTrim, line)
+				    lines[i] = strings.TrimPrefix(line, prefixToTrim)
+				}
+				str = strings.Join(lines, "\n")
+				pushT(state.Vals, interpolateDollar(state, str))
+				state.I = r.I
+			}
+			return state
+		},
     }
 	runImmediates = map[string]func(state *State) *State{
 		
@@ -1055,6 +1081,9 @@ func initBuiltins() {
 	}
 	builtins = map[string]func(state *State) *State{
 		"now": makeBuiltin_0_1(now),
+		"nowSeconds": makeBuiltin_0_1(func() any {
+            return int(time.Now().Unix())
+        }),
 		"formatTimestamp": makeBuiltin_2_1(func(m any, f any) any {
 	    	t := time.Unix(0, int64(m.(int))*int64(time.Millisecond))
 	    	formattedTime := t.Format(f.(string))
@@ -1172,12 +1201,16 @@ func initBuiltins() {
 			return base64.StdEncoding.EncodeToString([]byte(a.(string)))
 		}),
 		"atob": makeBuiltin_1_1(func(a any) any {
-			data, err := base64.StdEncoding.DecodeString(a.(string))
+			// data, err := base64.StdEncoding.DecodeString(a.(string))
+			data, err := base64.RawStdEncoding.DecodeString(a.(string))
 			if err != nil {
+			    fmt.Println("atob:", err)
 				return ""
 			}
 			return string(data)
 		}),
+
+
 		"sliceFrom":  makeBuiltin_2_1(sliceFrom),
 		"sliceTo":  makeBuiltin_2_1(sliceTo),
 		"slice":      makeBuiltin_3_1(slice),
@@ -2544,6 +2577,8 @@ func toString(a any) any {
 		}
 	case int:
 		return strconv.Itoa(a)
+	case int64:
+		return strconv.Itoa(int(a))
 	case float64:
 		return strconv.FormatFloat(a, 'f', -1, 64)
 	case string:
@@ -2705,6 +2740,15 @@ func interpolate(a, b any) any {
 	}
 	r := strings.NewReplacer(theArgs...)
 	return r.Replace(theString)
+}
+
+
+var variableRe = regexp.MustCompile(`\$[a-zA-Z_][a-zA-Z0-9_]*`)
+func interpolateDollar(state *State, str string) string {
+	return variableRe.ReplaceAllStringFunc(str, func(match string) string {
+		varName := match[1:]
+		return toString(getVar(state, varName)).(string)
+	})
 }
 
 func doEnd(state *State) *State {
