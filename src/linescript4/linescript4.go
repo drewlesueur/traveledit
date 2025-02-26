@@ -2489,6 +2489,7 @@ func cc(a, b any) any {
 }
 
 
+
 func toInt(a any) any {
 	switch a := a.(type) {
 	case bool:
@@ -2497,17 +2498,19 @@ func toInt(a any) any {
 		}
 		return 0
 	case float64:
+		return int(math.Floor(a))
+	case int:
+		return a
+	case int64:
 		return int(a)
-	// case string:
-	// 	var i int
-	// 	if _, err := fmt.Sscanf(a, "%d", &i); err == nil {
-	// 		return i
-	// 	}
-	// 	return nil
+	case string:
+		if f, err := strconv.ParseFloat(a, 64); err == nil {
+			return int(math.Floor(f))
+		}
+		return 0
 	}
-	return nil
+	return 0
 }
-
 
 func toFloat(a any) any {
 	switch a := a.(type) {
@@ -2518,9 +2521,22 @@ func toFloat(a any) any {
 		return float64(0)
 	case int:
 		return float64(a)
+	case int64:
+		return float64(a)
+	case float64:
+		return a
+	case string:
+		if f, err := strconv.ParseFloat(a, 64); err == nil {
+			return f
+		}
+		return 0.0
 	}
-	return nil
+	return 0.0
 }
+
+
+
+
 func not(a any) any {
 	switch a := a.(type) {
 	case bool:
