@@ -462,13 +462,11 @@ They get changed later on.
 
 <div class=toolbar>
     <div class=longButton onclick="selectFont('Menlo')">Menlo</div>
-    <div class=longButton onclick="selectFont('ZedMono')">Zed Mono</div>
+    <div class=longButton onclick="selectFont('SFMono')">SF Mono</div>
     <div class=longButton onclick="selectFont('CommitMono')">Commit Mono</div>
     <div class=longButton onclick="selectFont('cousine')">cousine</div>
     <div class=longButton onclick="selectFont('robotomono')">robotomono</div>
     <div class=longButton onclick="selectFont('fragmentmono')">fragmentmono</div>
-    <div class=longButton onclick="selectFont('IosevkaExtended')">IkaE (slow)</div>
-    <div class=longButton onclick="selectFont('SFMono')">SF Mono</div>
     <div class=longButton onclick="selectFont('ibmplexmono')">ibmplexmono</div>
     <div class=longButton onclick="selectFont('GeistMono')">Geist Mono</div>
     <div class=longButton onclick="selectFont('chivomonolight')">chivomonolight</div>
@@ -544,6 +542,8 @@ They get changed later on.
     <div class=longButton onclick="selectFont('sharetechmono')">sharetechmono</div>
     <div class=longButton onclick="selectFont('ubuntumono')">ubuntumono</div>
     <div class=longButton onclick="selectFont('wellfleet')">wellfleet</div>
+    <div class=longButton onclick="selectFont('IosevkaExtended')">IkaE (slow)</div>
+    <div class=longButton onclick="selectFont('ZedMono')">Zed Mono</div>
 </div>
 
 
@@ -2314,6 +2314,7 @@ function setFontVars() {
     // after experimentation, there seems to be a bug in ios 15 where if we use the ui-monospace font
     // which would render SF Mono before, but now
     // causes the page to crash
+    // fontCSS =  "100 " +(currentFont.fontSize * fontScale) + "px '"+currentFont.fontName+"', Menlo, monospace"
     fontCSS = (currentFont.fontSize * fontScale) + "px '"+currentFont.fontName+"', Menlo, monospace"
     fontCSSTiny = (currentFont.fontSize * fontScale/2) + "px '"+currentFont.fontName+"', monospace"
     fontCSSEmoji = (currentFont.fontSize * fontScale * .6 * emojiWidth) + "px '"+currentFont.fontName+"', ui-monospace, monospace"
