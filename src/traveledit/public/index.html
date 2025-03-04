@@ -462,6 +462,7 @@ They get changed later on.
 
 <div class=toolbar>
     <div class=longButton onclick="selectFont('Menlo')">Menlo</div>
+    <div class=longButton onclick="selectFont('InputMono')">Input Mono</div>
     <div class=longButton onclick="selectFont('ZedMono')">Zed Mono</div>
     <div class=longButton onclick="selectFont('CommitMono')">Commit Mono</div>
     <div class=longButton onclick="selectFont('cousine')">cousine</div>
@@ -505,7 +506,6 @@ They get changed later on.
     <div class=longButton onclick="selectFont('Xenon')">Xenon</div>
     <div class=longButton onclick="selectFont('Courier')">Courier</div>
     <div class=longButton onclick="selectFont('Dossier')">Dossier</div>
-    <div class=longButton onclick="selectFont('InputMono')">Input Mono</div>
     <div class=longButton onclick="selectFont('InputMonoX')">Input Mono X</div>
     <div class=longButton onclick="selectFont('VictorMono')">Victor Mono</div>
     <div class=longButton onclick="selectFont('SaxMono')">Sax Mono</div>
@@ -2317,6 +2317,9 @@ function setFontVars() {
     fontCSS = (currentFont.fontSize * fontScale) + "px '"+currentFont.fontName+"', Menlo, monospace"
     fontCSSTiny = (currentFont.fontSize * fontScale/2) + "px '"+currentFont.fontName+"', monospace"
     fontCSSEmoji = (currentFont.fontSize * fontScale * .6 * emojiWidth) + "px '"+currentFont.fontName+"', ui-monospace, monospace"
+
+    fontCSSPunctuation = (currentFont.fontSize * fontScale) + "px Menlo, monospace"
+    
     // extraYEmoji = (currentFont.fontSize * fontScale * .6) / 2 / emojiWidth
     extraYEmoji = 0
 }
@@ -4943,6 +4946,12 @@ function setCanvasHeight(h) {
     if (verticalTouchSize * 5 > (canvasHeight/3)) {
         verticalTouchSize = (canvasHeight/3) / 5
     }
+
+    if (verticalTouchSize * 5 < (canvasHeight/3 /2)) {
+        verticalTouchSize = (canvasHeight/3) * (0.5) / 5
+    }
+
+
     if (verticalTouchSize < 50) {
          verticalTouchSize = 50
     }
@@ -8577,7 +8586,12 @@ function renderInternal() {
                         extraY = extraYEmoji
                         // chr = "?"
                     } else {
-                        t.font = fontCSS
+                        var charCode = chr.charCodeAt(0)
+                        // if (charCode >= 44 && charCode <= 46 || charCode == 95 || charCode >= 58 && charCode <= 62) {
+                        //     t.font = fontCSSPunctuation
+                        // } else {
+                            t.font = fontCSS
+                        // }
                         extraY = 0
                     }
                     // if (syntaxHighlight) {

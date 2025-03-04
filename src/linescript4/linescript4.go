@@ -4,22 +4,30 @@ package main
 // fix "it" when there is another on line
 // "it" should reference newLineSpot, not funcTokenSpot
 
+
 import (
+	"bytes"
+	"crypto/tls"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
+	"log"
+	"math"
+	"net/http"
 	"os"
-	"runtime/pprof"
+	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
+	"flag"
+    "runtime/pprof"
 
-	"encoding/json"
-	"math"
-	"os/exec"
-	"io"
-	"runtime"
-	"encoding/base64"
-	"regexp"
 )
+
 
 type FindMatchingResult struct {
 	Match string
@@ -147,7 +155,20 @@ func debug(x string) {
 }
 
 func main() {
-	runtime.GOMAXPROCS(1)
+	cgi := flag.Bool("cgi", false, "Start cgi server")
+	httpsAddr := flag.String("https", "", "https address")
+	httpAddr := flag.String("http", "", "http address")
+	flag.Parse()
+	if *cgi {
+		fmt.Println("#orange starting cgi")
+		startCgiServer(*httpsAddr, *httpAddr)
+		fmt.Println("#orange done cgi")
+		ch := make(chan int)
+		<- ch
+		return
+	}
+	
+	
 	_ = pprof.StartCPUProfile
 	// cpuProfile, err := os.Create("cpu.prof")
 	// if err != nil {
@@ -988,6 +1009,7 @@ func initBuiltins() {
 		// 	state.I = r.I - 3
 		// 	return state
 		// },
+		// -- __
 		"__vals": func(state *State) *State {
 			pushT(state.Vals, state.Vals)
 			return state
@@ -2665,6 +2687,13 @@ func makeNoop() func(state *State) *State {
 		return state
 	}
 }
+func makeBuiltin_0_0(f func()) func(state *State) *State {
+	return func(state *State) *State {
+		f()
+		clearFuncToken(state)
+		return state
+	}
+}
 func makeBuiltin_1_0(f func(any)) func(state *State) *State {
 	return func(state *State) *State {
 		a := popT(state.Vals)
@@ -2786,3 +2815,217 @@ func doEnd(state *State) *State {
 }
 
 // </code>
+
+/*
+hub and clients
+hub is solely for http connectivity
+clients poll the hub
+clients can register a subdomain
+    and/or path prefix
+clients are basically just running cgi
+hub can create, update, delete files on server
+    list directories etc
+    run shell scripts
+and then run cgi scripts
+inter-process locking?
+
+
+It can proxy by hostname or a path.
+It can keep or clear the path.
+It has "satellites" that can sit on other servers, poll it for requests and either respond, or also proxy to local http server.
+cgi?! (edited)
+it can handle all things ssh?!
+what about performance, extra hops? the satellites can run arbitrary scripts statellites have a cgi-bin directory and anything there can be run as cgi
+all http for now
+redis model where you run scripts against an existing server (aka already running program)
+idea start with just a cgi server implement the whole thing in linescript with just file locks and filesystem. Then add more perf later
+
+fastcgi?
+
+another flow, it can ssh to a server and
+execute command
+
+*/
+
+
+
+type CertificateReloader struct {
+	mu    sync.RWMutex
+	certs map[string]*tls.Certificate
+}
+
+func formatWildcardDomain(domain string) string {
+	parts := strings.SplitN(domain, ".", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	return "_." + parts[1]
+}
+
+func (r *CertificateReloader) getWildcardCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	wildcardDomain := formatWildcardDomain(clientHello.ServerName)
+	if wildcardDomain == "" {
+		return nil, fmt.Errorf("invalid server name: %s", clientHello.ServerName)
+	}
+
+	r.mu.RLock()
+	cert, ok := r.certs[wildcardDomain]
+	r.mu.RUnlock()
+	if ok {
+		return cert, nil
+	}
+
+	certFile := filepath.Join("certs", wildcardDomain, "fullchain.pem")
+	keyFile := filepath.Join("certs", wildcardDomain, "privkey.pem")
+
+	if _, err := os.Stat(certFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("no certificate found for host: %s or wildcard domain: %s", clientHello.ServerName, wildcardDomain)
+	}
+
+	err := r.LoadCertificate(wildcardDomain, certFile, keyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.certs[wildcardDomain], nil
+}
+
+func (r *CertificateReloader) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	r.mu.RLock()
+	cert, ok := r.certs[clientHello.ServerName]
+	if !ok {
+		wildcardDomain := formatWildcardDomain(clientHello.ServerName)
+		if wildcardDomain != "" {
+			cert, ok = r.certs[wildcardDomain]
+		}
+	}
+	r.mu.RUnlock()
+	if ok {
+		return cert, nil
+	}
+
+	certFile := filepath.Join("certs", clientHello.ServerName, "fullchain.pem")
+	keyFile := filepath.Join("certs", clientHello.ServerName, "privkey.pem")
+
+	if _, err := os.Stat(certFile); os.IsNotExist(err) {
+		return r.getWildcardCertificate(clientHello)
+	}
+
+	err := r.LoadCertificate(clientHello.ServerName, certFile, keyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.certs[clientHello.ServerName], nil
+}
+
+func (r *CertificateReloader) LoadCertificate(hostname string, certFile, keyFile string) error {
+	fmt.Println("loading cert...")
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return fmt.Errorf("could not load certificate for host %s: %v", hostname, err)
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.certs == nil {
+		r.certs = make(map[string]*tls.Certificate)
+	}
+	r.certs[hostname] = &cert
+	return nil
+}
+
+func (r *CertificateReloader) ClearCache() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.certs = make(map[string]*tls.Certificate)
+}
+
+func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter) error {
+	cmd := exec.Command(scriptPath)
+	cmd.Env = env
+	cmd.Stdin = stdin
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+
+	if err := cmd.Start(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+
+	// Copy script output to the response writer
+	if _, err := io.Copy(w, stdout); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		http.Error(w, stderr.String(), http.StatusInternalServerError)
+		return err
+	}
+
+	return nil
+}
+
+func cgiHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("#orange cgiHandler function")
+	env := os.Environ()
+	env = append(env,
+		"REQUEST_METHOD="+r.Method,
+		"SCRIPT_NAME="+r.URL.Path,
+		"QUERY_STRING="+r.URL.RawQuery,
+		"CONTENT_TYPE="+r.Header.Get("Content-Type"),
+		"CONTENT_LENGTH="+r.Header.Get("Content-Length"),
+	)
+
+	if err := executeCGI("index", env, r.Body, w); err != nil {
+		log.Printf("Error executing CGI script: %v", err)
+	}
+}
+
+// aren't there a bunch more headers that need to
+// be sent as part of cgi spec?
+
+func startCgiServer(httpsAddr, httpAddr string) {
+	reloader := &CertificateReloader{}
+
+	http.HandleFunc("/", cgiHandler)
+
+	http.HandleFunc("/__clearcache", func(w http.ResponseWriter, r *http.Request) {
+		reloader.ClearCache()
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "Certificate cache cleared")
+	})
+
+    if httpsAddr != "" {
+		server := &http.Server{
+			Addr: httpsAddr, // :443
+			TLSConfig: &tls.Config{
+				GetCertificate: reloader.GetCertificate,
+			},
+		}
+		log.Println("Starting HTTPS server on", httpsAddr)
+		go log.Fatal(server.ListenAndServeTLS("", "")) // Certificates are loaded dynamically, based on the hostname
+    }
+    if httpAddr != "" {
+		server := &http.Server{
+			Addr: httpAddr, // :80
+		}
+		log.Println("Starting HTTPS server on", httpAddr)
+		go log.Fatal(server.ListenAndServeTLS("", "")) // Certificates are loaded dynamically, based on the hostname
+    }
+
+}
+
+
