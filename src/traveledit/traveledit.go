@@ -340,6 +340,7 @@ type Workspace struct {
 	Files     []*File
 	Name      string
 	DarkMode  bool
+	InDebugView bool
 	FontName  string
 	FontScale float64
 
@@ -436,6 +437,7 @@ func workspaceView(w *Workspace) map[string]interface{} {
 	workspaceRet := map[string]interface{}{
 		"Name":             w.Name,
 		"DarkMode":         w.DarkMode,
+		"InDebugView":      w.InDebugView,
 		"FontName":         w.FontName,
 		"FontScale":        w.FontScale,
 		"HighlightMatches": w.HighlightMatches,
@@ -583,6 +585,7 @@ func main() {
 					FontScale:        tmpW.FontScale,
 					FontName:         tmpW.FontName,
 					DarkMode:         tmpW.DarkMode,
+					InDebugView:      tmpW.InDebugView,
 					Name:             tmpW.Name,
 					HighlightMatches: tmpW.HighlightMatches,
 					PathDecorators: tmpW.PathDecorators,
@@ -1059,6 +1062,7 @@ func main() {
 		}
 		workspace.Files = newFiles
 		workspace.DarkMode = tmpWorkspace.DarkMode
+		workspace.InDebugView = tmpWorkspace.InDebugView
 		workspace.FontName = tmpWorkspace.FontName
 		workspace.FontScale = tmpWorkspace.FontScale
 		workspace.HighlightMatches = tmpWorkspace.HighlightMatches

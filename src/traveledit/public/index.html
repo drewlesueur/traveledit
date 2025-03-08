@@ -578,7 +578,7 @@ They get changed later on.
     <div class=square onclick=scriptLines()>script lines</div>
 </div>
 <div class=toolbar>
-    <div class=square onclick=debugView()>debug view</div>
+    <div class=square onclick=toggleDebugView()>debug view</div>
     <div class=square onclick=doEval()>eval</div>
     <div class=square onclick="reloadAll()">reload all</div>
     <div class=square onclick="comment('--')">--</div>
@@ -7496,6 +7496,7 @@ function render() {
         theStatus.tvr = totalViewRequests
         theStatus.tvbs = (totalViewBytesSent).toLocaleString()
         theStatus.fileErrors = fx.fileErrors
+        theStatus.currTime__ = new Date()
         theStatus.lastPolled = lastPolled
         theStatus.lastPollResponse = lastPollResponse
         theStatus.lastPollError = lastPollError
@@ -12140,8 +12141,12 @@ function reloadFile(theFile) {
 }
 
 var inDebugView = false
-function debugView() {
+function toggleDebugView() {
     inDebugView = !inDebugView
+    renderDebugView()
+}
+
+function renderDebugView() {
     if (inDebugView) {
        statusEl.classList.remove("hidden")
        logEl.classList.remove("hidden")
@@ -12236,6 +12241,9 @@ function fetchWorkspaceWithList(index) {
         }
         if (workspace.DarkMode != isDark) {
             toggleDarkMode()
+        }
+        if (workspace.InDebugView != inDebugView) {
+            toggleDebugView()
         }
         if (workspace.HighlightMatches) {
             highlightMatches = workspace.HighlightMatches
