@@ -4,6 +4,8 @@ package main
 // fix "it" when there is another on line
 // "it" should reference newLineSpot, not funcTokenSpot
 
+// TODO "break" or similar that also pops the endstack.
+
 
 import (
 	"bytes"
@@ -965,8 +967,6 @@ func initBuiltins() {
 			return state
 		},
 		"istring": func(state *State) *State {
-			// TODO, this should happen in parsing step
-			// instead of doing this parsing everytime
 			if state.Code[state.I] == ':' {
 				end := strings.Index(state.Code[state.I+2:], "\n")
 				// 2 because of ": "
@@ -1107,9 +1107,29 @@ func initBuiltins() {
             return int(time.Now().Unix())
         }),
 		"formatTimestamp": makeBuiltin_2_1(func(m any, f any) any {
+	    	// from unix millis
 	    	t := time.Unix(0, int64(m.(int))*int64(time.Millisecond))
 	    	formattedTime := t.Format(f.(string))
 	    	return formattedTime
+		}),
+		"rfc3339ToUnixMillis": makeBuiltin_1_1(func(s any) any {
+			t, err := time.Parse(time.RFC3339, s.(string))
+			if err != nil {
+				panic(err)
+			}
+			return int(t.UnixNano() / int64(time.Millisecond))
+		}),
+		"unixMillisToRfc3339": makeBuiltin_1_1(func(s any) any {
+			ms := s.(int64)
+			sec := ms / 1000
+			nsec := (ms % 1000) * 1000000
+			return time.Unix(sec, nsec).Format(time.RFC3339)
+		}),
+		"getType": makeBuiltin_1_1(func(s any) any {
+			return fmt.Sprintf("%T", s)
+		}),
+		"replace": makeBuiltin_3_1(func(s, x, y any) any {
+			return strings.Replace(s.(string), x.(string), y.(string), -1)
 		}),
 		"+":   makeBuiltin_2_1(plus),
 		"-":   makeBuiltin_2_1(minus),
@@ -2863,6 +2883,11 @@ func formatWildcardDomain(domain string) string {
 }
 
 func (r *CertificateReloader) getWildcardCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+	// Ensure the "certs" directory exists.
+	if err := os.MkdirAll("certs", 0755); err != nil {
+		return nil, fmt.Errorf("failed to create certs directory: %v", err)
+	}
+
 	wildcardDomain := formatWildcardDomain(clientHello.ServerName)
 	if wildcardDomain == "" {
 		return nil, fmt.Errorf("invalid server name: %s", clientHello.ServerName)
@@ -2891,6 +2916,8 @@ func (r *CertificateReloader) getWildcardCertificate(clientHello *tls.ClientHell
 	defer r.mu.RUnlock()
 	return r.certs[wildcardDomain], nil
 }
+
+
 
 func (r *CertificateReloader) GetCertificate(clientHello *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	r.mu.RLock()
@@ -3025,7 +3052,6 @@ func startCgiServer(httpsAddr, httpAddr string) {
 		log.Println("Starting HTTPS server on", httpAddr)
 		go log.Fatal(server.ListenAndServeTLS("", "")) // Certificates are loaded dynamically, based on the hostname
     }
-
 }
 
 

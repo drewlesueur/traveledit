@@ -12242,7 +12242,7 @@ function fetchWorkspaceWithList(index) {
         if (workspace.DarkMode != isDark) {
             toggleDarkMode()
         }
-        if (workspace.InDebugView != inDebugView) {
+        if (!!workspace.InDebugView != !!inDebugView) {
             toggleDebugView()
         }
         if (workspace.HighlightMatches) {
