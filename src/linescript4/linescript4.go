@@ -2,9 +2,12 @@
 package main
 
 // fix "it" when there is another on line
-// "it" should reference newLineSpot, not funcTokenSpot
+// [x] "it" should reference newLineSpot, not funcTokenSpot
 
 // TODO "break" or similar that also pops the endstack.
+// indent to sub-call?
+// backslash to escape newline
+// custom loops? (each2)
 
 
 import (
@@ -1120,9 +1123,9 @@ func initBuiltins() {
 			return int(t.UnixNano() / int64(time.Millisecond))
 		}),
 		"unixMillisToRfc3339": makeBuiltin_1_1(func(s any) any {
-			ms := s.(int64)
-			sec := ms / 1000
-			nsec := (ms % 1000) * 1000000
+			ms := s.(int)
+			sec := int64(ms / 1000)
+			nsec := int64(ms % 1000) * 1000000
 			return time.Unix(sec, nsec).Format(time.RFC3339)
 		}),
 		"getType": makeBuiltin_1_1(func(s any) any {
@@ -1130,6 +1133,9 @@ func initBuiltins() {
 		}),
 		"replace": makeBuiltin_3_1(func(s, x, y any) any {
 			return strings.Replace(s.(string), x.(string), y.(string), -1)
+		}),
+		"getEnvVar": makeBuiltin_1_1(func(v any) any {
+			return os.Getenv(v.(string))
 		}),
 		"+":   makeBuiltin_2_1(plus),
 		"-":   makeBuiltin_2_1(minus),
