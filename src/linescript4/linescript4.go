@@ -8,6 +8,9 @@ package main
 // indent to sub-call?
 // backslash to escape newline
 // custom loops? (each2)
+// captured loop var? loops aren't new scopes so there is issue
+// os/file operations with error return values too
+// abstract the loops
 
 
 import (
@@ -29,6 +32,7 @@ import (
 	"sync"
 	"time"
 	"flag"
+	"bufio"
     "runtime/pprof"
 
     "golang.org/x/crypto/acme/autocert"
@@ -786,7 +790,7 @@ func findAfterEndLineOnlyLine(state *State) int {
 	return i + 1
 }
 
-func findMatchingAfter(state *State, things []string) *FindMatchingResult {
+func findMatchingAfter(state *State, indexOffset int, things []string) *FindMatchingResult {
 	// fmt.Println("#goldenrod findMatchingAfter")
 	// debugStateI(state, state.I)
 
@@ -831,7 +835,7 @@ func findMatchingAfter(state *State, things []string) *FindMatchingResult {
 }
 
 func findMatchingBefore(state *State, things []string) int {
-	r := findMatchingAfter(state, things)
+	r := findMatchingAfter(state, 0, things)
 	return r.I - len(r.Match)
 }
 
@@ -954,7 +958,7 @@ func initBuiltins() {
 				pushT(state.Vals, state.Code[state.I+2:state.I+2+end])
 				state.I = state.I + 2 + end + 1
 			} else {
-				r := findMatchingAfter(state, []string{"end"})
+				r := findMatchingAfter(state, 0, []string{"end"})
 				str := state.Code[state.I+1:r.I-3]
 				lines := strings.Split(str, "\n")
 				lines = lines[0:len(lines)-1]
@@ -977,7 +981,7 @@ func initBuiltins() {
 				pushT(state.Vals, interpolateDollar(state, state.Code[state.I+2:state.I+2+end]))
 				state.I = state.I + 2 + end + 1
 			} else {
-				r := findMatchingAfter(state, []string{"end"})
+				r := findMatchingAfter(state, 0, []string{"end"})
 				str := state.Code[state.I+1:r.I-3]
 				lines := strings.Split(str, "\n")
 				lines = lines[0:len(lines)-1]
@@ -994,7 +998,6 @@ func initBuiltins() {
 		},
     }
 	runImmediates = map[string]func(state *State) *State{
-		
 		// "gotoEnd": func(state *State) *State {
 		// 	things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 		// 	thingsVal := *things
@@ -1096,7 +1099,7 @@ func initBuiltins() {
 			_ = endFunc
 
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
-			r := findMatchingAfter(state, []string{"end"})
+			r := findMatchingAfter(state, 0, []string{"end"})
 			debug("#orange jumping to end")
 			state.I = r.I
 			// debugStateI(state, state.I)
@@ -1424,6 +1427,15 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		"exitEnd": func(state *State) *State {
+			count := popT(state.Vals).(int)
+			r := findMatchingAfter(state, count, []string{"end"})
+			debug("#orange jumping to end")
+			state.I = r.I
+			state.EndStack = state.EndStack[:len(state.EndStack)-count]
+			clearFuncToken(state)
+			return state
+		},
 		"loop": func(state *State) *State {
 			theIndex := -1
 
@@ -1449,6 +1461,66 @@ func initBuiltins() {
 			endEach = func(state *State) *State {
 				theIndex++
 				if theIndex >= loops {
+					state.OneLiner = false
+					return state
+				} else {
+					if indexVar != "" {
+						state.Vars[indexVar] = theIndex
+					} else {
+						pushT(state.Vals, theIndex)
+					}
+					state.I = spot
+					state.EndStack = append(state.EndStack, endEach)
+				}
+				return state
+			}
+			state.EndStack = append(state.EndStack, endEach)
+			var i int
+			if state.OneLiner {
+				i = findBeforeEndLineOnlyLine(state)
+			} else {
+				i = findMatchingBefore(state, []string{"end"})
+			}
+			state.I = i
+			clearFuncToken(state)
+			return state
+		},
+		// inclusive
+		"loopRange": func(state *State) *State {
+			var theIndex int
+
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			thingsVal := *things
+
+			var indexVar string
+            var loopStart int
+            var loopEnd int
+            var loops int
+            if len(thingsVal) >= 3 {
+			    loopStart = thingsVal[0].(int)
+			    loopEnd = thingsVal[1].(int)
+				indexVar = thingsVal[2].(string)
+            } else if len(thingsVal) == 2 {
+			    loopStart = thingsVal[0].(int)
+			    loopEnd = thingsVal[1].(int)
+            } else if len(thingsVal) == 1 {
+			    loopEnd = popT(state.Vals).(int)
+			    loopStart = popT(state.Vals).(int)
+				indexVar = thingsVal[0].(string)
+            } else {
+			    loopStart = popT(state.Vals).(int)
+			    loopEnd = popT(state.Vals).(int)
+            }
+            if indexVar != "" {
+				state.Vars[indexVar] = -1
+            }
+            theIndex = loopStart - 1
+            
+			var spot = state.I
+			var endEach func(state *State) *State
+			endEach = func(state *State) *State {
+				theIndex++
+				if theIndex > loopEnd {
 					state.OneLiner = false
 					return state
 				} else {
@@ -1679,7 +1751,7 @@ func initBuiltins() {
 					state.I = findAfterEndLine(state)
 					state.OneLiner = false
 				} else {
-					r := findMatchingAfter(state, []string{"end", "else if", "else"})
+					r := findMatchingAfter(state, 0, []string{"end", "else if", "else"})
 					// fmt.Printf("found: %q\n", state.Code[i:])
 
 					if r.Match == "else if" {
@@ -1747,7 +1819,7 @@ func initBuiltins() {
 				// f.EndI = state.I
 				state.OneLiner = false
 			} else {
-				r := findMatchingAfter(state, []string{"end"})
+				r := findMatchingAfter(state, 0, []string{"end"})
 				state.I = r.I
 				// f.EndI = r.I
 			}
@@ -1808,7 +1880,7 @@ func initBuiltins() {
 				f.EndI = state.I
 				state.OneLiner = false
 			} else {
-				r := findMatchingAfter(state, []string{"end"})
+				r := findMatchingAfter(state, 0, []string{"end"})
 				state.I = r.I
 				f.EndI = r.I
 			}
@@ -1845,7 +1917,7 @@ func initBuiltins() {
 				state.OneLiner = false
 				f.EndI = state.I
 			} else {
-				r := findMatchingAfter(state, []string{"end"})
+				r := findMatchingAfter(state, 0, []string{"end"})
 				state.I = r.I
 				f.EndI = r.I
 			}
@@ -1989,6 +2061,17 @@ func initBuiltins() {
 		    if err != nil && !os.IsNotExist(err) {
 		        panic(err)
 		    }
+		    clearFuncToken(state)
+		    return state
+		},
+		"fileExists": func(state *State) *State {
+		    fileName := popT(state.Vals).(string)
+		    _, err := os.Stat(fileName)
+		    if err != nil && os.IsNotExist(err) {
+		        panic(err)
+		    }
+		    exists := err == nil || !os.IsNotExist(err)
+		    pushT(state.Vals, exists)
 		    clearFuncToken(state)
 		    return state
 		},
@@ -2978,6 +3061,40 @@ func (r *CertificateReloader) ClearCache() {
 	r.certs = make(map[string]*tls.Certificate)
 }
 
+// func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter) error {
+// 	cmd := exec.Command(scriptPath)
+// 	cmd.Env = env
+// 	cmd.Stdin = stdin
+// 
+// 	var stderr bytes.Buffer
+// 	cmd.Stderr = &stderr
+// 
+// 	stdout, err := cmd.StdoutPipe()
+// 	if err != nil {
+// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+// 		return err
+// 	}
+// 
+// 	if err := cmd.Start(); err != nil {
+// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+// 		return err
+// 	}
+// 
+// 	// Copy script output to the response writer
+// 	if _, err := io.Copy(w, stdout); err != nil {
+// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+// 		return err
+// 	}
+// 
+// 	if err := cmd.Wait(); err != nil {
+// 		http.Error(w, stderr.String(), http.StatusInternalServerError)
+// 		return err
+// 	}
+// 
+// 	return nil
+// }
+// This doesn't seem to handle http headers they way I'd
+// expect in cgi
 func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter) error {
 	cmd := exec.Command(scriptPath)
 	cmd.Env = env
@@ -2997,10 +3114,52 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
 		return err
 	}
 
-	// Copy script output to the response writer
-	if _, err := io.Copy(w, stdout); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return err
+	reader := bufio.NewReader(stdout)
+	headersWritten := false
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return err
+		}
+
+		line = strings.TrimRight(line, "\r\n")
+		if line == "" && !headersWritten {
+			// Empty line indicates end of headers
+			headersWritten = true
+			continue
+		}
+
+		if !headersWritten {
+			// Process CGI headers
+			parts := strings.SplitN(line, ": ", 2)
+			if len(parts) != 2 {
+				http.Error(w, "invalid header: "+line, http.StatusInternalServerError)
+				return fmt.Errorf("invalid header: %s", line)
+			}
+			headerKey := parts[0]
+			headerValue := parts[1]
+
+			// Special handling for "Status" header
+			if headerKey == "Status" {
+				statusCodeStr := strings.SplitN(headerValue, " ", 2)[0]
+				statusCode, err := strconv.Atoi(statusCodeStr)
+				if err != nil {
+					http.Error(w, "invalid status code", http.StatusInternalServerError)
+					return fmt.Errorf("invalid status code: %s", statusCodeStr)
+				}
+				w.WriteHeader(statusCode)
+			} else {
+				w.Header().Add(headerKey, headerValue)
+			}
+		} else {
+			// Write body content once headers are written
+			fmt.Fprintln(w, line)
+		}
 	}
 
 	if err := cmd.Wait(); err != nil {
@@ -3016,10 +3175,11 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 	env := os.Environ()
 	env = append(env,
 		"REQUEST_METHOD="+r.Method,
-		"SCRIPT_NAME="+r.URL.Path,
-		"QUERY_STRING="+r.URL.RawQuery,
+		// "SCRIPT_NAME="+r.URL.Path,
+		// "QUERY_STRING="+r.URL.RawQuery,
 		"CONTENT_TYPE="+r.Header.Get("Content-Type"),
 		"CONTENT_LENGTH="+r.Header.Get("Content-Length"),
+		"REQUEST_URI="+r.RequestURI,
 	)
 
 	if err := executeCGI("./index", env, r.Body, w); err != nil {
