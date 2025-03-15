@@ -28,6 +28,7 @@ import (
 	"flag"
     "runtime/pprof"
 
+    "golang.org/x/crypto/acme/autocert"
 )
 
 
@@ -158,12 +159,11 @@ func debug(x string) {
 
 func main() {
 	cgi := flag.Bool("cgi", false, "Start cgi server")
-	httpsAddr := flag.String("https", "", "https address")
-	httpAddr := flag.String("http", "", "http address")
+	domain := flag.String("domain", "", "domain for server that's starting")
 	flag.Parse()
 	if *cgi {
 		fmt.Println("#orange starting cgi")
-		startCgiServer(*httpsAddr, *httpAddr)
+		startCgiServer(*domain)
 		fmt.Println("#orange done cgi")
 		ch := make(chan int)
 		<- ch
@@ -3016,7 +3016,7 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 		"CONTENT_LENGTH="+r.Header.Get("Content-Length"),
 	)
 
-	if err := executeCGI("index", env, r.Body, w); err != nil {
+	if err := executeCGI("./index", env, r.Body, w); err != nil {
 		log.Printf("Error executing CGI script: %v", err)
 	}
 }
@@ -3024,7 +3024,7 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 // aren't there a bunch more headers that need to
 // be sent as part of cgi spec?
 
-func startCgiServer(httpsAddr, httpAddr string) {
+func startCgiServerOld(httpsAddr, httpAddr string) {
 	reloader := &CertificateReloader{}
 
 	http.HandleFunc("/", cgiHandler)
@@ -3054,4 +3054,32 @@ func startCgiServer(httpsAddr, httpAddr string) {
     }
 }
 
+func startCgiServer(domain string) {
+    mux := http.NewServeMux()
+	mux.HandleFunc("/", cgiHandler)
 
+    m := &autocert.Manager{
+        Cache:      autocert.DirCache("certs"), // Store certificates in a directory
+        Prompt:     autocert.AcceptTOS,         // Automatically accept Let's Encrypt TOS
+        HostPolicy: autocert.HostWhitelist(domain), // Set allowed domains
+    }
+
+    // Serve HTTP (Port 80) and handle Let's Encrypt challenges
+    go func() {
+        httpSrv := &http.Server{
+            Addr:    ":80",
+            // Handler: m.HTTPHandler(mux), // Wrap the existing mux to handle ACME challenges
+            Handler: m.HTTPHandler(nil),
+        }
+        log.Fatal(httpSrv.ListenAndServe())
+    }()
+
+    // Serve HTTPS (Port 443) with TLS using autocert
+    httpsSrv := &http.Server{
+        Addr:      ":443",
+        TLSConfig: &tls.Config{GetCertificate: m.GetCertificate},
+        Handler:   mux, // Serve the same handler over HTTPS
+    }
+
+    log.Fatal(httpsSrv.ListenAndServeTLS("", ""))
+}
