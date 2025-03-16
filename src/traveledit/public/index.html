@@ -4293,6 +4293,17 @@ function runScript() {
         })
         return
     }
+    if (isWholeFile && (fx.lines[0] || "").startsWith("#!")) {
+        let filename = fx.fullPath.split("/").slice(-1)
+        addTerminalTab()
+        fx.terminalLoadPromise.then(function () {
+            sendTerminal("./" + filename, function() {
+                saveWrapper() // hits Enter
+            })
+        })
+        return
+    }
+    
     if (theScriptLines[0] == "#thumbscript" || theScriptLines[0] == "#ths") {
             // lol
             thumbscriptWorld = thumbscript4.eval(theScriptLines.join("\n"), window) // lol the window

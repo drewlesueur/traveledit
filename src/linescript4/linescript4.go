@@ -1267,6 +1267,7 @@ func initBuiltins() {
 		"slice":      makeBuiltin_3_1(slice),
 		"splice":     makeBuiltin_4_1(splice),
 		"length":     makeBuiltin_1_1(length),
+		"len":        makeBuiltin_1_1(length),
 		"setProp":    makeBuiltin_3_0(setProp),
 		"setPropVKO": makeBuiltin_3_0(setPropVKO),
 		"getProp":    makeBuiltin_2_1(getProp),
@@ -1430,7 +1431,6 @@ func initBuiltins() {
 		"exitEnd": func(state *State) *State {
 			count := popT(state.Vals).(int)
 			r := findMatchingAfter(state, count, []string{"end"})
-			debug("#orange jumping to end")
 			state.I = r.I
 			state.EndStack = state.EndStack[:len(state.EndStack)-count]
 			clearFuncToken(state)
@@ -1495,7 +1495,6 @@ func initBuiltins() {
 			var indexVar string
             var loopStart int
             var loopEnd int
-            var loops int
             if len(thingsVal) >= 3 {
 			    loopStart = thingsVal[0].(int)
 			    loopEnd = thingsVal[1].(int)
@@ -1514,13 +1513,29 @@ func initBuiltins() {
             if indexVar != "" {
 				state.Vars[indexVar] = -1
             }
-            theIndex = loopStart - 1
-            
+			if loopStart < loopEnd {
+            	theIndex = loopStart - 1
+			} else {
+            	theIndex = loopStart + 1
+			}
+
 			var spot = state.I
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
-				theIndex++
-				if theIndex > loopEnd {
+				shouldStop := false
+
+				if loopStart < loopEnd {
+					theIndex++
+					if theIndex > loopEnd {
+					    shouldStop = true
+					}
+				} else {
+					theIndex--
+					if theIndex < loopEnd {
+					    shouldStop = true
+					}
+				}
+				if shouldStop {
 					state.OneLiner = false
 					return state
 				} else {
@@ -2072,6 +2087,29 @@ func initBuiltins() {
 		    }
 		    exists := err == nil || !os.IsNotExist(err)
 		    pushT(state.Vals, exists)
+		    clearFuncToken(state)
+		    return state
+		},
+		// make something like this chat checks if filename is either a file or dorectory
+		// if file return "file", if directory return, "dir"
+		// if not exists return ""
+		// panic on error
+		"fileOrDir": func(state *State) *State {
+		    fileName := popT(state.Vals).(string)
+		    info, err := os.Stat(fileName)
+		    if err != nil {
+		        if os.IsNotExist(err) {
+		            pushT(state.Vals, "")
+		            clearFuncToken(state)
+		            return state
+		        }
+		        panic(err)
+		    }
+		    if info.IsDir() {
+		        pushT(state.Vals, "dir")
+		    } else {
+		        pushT(state.Vals, "file")
+		    }
 		    clearFuncToken(state)
 		    return state
 		},
