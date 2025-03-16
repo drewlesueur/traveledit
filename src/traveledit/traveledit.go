@@ -24,6 +24,7 @@ import "html"
 import "bytes"
 import "bufio"
 import "crypto/rand"
+import "crypto/tls"
 import "encoding/hex"
 import "path/filepath"
 import "context"
@@ -35,6 +36,7 @@ import "net/textproto"
 import "compress/gzip"
 
 // import "github.com/gorilla/websocket"
+import "golang.org/x/crypto/acme/autocert"
 
 type SaveResponse struct {
 	Saved bool   `json:"saved"`
@@ -664,11 +666,7 @@ func main() {
 			allowedXForwardedForsMap[ip] = true
 		}
 	}
-	certFile := os.Getenv("CERTFILE")
-	keyFile := os.Getenv("KEYFILE")
 	flag.Parse()
-	log.Printf("certFile: %s", certFile)
-	log.Printf("keyfile: %s", keyFile)
 	log.Printf("proxyPath is: %s", *proxyPath)
 
 	if *location == "" {
@@ -2062,9 +2060,6 @@ func main() {
 			oldMainMux.ServeHTTP(w, r)
 		})
 	}
-	redirectMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "https://"+r.URL.Host, http.StatusFound)
-	})
 
 	// Allow it to be behind a proxy.
 	if proxyPath != nil && *proxyPath != "" {
@@ -2095,25 +2090,37 @@ func main() {
 		return
 	}
 
+    autocertManager := &autocert.Manager{
+        Cache:      autocert.DirCache(os.Getenv("CERTSPATH")), // Store certificates in a directory
+        Prompt:     autocert.AcceptTOS,         // Automatically accept Let's Encrypt TOS
+        HostPolicy: autocert.HostWhitelist(os.Getenv("DOMAIN")), // Set allowed domains
+    }
+    fmt.Println("certs path:", os.Getenv("CERTSPATH"))
+    fmt.Println("domain:", os.Getenv("DOMAIN"))
+	// redirectMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 	http.Redirect(w, r, "https://"+r.URL.Host, http.StatusFound)
+	// })
 	httpServer := http.Server{
 		Addr:         *serverAddress,
-		Handler:      redirectMux,
+		// Handler:      redirectMux,
+        Handler:      autocertManager.HTTPHandler(nil),
 		ReadTimeout:  20 * time.Second,
 		WriteTimeout: 20 * time.Second,
 	}
 	httpsServer := &http.Server{
+        TLSConfig:    &tls.Config{GetCertificate: autocertManager.GetCertificate},
 		Addr:         *serverAddress,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		Handler:      mainMux,
 	}
-	if keyFile == "" && certFile == "" {
+	if os.Getenv("CERTSPATH") == "" {
 		httpServer.Handler = mainMux
 		log.Fatal(httpServer.ListenAndServe())
 		return
 	}
 
-	log.Fatal(httpsServer.ListenAndServeTLS(certFile, keyFile))
+	log.Fatal(httpsServer.ListenAndServeTLS("", ""))
 	return
 
 }
