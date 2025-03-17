@@ -1,5 +1,29 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+"abcdefghij"
+split ""
+as :myarr
+myarr splice 5 6 ["E" "F"]
+say
+say myarr
+
+myarr splice -2 -1 nil
+say
+say myarr
+
+
+exit
+
+"abcdefghij"
+dup, slice 1 3, say
+dup, slice -1 -1, say
+
+
+
+
+
+exit
+
 
 :colors let [:red :green :blue]
 say colors
@@ -271,7 +295,7 @@ each ["aa" "bb" "cc"] i v
     say "the item is" v
 end
 
-each items (sliceFrom 2) i v
+each items (slice 3 -1) i v
     say "the item is" v
 end
 

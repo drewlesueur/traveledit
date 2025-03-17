@@ -10,7 +10,9 @@ package main
 // custom loops? (each2)
 // captured loop var? loops aren't new scopes so there is issue
 // os/file operations with error return values too
-// abstract the loops
+// abstract the loops?
+
+// template mode
 
 
 import (
@@ -790,7 +792,7 @@ func findAfterEndLineOnlyLine(state *State) int {
 	return i + 1
 }
 
-func findMatchingAfter(state *State, indexOffset int, things []string) *FindMatchingResult {
+func findMatchingAfter(state *State, dedentCount int, things []string) *FindMatchingResult {
 	// fmt.Println("#goldenrod findMatchingAfter")
 	// debugStateI(state, state.I)
 
@@ -810,7 +812,8 @@ func findMatchingAfter(state *State, indexOffset int, things []string) *FindMatc
 	minPos := len(toSearch)
 	theEnd := -1
 	
-
+    // 4 spaces per indent
+    indent = indent[4*dedentCount:]
 	for j, thing := range things {
 		toFind := "\n" + indent + thing // + 1 + len(indent)
 		// fmt.Println("#orange finding", toJson(toFind))
@@ -1262,8 +1265,6 @@ func initBuiltins() {
 		}),
 
 
-		"sliceFrom":  makeBuiltin_2_1(sliceFrom),
-		"sliceTo":  makeBuiltin_2_1(sliceTo),
 		"slice":      makeBuiltin_3_1(slice),
 		"splice":     makeBuiltin_4_1(splice),
 		"length":     makeBuiltin_1_1(length),
@@ -1428,7 +1429,7 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"exitEnd": func(state *State) *State {
+		"break": func(state *State) *State {
 			count := popT(state.Vals).(int)
 			r := findMatchingAfter(state, count, []string{"end"})
 			state.I = r.I
@@ -2079,36 +2080,67 @@ func initBuiltins() {
 		    clearFuncToken(state)
 		    return state
 		},
-		"fileExists": func(state *State) *State {
-		    fileName := popT(state.Vals).(string)
-		    _, err := os.Stat(fileName)
-		    if err != nil && os.IsNotExist(err) {
-		        panic(err)
-		    }
-		    exists := err == nil || !os.IsNotExist(err)
-		    pushT(state.Vals, exists)
-		    clearFuncToken(state)
-		    return state
-		},
 		// make something like this chat checks if filename is either a file or dorectory
 		// if file return "file", if directory return, "dir"
 		// if not exists return ""
 		// panic on error
-		"fileOrDir": func(state *State) *State {
+		"fileExists": func(state *State) *State {
+		    fileName := popT(state.Vals).(string)
+		    _, err := os.Stat(fileName)
+		    if err != nil {
+		        if os.IsNotExist(err) {
+		            pushT(state.Vals, false)
+		        } else {
+		            panic(err)
+		        }
+		    } else {
+		        pushT(state.Vals, true)
+		    }
+		    clearFuncToken(state)
+		    return state
+		},
+		"isFile": func(state *State) *State {
+		    fileName := popT(state.Vals).(string)
+		    info, err := os.Stat(fileName)
+		    if err != nil {
+		        panic(err)
+		    }
+		    pushT(state.Vals, !info.IsDir())
+		    clearFuncToken(state)
+		    return state
+		},
+		"isDir": func(state *State) *State {
+		    fileName := popT(state.Vals).(string)
+		    info, err := os.Stat(fileName)
+		    if err != nil {
+		        panic(err)
+		    }
+		    pushT(state.Vals, info.IsDir())
+		    clearFuncToken(state)
+		    return state
+		},
+		"isExecutable": func(state *State) *State {
+		    fileName := popT(state.Vals).(string)
+		    info, err := os.Stat(fileName)
+		    if err != nil {
+		        panic(err)
+		    }
+		    mode := info.Mode()
+		    pushT(state.Vals, mode&0111 != 0)
+		    clearFuncToken(state)
+		    return state
+		},
+		"fileSize": func(state *State) *State {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
 		        if os.IsNotExist(err) {
-		            pushT(state.Vals, "")
-		            clearFuncToken(state)
-		            return state
+		            pushT(state.Vals, int64(0))
+		        } else {
+		            panic(err)
 		        }
-		        panic(err)
-		    }
-		    if info.IsDir() {
-		        pushT(state.Vals, "dir")
 		    } else {
-		        pushT(state.Vals, "file")
+		        pushT(state.Vals, info.Size())
 		    }
 		    clearFuncToken(state)
 		    return state
@@ -2276,6 +2308,8 @@ func at(slice any, index any) any {
 	return nil
 }
 
+
+
 func pop(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
 	    return popT(s)
@@ -2318,155 +2352,119 @@ func spliceT(s *[]any, start int, deleteCount int, elements *[]any) *[]any {
 	if elements != nil {
 		elementsToAdd = *elements
 	}
-	if start < 0 {
-		start = len(*s) + start
-	}
-	if start < 0 {
-		start = 0
-	}
-	if start > len(*s) {
-		start = len(*s)
-	}
-	if deleteCount < 0 {
-		deleteCount = 0
-	}
-	if start+deleteCount > len(*s) {
-		deleteCount = len(*s) - start
-	}
+	// if start < 0 {
+	// 	start = len(*s) + start
+	// }
+	// if start < 0 {
+	// 	start = 0
+	// }
+	// if start > len(*s) {
+	// 	start = len(*s)
+	// }
+	// if deleteCount < 0 {
+	// 	deleteCount = 0
+	// }
+	// if start+deleteCount > len(*s) {
+	// 	deleteCount = len(*s) - start
+	// }
 	removed := make([]any, deleteCount)
 	copy(removed, (*s)[start:start+deleteCount])
 	*s = append(append((*s)[:start], elementsToAdd...), (*s)[start+deleteCount:]...)
 	return &removed
 }
 
-func splice(slice any, start any, deleteCount any, elements any) any {
-	if els, ok := elements.(*[]any); ok {
-		spliceT(slice.(*[]any), start.(int), deleteCount.(int), els)
-	} else {
-		spliceT(slice.(*[]any), start.(int), deleteCount.(int), nil)
+func splice(sAny any, start any, end any, elements any) any {
+	startInt := start.(int)
+    s := sAny.(*[]any)
+	endInt := end.(int)
+	if startInt < 0 {
+		startInt = len(*s) + startInt + 1
 	}
-	return nil
+	if startInt <= 0 {
+	    startInt = 1
+	}
+	if startInt > len(*s) {
+		startInt = len(*s)
+	}
+	if endInt < 0 {
+		endInt = len(*s) + endInt + 1
+	}
+	if endInt <= 0 {
+	    endInt = 1
+	}
+	if endInt > len(*s) {
+		endInt = len(*s)
+	}
+	if startInt > endInt {
+	    return nil
+	}
+	println("#yellow", startInt, endInt)
+	if els, ok := elements.(*[]any); ok {
+		return spliceT(s, startInt-1, endInt-startInt+1, els)
+	} else {
+		return spliceT(s, startInt-1, endInt-startInt+1, nil)
+	}
 }
 
 func slice(s any, start any, end any) any {
 	startInt := start.(int)
 	endInt := end.(int)
-
 	switch s := s.(type) {
 	case *[]any:
 		if startInt < 0 {
-			startInt = len(*s) + startInt
+			startInt = len(*s) + startInt + 1
 		}
-		if startInt < 0 {
-			startInt = 0
+		if startInt <= 0 {
+		    startInt = 1
 		}
 		if startInt > len(*s) {
 			startInt = len(*s)
 		}
 		if endInt < 0 {
-			endInt = len(*s) + endInt
+			endInt = len(*s) + endInt + 1
+		}
+		if endInt <= 0 {
+		    endInt = 1
 		}
 		if endInt > len(*s) {
 			endInt = len(*s)
 		}
 		if startInt > endInt {
-			return nil
+		    return nil
 		}
-		sliced := make([]any, endInt-startInt)
-		copy(sliced, (*s)[startInt:endInt])
+		sliced := make([]any, endInt-startInt+1)
+		copy(sliced, (*s)[startInt-1:endInt])
 		return &sliced
 	case string:
 		if startInt < 0 {
-			startInt = len(s) + startInt
+			startInt = len(s) + startInt + 1
 		}
-		if startInt < 0 {
-			startInt = 0
+		if startInt <= 0 {
+		    startInt = 1
 		}
 		if startInt > len(s) {
 			startInt = len(s)
 		}
 		if endInt < 0 {
-			endInt = len(s) + endInt
+			endInt = len(s) + endInt + 1
+		}
+		if endInt <= 0 {
+		    endInt = 1
 		}
 		if endInt > len(s) {
 			endInt = len(s)
 		}
 		if startInt > endInt {
-			return ""
+		    return ""
 		}
-		return s[startInt:endInt]
+		return s[startInt-1:endInt]
 	}
 	return nil
 }
 
 
-func sliceFrom(slice any, start any) any {
-	startInt := start.(int)
-
-	switch s := slice.(type) {
-	case *[]any:
-		if startInt < 0 {
-			startInt = len(*s) + startInt
-		}
-		if startInt < 0 {
-			startInt = 0
-		}
-		if startInt > len(*s) {
-			startInt = len(*s)
-		}
-		// return (*s)[startInt:]
-		sliced := make([]any, len(*s)-startInt)
-		copy(sliced, (*s)[startInt:])
-		return &sliced
-	case string:
-		if startInt < 0 {
-			startInt = len(s) + startInt
-		}
-		if startInt < 0 {
-			startInt = 0
-		}
-		if startInt > len(s) {
-			startInt = len(s)
-		}
-		return s[startInt:]
-	}
-	return nil
-}
 
 
-func sliceTo(slice any, end any) any {
-	endInt := end.(int)
-
-	switch s := slice.(type) {
-	case *[]any:
-		n := len(*s)
-		if endInt < 0 {
-			endInt = n + endInt
-		}
-		if endInt < 0 {
-			endInt = 0
-		}
-		if endInt > n {
-			endInt = n
-		}
-		sliced := make([]any, endInt)
-		copy(sliced, (*s)[:endInt])
-		return &sliced
-	case string:
-		n := len(s)
-		if endInt < 0 {
-			endInt = n + endInt
-		}
-		if endInt < 0 {
-			endInt = 0
-		}
-		if endInt > n {
-			endInt = n
-		}
-		return s[:endInt]
-	}
-	return nil
-}
 
 
 
@@ -3133,6 +3131,9 @@ func (r *CertificateReloader) ClearCache() {
 // }
 // This doesn't seem to handle http headers they way I'd
 // expect in cgi
+
+
+
 func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter) error {
 	cmd := exec.Command(scriptPath)
 	cmd.Env = env
