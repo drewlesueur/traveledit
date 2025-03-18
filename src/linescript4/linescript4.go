@@ -2300,7 +2300,7 @@ func pushm(slice any, values any) {
 
 func at(slice any, index any) any {
 	if s, ok := slice.(*[]any); ok {
-		return (*s)[index.(int)]
+		return (*s)[index.(int)-1]
 	}
 	if m, ok := slice.(map[string]any); ok {
 		return m[index.(string)]
