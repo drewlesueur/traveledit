@@ -307,11 +307,7 @@ func Eval(state *State) *State {
                 }
                 // fmt.Println("#lime got new state")
                 state = callback.State
-                if len(callback.ReturnValues) > 0 {
-			    	fmt.Printf("#deeppink adding: %d\n", len(callback.ReturnValues))
-                }
                 for _, v := range callback.ReturnValues {
-			        fmt.Printf("%T\n", v)
                     pushT(state.Vals, v)
                 }
             }
@@ -1821,14 +1817,12 @@ func initBuiltins() {
 			    fmt.Printf("#orangered error: %T (%v)\n", v, v)
 			}
 		    if newState.Done {
-			    fmt.Printf("#lime aready done, adding: %d\n", len(*newState.Vals))
 		        for _, v := range *newState.Vals {
 					pushT(state.Vals, v)
 		        }
 				clearFuncToken(state)
 				return state
 		    } else {
-			    fmt.Printf("#aqua not done, adding to waiters\n")
 	    		newState.Waiters = append(newState.Waiters, state)
 				clearFuncToken(state)
 				return nil
