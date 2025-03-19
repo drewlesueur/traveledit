@@ -265,13 +265,13 @@ func debugStateI(state *State, startI int) {
 
 func Eval(state *State) *State {
 	var origState = state
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovered from panic:", r)
-			debugStateI(state, state.I)
-			panic(r)
-		}
-	}()
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		fmt.Println("Recovered from panic:", r)
+	// 		debugStateI(state, state.I)
+	// 		panic(r)
+	// 	}
+	// }()
 	evalLoop:
 	for {
     	if state != nil && state.Canceled {
@@ -294,7 +294,7 @@ func Eval(state *State) *State {
                     for _, w := range o.Waiters {
                         o.AddCallback(Callback{
                             State: w,
-                            ReturnValues: *w.Vals,
+                            ReturnValues: *o.Vals,
                         })
                     }
                     o.Waiters = nil
@@ -307,7 +307,11 @@ func Eval(state *State) *State {
                 }
                 // fmt.Println("#lime got new state")
                 state = callback.State
+                if len(callback.ReturnValues) > 0 {
+			    	fmt.Printf("#deeppink adding: %d\n", len(callback.ReturnValues))
+                }
                 for _, v := range callback.ReturnValues {
+			        fmt.Printf("%T\n", v)
                     pushT(state.Vals, v)
                 }
             }
@@ -679,6 +683,9 @@ func toJson(v any) string {
 
 
 func getPrevIndent(state *State) string {
+    return getIndent(state, -2)
+}
+func getIndent(state *State, iOffset int) string {
 	// fmt.Println("#aqua getting prev indent")
 	// debugStateI(state, state.I)
 
@@ -689,7 +696,7 @@ func getPrevIndent(state *State) string {
 	
 	// back one to get to the newline
 	// another to get before newline
-	i = i - 2 
+	i = i + iOffset
 loopy:
 	// for i = i - 2; i >= 0; i-- {
 	for i = i - 0; i >= 0; i-- {
@@ -1336,13 +1343,6 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"debugVals": func(state *State) *State {
-			for i, v := range *state.Vals {
-				fmt.Printf("-->%d: %s\n", i, toString(v))
-			}
-			clearFuncToken(state)
-			return state
-		},
 		"as": func(state *State) *State {
 			// say(state.Vals)
 			b := popT(state.Vals).(string)
@@ -1357,71 +1357,37 @@ func initBuiltins() {
 		},
 		"goUp": func(state *State) *State {
 			locText := popT(state.Vals).(string)
+			indent := getPrevIndent(state)
 			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 				state.I = *cachedI
-				clearFuncToken(state)
-				return state
-			}
-			toSearch := "#" + locText
-			newI := strings.LastIndex(state.Code[0:state.I], toSearch)
-			state.GoUpCache[state.I] = &newI
-			state.I = newI
-			clearFuncToken(state)
-			return state
-		},
-		"goUpIf": func(state *State) *State {
-			locText := popT(state.Vals).(string)
-			cond := popT(state.Vals).(bool)
-
-			if cond {
-				// assuming static location
-
-				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
-					state.I = *cachedI
-					return state
-					clearFuncToken(state)
-				}
+			} else {
 				toSearch := "#" + locText
 				newI := strings.LastIndex(state.Code[0:state.I], toSearch)
 				state.GoUpCache[state.I] = &newI
 				state.I = newI
 			}
-			// pushT(state.Vals, state[a])
+			newIndent := getIndent(state, 0)
+			count := (len(newIndent) - len(indent)) / 4
+			state.EndStack = state.EndStack[:len(state.EndStack)-count]
 			clearFuncToken(state)
 			return state
 		},
 		"goDown": func(state *State) *State {
 			locText := popT(state.Vals).(string)
+			indent := getPrevIndent(state)
 			// assuming static location
 			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
 				state.I = *cachedI
-				clearFuncToken(state)
-				return state
-			}
-			toSearch := "#" + locText
-			newI := strings.Index(state.Code[state.I:], toSearch) + state.I
-			state.GoUpCache[state.I] = &newI
-			state.I = newI
-			clearFuncToken(state)
-			return state
-		},
-		"goDownIf": func(state *State) *State {
-			locText := popT(state.Vals).(string)
-			cond := popT(state.Vals).(bool)
-
-			if cond {
-				// assuming static location
-				if cachedI := state.GoUpCache[state.I]; cachedI != nil {
-					state.I = *cachedI
-					clearFuncToken(state)
-					return state
-				}
+			} else {
 				toSearch := "#" + locText
 				newI := strings.Index(state.Code[state.I:], toSearch) + state.I
 				state.GoUpCache[state.I] = &newI
 				state.I = newI
 			}
-			// pushT(state.Vals, state[a])
+			newIndent := getIndent(state, 0)
+			count := (len(indent) - len(newIndent)) / 4
+			fmt.Println("#aqua count is", count)
+			state.EndStack = state.EndStack[:len(state.EndStack)-count]
 			clearFuncToken(state)
 			return state
 		},
@@ -1438,7 +1404,7 @@ func initBuiltins() {
 			return state
 		},
 		"loop": func(state *State) *State {
-			theIndex := -1
+			theIndex := 0
 
 			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 			thingsVal := *things
@@ -1461,7 +1427,7 @@ func initBuiltins() {
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
 				theIndex++
-				if theIndex >= loops {
+				if theIndex > loops {
 					state.OneLiner = false
 					return state
 				} else {
@@ -1600,13 +1566,13 @@ func initBuiltins() {
 					return state
 				} else {
             		if indexVar != "" {
-						state.Vars[indexVar] = theIndex
+						state.Vars[indexVar] = theIndex+1
             		}
             		if itemVar != "" {
 						state.Vars[itemVar] = (*arr)[theIndex]
             		} else {
 				    	// pushT(state.Vals, theIndex)
-				    	pushT(state.Vals, (*arr)[theIndex])
+				    	pushT(state.Vals, (*arr)[theIndex+1])
             		}
 					state.I = spot
 					debug("#white add end stack end each")
@@ -1667,7 +1633,7 @@ func initBuiltins() {
 					return state
 				} else {
             		if indexVar != "" {
-						state.Vars[indexVar] = theIndex
+						state.Vars[indexVar] = theIndex+1
             		}
             		if itemVar != "" {
 						state.Vars[itemVar] = (*arr)[theIndex]
@@ -1731,7 +1697,7 @@ func initBuiltins() {
 					return state
 				} else {
             		if indexVar != "" {
-						state.Vars[indexVar] = theIndex
+						state.Vars[indexVar] = theIndex+1
             		}
             		if itemVar != "" {
 						state.Vars[itemVar] = (*arr)[theIndex]
@@ -1817,9 +1783,7 @@ func initBuiltins() {
 			// the vals is of type *[]any (in Go)
 			// instead of assigning. I want newstate.Vals to be a shallow copy
 			
-			
-			
-			newState.Vals = things
+			// newState.Vals = things
 			for _, v := range thingsVal {
 			    newState.Vars[v.(string)] = getVar(state, v.(string))
 			}
@@ -1851,20 +1815,29 @@ func initBuiltins() {
 		// todo, also pause/resume as alternative to wait?
 		// TODO: cancel
 		"wait": func(state *State) *State {
-			newState := popT(state.Vals).(*State)
+			v := popT(state.Vals)
+			newState, ok := v.(*State)
+			if !ok {
+			    fmt.Printf("#orangered error: %T (%v)\n", v, v)
+			}
 		    if newState.Done {
+			    fmt.Printf("#lime aready done, adding: %d\n", len(*newState.Vals))
 		        for _, v := range *newState.Vals {
 					pushT(state.Vals, v)
 		        }
+				clearFuncToken(state)
+				return state
 		    } else {
-		    	newState.Waiters = append(newState.Waiters, state)
+			    fmt.Printf("#aqua not done, adding to waiters\n")
+	    		newState.Waiters = append(newState.Waiters, state)
+				clearFuncToken(state)
+				return nil
 		    }
-			clearFuncToken(state)
-			return nil
 		},
 		"cancel": func(state *State) *State {
 			newState := popT(state.Vals).(*State)
 	        newState.Canceled = true
+	        // TODO, consider every child goroutine should be canceled (ayncParent implementation)
 			clearFuncToken(state)
 			return state
 		},
@@ -2103,9 +2076,14 @@ func initBuiltins() {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
-		        panic(err)
+		        if os.IsNotExist(err) {
+		            pushT(state.Vals, false)
+		        } else {
+		            panic(err)
+		        }
+		    } else {
+		    	pushT(state.Vals, !info.IsDir())
 		    }
-		    pushT(state.Vals, !info.IsDir())
 		    clearFuncToken(state)
 		    return state
 		},
@@ -2113,9 +2091,14 @@ func initBuiltins() {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
-		        panic(err)
+		        if os.IsNotExist(err) {
+		            pushT(state.Vals, false)
+		        } else {
+		            panic(err)
+		        }
+		    } else {
+		    	pushT(state.Vals, info.IsDir())
 		    }
-		    pushT(state.Vals, info.IsDir())
 		    clearFuncToken(state)
 		    return state
 		},
@@ -2123,10 +2106,15 @@ func initBuiltins() {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
-		        panic(err)
+		        if os.IsNotExist(err) {
+		            pushT(state.Vals, false)
+		        } else {
+		            panic(err)
+		        }
+		    } else {
+		    	mode := info.Mode()
+		    	pushT(state.Vals, mode&0111 != 0)
 		    }
-		    mode := info.Mode()
-		    pushT(state.Vals, mode&0111 != 0)
 		    clearFuncToken(state)
 		    return state
 		},
@@ -2227,6 +2215,23 @@ func initBuiltins() {
 		},
 		"debugTokensOff": func(state *State) *State {
 			state.DebugTokens = false
+			clearFuncToken(state)
+			return state
+		},
+		"debugVals": func(state *State) *State {
+			for i, v := range *state.Vals {
+				fmt.Printf("-->%d: %s\n", i, toString(v))
+			}
+			clearFuncToken(state)
+			return state
+		},
+		"debugValsLen": func(state *State) *State {
+			fmt.Println("#coral val length is", len(*state.Vals))
+			clearFuncToken(state)
+			return state
+		},
+		"debugEndStack": func(state *State) *State {
+			fmt.Println("#tomato endstack length is", len(state.EndStack))
 			clearFuncToken(state)
 			return state
 		},
@@ -2398,7 +2403,6 @@ func splice(sAny any, start any, end any, elements any) any {
 	if startInt > endInt {
 	    return nil
 	}
-	println("#yellow", startInt, endInt)
 	if els, ok := elements.(*[]any); ok {
 		return spliceT(s, startInt-1, endInt-startInt+1, els)
 	} else {
@@ -3177,23 +3181,26 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
 			// Process CGI headers
 			parts := strings.SplitN(line, ": ", 2)
 			if len(parts) != 2 {
-				http.Error(w, "invalid header: "+line, http.StatusInternalServerError)
-				return fmt.Errorf("invalid header: %s", line)
-			}
-			headerKey := parts[0]
-			headerValue := parts[1]
-
-			// Special handling for "Status" header
-			if headerKey == "Status" {
-				statusCodeStr := strings.SplitN(headerValue, " ", 2)[0]
-				statusCode, err := strconv.Atoi(statusCodeStr)
-				if err != nil {
-					http.Error(w, "invalid status code", http.StatusInternalServerError)
-					return fmt.Errorf("invalid status code: %s", statusCodeStr)
-				}
-				w.WriteHeader(statusCode)
+				// http.Error(w, "invalid header: "+line, http.StatusInternalServerError)
+				// return fmt.Errorf("invalid header: %s", line)
+				headersWritten = true
+				fmt.Fprintln(w, line)
 			} else {
-				w.Header().Add(headerKey, headerValue)
+				headerKey := parts[0]
+				headerValue := parts[1]
+
+				// Special handling for "Status" header
+				if headerKey == "Status" {
+					statusCodeStr := strings.SplitN(headerValue, " ", 2)[0]
+					statusCode, err := strconv.Atoi(statusCodeStr)
+					if err != nil {
+						http.Error(w, "invalid status code", http.StatusInternalServerError)
+						return fmt.Errorf("invalid status code: %s", statusCodeStr)
+					}
+					w.WriteHeader(statusCode)
+				} else {
+					w.Header().Add(headerKey, headerValue)
+				}
 			}
 		} else {
 			// Write body content once headers are written

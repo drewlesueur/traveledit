@@ -1,5 +1,44 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+
+# go
+#     sleep 500
+#     say "hello"
+# end
+# say "yo"
+# 
+# wait
+# exit
+
+4 loop :i
+    go :i
+        sleep 500
+        say i
+    end
+    debugValsLen
+end
+
+debugValsLen
+wait
+debugValsLen
+wait
+debugValsLen
+wait
+debugValsLen
+wait
+
+say "done!"
+debugValsLen
+# debugVals
+
+
+# 10 loop :i
+#     wait
+# end
+
+exit
+
+
 "abcdefghij"
 split ""
 as :myarr
@@ -12,7 +51,6 @@ say
 say myarr
 
 
-exit
 
 "abcdefghij"
 dup, slice 1 3, say
