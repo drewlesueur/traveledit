@@ -1,5 +1,11 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+let :a "apple banana orange strawberry" (split " ")
+say a (at 1)
+say a (at -1)
+
+
+exit
 
 # go
 #     sleep 500
@@ -10,32 +16,28 @@
 # wait
 # exit
 
+
+100 5 asyncLoop :i
+    
+end
+
+
+
+
 4 loop :i
     go :i
         sleep 500
         say i
+        "yay"
     end
-    debugValsLen
 end
 
-debugValsLen
-wait
-debugValsLen
-wait
-debugValsLen
-wait
-debugValsLen
-wait
+4 loop :i
+    wait
+    say
+end
 
 say "done!"
-debugValsLen
-# debugVals
-
-
-# 10 loop :i
-#     wait
-# end
-
 exit
 
 

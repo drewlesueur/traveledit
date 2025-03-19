@@ -1229,6 +1229,12 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		"sayRaw": func(state *State) *State {
+ 			v := popT(state.Vals)
+ 			fmt.Printf("%v", v)
+			clearFuncToken(state)
+			return state
+		},
 		"say2": func(state *State) *State {
 			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 			thingsVal := *things
@@ -1382,7 +1388,6 @@ func initBuiltins() {
 			}
 			newIndent := getIndent(state, 0)
 			count := (len(indent) - len(newIndent)) / 4
-			fmt.Println("#aqua count is", count)
 			state.EndStack = state.EndStack[:len(state.EndStack)-count]
 			clearFuncToken(state)
 			return state
@@ -2112,7 +2117,7 @@ func initBuiltins() {
 		    clearFuncToken(state)
 		    return state
 		},
-		"fileSize": func(state *State) *State {
+		"getFileSize": func(state *State) *State {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
@@ -2299,7 +2304,11 @@ func pushm(slice any, values any) {
 
 func at(slice any, index any) any {
 	if s, ok := slice.(*[]any); ok {
-		return (*s)[index.(int)-1]
+		indexInt := index.(int)
+		if indexInt < 0 {
+			return (*s)[len(*s) + indexInt]
+		}
+		return (*s)[indexInt-1]
 	}
 	if m, ok := slice.(map[string]any); ok {
 		return m[index.(string)]
@@ -2478,15 +2487,15 @@ func length(slice any) any {
 }
 func indexOf(a any, b any) any {
 	if a, ok := a.(string); ok {
-		return strings.Index(a, b.(string))
+		return strings.Index(a, b.(string)) + 1
 	}
-	return -1
+	return 0
 }
 func lastIndexOf(a any, b any) any {
 	if a, ok := a.(string); ok {
-		return strings.LastIndex(a, b.(string))
+		return strings.LastIndex(a, b.(string)) + 1
 	}
-	return -1
+	return 0
 }
 
 func split(a any, b any) any {
