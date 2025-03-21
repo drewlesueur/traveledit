@@ -14,6 +14,8 @@ package main
 
 // template mode
 
+// strings, streams, byte arrays to be used interchangeably
+
 
 import (
 	"bytes"
@@ -3252,85 +3254,105 @@ func (r *CertificateReloader) ClearCache() {
 // This doesn't seem to handle http headers they way I'd
 // expect in cgi
 
-
-
 func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter) error {
-	cmd := exec.Command(scriptPath)
-	cmd.Env = env
-	cmd.Stdin = stdin
+    cmd := exec.Command(scriptPath)
+    cmd.Env = env
+    cmd.Stdin = stdin
 
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+    var stderr bytes.Buffer
+    cmd.Stderr = &stderr
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return err
-	}
+    stdout, err := cmd.StdoutPipe()
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return err
+    }
 
-	if err := cmd.Start(); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return err
-	}
+    if err := cmd.Start(); err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return err
+    }
 
-	reader := bufio.NewReader(stdout)
-	headersWritten := false
+    headers := http.Header{}
+    
+    reader := bufio.NewReader(stdout)
+    var buf bytes.Buffer
+    tee := io.TeeReader(reader, &buf)
+    data, _ := io.ReadAll(tee)
+    fmt.Println("here is the data:", string(data))
+    reader = bufio.NewReader(&buf)
+
+    
+    
     var theStatus int = 200
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return err
-		}
 
-		line = strings.TrimRight(line, "\r\n")
-		if line == "" && !headersWritten {
-			// Empty line indicates end of headers
-			w.WriteHeader(theStatus)
-			headersWritten = true
-			continue
-		}
+    for {
+        line, err := reader.ReadString('\n')
+        if err != nil {
+            if err == io.EOF {
+                break
+            }
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return err
+        }
+        line = line[0:len(line)-1] // trim the trailing newline
+        if line == "" {
+            // fmt.Printf("yay got empty string!")
+            // Empty line indicates end of headers
+            for key, values := range headers {
+                for _, value := range values {
+                    w.Header().Add(key, value)
+                }
+            }
+            w.WriteHeader(theStatus)
+            break
+            // continue
+        }
 
-		if !headersWritten {
-			// Process CGI headers
-			parts := strings.SplitN(line, ": ", 2)
-			if len(parts) != 2 {
-				// http.Error(w, "invalid header: "+line, http.StatusInternalServerError)
-				// return fmt.Errorf("invalid header: %s", line)
-				headersWritten = true
-				fmt.Fprintln(w, line)
-			} else {
-				headerKey := parts[0]
-				headerValue := parts[1]
+        // Process CGI headers
+        parts := strings.SplitN(line, ": ", 2)
+        if len(parts) != 2 {
+            break
+        } else {
+            headerKey := parts[0]
+            headerValue := parts[1]
 
-				// Special handling for "Status" header
-				if headerKey == "Status" {
-					statusCodeStr := strings.SplitN(headerValue, " ", 2)[0]
-					statusCode, err := strconv.Atoi(statusCodeStr)
-					if err != nil {
-						http.Error(w, "invalid status code", http.StatusInternalServerError)
-						return fmt.Errorf("invalid status code: %s", statusCodeStr)
-					}
-					theStatus = statusCode
-				} else {
-					w.Header().Add(headerKey, headerValue)
-				}
-			}
-		} else {
-			// Write body content once headers are written
-			fmt.Fprintln(w, line)
-		}
-	}
+            // Special handling for "Status" header
+            if headerKey == "Status" {
+                statusCodeStr := strings.SplitN(headerValue, " ", 2)[0]
+                statusCode, err := strconv.Atoi(statusCodeStr)
+                if err != nil {
+                    http.Error(w, "invalid status code", http.StatusInternalServerError)
+                    return fmt.Errorf("invalid status code: %s", statusCodeStr)
+                }
+                theStatus = statusCode
+            } else {
+                headers.Add(headerKey, headerValue)
+            }
+        }
+    }
 
-	if err := cmd.Wait(); err != nil {
-		http.Error(w, stderr.String(), http.StatusInternalServerError)
-		return err
-	}
+    // Copy the rest of the output as binary
+	// io.Copy(w, reader)
 
-	return nil
+	// actually write that reader to a file named "delme_server.gz"
+	// in addition to copying to w.
+    f, err := os.Create("delme_server.gz")
+    if err != nil {
+    	log.Fatal(err)
+    }
+    defer f.Close()
+    multiWriter := io.MultiWriter(w, f)
+    if _, err := io.Copy(multiWriter, reader); err != nil {
+    	log.Fatal(err)
+    }
+
+    if err := cmd.Wait(); err != nil {
+        http.Error(w, stderr.String(), http.StatusInternalServerError)
+        return err
+    }
+
+    return nil
 }
 
 
