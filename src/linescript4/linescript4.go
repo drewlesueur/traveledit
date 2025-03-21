@@ -106,19 +106,19 @@ type State struct {
 	FuncTokenStack     []func(*State) *State
 	FuncTokenSpot      int // position of the first "argument" in vals, even tho it can grab from earlier
 	FuncTokenSpotStack []int
-	
-	NewlineSpot          int 
-	
+
+	NewlineSpot          int
+
 	LexicalParent      *State
 	CallingParent      *State
 	DebugTokens bool
-	
+
 	Done bool
 	Canceled bool // need this?
 	Waiters []*State
 	IsTop bool
 	AsyncChildren map[int]*State
-	
+
 	Machine *Machine
 }
 
@@ -137,12 +137,12 @@ func MakeState(fileName, code string) *State {
 		ModeStack: nil,
 
 		CachedTokens:       make([]*TokenCacheValue, len(code)+1),
-		
+
 		// Preinitializing this makes eval in a loop slower if it doesn't use these
 		// though if you eval in a loop with a static string, you should be able to optimize
 		GoUpCache:          make([]*int, len(code)+1),
 		FindMatchingCache:  make([]*FindMatchingResult, len(code)+1),
-		
+
 		Vals:               &[]any{},
 		ValsStack:          nil,
 		EndStack:           nil,
@@ -151,9 +151,9 @@ func MakeState(fileName, code string) *State {
 		FuncTokenStack:     nil,
 		FuncTokenSpot:      -1,
 		FuncTokenSpotStack: nil,
-		
+
 		NewlineSpot:      -1,
-		
+
 		DebugTokens: false,
 		Waiters: []*State{},
 	}
@@ -178,8 +178,8 @@ func main() {
 		<- ch
 		return
 	}
-	
-	
+
+
 	_ = pprof.StartCPUProfile
 	// cpuProfile, err := os.Create("cpu.prof")
 	// if err != nil {
@@ -232,10 +232,10 @@ func main() {
 	// }
 	// state.I = 0
 	// fmt.Println(time.Since(start))
-	
+
 	// fmt.Println(unsafe.Pointer(&code))
 	// if strings come from source then we can cache it, but not worth it
-	
+
 	// see "eval" implementation,
 	// evalState := MakeState("__stdlib", stdLib)
 	// evalState.Vals = state.Vals
@@ -243,13 +243,13 @@ func main() {
 	// evalState.CallingParent = state
 	// clearFuncToken(state)
 	// return evalState
-	
+
   	Eval(state)
 }
 
 // var stdLib = `
 // def map:
-// 
+//
 // end
 // `
 
@@ -321,15 +321,15 @@ func Eval(state *State) *State {
 			evaledFunc := getVar(state, string(token)).(func(*State) *State)
 			state.CurrFuncToken = evaledFunc
 			state.FuncTokenSpot = len(*state.Vals)
-        
+
         // this was an attempt to replace the above cases, but slower than switch
         // every added case is slow, but interfaces (and closures) are even slower
         // probably unless there are lots of cases
         // case Immediate:
         //     state = token.Process(state)
-		
-		
-		
+
+
+
 		// case string:
 		// 	pushT(state.Vals, token)
 		// case int:
@@ -338,7 +338,7 @@ func Eval(state *State) *State {
 		// 	pushT(state.Vals, token)
 		// case bool:
 		// 	pushT(state.Vals, token)
-		
+
 		// slower
 		// case getVarToken:
 		// 	evaled := getVar(state, string(token))
@@ -348,7 +348,7 @@ func Eval(state *State) *State {
 		// 	} else {
 		// 		pushT(state.Vals, evaled)
 		// 	}
-		
+
 		// faster
 
 
@@ -362,7 +362,7 @@ func Eval(state *State) *State {
 		    // panic("fail")
 		}
  	}
- 	
+
 	return origState
 }
 
@@ -564,7 +564,7 @@ func makeToken(state *State, val string) any {
 		case "normal":
 			if state.CurrFuncToken == nil {
 				return builtinFuncToken(b)
-				
+
 				// attempt to require fewer cases in token switch
 				// but it's slower, with closure and even polymorphic types, it's slower.
 				// compared to switch
@@ -619,7 +619,7 @@ func makeToken(state *State, val string) any {
 	case "null":
 		return nil
 	}
-	
+
 	if state.CurrFuncToken != nil {
 		// if state.CurrFuncToken.Name == "let" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
 		// 	return stringToken(s)
@@ -645,7 +645,7 @@ func makeToken(state *State, val string) any {
 	case "normal":
 		if state.CurrFuncToken == nil {
 	    	// return getVarToken(val)
-	    	
+
 			evaled := getVar(state, val)
 			// once a func, always a func
 			// but have to eval twice the first round?!
@@ -689,7 +689,7 @@ func getIndent(state *State, iOffset int) string {
 	code := state.Code
 	i := state.I
 	lastNonSpace := i
-	
+
 	// back one to get to the newline
 	// another to get before newline
 	i = i + iOffset
@@ -803,11 +803,11 @@ func findMatchingAfter(state *State, dedentCount int, things []string) *FindMatc
 		return c
 	}
 	indent := getPrevIndent(state)
-	
+
 	// subtract 1 because there could be no body of an if (etc)
 	// toSearch := state.Code[state.I:]
 	toSearch := state.Code[state.I-1:] // #lawngreen
-	
+
 	// fmt.Println("#goldenrod but before")
 	// debugStateI(state, state.I-1)
 
@@ -866,10 +866,10 @@ func initBuiltins() {
 		},
 		")": func(state *State) *State {
 			// we could get in here cuz of: (func: 200)
-				
+
 			oldState := state
 			state = callFunc(state)
-			
+
 			// using ModeStack as a representative of paren level
 			if state.OneLiner && state.OneLinerParenLevel == len(state.ModeStack) {
 				state = doEnd(state)
@@ -877,9 +877,9 @@ func initBuiltins() {
 					return state
 				}
 			}
-			
 
-			
+
+
 			// this mode stuff was above the callFunc before?
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
@@ -1593,10 +1593,90 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+
+		// update this so that the "arr" argument
+		// is a filename (string)
+		// and the looping it does is over each line of the file
+		// the indexVar is the line index
+		// the itemVar is the string that's the line of the file
+		// call the name of the function "fileByLine"
+		// Note that you won't loop in this function!
+		// the endEach handles the iteration!
+		// also use bufio.NewReader cuz I don't know how long each line will be
+		"readFileByLine": func(state *State) *State {
+			theIndex := -1
+
+			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			thingsVal := *things
+
+			var indexVar string
+			var itemVar string
+
+			if len(thingsVal) == 2 {
+				indexVar = thingsVal[0].(string)
+				itemVar = thingsVal[1].(string)
+			} else if len(thingsVal) == 1 {
+				itemVar = thingsVal[0].(string)
+			}
+
+			// Pop the filename from the stack and open the file
+			fileName := popT(state.Vals).(string)
+			f, err := os.Open(fileName)
+			if err != nil {
+			    // other idea is go to end
+			    panic(err)
+			}
+			reader := bufio.NewReader(f)
+
+			if indexVar != "" {
+				state.Vars[indexVar] = theIndex
+			}
+			if itemVar != "" {
+				state.Vars[itemVar] = nil
+			}
+
+			spot := state.I
+			var endFileLine func(state *State) *State
+			endFileLine = func(state *State) *State {
+				debug("#thistle fileByLine End")
+				theIndex++
+
+				line, err := reader.ReadString('\n')
+				if err != nil {
+					f.Close()
+					state.OneLiner = false
+					return state
+				}
+				line = strings.TrimRight(line, "\n")
+				if indexVar != "" {
+					state.Vars[indexVar] = theIndex
+				}
+				if itemVar != "" {
+					state.Vars[itemVar] = line
+				} else {
+					pushT(state.Vals, line)
+				}
+				state.I = spot
+				debug("#white add end stack end fileByLine")
+				state.EndStack = append(state.EndStack, endFileLine)
+				return state
+			}
+			debug("#white add end stack start fileByLine")
+			state.EndStack = append(state.EndStack, endFileLine)
+			var i int
+			if state.OneLiner {
+				i = findBeforeEndLineOnlyLine(state)
+			} else {
+				i = findMatchingBefore(state, []string{"end"})
+			}
+			state.I = i
+			clearFuncToken(state)
+			return state
+		},
 		"map": func(state *State) *State {
 			// alternate implementation where we don't
 			// jump to end first and we start at 0
-			
+
 			// start at -1 and jump to end to force the end check first
 			theIndex := -1
 
@@ -1769,11 +1849,11 @@ func initBuiltins() {
 			}
 			return state.CallingParent
 		},
-		// 
+		//
 		"go": func(state *State) *State {
 			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 			thingsVal := *things
-			
+
 			newState := MakeState(state.FileName, state.Code)
 			newState.Machine = state.Machine
 			newState.CachedTokens = state.CachedTokens
@@ -1788,7 +1868,7 @@ func initBuiltins() {
 			for _, v := range thingsVal {
 			    newState.Vars[v.(string)] = getVar(state, v.(string))
 			}
-			
+
 			// newState.CallingParent = state
 			newState.CallingParent = nil
 			newState.LexicalParent = state
@@ -1804,7 +1884,7 @@ func initBuiltins() {
 				state.I = r.I
 				// f.EndI = r.I
 			}
-			
+
 			// state.AsyncChildren[] = newState
             state.AddCallback(Callback{
 			    State: newState,
@@ -2136,14 +2216,14 @@ func initBuiltins() {
 			ms := popT(state.Vals).(int)
 			clearFuncToken(state)
 			go func() {
-				time.Sleep(time.Duration(ms) * time.Millisecond)	    
+				time.Sleep(time.Duration(ms) * time.Millisecond)
 				state.AddCallback(Callback{State: state})
 			}()
 			return nil
 		},
-		
-		
-		
+
+
+
 		"eval": func(state *State) *State {
 			code := popT(state.Vals).(string)
 			// fmt.Println(unsafe.Pointer(&code))
