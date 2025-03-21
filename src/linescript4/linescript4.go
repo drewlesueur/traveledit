@@ -36,6 +36,7 @@ import (
 	"flag"
 	"bufio"
     "runtime/pprof"
+    "compress/gzip"
 
     "golang.org/x/crypto/acme/autocert"
 )
@@ -1036,6 +1037,11 @@ func initBuiltins() {
 			state.NewlineSpot--
 			state.FuncTokenSpot--
 			item := (*items)[0]
+			pushT(state.Vals, item)
+			return state
+		},
+		"dupit": func(state *State) *State {
+			item := (*state.Vals)[state.NewlineSpot-1]
 			pushT(state.Vals, item)
 			return state
 		},
@@ -2110,6 +2116,24 @@ func initBuiltins() {
 				panic(err)
 			}
 			clearFuncToken(state)
+			return state
+		},
+		"gunzip": func(state *State) *State {
+			gzippedData := []byte(popT(state.Vals).(string))
+			reader, err := gzip.NewReader(bytes.NewReader(gzippedData))
+			if err != nil {
+				panic(err)
+			}
+			defer reader.Close()
+
+			var outBuffer bytes.Buffer
+			_, err = io.Copy(&outBuffer, reader)
+			if err != nil {
+				panic(err)
+			}
+
+			clearFuncToken(state)
+		    pushT(state.Vals, outBuffer.String())
 			return state
 		},
 		"appendFile": func(state *State) *State {
@@ -3308,6 +3332,9 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
 
 	return nil
 }
+
+
+
 
 func cgiHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("#orange cgiHandler function")
