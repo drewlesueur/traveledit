@@ -614,6 +614,10 @@ func makeToken(state *State, val string) any {
 		return false
 	case "newline":
 		return "\n"
+	case "carriageReturn":
+		return "\r"
+	case "crlf":
+		return "\r\n"
 	case "tab":
 		return "\t"
 	case "null":
@@ -2060,7 +2064,8 @@ func initBuiltins() {
 		    fileName := popT(state.Vals).(string)
 		    _, err := os.Stat(fileName)
 		    if err != nil {
-		        if os.IsNotExist(err) {
+		        // not a directory when you have a "/suffix" on a regular file
+		        if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
 		            pushT(state.Vals, false)
 		        } else {
 		            panic(err)
@@ -2075,7 +2080,8 @@ func initBuiltins() {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
-		        if os.IsNotExist(err) {
+		        // not a directory when you have a "/suffix" on a regular file
+		        if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
 		            pushT(state.Vals, false)
 		        } else {
 		            panic(err)
@@ -2090,7 +2096,8 @@ func initBuiltins() {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
-		        if os.IsNotExist(err) {
+		        // not a directory when you have a "/suffix" on a regular file
+		        if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
 		            pushT(state.Vals, false)
 		        } else {
 		            panic(err)
@@ -2105,7 +2112,8 @@ func initBuiltins() {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
-		        if os.IsNotExist(err) {
+	        	// not a directory when you have a "/suffix" on a regular file
+	        	if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
 		            pushT(state.Vals, false)
 		        } else {
 		            panic(err)
@@ -2121,7 +2129,8 @@ func initBuiltins() {
 		    fileName := popT(state.Vals).(string)
 		    info, err := os.Stat(fileName)
 		    if err != nil {
-		        if os.IsNotExist(err) {
+	        	// not a directory when you have a "/suffix" on a regular file
+	        	if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
 		            pushT(state.Vals, int64(0))
 		        } else {
 		            panic(err)
@@ -3162,7 +3171,7 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
 
 	reader := bufio.NewReader(stdout)
 	headersWritten := false
-
+    var theStatus int = 200
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -3176,6 +3185,7 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
 		line = strings.TrimRight(line, "\r\n")
 		if line == "" && !headersWritten {
 			// Empty line indicates end of headers
+			w.WriteHeader(theStatus)
 			headersWritten = true
 			continue
 		}
@@ -3200,7 +3210,7 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
 						http.Error(w, "invalid status code", http.StatusInternalServerError)
 						return fmt.Errorf("invalid status code: %s", statusCodeStr)
 					}
-					w.WriteHeader(statusCode)
+					theStatus = statusCode
 				} else {
 					w.Header().Add(headerKey, headerValue)
 				}
@@ -3231,10 +3241,17 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 		"REQUEST_URI="+r.RequestURI,
 	)
 
+	// Add additional HTTP headers with "HTTP_" prefix
+	for header, values := range r.Header {
+		key := "HTTP_" + strings.ReplaceAll(strings.ToUpper(header), "-", "_")
+		env = append(env, key+"="+strings.Join(values, ","))
+	}
+
 	if err := executeCGI("./index", env, r.Body, w); err != nil {
 		log.Printf("Error executing CGI script: %v", err)
 	}
 }
+
 
 // aren't there a bunch more headers that need to
 // be sent as part of cgi spec?
