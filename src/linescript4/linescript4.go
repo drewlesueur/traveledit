@@ -14,7 +14,23 @@ package main
 
 // template mode
 
+// idea
 // strings, streams, byte arrays to be used interchangeably
+// soon, everything can be a stream. Interchangeable with strings (and byte slices)
+// maybe can't use streams and strings interchangeably
+// assigning, copying?
+// when done reading, can you read again (yes?)
+// allow fileBuffered Readers?
+// It's an experiment to see if Readers (buffering) should just be an implementation detail.
+
+
+// make it so some functions need the arguments after
+// so we don't accidentally skip a parameter!
+// things like writeFile, appendFile etc
+
+
+
+
 
 
 import (
@@ -544,9 +560,16 @@ func noop(state *State) *State {
     return state
 }
 
+type Reader struct {
+    Reader io.Reader
+}
 
 // TODO: files must end in newline!
 type Skip string
+
+var stdinReader = &Reader{
+    Reader: os.Stdin,
+}
 
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
@@ -625,6 +648,8 @@ func makeToken(state *State, val string) any {
 		return "\t"
 	case "null":
 		return nil
+	case "stdin":
+	    return stdinReader
 	}
 
 	if state.CurrFuncToken != nil {
@@ -861,7 +886,10 @@ var runAlwaysImmediates map[string]func(state *State) *State
 func initBuiltins() {
 	runAlwaysImmediates = map[string]func(state *State) *State{
 		"(": func(state *State) *State {
+			// fmt.Println("#yellow, mode stack up a")
+			// fmt.Println("#yellow, pre", len(state.ModeStack))
 			state.ModeStack = append(state.ModeStack, state.Mode)
+			// fmt.Println("#yellow, post", len(state.ModeStack))
 			state.Mode = "normal"
 
 			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
@@ -888,8 +916,11 @@ func initBuiltins() {
 
 
 			// this mode stuff was above the callFunc before?
-			state.Mode = state.ModeStack[len(state.ModeStack)-1]
-			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+			// fmt.Println("#aqua, mode stack down a")
+			// fmt.Println("#aqua, pre", len(oldState.ModeStack))
+			oldState.Mode = oldState.ModeStack[len(oldState.ModeStack)-1]
+			oldState.ModeStack = oldState.ModeStack[:len(oldState.ModeStack)-1]
+			// fmt.Println("#aqua, post", len(oldState.ModeStack))
 
 			oldState.CurrFuncToken = oldState.FuncTokenStack[len(oldState.FuncTokenStack)-1]
 			oldState.FuncTokenStack = oldState.FuncTokenStack[:len(oldState.FuncTokenStack)-1]
@@ -899,6 +930,7 @@ func initBuiltins() {
 			return state
 		},
 		"[": func(state *State) *State {
+			// fmt.Println("#yellow, mode stack up b")
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "array"
 
@@ -912,6 +944,7 @@ func initBuiltins() {
 			return state
 		},
 		"]": func(state *State) *State {
+			// fmt.Println("#aqua, mode stack down b")
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
 
@@ -928,6 +961,7 @@ func initBuiltins() {
 			return state
 		},
 		"{": func(state *State) *State {
+			// fmt.Println("#yellow, mode stack up c")
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "object"
 
@@ -941,6 +975,7 @@ func initBuiltins() {
 			return state
 		},
 		"}": func(state *State) *State {
+			// fmt.Println("#aqua, mode stack down c")
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
 
@@ -1097,6 +1132,7 @@ func initBuiltins() {
 			return state
 		},
 		"func": func(state *State) *State {
+			// fmt.Println("#yellow, mode stack up d (func)")
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "normal"
 
@@ -2003,6 +2039,7 @@ func initBuiltins() {
 			}
 
 			// close implied parens
+			// fmt.Println("#aqua, mode stack down d (func)")
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
 
@@ -2046,6 +2083,42 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		// make a version of this that allows a reader too (as another popT)
+		// if it's a string then make a new Reader out of the string and make that the Stdin of the command
+		// If it's a Reader already then make that the Stdin of the command.
+		"execBashStdin": func(state *State) *State {
+			input := popT(state.Vals)
+			cmdString := popT(state.Vals).(string)
+			var stdin io.Reader
+			switch v := input.(type) {
+			case string:
+				stdin = strings.NewReader(v)
+			case *Reader:
+				stdin = v.Reader
+			default:
+			    panic("unexpected stdin")
+			}
+ 
+			cmd := exec.Command("/bin/bash", "-c", cmdString)
+			cmd.Stdin = stdin
+ 
+			cmdOutput, err := cmd.Output()
+			_ = err
+			if err != nil {
+				if exitErr, ok := err.(*exec.ExitError); ok {
+					fmt.Println("ExitError:", string(exitErr.Stderr))
+				} else {
+					fmt.Println("Error:", err)
+				}
+			}
+ 
+			pushT(state.Vals, string(cmdOutput))
+			clearFuncToken(state)
+			return state
+		},
+
+		
+		
 		"execBashCombined": func(state *State) *State {
 			val := popT(state.Vals).(string)
 			cmd := exec.Command("/bin/bash", "-c", val)
@@ -2055,15 +2128,6 @@ func initBuiltins() {
 				fmt.Println(err)
 			}
 			pushT(state.Vals, string(cmdOutput))
-			clearFuncToken(state)
-			return state
-		},
-		"getStdin": func(state *State) *State {
-			data, err := io.ReadAll(os.Stdin)
-			if err != nil {
-			    panic(err)
-			}
-			pushT(state.Vals, string(data))
 			clearFuncToken(state)
 			return state
 		},
@@ -2264,6 +2328,23 @@ func initBuiltins() {
 			// fmt.Println(unsafe.Pointer(&code))
 			// if strings come from source then we can cache it, but not worth it
 			evalState := MakeState("__eval", code)
+			evalState.Machine = state.Machine
+			evalState.Vals = state.Vals
+			evalState.Vars = state.Vars
+
+			evalState.CallingParent = state
+			// eval(evalState)
+			// return state
+			clearFuncToken(state)
+			return evalState
+		},
+		"include": func(state *State) *State {
+			filename := popT(state.Vals).(string)
+			b, err := os.ReadFile(filename)
+			if err != nil {
+				panic(err)
+			}
+			evalState := MakeState(filename, string(b))
 			evalState.Machine = state.Machine
 			evalState.Vals = state.Vals
 			evalState.Vars = state.Vars
@@ -2912,8 +2993,22 @@ func toString(a any) any {
 	//         return "<nil func>"
 	//     }
 	//        return a.Name
+	case *Reader:
+	    // TODO: read until a certain threshold,
+	    // then use files?
+	    // TODO: if this is part of "say" you can also consider just copying to stdout
+	    // also execBash family should likely return a Reader.
+	    b, err := io.ReadAll(a.Reader)
+	    if err != nil {
+	        panic(err) // ?
+	    }
+	    // "reset" the reader for later use
+	    // part of the experiment to make readers and strings somewhat interchangeable
+	    a.Reader = bytes.NewReader(b)
+	    
+	    return string(b)
 	default:
-		return fmt.Sprintf("type is %T, value is %#v\n", a, a)
+		return fmt.Sprintf("toString: unknown type: type is %T, value is %#v\n", a, a)
 	}
 	return nil
 }
@@ -3257,6 +3352,17 @@ func (r *CertificateReloader) ClearCache() {
 func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter) error {
     cmd := exec.Command(scriptPath)
     cmd.Env = env
+    
+    // start debugging
+    inputData, err := io.ReadAll(stdin)
+    if err != nil {
+    	log.Fatalf("Failed to read stdin: %v", err)
+    }
+    log.Println("Input:", string(inputData))
+    newReader := bytes.NewReader(inputData)
+    stdin = io.NopCloser(newReader)
+    // end debugging
+
     cmd.Stdin = stdin
 
     var stderr bytes.Buffer
@@ -3274,13 +3380,16 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
     }
 
     headers := http.Header{}
-    
+
     reader := bufio.NewReader(stdout)
-    var buf bytes.Buffer
-    tee := io.TeeReader(reader, &buf)
-    data, _ := io.ReadAll(tee)
-    fmt.Println("here is the data:", string(data))
-    reader = bufio.NewReader(&buf)
+    
+    // start debugging
+    // var buf bytes.Buffer
+    // tee := io.TeeReader(reader, &buf)
+    // data, _ := io.ReadAll(tee)
+    // fmt.Println("here is the data:", string(data))
+    // reader = bufio.NewReader(&buf)
+    // end debugging
 
     
     
@@ -3333,19 +3442,19 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
     }
 
     // Copy the rest of the output as binary
-	// io.Copy(w, reader)
+	io.Copy(w, reader)
 
 	// actually write that reader to a file named "delme_server.gz"
 	// in addition to copying to w.
-    f, err := os.Create("delme_server.gz")
-    if err != nil {
-    	log.Fatal(err)
-    }
-    defer f.Close()
-    multiWriter := io.MultiWriter(w, f)
-    if _, err := io.Copy(multiWriter, reader); err != nil {
-    	log.Fatal(err)
-    }
+    // f, err := os.Create("delme_server.gz")
+    // if err != nil {
+    // 	log.Fatal(err)
+    // }
+    // defer f.Close()
+    // multiWriter := io.MultiWriter(w, f)
+    // if _, err := io.Copy(multiWriter, reader); err != nil {
+    // 	log.Fatal(err)
+    // }
 
     if err := cmd.Wait(); err != nil {
         http.Error(w, stderr.String(), http.StatusInternalServerError)
@@ -3379,6 +3488,8 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 	if err := executeCGI("./index", env, r.Body, w); err != nil {
 		log.Printf("Error executing CGI script: %v", err)
 	}
+
+
 }
 
 

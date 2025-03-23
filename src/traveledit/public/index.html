@@ -2931,9 +2931,7 @@ function cleanUpFiles() {
                     filesToClose.push(file)
                 }
             }
-        } else if (file.fileMode == "shell") {
-                filesToClose.push(file)
-        } else if (file.fileMode == "terminal") {
+        } else if (file.fileMode == "terminal" || file.fileMode == "shell") {
             if (file.pinned) {
                 pinnedFiles.push(file)
             } else {

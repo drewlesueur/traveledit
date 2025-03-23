@@ -1,5 +1,46 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+# def :func1
+#     "yo dude"
+# end
+# 
+# func1
+# say
+
+# say (func1)
+# exit
+
+include "include1.ls"
+
+# eval string
+#     say "wow this is included"
+# 
+#     def :fortuneCookie
+#         "you will have an amazing day"
+#     end
+# end
+
+def :fortuneCookie :yo
+    "you will have an amazing day"
+end
+
+
+say (fortuneCookie "ok")
+
+
+exit
+
+
+say stdin
+say stdin
+say stdin
+say stdin
+say "whaaa"
+exit
+
+
+
+
 let :a "apple banana orange strawberry" (split " ")
 say a (at 1)
 say a (at -1)
