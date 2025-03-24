@@ -27,9 +27,7 @@ package main
 // make it so some functions need the arguments after
 // so we don't accidentally skip a parameter!
 // things like writeFile, appendFile etc
-
-
-
+// maybe would be nice with static number of args? (maybe other language, maybe truly postfix, that makes itself)
 
 
 
@@ -43,6 +41,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -55,6 +54,7 @@ import (
 	"bufio"
     "runtime/pprof"
     "compress/gzip"
+    "math/rand"
 
     "golang.org/x/crypto/acme/autocert"
 )
@@ -1125,6 +1125,7 @@ func initBuiltins() {
 		},
 		",": func(state *State) *State {
 			state = callFunc(state)
+			state.NewlineSpot = len(*state.Vals)
 			return state
 		},
 		"|": func(state *State) *State {
@@ -1320,8 +1321,32 @@ func initBuiltins() {
 			}
 			return string(data)
 		}),
-
-
+		"urlEncode": makeBuiltin_1_1(func(a any) any {
+			return url.PathEscape(a.(string))
+		}),
+		"randInt": makeBuiltin_2_1(func(a, b any) any {
+		    min := a.(int)
+		    max := b.(int)
+		    return rand.Intn(max-min+1) + min
+		}),
+		"padLeft": makeBuiltin_3_1(func(s, padChar any, length any) any {
+			str := s.(string)
+			pad := padChar.(string)
+			padLength := length.(int)
+			for len(str) < padLength {
+				str = pad + str
+			}
+			return str
+		}),
+		"padRight": makeBuiltin_3_1(func(s, padChar any, length any) any {
+			str := s.(string)
+			pad := padChar.(string)
+			padLength := length.(int)
+			for len(str) < padLength {
+				str = str + pad
+			}
+			return str
+		}),
 		"slice":      makeBuiltin_3_1(slice),
 		"splice":     makeBuiltin_4_1(splice),
 		"length":     makeBuiltin_1_1(length),
@@ -2074,7 +2099,7 @@ func initBuiltins() {
 			_ = err
 			if err != nil {
 				if exitErr, ok := err.(*exec.ExitError); ok {
-					fmt.Println("ExitError:", string(exitErr.Stderr))
+					fmt.Println("\nExitError:", string(exitErr.Stderr))
 				} else {
 					fmt.Println("Error:", err)
 				}
@@ -2106,7 +2131,8 @@ func initBuiltins() {
 			_ = err
 			if err != nil {
 				if exitErr, ok := err.(*exec.ExitError); ok {
-					fmt.Println("ExitError:", string(exitErr.Stderr))
+					// extra newline for convenience with cgi, so it's not treated as header
+					fmt.Println("\nExitError:", string(exitErr.Stderr))
 				} else {
 					fmt.Println("Error:", err)
 				}
@@ -2177,7 +2203,11 @@ func initBuiltins() {
 		"writeFile": func(state *State) *State {
 			contents := popT(state.Vals).(string)
 			fileName := popT(state.Vals).(string)
-			err := os.WriteFile(fileName, []byte(contents), 0644)
+			err := os.MkdirAll(filepath.Dir(fileName), os.ModePerm)
+			if err != nil {
+				panic(err)
+			}
+			err = os.WriteFile(fileName, []byte(contents), 0644)
 			if err != nil {
 				panic(err)
 			}
@@ -2212,6 +2242,21 @@ func initBuiltins() {
 			}
 			defer f.Close()
 			if _, err := f.WriteString(contents); err != nil {
+				panic(err)
+			}
+			clearFuncToken(state)
+			return state
+		},
+		"appendLine": func(state *State) *State {
+			// TODO flow for keeping file open
+			contents := popT(state.Vals).(string)
+			fileName := popT(state.Vals).(string)
+			f, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+			if err != nil {
+				panic(err)
+			}
+			defer f.Close()
+			if _, err := f.WriteString(contents + "\n"); err != nil {
 				panic(err)
 			}
 			clearFuncToken(state)
@@ -3142,7 +3187,7 @@ func interpolate(a, b any) any {
 	i := 0
 	for k, v := range theMap {
 		theArgs[i*2] = k
-		theArgs[(i*2)+1] = v.(string)
+		theArgs[(i*2)+1] = toString(v).(string)
 		i++
 	}
 	r := strings.NewReplacer(theArgs...)
@@ -3349,7 +3394,7 @@ func (r *CertificateReloader) ClearCache() {
 // This doesn't seem to handle http headers they way I'd
 // expect in cgi
 
-func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter) error {
+func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter, r *http.Request) error {
     cmd := exec.Command(scriptPath)
     cmd.Env = env
     
@@ -3358,7 +3403,13 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
     if err != nil {
     	log.Fatalf("Failed to read stdin: %v", err)
     }
-    log.Println("Input:", string(inputData))
+    if r.Method == "POST" {
+        log.Println("Input:", string(inputData))
+        log.Println("actual length:", len(inputData))
+        log.Println("the content length:", r.Header.Get("Content-Length"))
+        j, _ := json.Marshal(string(inputData))
+        log.Println("as json:", string(j))
+    }
     newReader := bytes.NewReader(inputData)
     stdin = io.NopCloser(newReader)
     // end debugging
@@ -3485,7 +3536,7 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 		env = append(env, key+"="+strings.Join(values, ","))
 	}
 
-	if err := executeCGI("./index", env, r.Body, w); err != nil {
+	if err := executeCGI("./index", env, r.Body, w, r); err != nil {
 		log.Printf("Error executing CGI script: %v", err)
 	}
 

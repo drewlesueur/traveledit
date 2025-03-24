@@ -1,5 +1,8 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+
+
+appendLine "delme1.txt" "what"
 # def :func1
 #     "yo dude"
 # end

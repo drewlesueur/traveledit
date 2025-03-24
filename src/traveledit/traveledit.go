@@ -1162,32 +1162,37 @@ func main() {
 	
 	
 	mux.HandleFunc("/chatgpt", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("got to /chatgpt endpoint")
 		chatGPTMu.Lock()
 		defer chatGPTMu.Unlock()
+		log.Println("locked the chatgptMu")
+        // fmt.Fprintf(w, "Yay chatgpt response")
 		
 		// small race cond. between here and when we actually set to running.
 		if chatGPTIsRunning || chatGPTShouldBeRunning {
+        	fmt.Fprintf(w, "chatgpt already")
 		    return
 		}
+		log.Println("chatgpt log 2.0")
 		
 		chatGPTShouldBeRunning = true
 		
 		// workspaceMu.Lock()
 		// defer workspaceMu.Unlock()
-		log.Printf("yay got here")
 		// return
 
 		ID, err := strconv.Atoi(r.FormValue("id"))
 		if err != nil {
+			chatGPTShouldBeRunning = false
 			logAndErr(w, "invalid id: %s: %v", r.FormValue("id"), err)
 			return
 		}
+		log.Println("chatgpt log 3.0")
 		log.Printf("chatgpt  call: %d", ID)
 		model := r.FormValue("model")
 		if model == "" {
-			model = "gpt-3.5-turbo"
+			model = ""
 		}
-
 		go func() {
 			if f, ok := workspace.GetFile(ID); ok {
 				messagesJSON := r.FormValue("messages")
