@@ -6039,6 +6039,7 @@ function processPollResponse(wrapperR) {
 var abortController = new AbortController()
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
+        // alert("aborting")
         abortController.abort()
         abortController = new AbortController()
     }

@@ -1,6 +1,21 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+removeFile "myPipe"
 
+
+go
+    readPipe "myPipe" 256 1000
+    say "we read:" it
+end
+go
+    sleep 100
+    writePipe "myPipe" "test1" 1000
+    drop
+end
+
+wait
+wait
+exit
 
 appendLine "delme1.txt" "what"
 # def :func1

@@ -55,6 +55,7 @@ import (
     "runtime/pprof"
     "compress/gzip"
     "math/rand"
+	"golang.org/x/sys/unix"
 
     "golang.org/x/crypto/acme/autocert"
 )
@@ -329,6 +330,7 @@ func Eval(state *State) *State {
                 for _, v := range callback.ReturnValues {
                     pushT(state.Vals, v)
                 }
+			    state.NewlineSpot = len(*state.Vals)
             }
 		case builtinFuncToken:
 			state.CurrFuncToken = token
@@ -626,6 +628,7 @@ func makeToken(state *State, val string) any {
 			}
 			return f
 		}
+		val := strings.Replace(val, "_", "", -1)
 		i, err := strconv.Atoi(val)
 		if err != nil {
 			panic(err)
@@ -2184,13 +2187,18 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return nil
 		},
-		"readDirNames": func(state *State) *State {
+		"readDir": func(state *State) *State {
 		    dirName := popT(state.Vals).(string)
+		    var names []string
 		    entries, err := os.ReadDir(dirName)
 		    if err != nil {
+		        if os.IsNotExist(err) {
+		    		pushT(state.Vals, &names)
+		            clearFuncToken(state)
+		            return state
+		        }
 		        panic(err)
 		    }
-		    var names []string
 		    for _, entry := range entries {
 		        if entry.Name() != "." && entry.Name() != ".." {
 		            names = append(names, entry.Name())
@@ -2236,6 +2244,10 @@ func initBuiltins() {
 			// TODO flow for keeping file open
 			contents := popT(state.Vals).(string)
 			fileName := popT(state.Vals).(string)
+			err := os.MkdirAll(filepath.Dir(fileName), os.ModePerm)
+			if err != nil {
+				panic(err)
+			}
 			f, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 			if err != nil {
 				panic(err)
@@ -2251,6 +2263,10 @@ func initBuiltins() {
 			// TODO flow for keeping file open
 			contents := popT(state.Vals).(string)
 			fileName := popT(state.Vals).(string)
+			err := os.MkdirAll(filepath.Dir(fileName), os.ModePerm)
+			if err != nil {
+				panic(err)
+			}
 			f, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 			if err != nil {
 				panic(err)
@@ -2262,7 +2278,7 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"removeFile": func(state *State) *State {
+		"deleteFile": func(state *State) *State {
 		    fileName := popT(state.Vals).(string)
 		    err := os.Remove(fileName)
 		    if err != nil && !os.IsNotExist(err) {
@@ -2475,9 +2491,191 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		"writePipe": func(state *State) *State {
+			timeoutMs := popT(state.Vals).(int)
+			data := popT(state.Vals).(string)
+			fifoPath := popT(state.Vals).(string)
+			go func() {
+				err := writePipe(fifoPath, []byte(data), timeoutMs)
+				if err != nil {
+					// log.Println("write pipe error:", err)
+					panic(err)
+				}
+				state.AddCallback(Callback{
+				    State: state,
+				    ReturnValues: []any{err != nil},
+				})
+			}()
+			clearFuncToken(state)
+			return nil
+		},
+		"readPipe": func(state *State) *State {
+			timeoutMs := popT(state.Vals).(int)
+			bufSize := popT(state.Vals).(int)
+			fifoPath := popT(state.Vals).(string)
+			go func() {
+				b, err := readPipe(fifoPath, bufSize, timeoutMs)
+				if err != nil {
+				    if strings.Contains(err.Error(), "timeout") {
+						state.AddCallback(Callback{
+						    State: state,
+						    ReturnValues: []any{""},
+						})
+				    } else {
+				        panic(err)
+				    }
+				    return
+				}
+				state.AddCallback(Callback{
+				    State: state,
+				    ReturnValues: []any{string(b)},
+				})
+			}()
+			clearFuncToken(state)
+			return nil
+		},
 	}
 	funcBuiltin = builtins["func"]
 }
+
+// createNamedPipe checks if the FIFO exists and creates it if it doesn't.
+func createNamedPipe(fifoPath string) error {
+	if _, err := os.Stat(fifoPath); os.IsNotExist(err) {
+		if err := unix.Mkfifo(fifoPath, 0666); err != nil {
+			return fmt.Errorf("mkfifo: %w", err)
+		}
+		fmt.Printf("FIFO created at %s\n", fifoPath)
+	}
+	return nil
+}
+
+// writePipe writes the given data to the FIFO located at fifoPath.
+// It polls for the FIFO to be writable for up to timeoutMs milliseconds.
+func writePipe(fifoPath string, data []byte, timeoutMs int) error {
+	// Ensure the FIFO exists.
+	if err := createNamedPipe(fifoPath); err != nil {
+		return err
+	}
+
+	// Open the FIFO in non-blocking write-only mode.
+	fd, err := unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
+	// fd, err := unix.Open(fifoPath, unix.O_WRONLY, 0)
+	if err != nil {
+		return fmt.Errorf("fifo open (%s): %w", fifoPath, err)
+	}
+
+	defer unix.Close(fd)
+
+	// Set up the pollfd structure to wait for write readiness.
+	pfds := []unix.PollFd{
+		{
+			Fd:     int32(fd),
+			Events: unix.POLLOUT,
+		},
+	}
+
+	// Poll for write readiness with the specified timeout.
+	n, err := unix.Poll(pfds, timeoutMs)
+	if err != nil {
+		return fmt.Errorf("poll: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
+	}
+
+	// Write the data to the FIFO.
+	nWritten, err := unix.Write(fd, data)
+	if err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+	if nWritten != len(data) {
+		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
+	}
+
+	fmt.Printf("Successfully wrote %d bytes to FIFO.\n", nWritten)
+	return nil
+}
+
+// readPipe reads up to bufSize bytes from the FIFO located at fifoPath.
+// It polls for the FIFO to have data (readable) for up to timeoutMs milliseconds.
+// Returns the read bytes along with any error.
+func readPipe(fifoPath string, bufSize int, timeoutMs int,) ([]byte, error) {
+	// Ensure the FIFO exists.
+	if err := createNamedPipe(fifoPath); err != nil {
+		return nil, err
+	}
+
+	// Open the FIFO in non-blocking read-only mode.
+	fd, err := unix.Open(fifoPath, unix.O_RDONLY|unix.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open: %w", err)
+	}
+	defer unix.Close(fd)
+
+	// Set up the pollfd structure to wait for read readiness.
+	pfds := []unix.PollFd{
+		{
+			Fd:     int32(fd),
+			Events: unix.POLLIN,
+		},
+	}
+
+	// Poll for read readiness with the specified timeout.
+	n, err := unix.Poll(pfds, timeoutMs)
+	if err != nil {
+		return nil, fmt.Errorf("poll: %w", err)
+	}
+	if n == 0 {
+		return nil, fmt.Errorf("timeout after %d ms, no data received", timeoutMs)
+	}
+
+	// Read from the FIFO.
+	buf := make([]byte, bufSize)
+	nRead, err := unix.Read(fd, buf)
+	if err != nil {
+		return nil, fmt.Errorf("read: %w", err)
+	}
+
+	fmt.Printf("Received %d bytes from FIFO.\n", nRead)
+	return buf[:nRead], nil
+}
+
+
+
+
+
+
+
+// func main() {
+// 	// Set the parameters.
+// 	fifoPath := "/path/to/your.fifo"
+// 	timeoutMs := 10000 // 10 seconds timeout
+// 	bufSize := 256     // Buffer size of 256 bytes
+// 
+// 	// Select the mode: "read" or "write".
+// 	mode := "write"
+// 	if len(os.Args) > 1 {
+// 		mode = os.Args[1]
+// 	}
+// 
+// 	switch mode {
+// 	case "write":
+// 		// Example data to send.
+// 		data := []byte("Hello FIFO!")
+// 		if err := writeToFIFO(fifoPath, timeoutMs, data); err != nil {
+// 			log.Fatal(err)
+// 		}
+// 	case "read":
+// 		data, err := readFromFIFO(fifoPath, timeoutMs, bufSize)
+// 		if err != nil {
+// 			log.Fatal(err)
+// 		}
+// 		// Use the returned data as needed.
+// 		fmt.Printf("Data read: %s\n", string(data))
+// 	default:
+// 		log.Fatalf("Invalid mode. Use 'read' or 'write'.")
+// 	}
+// }
 
 // closures seem to be in par with interfaces
 func makeFuncToken(token *Func) func(*State) *State {
@@ -3403,13 +3601,13 @@ func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.Respons
     if err != nil {
     	log.Fatalf("Failed to read stdin: %v", err)
     }
-    if r.Method == "POST" {
-        log.Println("Input:", string(inputData))
-        log.Println("actual length:", len(inputData))
-        log.Println("the content length:", r.Header.Get("Content-Length"))
-        j, _ := json.Marshal(string(inputData))
-        log.Println("as json:", string(j))
-    }
+    // if r.Method == "POST" {
+    //     log.Println("Input:", string(inputData))
+    //     log.Println("actual length:", len(inputData))
+    //     log.Println("the content length:", r.Header.Get("Content-Length"))
+    //     j, _ := json.Marshal(string(inputData))
+    //     log.Println("as json:", string(j))
+    // }
     newReader := bytes.NewReader(inputData)
     stdin = io.NopCloser(newReader)
     // end debugging
