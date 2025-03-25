@@ -2,15 +2,27 @@
 
 removeFile "myPipe"
 
+go
+    10 loop
+        sleep 1000
+        say "tick" it
+    end
+end
 
 go
+    sleep 6000
     readPipe "myPipe" 256 1000
     say "we read:" it
 end
 go
-    sleep 100
-    writePipe "myPipe" "test1" 1000
-    drop
+    say "going to write"
+    writePipe "myPipe" "test1" 5000
+    if
+        say "we wrote"
+    else
+        say "failed to write"
+    end
+    
 end
 
 wait

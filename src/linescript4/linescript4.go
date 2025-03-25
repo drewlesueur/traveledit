@@ -2503,7 +2503,7 @@ func initBuiltins() {
 				}
 				state.AddCallback(Callback{
 				    State: state,
-				    ReturnValues: []any{err != nil},
+				    ReturnValues: []any{err == nil},
 				})
 			}()
 			clearFuncToken(state)
@@ -2551,20 +2551,142 @@ func createNamedPipe(fifoPath string) error {
 
 // writePipe writes the given data to the FIFO located at fifoPath.
 // It polls for the FIFO to be writable for up to timeoutMs milliseconds.
+// func writePipe(fifoPath string, data []byte, timeoutMs int) error {
+// 	// Ensure the FIFO exists.
+// 	if err := createNamedPipe(fifoPath); err != nil {
+// 		return err
+// 	}
+// 
+// 	// Open the FIFO in non-blocking write-only mode.
+// 	// this will fail right away if there is no reader?
+// 	// fd, err := unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
+// 	
+// 	fd, err := unix.Open(fifoPath, unix.O_WRONLY, 0)
+// 	if err != nil {
+// 		return fmt.Errorf("fifo open (%s): %w", fifoPath, err)
+// 	}
+// 
+// 	defer unix.Close(fd)
+// 
+// 	// Set up the pollfd structure to wait for write readiness.
+// 	pfds := []unix.PollFd{
+// 		{
+// 			Fd:     int32(fd),
+// 			Events: unix.POLLOUT,
+// 		},
+// 	}
+// 
+// 	// Poll for write readiness with the specified timeout.
+// 	n, err := unix.Poll(pfds, timeoutMs)
+// 	if err != nil {
+// 		return fmt.Errorf("poll: %w", err)
+// 	}
+// 	if n == 0 {
+// 		return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
+// 	}
+// 
+// 	// Write the data to the FIFO.
+// 	nWritten, err := unix.Write(fd, data)
+// 	if err != nil {
+// 		return fmt.Errorf("write: %w", err)
+// 	}
+// 	if nWritten != len(data) {
+// 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
+// 	}
+// 
+// 	fmt.Printf("Successfully wrote %d bytes to FIFO.\n", nWritten)
+// 	return nil
+// }
+
+// the timeoutMs doesn't seem to be respected
+// is that because it's in blocking mode?
+// 
+// Yes, you are correct. The issue you're encountering with the `timeoutMs` not being respected is likely because the FIFO is being opened in blocking mode rather than non-blocking mode. When you open a FIFO in blocking mode (i.e., without the `O_NONBLOCK` flag), operations on that FIFO will block until they can proceed. This means that the `Poll` call effectively becomes unnecessary because the write operation won't proceed until the FIFO is ready for writing.
+// 
+// but it fails to open at all if there isn't already a reader when it's in non-blocking mode
+// 
+// When opening a FIFO in non-blocking mode, it will indeed fail if there is no process currently reading from the other end of the FIFO. This is expected behavior, as non-blocking mode is designed to return immediately to indicate the current state without waiting for the resource to become available.
+// 
+// To handle this situation, you can implement a loop to retry opening the FIFO. This loop should check for the specific error and use a backoff strategy (e.g., a short sleep) to repeatedly attempt to open the FIFO, respecting the specified timeout.
+
+// ok can you just modify that code to not poll, but simply write in blocking mode?
+// 
+// Certainly! To modify the function to write in blocking mode without the polling logic, we can simply open the FIFO in blocking mode and directly attempt to write to it. Here's how you can do it:
+
+
+// writePipe writes the given data to the FIFO located at fifoPath.
+// It opens the FIFO in blocking mode and writes the data to it.
+// func writePipe(fifoPath string, data []byte) error {
+// 	// Ensure the FIFO exists.
+// 	if err := createNamedPipe(fifoPath); err != nil {
+// 		return err
+// 	}
+// 
+// 	// Open the FIFO in blocking write-only mode.
+// 	fd, err := unix.Open(fifoPath, unix.O_WRONLY, 0)
+// 	if err != nil {
+// 		return fmt.Errorf("fifo open (%s): %w", fifoPath, err)
+// 	}
+// 	defer unix.Close(fd)
+// 
+// 	// Write the data to the FIFO.
+// 	nWritten, err := unix.Write(fd, data)
+// 	if err != nil {
+// 		return fmt.Errorf("write: %w", err)
+// 	}
+// 	if nWritten != len(data) {
+// 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
+// 	}
+// 
+// 	fmt.Printf("Successfully wrote %d bytes to FIFO.\n", nWritten)
+// 	return nil
+// }
+
+// ok scratch that, I want non-blocking,
+// but can you do a simple poll on unix.Open
+// if we hit timeoutMs, then return the error,
+// then when we do the unix.Poll, pass in the remaining timeoutMs
+// 
+// Certainly! To achieve this, you can implement a retry mechanism while trying to open the FIFO in non-blocking mode. If there’s no reader, you keep retrying until the provided timeout is reached. Once the FIFO is opened successfully, you can proceed with the polling and writing logic with the remaining time available.
+// 
+// Here's an updated implementation to handle your requirements:
+
+
+// writePipe writes the given data to the FIFO located at fifoPath.
+// It opens the FIFO in non-blocking mode and writes the data to it, with a timeout.
 func writePipe(fifoPath string, data []byte, timeoutMs int) error {
 	// Ensure the FIFO exists.
 	if err := createNamedPipe(fifoPath); err != nil {
 		return err
 	}
 
-	// Open the FIFO in non-blocking write-only mode.
-	fd, err := unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
-	// fd, err := unix.Open(fifoPath, unix.O_WRONLY, 0)
-	if err != nil {
-		return fmt.Errorf("fifo open (%s): %w", fifoPath, err)
+	timeout := time.Duration(timeoutMs) * time.Millisecond
+	deadline := time.Now().Add(timeout)
+
+	var fd int
+	var err error
+
+	// Try to open the FIFO in non-blocking mode until timeout is reached.
+	for {
+		fd, err = unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
+		if err == nil {
+			// Successfully opened; exit the loop.
+			break
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout after %d ms while trying to open FIFO: %w", timeoutMs, err)
+		}
+
+		// Sleep for a short interval before retrying.
+		// time.Sleep(50 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 
 	defer unix.Close(fd)
+
+	// Calculate remaining timeout for the poll.
+	remainingMs := int(time.Until(deadline).Milliseconds())
 
 	// Set up the pollfd structure to wait for write readiness.
 	pfds := []unix.PollFd{
@@ -2574,8 +2696,8 @@ func writePipe(fifoPath string, data []byte, timeoutMs int) error {
 		},
 	}
 
-	// Poll for write readiness with the specified timeout.
-	n, err := unix.Poll(pfds, timeoutMs)
+	// Poll for write readiness with the remaining timeout.
+	n, err := unix.Poll(pfds, remainingMs)
 	if err != nil {
 		return fmt.Errorf("poll: %w", err)
 	}
@@ -2592,9 +2714,14 @@ func writePipe(fifoPath string, data []byte, timeoutMs int) error {
 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
 	}
 
-	fmt.Printf("Successfully wrote %d bytes to FIFO.\n", nWritten)
 	return nil
 }
+
+
+
+
+
+
 
 // readPipe reads up to bufSize bytes from the FIFO located at fifoPath.
 // It polls for the FIFO to have data (readable) for up to timeoutMs milliseconds.
@@ -2636,7 +2763,6 @@ func readPipe(fifoPath string, bufSize int, timeoutMs int,) ([]byte, error) {
 		return nil, fmt.Errorf("read: %w", err)
 	}
 
-	fmt.Printf("Received %d bytes from FIFO.\n", nRead)
 	return buf[:nRead], nil
 }
 
