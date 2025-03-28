@@ -1,32 +1,56 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go
 
+
+# go
+#     sleep 3_000
+#     "bang"
+# end
+# as :w1
+# 
+# wait w1
+# say
+# wait w1
+# say
+# exit
+
+
 removeFile "myPipe"
 
+let :messageSize 1024
 go
-    10 loop
+    100 loop
         sleep 1000
         say "tick" it
     end
 end
+drop
 
 go
-    sleep 6000
-    readPipe "myPipe" 256 1000
-    say "we read:" it
-end
-go
-    say "going to write"
-    writePipe "myPipe" "test1" 5000
-    if
-        say "we wrote"
-    else
-        say "failed to write"
+    10 loop
+        say "#tomato reading" dupit
+        readPipe "myPipe" messageSize 1000
+        say "#yellow we read:" it (trim) (toJson)
     end
-    
 end
+drop
 
-wait
-wait
+go
+    10 loop :i
+        # say i "#lime going to write" (now, unixMillisToRfc3339)
+        writePipe "myPipe" "test_" (cc i (toString)) messageSize 5000
+        # say i "#aqua after" (now, unixMillisToRfc3339)
+        if
+            say "we wrote" i (now, unixMillisToRfc3339)
+        else
+            say "failed to write" (now, unixMillisToRfc3339)
+        end
+        # sleep 500
+    end
+end
+drop
+
+sleep 30_000
+
 exit
 
 appendLine "delme1.txt" "what"

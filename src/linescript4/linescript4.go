@@ -29,6 +29,9 @@ package main
 // things like writeFile, appendFile etc
 // maybe would be nice with static number of args? (maybe other language, maybe truly postfix, that makes itself)
 
+// need deadlines, cancel etc.
+// if one state is cancelled, are all the children states?
+
 
 
 import (
@@ -106,6 +109,8 @@ type Machine struct {
     Index int
 }
 
+// debate with child states vs different Stacks
+// Still have child states
 type State struct {
 	FileName     string
 	I            int
@@ -137,7 +142,10 @@ type State struct {
 	Canceled bool // need this?
 	Waiters []*State
 	IsTop bool
-	AsyncChildren map[int]*State
+	AsyncChildren map[int]*State // needed? alternative, find all children whos asyncTop is that state? but still need children?
+	// Deadline time.Time
+	
+	Out io.Writer
 
 	Machine *Machine
 }
@@ -188,15 +196,23 @@ func debug(x string) {
 
 func main() {
 	cgi := flag.Bool("cgi", false, "Start cgi server")
+	local := flag.Bool("local", false, "Start local server")
 	domain := flag.String("domain", "", "domain for server that's starting")
 	flag.Parse()
 	if *cgi {
 		fmt.Println("#orange starting cgi")
 		startCgiServer(*domain)
 		fmt.Println("#orange done cgi")
+	}
+	if *local {
+		fmt.Println("#orange starting local")
+		startLocalService()
+		fmt.Println("#orange done local")
+	}
+	
+	if *cgi || *local {
 		ch := make(chan int)
 		<- ch
-		return
 	}
 
 
@@ -243,6 +259,7 @@ func main() {
         Index: 0,
     }
 	state.IsTop = true
+	state.Out = os.Stdout
 
     // start := time.Now()
 	// for state.I >= 0 {
@@ -1277,28 +1294,28 @@ func initBuiltins() {
 			if len(thingsVal) == 0 {
 				thingsVal = append(thingsVal, popT(state.Vals))
 			}
-			say(thingsVal...)
+			say(state.Out, thingsVal...)
 			clearFuncToken(state)
 			return state
 		},
 		"sayRaw": func(state *State) *State {
  			v := popT(state.Vals)
- 			fmt.Printf("%v", v)
+ 			fmt.Fprintf(state.Out, "%v", v)
 			clearFuncToken(state)
 			return state
 		},
-		"say2": func(state *State) *State {
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
-			thingsVal := *things
-			if len(thingsVal) == 0 {
-				thingsVal = append(thingsVal, popT(state.Vals))
-			}
-			for i, v := range *things {
-				fmt.Printf("%d %#v\n", i, v)
-			}
-			clearFuncToken(state)
-			return state
-		},
+		// "say2": func(state *State) *State {
+		// 	things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+		// 	thingsVal := *things
+		// 	if len(thingsVal) == 0 {
+		// 		thingsVal = append(thingsVal, popT(state.Vals))
+		// 	}
+		// 	for i, v := range *things {
+		// 		fmt.Printf("%d %#v\n", i, v)
+		// 	}
+		// 	clearFuncToken(state)
+		// 	return state
+		// },
 		"put":        makeNoop(),
 		"push":       makeBuiltin_2_0(push),
 		"pushTo":     makeBuiltin_2_0(pushTo),
@@ -1950,6 +1967,7 @@ func initBuiltins() {
 			newState.LexicalParent = state
 			newState.OneLiner = state.OneLiner
 			newState.IsTop = true
+			newState.Out = state.Out
 
 			if state.OneLiner {
 				state.I = findAfterEndLineOnlyLine(state)
@@ -2394,6 +2412,7 @@ func initBuiltins() {
 			evalState.Vars = state.Vars
 
 			evalState.CallingParent = state
+			evalState.Out = state.Out
 			// eval(evalState)
 			// return state
 			clearFuncToken(state)
@@ -2411,6 +2430,7 @@ func initBuiltins() {
 			evalState.Vars = state.Vars
 
 			evalState.CallingParent = state
+			evalState.Out = state.Out
 			// eval(evalState)
 			// return state
 			clearFuncToken(state)
@@ -2438,7 +2458,7 @@ func initBuiltins() {
 		},
 		"see": func(state *State) *State {
 			a := popT(state.Vals)
-			say(a)
+			say(state.Out, a)
 			pushT(state.Vals, a)
 			clearFuncToken(state)
 			return state
@@ -2493,13 +2513,22 @@ func initBuiltins() {
 		},
 		"writePipe": func(state *State) *State {
 			timeoutMs := popT(state.Vals).(int)
+			bufSize := popT(state.Vals).(int)
 			data := popT(state.Vals).(string)
 			fifoPath := popT(state.Vals).(string)
 			go func() {
-				err := writePipe(fifoPath, []byte(data), timeoutMs)
+				err := writePipe(fifoPath, []byte(data), bufSize, timeoutMs)
 				if err != nil {
-					// log.Println("write pipe error:", err)
-					panic(err)
+				    log.Println("Error writing:", err)
+				    if strings.Contains(err.Error(), "timeout") {
+						state.AddCallback(Callback{
+						    State: state,
+						    ReturnValues: []any{err == nil},
+						})
+					} else {
+						panic(err)
+					}
+				    return
 				}
 				state.AddCallback(Callback{
 				    State: state,
@@ -2654,10 +2683,10 @@ func createNamedPipe(fifoPath string) error {
 
 // writePipe writes the given data to the FIFO located at fifoPath.
 // It opens the FIFO in non-blocking mode and writes the data to it, with a timeout.
-func writePipe(fifoPath string, data []byte, timeoutMs int) error {
+func writePipe(fifoPath string, data []byte, bufSize int, timeoutMs int) error {
 	// Ensure the FIFO exists.
 	if err := createNamedPipe(fifoPath); err != nil {
-		return err
+		return fmt.Errorf("writePipe: create error: %v", err)
 	}
 
 	timeout := time.Duration(timeoutMs) * time.Millisecond
@@ -2668,7 +2697,8 @@ func writePipe(fifoPath string, data []byte, timeoutMs int) error {
 
 	// Try to open the FIFO in non-blocking mode until timeout is reached.
 	for {
-		fd, err = unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
+		// fd, err = unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
+		fd, err = unix.Open(fifoPath, unix.O_WRONLY, 0)
 		if err == nil {
 			// Successfully opened; exit the loop.
 			break
@@ -2688,35 +2718,82 @@ func writePipe(fifoPath string, data []byte, timeoutMs int) error {
 	// Calculate remaining timeout for the poll.
 	remainingMs := int(time.Until(deadline).Milliseconds())
 
-	// Set up the pollfd structure to wait for write readiness.
-	pfds := []unix.PollFd{
-		{
-			Fd:     int32(fd),
-			Events: unix.POLLOUT,
-		},
-	}
-
-	// Poll for write readiness with the remaining timeout.
-	n, err := unix.Poll(pfds, remainingMs)
-	if err != nil {
-		return fmt.Errorf("poll: %w", err)
-	}
-	if n == 0 {
-		return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
-	}
+    if false {
+        
+	    // Set up the pollfd structure to wait for write readiness.
+	    pfds := []unix.PollFd{
+	    	{
+	    		Fd:     int32(fd),
+	    		Events: unix.POLLOUT,
+	    	},
+	    }
+ 
+	    // Poll for write readiness with the remaining timeout.
+	    n, err := unix.Poll(pfds, remainingMs)
+	    if err != nil {
+	    	return fmt.Errorf("writePipe poll: %w", err)
+	    }
+	    if n == 0 {
+	    	return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
+	    }
+    }
 
 	// Write the data to the FIFO.
+	
+	// fill up the buffer for simplicity, every message takes up buffer size
+	if len(data) < bufSize {
+		wrapped := make([]byte, bufSize)
+	    for i := len(data); i < bufSize; i++ {
+	        wrapped[i] = ' '
+	    }
+	    copy(wrapped, data)
+	    data = wrapped
+	}
+
 	nWritten, err := unix.Write(fd, data)
 	if err != nil {
+		log.Println("writePipe: write error", err)
 		return fmt.Errorf("write: %w", err)
 	}
 	if nWritten != len(data) {
+		log.Println("writePipe: incomplete error", err)
 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
 	}
-
+    fmt.Println("successfully wrote", string(data))
 	return nil
 }
-
+// I sometimes get missed writes??! and no error?
+// this code is racey?
+// 
+// Your `writePipe` function seems to be encountering issues with missed writes, but without returning an error. There are several potential reasons for this. Let's go through the code and identify areas that may be contributing to this problem:
+// 
+// 1. **Check for Non-blocking Behavior**: 
+//    - When you open the FIFO with `O_NONBLOCK`, ensure that the consumer is ready to read from the FIFO. If there's no reader, the writes might fail silently depending on the system's buffering characteristics. It's important to understand how your specific environment handles FIFO in non-blocking mode.
+// 
+// 2. **Handling of Buffered Writes**:
+//    - The way the buffer is filled (`wrapped` buffer logic) can potentially cause partial writes if not handled properly. Ensure the consumer handles these 'x' padded data properly indicating end of useful data.
+// 
+// 3. **Concurrency Issues**:
+//    - If multiple goroutines are attempting to write to the same FIFO, you might face race conditions where bytes are written by different goroutines to the same FIFO at the same time. Use mutexes (synchronization) to prevent concurrent writes if that's the case.
+// 
+// 4. **Error Handling During Write**:
+//    - It's worth logging every time an error occurs without exiting immediately, which can give more detailed insights into why a write might be failing.
+// 
+// 5. **System Specifics**:
+//    - The behavior can be different based on the operating system and its handling of FIFOs. For instance, on some systems, writing to a non-blocking FIFO could succeed as long as any bytes were transferred. On others, it might block until all bytes are written, depending on flags.
+// 
+// 6. **Polling for Write Readiness**:
+//    - Ensure the `Poll()` function is correctly setting up the poll flags and interpreting the results. Sometimes, subtle differences in how poll readiness is interpreted cause writes to proceed when they shouldn't.
+// 
+// To mitigate these issues, consider these potential solutions:
+// 
+// - Ensure that the reader is ready and consuming from the FIFO before starting the write process.
+// - Double-check the error handling and clarify the logging to better understand where the problem might be.
+// - Use synchronization techniques such as mutexes if there's any chance multiple writers might attempt to write concurrently.
+// - Test this function in a controlled way to isolate the problem (`lsof` can be helpful to check which processes have the FIFO open for reading/writing).
+// 
+// Debugging this kind of issue often involves instrumenting the code with additional logging or running in a debugger to understand precisely how the code path is being executed.
+// 
 
 
 
@@ -2733,28 +2810,30 @@ func readPipe(fifoPath string, bufSize int, timeoutMs int,) ([]byte, error) {
 	}
 
 	// Open the FIFO in non-blocking read-only mode.
-	fd, err := unix.Open(fifoPath, unix.O_RDONLY|unix.O_NONBLOCK, 0)
+	// fd, err := unix.Open(fifoPath, unix.O_RDONLY|unix.O_NONBLOCK, 0)
+	fd, err := unix.Open(fifoPath, unix.O_RDONLY, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open: %w", err)
 	}
 	defer unix.Close(fd)
-
-	// Set up the pollfd structure to wait for read readiness.
-	pfds := []unix.PollFd{
-		{
-			Fd:     int32(fd),
-			Events: unix.POLLIN,
-		},
-	}
-
-	// Poll for read readiness with the specified timeout.
-	n, err := unix.Poll(pfds, timeoutMs)
-	if err != nil {
-		return nil, fmt.Errorf("poll: %w", err)
-	}
-	if n == 0 {
-		return nil, fmt.Errorf("timeout after %d ms, no data received", timeoutMs)
-	}
+    if false {
+		// Set up the pollfd structure to wait for read readiness.
+		pfds := []unix.PollFd{
+			{
+				Fd:     int32(fd),
+				Events: unix.POLLIN,
+			},
+		}
+ 
+		// Poll for read readiness with the specified timeout.
+		n, err := unix.Poll(pfds, timeoutMs)
+		if err != nil {
+			return nil, fmt.Errorf("poll: %w", err)
+		}
+		if n == 0 {
+			return nil, fmt.Errorf("timeout after %d ms, no data received", timeoutMs)
+		}
+    }
 
 	// Read from the FIFO.
 	buf := make([]byte, bufSize)
@@ -2823,6 +2902,7 @@ func makeFuncToken(token *Func) func(*State) *State {
 			newState.Vars[param] = popT(state.Vals)
 		}
 		newState.Machine = state.Machine
+		newState.Out = state.Out
 		// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
 		// fmt.Println("#yellow peek", toString(nt))
 		// fmt.Println("#yellow currentstate one liner", state.OneLiner)
@@ -3284,15 +3364,16 @@ func not(a any) any {
 	return nil
 }
 
-func say(vals ...any) {
+func say(out io.Writer, vals ...any) {
 	for i, v := range vals {
 		if i < len(vals)-1 {
-			fmt.Printf("%s ", toString(v).(string))
+			fmt.Fprintf(out, "%s ", toString(v).(string))
 		} else {
-			fmt.Printf("%s\n", toString(v).(string))
+			fmt.Fprintf(out, "%s\n", toString(v).(string))
 		}
 	}
 }
+
 func toBool(a any) any {
 	switch a := a.(type) {
 	case int:
@@ -3901,6 +3982,48 @@ func startCgiServerOld(httpsAddr, httpAddr string) {
     }
 }
 
+func startLocalService() {
+	state := MakeState("__local", "")
+    state.Machine = &Machine{
+        CallbacksCh: make(chan Callback),
+        Index: 0,
+    }
+	state.IsTop = true
+	state.Out = os.Stdout
+    
+    mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	})
+	mux.HandleFunc("/eval", func(w http.ResponseWriter, r *http.Request) {
+        // fmt.Fprintf("gi")
+        var code string
+        if r.Method == "GET" {
+            code = r.FormValue("code")
+        } else {
+            body, _ := io.ReadAll(r.Body)
+            code = string(body)
+        }
+	    // see "eval"
+		evalState := MakeState("__eval", code)
+		evalState.Machine = state.Machine
+		evalState.Vals = state.Vals
+		evalState.Vars = state.Vars
+
+		evalState.CallingParent = state
+		state.Out = w
+
+		state.AddCallback(Callback{
+		    State: evalState,
+		    ReturnValues: []any{},
+		})
+	})
+    httpSrv := &http.Server{
+        Addr:    "localhost:6389",
+        Handler: mux,
+    }
+    go log.Fatal(httpSrv.ListenAndServe())
+}
+
 func startCgiServer(domain string) {
     mux := http.NewServeMux()
 	mux.HandleFunc("/", cgiHandler)
@@ -3910,7 +4033,6 @@ func startCgiServer(domain string) {
         Prompt:     autocert.AcceptTOS,         // Automatically accept Let's Encrypt TOS
         HostPolicy: autocert.HostWhitelist(domain), // Set allowed domains
     }
-
     // Serve HTTP (Port 80) and handle Let's Encrypt challenges
     go func() {
         httpSrv := &http.Server{
