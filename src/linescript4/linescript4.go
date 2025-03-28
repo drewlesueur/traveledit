@@ -1565,8 +1565,8 @@ func initBuiltins() {
 			    loopEnd = thingsVal[1].(int)
 				indexVar = thingsVal[2].(string)
             } else if len(thingsVal) == 2 {
-			    loopStart = thingsVal[0].(int)
-			    loopEnd = thingsVal[1].(int)
+			    loopStart = toIntInternal(thingsVal[0])
+			    loopEnd = toIntInternal(thingsVal[1])
             } else if len(thingsVal) == 1 {
 			    loopEnd = popT(state.Vals).(int)
 			    loopStart = popT(state.Vals).(int)
@@ -2953,7 +2953,7 @@ func pushm(slice any, values any) {
 
 func at(slice any, index any) any {
 	if s, ok := slice.(*[]any); ok {
-		indexInt := index.(int)
+		indexInt := toIntInternal(index)
 		if indexInt < 0 {
 			return (*s)[len(*s) + indexInt]
 		}
@@ -3063,8 +3063,8 @@ func splice(sAny any, start any, end any, elements any) any {
 }
 
 func slice(s any, start any, end any) any {
-	startInt := start.(int)
-	endInt := end.(int)
+	startInt := toIntInternal(start)
+	endInt := toIntInternal(end)
 	switch s := s.(type) {
 	case *[]any:
 		if startInt < 0 {
@@ -3163,7 +3163,7 @@ func plus(a, b any) any {
 	case float64:
 		return a + b.(float64)
 	case string:
-		return a + b.(string)
+		return Add(a, toStringInternal(b))
 	default:
 		fmt.Printf("bad type lol: %T\n", a)
 	}
@@ -3243,6 +3243,8 @@ func minus(a, b any) any {
 		return a - b.(int)
 	case float64:
 		return a - b.(float64)
+	case string:
+		return Subtract(a, toStringInternal(b))
 	}
 	return nil
 }
@@ -3253,6 +3255,8 @@ func times(a, b any) any {
 		return a * b.(int)
 	case float64:
 		return a * b.(float64)
+	case string:
+		return Multiply(a, toStringInternal(b))
 	}
 	return nil
 }
@@ -3263,6 +3267,8 @@ func divide(a, b any) any {
 		return a / b.(int)
 	case float64:
 		return a / b.(float64)
+	case string:
+		return Divide(a, toStringInternal(b), 10)
 	}
 	return nil
 }
@@ -3313,7 +3319,7 @@ func cc(a, b any) any {
 
 
 
-func toInt(a any) any {
+func toIntInternal(a any) int {
 	switch a := a.(type) {
 	case bool:
 		if a {
@@ -3333,6 +3339,9 @@ func toInt(a any) any {
 		return 0
 	}
 	return 0
+}
+func toInt(a any) any {
+    return toIntInternal(a)
 }
 
 func toFloat(a any) any {
@@ -3397,6 +3406,9 @@ func toBool(a any) any {
 	}
 }
 func toString(a any) any {
+    return toStringInternal(a)
+}
+func toStringInternal(a any) string {
 	switch a := a.(type) {
 	case map[string]any:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
@@ -3464,7 +3476,7 @@ func toString(a any) any {
 	default:
 		return fmt.Sprintf("toString: unknown type: type is %T, value is %#v\n", a, a)
 	}
-	return nil
+	return ""
 }
 
 

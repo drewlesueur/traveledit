@@ -648,6 +648,46 @@ func roundStr(num string, precision int) string {
 	return result
 }
 
+// modInt is a helper function that performs modulus on two nonnegative integer strings.
+// It processes the numerator digit-by-digit (using base 10).
+func modInt(numer, denom string) string {
+	rem := "0"
+	for i := 0; i < len(numer); i++ {
+		rem = Add(Multiply(rem, "10"), string(numer[i]))
+		// Subtract denom from rem repeatedly until rem < denom.
+		for cmpInt(rem, denom) >= 0 {
+			rem = subInt(rem, denom)
+		}
+	}
+	return removeLeadingZeros(rem)
+}
+
+// Mod performs modulus division (a mod b) for integer values represented as strings.
+// It assumes that both a and b represent integer values (or decimals equivalent to integers, such as "5.0").
+// The sign of the result is the same as the dividend.
+func Mod(a, b string) string {
+	// Parse both numbers.
+	aSign, aInt, aFrac := parse(a)
+	_, bInt, bFrac := parse(b)
+	// Ensure that both a and b are integers (i.e. fractional parts are either empty or all zeros).
+	if strings.Trim(aFrac, "0") != "" || strings.Trim(bFrac, "0") != "" {
+		return "NaN" // Modulus is defined here only for integers.
+	}
+	// b must not be zero.
+	if removeLeadingZeros(bInt) == "0" {
+		return "NaN" // division by zero
+	}
+	// Compute the modulus using absolute values.
+	aDigits := removeLeadingZeros(aInt)
+	bDigits := removeLeadingZeros(bInt)
+	remainder := modInt(aDigits, bDigits)
+	// The sign of the remainder follows that of the dividend.
+	if aSign == "-" && remainder != "0" {
+		remainder = "-" + remainder
+	}
+	return remainder
+}
+
 
 
 
@@ -883,66 +923,3 @@ func roundStr(num string, precision int) string {
 // 	}
 // 	return res
 // }
-
-// how hard would it be to allow "_" for any number?
-// I presume it would have to replace the "_" with "" at some preliminary step
-// 
-// It's not very hard. Essentially, you’d want to add a preprocessing step—most likely early in the parse function—to remove any "_" characters from the input string. For example, right after trimming white space, you could do something like:
-// 
-//   num = strings.ReplaceAll(num, "_", "")
-// 
-// This would remove any underscores before you proceed to extract the sign, integer part, and fractional part of the number.
-// 
-// One thing to keep in mind is that if you plan to support numbers with underscores for readability (like "1_000_000"), you should make sure that the underscores are only allowed in positions where they won’t change the meaning of the number (for example, not at the beginning or in an exponent part if you ever support that). But for a simple solution, just stripping them out as shown above will work fine.
-// 
-// So yes, your presumption is correct—it would be a relatively small change.
-// 
-// To allow underscores in numbers, you would indeed need to preprocess the number strings to remove the underscores before any arithmetic operations. It is common to allow underscores in numbers to make them more readable, similar to how some programming languages allow them, for instance, as thousand separators.
-// 
-// Here’s a simple approach to allow underscores in your numeric strings:
-// 
-// 1. Create a helper function that removes underscores from a string.
-// 2. Use this function at the beginning of your arithmetic functions (`Add`, `Subtract`, `Multiply`, `Divide`, etc.) to preprocess the input strings.
-// 
-// Below is a step-by-step implementation:
-// 
-// 1. **Helper Function to Remove Underscores:**
-// 
-//    ```go
-//    func removeUnderscores(num string) string {
-//        return strings.ReplaceAll(num, "_", "")
-//    }
-//    ```
-// 
-// 2. **Integration into Arithmetic Functions:**
-// 
-//    You should call `removeUnderscores` on each input number string at the beginning of each arithmetic function. Here's an example for the `Add` function:
-// 
-//    ```go
-//    func Add(a, b string) string {
-//        // Remove underscores from the input number strings
-//        a = removeUnderscores(a)
-//        b = removeUnderscores(b)
-// 
-//        aSign, aInt, aFrac := parse(a)
-//        bSign, bInt, bFrac := parse(b)
-// 
-//        // ... rest of the existing code ...
-//    }
-//    ```
-// 
-//    Similarly, you'd integrate this preprocessing step into the other major functions like `Subtract`, `Multiply`, and `Divide`.
-// 
-// 3. **Example Invocation:**
-// 
-//    With these changes, you can now use numbers with underscores in your calculations:
-// 
-//    ```go
-//    func main() {
-//        fmt.Println(Add("1_000", "250"))        // Output: 1250
-//        fmt.Println(Multiply("123_456", "2"))   // Output: 246912
-//        fmt.Println(Divide("1_000", "4", 2))    // Output: 250.00
-//    }
-//    ```
-// 
-// With these adjustments, underscores in numbers will be seamlessly handled. The underscore removal ensures your arithmetic logic remains unaffected while enhancing input readability.

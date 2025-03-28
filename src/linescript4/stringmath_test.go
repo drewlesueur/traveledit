@@ -39,6 +39,21 @@ func TestAdd(t *testing.T) {
 		}
 	}
 }
+func TestMod(t *testing.T) {
+	tests := []struct {
+		a, b, expected string
+	}{
+		// Basic additions
+		{"10", "6", "4"},
+	}
+
+	for _, tc := range tests {
+		result := Mod(tc.a, tc.b)
+		if result != tc.expected {
+			t.Errorf("Mod(%q, %q) = %q; expected %q", tc.a, tc.b, result, tc.expected)
+		}
+	}
+}
 
 func TestSubtract(t *testing.T) {
 	tests := []struct {
@@ -176,6 +191,7 @@ func TestPowPositiveExponent(t *testing.T) {
 		// Decimal base.
 		{"2.5", "2", 10, "6.25"},
 		{"1.2", "3", 10, "1.728"},
+		// {"25", ".5", 1, "1.728"}, // slow!
 		// Larger exponent.
 		{"1.1", "5", 10, "1.61051"},
 	}
