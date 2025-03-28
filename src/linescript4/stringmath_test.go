@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+   "testing"
+   "time"
+   "fmt"
+   "strconv"
+)
 
 func TestAdd(t *testing.T) {
 	tests := []struct {
@@ -64,7 +69,7 @@ func TestSubtract(t *testing.T) {
 	}
 }
 
-func TestNormalize(t *testing.T) {
+func TestParse(t *testing.T) {
 	tests := []struct {
 		input          string
 		expectedSign   string
@@ -82,9 +87,9 @@ func TestNormalize(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		sign, intPart, fracPart := normalize(tc.input)
+		sign, intPart, fracPart := parse(tc.input)
 		if sign != tc.expectedSign || intPart != tc.expectedInt || fracPart != tc.expectedFrac {
-			t.Errorf("normalize(%q) = (%q, %q, %q); expected (%q, %q, %q)", 
+			t.Errorf("parse(%q) = (%q, %q, %q); expected (%q, %q, %q)", 
 				tc.input, sign, intPart, fracPart, 
 				tc.expectedSign, tc.expectedInt, tc.expectedFrac)
 		}
@@ -155,4 +160,134 @@ func TestDivide(t *testing.T) {
 	}
 }
 
+
+
+func TestPowPositiveExponent(t *testing.T) {
+	tests := []struct {
+		base      string
+		exp       string
+		precision int
+		expected  string
+	}{
+		// Simple integral powers.
+		{"2", "3", 10, "8"},
+		{"3", "4", 10, "81"},
+		{"2", "10", 10, "1024"},
+		// Decimal base.
+		{"2.5", "2", 10, "6.25"},
+		{"1.2", "3", 10, "1.728"},
+		// Larger exponent.
+		{"1.1", "5", 10, "1.61051"},
+	}
+
+	for _, tt := range tests {
+		result := Pow(tt.base, tt.exp, tt.precision)
+		if result != tt.expected {
+			t.Errorf("Pow(%s, %s) = %s, expected %s", tt.base, tt.exp, result, tt.expected)
+		}
+	}
+}
+
+func TestPowNegativeExponent(t *testing.T) {
+	tests := []struct {
+		base      string
+		exp       string
+		precision int
+		expected  string
+	}{
+		// Negative exponent cases; using a precision of 10 digits.
+		{"2", "-3", 10, "0.125"},
+		{"5", "-2", 10, "0.04"},
+		{"2.5", "-1", 10, "0.4"},
+	}
+
+	for _, tt := range tests {
+		result := Pow(tt.base, tt.exp, tt.precision)
+		if result != tt.expected {
+			t.Errorf("Pow(%s, %s) = %s, expected %s", tt.base, tt.exp, result, tt.expected)
+		}
+	}
+}
+
+func TestPowZeroExponent(t *testing.T) {
+	// Any number raised to the 0 power should equal 1.
+	result := Pow("123.456", "0", 10)
+	if result != "1" {
+		t.Errorf("Pow(123.456, 0) = %s, expected 1", result)
+	}
+}
+
+func TestPowOneExponent(t *testing.T) {
+	result := Pow("-7.89", "1", 10)
+	if result != "-7.89" {
+		t.Errorf("Pow(-7.89, 1) = %s, expected -7.89", result)
+	}
+}
+
+func TestPowEdgeCaseZeroBaseNegativeExp(t *testing.T) {
+	// 0 raised to a negative exponent is undefined.
+	// Our Divide function will return "NaN" when dividing by zero.
+	result := Pow("0", "-3", 10)
+	if result != "NaN" {
+		t.Errorf("Pow(0, -3) = %s, expected NaN", result)
+	}
+}
+
+func TestPowLargeExponent(t *testing.T) {
+	// Test with a moderately large exponent.
+	result := Pow("1.01", "20", 10)
+	// Expected result approximated manually: 1.01^20 ≈ 1.2201900399...
+	expected := "1.22019"
+	// We compare only the beginning digits.
+	if result[:7] != expected {
+		t.Errorf("Pow(1.01, 20) = %s, expected prefix %s", result, expected)
+	}
+}
+
+
 // @@file:"/home/ubuntu/traveledit/src/linescript4/stringmath.go"
+
+// func TestPerf(t *testing.T) {
+// 	total := "999999999"
+// 	totalFloat, _ := strconv.ParseFloat(total, 64)
+// 	
+// 	loops := 10_000
+// 	startTime := time.Now()
+// 	for i := 0; i < loops; i++ {
+// 		// _ = Add("12345678901234567890", "98765432109876543210")
+// 		// total = Add(total, "9999999999")
+// 		total = Divide(total, "1.01", 11)
+// 	}
+// 	duration := time.Since(startTime)
+// 	fmt.Printf("Duration for %d additions (%v): %v\n", loops, total, duration)
+// 	
+// 	startTime = time.Now()
+// 	for i := 0; i < loops; i++ {
+// 		// total += 9999999999
+// 		totalFloat /= 1.01
+// 	}
+// 	duration = time.Since(startTime)
+// 	fmt.Printf("Duration for %d additions (%v): %v\n", loops, totalFloat, duration)
+// }
+
+func TestPerf2(t *testing.T) {
+	total := "0"
+	totalFloat, _ := strconv.ParseFloat(total, 64)
+	
+	loops := 10_000_000
+	startTime := time.Now()
+	for i := 0; i < loops; i++ {
+		total = Add(total, "1")
+	}
+	duration := time.Since(startTime)
+	fmt.Printf("Duration for %d additions (%v): %v\n", loops, total, duration)
+
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		// total += 9999999999
+		totalFloat += 1
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d additions (%v): %v\n", loops, totalFloat, duration)
+}
+

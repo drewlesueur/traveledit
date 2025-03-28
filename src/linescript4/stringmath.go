@@ -6,6 +6,7 @@ import (
 	"unicode"
 )
 
+// removeLeadingZeros removes any extra leading zeros from a string number.
 func removeLeadingZeros(s string) string {
 	s = strings.TrimLeft(s, "0")
 	if s == "" {
@@ -14,6 +15,7 @@ func removeLeadingZeros(s string) string {
 	return s
 }
 
+// cmpInt compares two nonnegative integer strings.
 func cmpInt(a, b string) int {
 	a = removeLeadingZeros(a)
 	b = removeLeadingZeros(b)
@@ -32,8 +34,8 @@ func cmpInt(a, b string) int {
 	}
 }
 
+// subInt subtracts b from a (assumes a >= b) using elementary subtraction.
 func subInt(a, b string) string {
-	// a and b are non-negative integer strings and a>=b.
 	ai := []byte(a)
 	bi := []byte(b)
 	// Pad b with leading zeros.
@@ -58,8 +60,8 @@ func subInt(a, b string) string {
 	return removeLeadingZeros(string(res))
 }
 
+// multiplyAbsStrings multiplies two nonnegative integer strings.
 func multiplyAbsStrings(a, b string) string {
-	// Multiply two non-negative integer strings.
 	if a == "0" || b == "0" {
 		return "0"
 	}
@@ -76,10 +78,10 @@ func multiplyAbsStrings(a, b string) string {
 			res[i+j] += sum / 10
 		}
 	}
-	// Convert result to string.
+	// Convert result to a string.
 	var sb strings.Builder
 	start := 0
-	// Skip leading zeros.
+	// Skip any leading zeros.
 	for start < len(res) && res[start] == 0 {
 		start++
 	}
@@ -89,15 +91,16 @@ func multiplyAbsStrings(a, b string) string {
 	return sb.String()
 }
 
+// Multiply multiplies two (possibly decimal) numbers given as strings.
 func Multiply(a, b string) string {
 	// Normalize numbers.
-	aSign, aInt, aFrac := normalize(a)
-	bSign, bInt, bFrac := normalize(b)
+	aSign, aInt, aFrac := parse(a)
+	bSign, bInt, bFrac := parse(b)
 
 	// Determine result sign.
 	resultSign := "+"
 	if aSign != bSign {
-		// If either operand is zero, result is zero.
+		// If either operand is zero, the result remains zero.
 		if (aInt == "0" && strings.Trim(aFrac, "0") == "") || (bInt == "0" && strings.Trim(bFrac, "0") == "") {
 			resultSign = "+"
 		} else {
@@ -105,15 +108,14 @@ func Multiply(a, b string) string {
 		}
 	}
 
-	// Remove decimals: treat numbers as integers.
-	// The effective number is the concatenation of intPart and fracPart.
+	// Remove decimals by concatenating integer and fractional parts.
 	aDigits := aInt + aFrac
 	bDigits := bInt + bFrac
 
 	// Multiply as big integers.
 	product := multiplyAbsStrings(aDigits, bDigits)
 
-	// Total number of fractional digits in result.
+	// Total number of fractional digits in the result.
 	totalFrac := len(aFrac) + len(bFrac)
 
 	// Insert decimal point if needed.
@@ -145,23 +147,16 @@ func Multiply(a, b string) string {
 	return product
 }
 
-func multiplyBy10(num string) string {
-	if num == "0" {
-		return "0"
-	}
-	return num + "0"
-}
-
-// New version of divideInts with rounding.
+// divideInts divides two nonnegative integer strings (as numbers) with rounding.
+// It returns the quotient with precision (number of digits after the decimal point).
 func divideInts(numer, denom string, precision int) string {
-	// (Normalization and integer division steps as before…)
 	numer = removeLeadingZeros(numer)
 	denom = removeLeadingZeros(denom)
 	if denom == "0" {
 		return "NaN" // division by zero
 	}
 
-	// Compute the integer part
+	// Compute the integer part.
 	intPart := ""
 	rem := ""
 	for i := 0; i < len(numer); i++ {
@@ -176,12 +171,7 @@ func divideInts(numer, denom string, precision int) string {
 	}
 	intPart = removeLeadingZeros(intPart)
 
-	// If no remainder and no fraction needed, return the integer part.
-	if rem == "0" && precision > 0 {
-		return intPart
-	}
-
-	// Process fractional part: compute one extra digit for rounding.
+	// Process fractional part; compute one extra digit for rounding.
 	fracDigits := make([]byte, precision+1)
 	for i := 0; i < precision+1; i++ {
 		rem += "0"
@@ -194,25 +184,23 @@ func divideInts(numer, denom string, precision int) string {
 		fracDigits[i] = byte(count + '0')
 	}
 
-    if fracDigits[precision] >= '5' {
-        // Propagate the rounding in the fraction digits.
-        carry := 1
-        for i := precision - 1; i >= 0 && carry > 0; i-- {
-            d := int(fracDigits[i]-'0') + carry
-            carry = d / 10
-            fracDigits[i] = byte((d % 10) + '0')
-        }
-        // If carry is still 1, we need to add one to the integer part.
-        if carry == 1 {
-            // Use Add to add "1" to intPart.
-            intPart = Add(intPart, "1")
-            intPart = removeLeadingZeros(intPart)
-        }
-    }
+	if fracDigits[precision] >= '5' {
+		// Propagate rounding in the fractional digits.
+		carry := 1
+		for i := precision - 1; i >= 0 && carry > 0; i-- {
+			d := int(fracDigits[i]-'0') + carry
+			carry = d / 10
+			fracDigits[i] = byte((d % 10) + '0')
+		}
+		// If there’s still a carry, add it to the integer part.
+		if carry == 1 {
+			intPart = Add(intPart, "1")
+			intPart = removeLeadingZeros(intPart)
+		}
+	}
 
-	// Prepare fraction part up to desired precision (dropping the extra digit)
+	// Prepare fraction part up to the desired precision.
 	fracPart := string(fracDigits[:precision])
-	// Trim trailing zeros if needed:
 	fracPart = strings.TrimRight(fracPart, "0")
 
 	if fracPart != "" {
@@ -221,12 +209,13 @@ func divideInts(numer, denom string, precision int) string {
 	return intPart
 }
 
+// Divide divides two (possibly decimal) numbers given as strings.
 func Divide(a, b string, precision int) string {
 	// Normalize numbers.
-	aSign, aInt, aFrac := normalize(a)
-	bSign, bInt, bFrac := normalize(b)
+	aSign, aInt, aFrac := parse(a)
+	bSign, bInt, bFrac := parse(b)
 
-	// If divisor is zero.
+	// Divisor is zero.
 	if bInt == "0" && strings.Trim(bFrac, "0") == "" {
 		return "NaN"
 	}
@@ -237,9 +226,7 @@ func Divide(a, b string, precision int) string {
 		resultSign = "-"
 	}
 
-	// Convert both numbers to integers by removing decimal point.
-	// Using the formula: A = (aInt+aFrac) / (10^(len(aFrac))) and B = (bInt+bFrac) / (10^(len(bFrac)))
-	// Then A/B = (aDigits * 10^(len(bFrac))) / (bDigits * 10^(len(aFrac)))
+	// Convert both numbers to integers by removing their decimal points.
 	aDigits := removeLeadingZeros(aInt + aFrac)
 	bDigits := removeLeadingZeros(bInt + bFrac)
 
@@ -249,16 +236,11 @@ func Divide(a, b string, precision int) string {
 	numerator := aDigits + strings.Repeat("0", numZeros)
 	denom := bDigits + strings.Repeat("0", denomZeros)
 
-	// Set desired precision for fraction part.
 	quotient := divideInts(numerator, denom, precision)
-
-	// Remove trailing dot if any.
 	quotient = strings.TrimSuffix(quotient, ".")
-	// Remove any redundant leading zeros from integer part.
 	if strings.Contains(quotient, ".") {
 		parts := strings.SplitN(quotient, ".", 2)
 		parts[0] = removeLeadingZeros(parts[0])
-		// Remove trailing zeros from fraction.
 		parts[1] = strings.TrimRight(parts[1], "0")
 		if parts[1] != "" {
 			quotient = parts[0] + "." + parts[1]
@@ -273,14 +255,13 @@ func Divide(a, b string, precision int) string {
 		return "0"
 	}
 	if resultSign == "-" {
-		// Prepend '-' if not zero.
 		quotient = "-" + quotient
 	}
 	return quotient
 }
 
-// normalize breaks a number string into its sign, integer part and fractional part.
-func normalize(num string) (sign, intPart, fracPart string) {
+// parse breaks a number string into its sign, integer part, and fractional part.
+func parse(num string) (sign, intPart, fracPart string) {
 	num = strings.TrimSpace(num)
 	if num == "" {
 		return "+", "0", ""
@@ -291,7 +272,7 @@ func normalize(num string) (sign, intPart, fracPart string) {
 	} else {
 		sign = "+"
 	}
-	// Remove any spaces that might be present.
+	// Remove any characters except digits and dot.
 	num = strings.TrimFunc(num, func(r rune) bool { return !unicode.IsDigit(r) && r != '.' })
 	parts := strings.Split(num, ".")
 	intPart = parts[0]
@@ -301,7 +282,7 @@ func normalize(num string) (sign, intPart, fracPart string) {
 	if len(parts) > 1 {
 		fracPart = parts[1]
 	}
-	// Remove any non-digit characters from fracPart.
+	// Keep only digit characters in the fractional part.
 	fracDigits := ""
 	for _, r := range fracPart {
 		if unicode.IsDigit(r) {
@@ -314,8 +295,8 @@ func normalize(num string) (sign, intPart, fracPart string) {
 
 // Add returns the sum of two number strings.
 func Add(a, b string) string {
-	aSign, aInt, aFrac := normalize(a)
-	bSign, bInt, bFrac := normalize(b)
+	aSign, aInt, aFrac := parse(a)
+	bSign, bInt, bFrac := parse(b)
 
 	// Same sign: add absolute values and reapply sign.
 	if aSign == bSign {
@@ -330,10 +311,8 @@ func Add(a, b string) string {
 		return result
 	}
 
-	// Different signs: convert to subtraction.
-	// a + b is equivalent to a - (-b).
+	// Different signs: convert addition to subtraction.
 	if aSign == "+" {
-		// a - |b|
 		if compareAbs(aInt, aFrac, bInt, bFrac) >= 0 {
 			intPart, fracPart := subtractAbs(aInt, aFrac, bInt, bFrac)
 			result := intPart
@@ -353,7 +332,6 @@ func Add(a, b string) string {
 			return result
 		}
 	} else {
-		// (-a) + b => b - |a|
 		if compareAbs(aInt, aFrac, bInt, bFrac) > 0 {
 			intPart, fracPart := subtractAbs(aInt, aFrac, bInt, bFrac)
 			result := intPart
@@ -388,7 +366,7 @@ func Subtract(a, b string) string {
 
 // addAbs adds the absolute values given by integer and fractional parts.
 func addAbs(aInt, aFrac, bInt, bFrac string) (string, string) {
-	// Align fractional parts: pad with trailing zeros.
+	// Align fractional parts.
 	maxFracLen := len(aFrac)
 	if len(bFrac) > maxFracLen {
 		maxFracLen = len(bFrac)
@@ -407,7 +385,7 @@ func addAbs(aInt, aFrac, bInt, bFrac string) (string, string) {
 		carry = sum / 10
 	}
 
-	// Align integer parts: pad with leading zeros.
+	// Align integer parts.
 	maxIntLen := len(aInt)
 	if len(bInt) > maxIntLen {
 		maxIntLen = len(bInt)
@@ -425,25 +403,23 @@ func addAbs(aInt, aFrac, bInt, bFrac string) (string, string) {
 		carry = sum / 10
 	}
 
-	// If a carry remains, prepend it.
+	// Prepend any remaining carry.
 	intStr := ""
 	if carry > 0 {
 		intStr = fmt.Sprintf("%d", carry)
 	}
 	intStr += string(intRes)
 
-	// Trim any leading zeros.
 	intStr = strings.TrimLeft(intStr, "0")
 	if intStr == "" {
 		intStr = "0"
 	}
 
-	// Remove any trailing zeros from the fractional result.
 	fracStr := strings.TrimRight(string(fracRes), "0")
 	return intStr, fracStr
 }
 
-// subtractAbs subtracts the absolute value b from a (assumes a >= b).
+// subtractAbs subtracts the absolute value b from a (assumes a>=b).
 func subtractAbs(aInt, aFrac, bInt, bFrac string) (string, string) {
 	// Align fractional parts.
 	maxFracLen := len(aFrac)
@@ -492,7 +468,6 @@ func subtractAbs(aInt, aFrac, bInt, bFrac string) (string, string) {
 		intRes[i] = byte(diff + '0')
 	}
 
-	// Remove leading zeros in the integer part.
 	intStr := strings.TrimLeft(string(intRes), "0")
 	if intStr == "" {
 		intStr = "0"
@@ -501,8 +476,7 @@ func subtractAbs(aInt, aFrac, bInt, bFrac string) (string, string) {
 	return intStr, fracStr
 }
 
-// compareAbs compares the absolute values represented by int and fractional parts.
-// Returns 1 if a > b, 0 if equal, -1 if a < b.
+// compareAbs compares absolute values represented by integer and fractional parts.
 func compareAbs(aInt, aFrac, bInt, bFrac string) int {
 	aIntTrim := strings.TrimLeft(aInt, "0")
 	bIntTrim := strings.TrimLeft(bInt, "0")
@@ -536,4 +510,266 @@ func compareAbs(aInt, aFrac, bInt, bFrac string) int {
 		return -1
 	}
 	return 0
+}
+
+
+// Pow raises the number given by base (as a string)
+// to an integer exponent (which may be negative).
+// For negative exponent, a division is performed with the given precision.
+// func Pow(base string, exp int, precision int) string {
+// 	// Handle exponent zero.
+// 	if exp == 0 {
+// 		return "1"
+// 	}
+// 	// For exponent 1, return the base.
+// 	if exp == 1 {
+// 		return base
+// 	}
+// 
+// 	negativeExp := false
+// 	if exp < 0 {
+// 		negativeExp = true
+// 		exp = -exp
+// 	}
+// 
+// 	result := "1"
+// 	// Use exponentiation by squaring.
+// 	for exp > 0 {
+// 		if exp%2 == 1 {
+// 			result = Multiply(result, base)
+// 		}
+// 		base = Multiply(base, base)
+// 		exp = exp / 2
+// 	}
+// 	// If the original exponent was negative perform 1/result.
+// 	if negativeExp {
+// 		result = Divide("1", result, precision)
+// 	}
+// 	return result
+// }
+
+  
+// Pow raises the number given by base (as a string)
+// to an exponent given as a (possibly decimal) string.
+// When exp does not contain a decimal point, it uses exponentiation‐by‐squaring.
+// Otherwise it uses the identity a^b = exp(b · ln(a)).
+func Pow(base, exp string, precision int) string {
+	// Check if exponent string is an integer.
+	if !strings.Contains(exp, ".") {
+		// Try converting exp to an integer.
+		// (Assume the exponent is small enough to convert using fmt.Sscan.)
+		var n int
+		_, err := fmt.Sscan(exp, &n)
+		if err == nil {
+			// Use the original integer power algorithm.
+			if n == 0 {
+				return "1"
+			}
+			negativeExp := false
+			if n < 0 {
+				negativeExp = true
+				n = -n
+			}
+			result := "1"
+			baseCopy := base
+			for n > 0 {
+				if n%2 == 1 {
+					result = Multiply(result, baseCopy)
+				}
+				baseCopy = Multiply(baseCopy, baseCopy)
+				n = n / 2
+			}
+			if negativeExp {
+				result = Divide("1", result, precision)
+			}
+			return result
+		}
+		// If conversion fails, fall through to the decimal-exponent method.
+	}
+	// For nonintegral exponent use: a^b = exp(b · ln(a))
+	lnBase := Ln(base, precision+5)
+	term := Multiply(exp, lnBase)
+	result := Exp(term, precision+5)
+	return truncateResult(result, precision)
+}
+  
+// Ln computes the natural logarithm of x (x > 0) using a Taylor‐series
+// expansion. It first scales x by powers of 2 so that it lies in (0,2],
+// then uses the identity:
+//   ln(x) = 2 * [ y + y^3/3 + y^5/5 + … ]
+// with y = (x-1)/(x+1).
+// The computed result is given to the requested precision.
+func Ln(x string, precision int) string {
+	// We require x > 0.
+	// Increase working precision.
+	extraPrec := precision + 5
+	two := "2"
+	// zero := "0"
+	// Scale x down while it is greater than 2.
+	count := 0
+	// We use the Divide function to compare since x is a string.
+	for cmpInt(x, two) > 0 {
+		x = Divide(x, two, extraPrec)
+		count++
+	}
+	// Now x should be in (0, 2].
+	one := "1"
+	// Compute y = (x - 1)/(x + 1)
+	num := Subtract(x, one)
+	denom := Add(x, one)
+	y := Divide(num, denom, extraPrec)
+	y2 := Multiply(y, y)
+	
+	// Initialize the series.
+	series := y   // current sum = y (first term)
+	term := y    // current term = y
+	denomInt := 1
+	// We'll run series up to, say, 50 terms (which usually gives sufficient precision).
+	for i := 0; i < 50; i++ {
+		denomInt += 2
+		// term = term * y2 / (denomInt)
+		term = Divide(Multiply(term, y2), fmt.Sprintf("%d", denomInt), extraPrec)
+		// If the term produces "0" (i.e. is below our working precision), break out.
+		if term == "0" {
+			break
+		}
+		series = Add(series, term)
+	}
+	// ln(x) (of the scaled x) = 2 * series.
+	lnScaled := Multiply("2", series)
+	
+	// We now need to add back the scaling:
+	// ln(original x) = ln(scaled x) + count * ln(2)
+	ln2 := Ln2(extraPrec)
+	scale := Multiply(fmt.Sprintf("%d", count), ln2)
+	result := Add(lnScaled, scale)
+	return truncateResult(result, precision)
+}
+  
+// Ln2 returns ln(2) computed via the same series expansion.
+func Ln2(precision int) string {
+	// Use x = "2". Then y = (2-1)/(2+1) = 1/3.
+	one := "1"
+	two := "2"
+	// three := "3"
+	extraPrec := precision + 5
+	y := Divide(Subtract(two, one), Add(two, one), extraPrec) // y = 1/3
+	y2 := Multiply(y, y)
+	series := y
+	term := y
+	denomInt := 1
+	for i := 0; i < 50; i++ {
+		denomInt += 2
+		term = Divide(Multiply(term, y2), fmt.Sprintf("%d", denomInt), extraPrec)
+		if term == "0" {
+			break
+		}
+		series = Add(series, term)
+	}
+	ln2 := Multiply("2", series)
+	return truncateResult(ln2, precision)
+}
+  
+// Exp computes exp(x) using its Taylor series expansion.
+// exp(x) = sum_{n=0}^{∞} x^n / n!
+// The summation is performed until the term becomes zero at the working precision.
+func Exp(x string, precision int) string {
+	extraPrec := precision + 5
+	sum := "1"  // term for n=0
+	term := "1" // current term (starts at 1)
+	n := 1
+	for i := 0; i < 100; i++ { // limit iterations to 100 terms
+		// term = term * x / n
+		term = Divide(Multiply(term, x), fmt.Sprintf("%d", n), extraPrec)
+		sum = Add(sum, term)
+		// Break when term is "0" (i.e. too small to affect sum).
+		if term == "0" {
+			break
+		}
+		n++
+	}
+	return truncateResult(sum, precision)
+}
+  
+
+
+// truncateResult truncates and rounds the string representation of a number to the desired
+// number of digits after the decimal point. It rounds up if the next digit is 5 or more.
+func truncateResult(num string, precision int) string {
+	neg := false
+	if strings.HasPrefix(num, "-") {
+		neg = true
+		num = num[1:]
+	}
+
+	parts := strings.SplitN(num, ".", 2)
+	intPart := removeLeadingZeros(parts[0])
+	fracPart := ""
+	if len(parts) > 1 {
+		fracPart = parts[1]
+	}
+
+	// Pad fraction with zeros if necessary.
+	if len(fracPart) < precision {
+		fracPart = fracPart + strings.Repeat("0", precision-len(fracPart))
+	}
+
+	// If we have extra digits beyond the requested precision, decide rounding.
+	if len(fracPart) > precision {
+		// Check the first extra digit.
+		roundDigit := fracPart[precision]
+		// Truncate fractional part to the desired precision.
+		fracPart = fracPart[:precision]
+		if roundDigit >= '5' {
+			// Prepare the rounding increment.
+			var increment string
+			if precision == 0 {
+				increment = "1"
+			} else {
+				// increment is 0.00...01 with exactly precision digits after the decimal point.
+				increment = "0." + strings.Repeat("0", precision-1) + "1"
+			}
+			// Apply rounding increment using Add.
+			truncated := intPart
+			if precision > 0 {
+				truncated += "." + fracPart
+			}
+			truncated = Add(truncated, increment)
+			// Remove any superfluous trailing zeros after the decimal point.
+			parts = strings.SplitN(truncated, ".", 2)
+			intPart = removeLeadingZeros(parts[0])
+			if len(parts) > 1 {
+				fracPart = parts[1]
+				// Pad to precision if necessary.
+				if len(fracPart) < precision {
+					fracPart = fracPart + strings.Repeat("0", precision-len(fracPart))
+				} else if len(fracPart) > precision {
+					fracPart = fracPart[:precision]
+				}
+			} else {
+				fracPart = ""
+			}
+		}
+	}
+
+	// Reassemble the result.
+	var res string
+	if precision > 0 {
+		// Remove trailing zeros in the fractional part.
+		fracPart = strings.TrimRight(fracPart, "0")
+		if fracPart != "" {
+			res = intPart + "." + fracPart
+		} else {
+			res = intPart
+		}
+	} else {
+		res = intPart
+	}
+	if res == "" {
+		res = "0"
+	}
+	if neg && res != "0" {
+		res = "-" + res
+	}
+	return res
 }

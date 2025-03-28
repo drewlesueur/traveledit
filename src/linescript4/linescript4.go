@@ -638,13 +638,13 @@ func makeToken(state *State, val string) any {
 		return theString
 	}
 	if isNumeric(val) {
-		if strings.Contains(val, ".") {
+	    if val[len(val)-1:] == "f" {
 			f, err := strconv.ParseFloat(val, 64)
 			if err != nil {
 				panic(err)
 			}
 			return f
-		}
+	    }
 		val := strings.Replace(val, "_", "", -1)
 		i, err := strconv.Atoi(val)
 		if err != nil {
