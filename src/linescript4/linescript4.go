@@ -317,9 +317,10 @@ func Eval(state *State) *State {
     	}
 		token, name := nextToken(state)
 		// #cyan
-		if state.DebugTokens {
-			fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
-		}
+		// if state.DebugTokens {
+			// fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
+			appendFile("delme_tokens.txt", fmt.Sprintf("token: %q       %T (%s:%d/%d)\n", name, token, state.FileName, state.I, len(state.Code) - 1))
+		// }
 		_ = name
 		switch token := token.(type){
 		case immediateToken:
@@ -638,23 +639,24 @@ func makeToken(state *State, val string) any {
 		return theString
 	}
 	if isNumeric(val) {
-	    if val[len(val)-1:] == "f" {
+    	if val[len(val)-1:] == "f" {
 			val := strings.Replace(val, "_", "", -1)
-			f, err := strconv.ParseFloat(val, 64)
+			f, err := strconv.ParseFloat(val[0:len(val)-1], 64)
 			if err != nil {
 				panic(err)
 			}
 			return f
+    	}
+		if strings.Contains(val, ".") {
+    	    return val
 	    }
-	    if val[len(val)-1:] == "i" {
-			val := strings.Replace(val, "_", "", -1)
-			i, err := strconv.Atoi(val)
-			if err != nil {
-				panic(err)
-			}
-			return i
-	    }
-	    return val
+
+		val := strings.Replace(val, "_", "", -1)
+		i, err := strconv.Atoi(val)
+		if err != nil {
+			panic(err)
+		}
+		return i
 	}
 
 	switch val {
@@ -1193,7 +1195,7 @@ func initBuiltins() {
         }),
 		"formatTimestamp": makeBuiltin_2_1(func(m any, f any) any {
 	    	// from unix millis
-	    	t := time.Unix(0, int64(m.(int))*int64(time.Millisecond))
+	    	t := time.Unix(0, int64(toIntInternal(m))*int64(time.Millisecond))
 	    	formattedTime := t.Format(f.(string))
 	    	return formattedTime
 		}),
@@ -1205,7 +1207,7 @@ func initBuiltins() {
 			return int(t.UnixNano() / int64(time.Millisecond))
 		}),
 		"unixMillisToRfc3339": makeBuiltin_1_1(func(s any) any {
-			ms := s.(int)
+			ms := toIntInternal(s)
 			sec := int64(ms / 1000)
 			nsec := int64(ms % 1000) * 1000000
 			return time.Unix(sec, nsec).Format(time.RFC3339)
@@ -1233,30 +1235,28 @@ func initBuiltins() {
 		},
 		"*":  makeBuiltin_2_1(times),
 		"/":  makeBuiltin_2_1(divide),
-		"^":  makeBuiltin_2_1(exponent),
+		"^":  makeBuiltin_2_1(pow),
 		"%":  makeBuiltin_2_1(mod),
 		"<":  makeBuiltin_2_1(lt),
 		">":  makeBuiltin_2_1(gt),
 		"<=": makeBuiltin_2_1(lte),
 		">=": makeBuiltin_2_1(gte),
-		"==": makeBuiltin_2_1(eq),
-		"!=": makeBuiltin_2_1(neq),
+		"==": makeBuiltin_2_1(is),
+		"!=": makeBuiltin_2_1(isnt),
 
 		"plus":  makeBuiltin_2_1(plus),
 		"minus": makeBuiltin_2_1(minus),
 		"times": makeBuiltin_2_1(times),
 		"divBy": makeBuiltin_2_1(divide),
-		"toThe": makeBuiltin_2_1(exponent),
+		"toThe": makeBuiltin_2_1(pow),
 		"mod":   makeBuiltin_2_1(mod),
 		"lt":    makeBuiltin_2_1(lt),
 		"gt":    makeBuiltin_2_1(gt),
 		"lte":   makeBuiltin_2_1(lte),
 		"gte":   makeBuiltin_2_1(gte),
-		"eq":    makeBuiltin_2_1(eq),
-		"neq":   makeBuiltin_2_1(neq),
-		"is":    makeBuiltin_2_1(eq),
-		"isnt":  makeBuiltin_2_1(neq),
-		// "is":          makeBuiltin_2_1(is),
+		"is":    makeBuiltin_2_1(is),
+		"isnt":  makeBuiltin_2_1(isnt),
+		"round":  makeBuiltin_2_1(round),
 
 		"not":         makeBuiltin_1_1(not),
 		"cc":          makeBuiltin_2_1(cc),
@@ -1349,14 +1349,14 @@ func initBuiltins() {
 			return url.PathEscape(a.(string))
 		}),
 		"randInt": makeBuiltin_2_1(func(a, b any) any {
-		    min := a.(int)
-		    max := b.(int)
+		    min := toIntInternal(a)
+		    max := toIntInternal(b)
 		    return rand.Intn(max-min+1) + min
 		}),
 		"padLeft": makeBuiltin_3_1(func(s, padChar any, length any) any {
 			str := s.(string)
 			pad := padChar.(string)
-			padLength := length.(int)
+			padLength := toIntInternal(length)
 			for len(str) < padLength {
 				str = pad + str
 			}
@@ -1420,7 +1420,7 @@ func initBuiltins() {
 		},
 		"incr": func(state *State) *State {
 			a := popT(state.Vals).(string)
-			state.Vars[a] = state.Vars[a].(int) + 1
+			state.Vars[a] = toIntInternal(state.Vars[a]) + 1
 			clearFuncToken(state)
 			return state
 		},
@@ -1494,7 +1494,7 @@ func initBuiltins() {
 			return state
 		},
 		"break": func(state *State) *State {
-			count := popT(state.Vals).(int)
+			count := toIntInternal(popT(state.Vals))
 			r := findMatchingAfter(state, count, []string{"end"})
 			state.I = r.I
 			state.EndStack = state.EndStack[:len(state.EndStack)-count]
@@ -1510,14 +1510,17 @@ func initBuiltins() {
 			var indexVar string
             var loops int
             if len(thingsVal) >= 2 {
-			    loops = thingsVal[0].(int)
-				indexVar = thingsVal[1].(string)
+                loops = toIntInternal(thingsVal[0])
+            	indexVar = thingsVal[1].(string)
             } else if len(thingsVal) == 1 {
-    			loops = popT(state.Vals).(int)
-				indexVar = thingsVal[0].(string)
+                loops = toIntInternal(popT(state.Vals))
+            	indexVar = thingsVal[0].(string)
             } else {
-    			loops = popT(state.Vals).(int)
+                loops = toIntInternal(popT(state.Vals))
             }
+
+            
+            
             if indexVar != "" {
 				state.Vars[indexVar] = -1
             }
@@ -1561,20 +1564,22 @@ func initBuiltins() {
             var loopStart int
             var loopEnd int
             if len(thingsVal) >= 3 {
-			    loopStart = thingsVal[0].(int)
-			    loopEnd = thingsVal[1].(int)
-				indexVar = thingsVal[2].(string)
+                loopStart = toIntInternal(thingsVal[0])
+                loopEnd = toIntInternal(thingsVal[1])
+                indexVar = thingsVal[2].(string)
             } else if len(thingsVal) == 2 {
-			    loopStart = toIntInternal(thingsVal[0])
-			    loopEnd = toIntInternal(thingsVal[1])
+                loopStart = toIntInternal(thingsVal[0])
+                loopEnd = toIntInternal(thingsVal[1])
             } else if len(thingsVal) == 1 {
-			    loopEnd = popT(state.Vals).(int)
-			    loopStart = popT(state.Vals).(int)
-				indexVar = thingsVal[0].(string)
+                loopEnd = toIntInternal(popT(state.Vals))
+                loopStart = toIntInternal(popT(state.Vals))
+                indexVar = thingsVal[0].(string)
             } else {
-			    loopStart = popT(state.Vals).(int)
-			    loopEnd = popT(state.Vals).(int)
+                loopStart = toIntInternal(popT(state.Vals))
+                loopEnd = toIntInternal(popT(state.Vals))
             }
+            
+            
             if indexVar != "" {
 				state.Vars[indexVar] = -1
             }
@@ -1606,6 +1611,7 @@ func initBuiltins() {
 				} else {
 					if indexVar != "" {
 						state.Vars[indexVar] = theIndex
+						// state.Vars[indexVar] = strconv.Itoa(theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
 					}
@@ -1649,7 +1655,10 @@ func initBuiltins() {
 				arr = &actualArr
 			}
             if indexVar != "" {
+                // TODO: this should be + 1? 
+                // TODO: check empty loop and after loop
 				state.Vars[indexVar] = theIndex
+				// state.Vars[indexVar] = strconv.Itoa(theIndex)
             }
             if itemVar != "" {
 				state.Vars[itemVar] = nil
@@ -1665,6 +1674,7 @@ func initBuiltins() {
 				} else {
             		if indexVar != "" {
 						state.Vars[indexVar] = theIndex+1
+						// state.Vars[indexVar] = strconv.Itoa(theIndex+1)
             		}
             		if itemVar != "" {
 						state.Vars[itemVar] = (*arr)[theIndex]
@@ -1727,6 +1737,7 @@ func initBuiltins() {
 
 			if indexVar != "" {
 				state.Vars[indexVar] = theIndex
+				// state.Vars[indexVar] = strconv.Itoa(theIndex)
 			}
 			if itemVar != "" {
 				state.Vars[itemVar] = nil
@@ -1747,6 +1758,7 @@ func initBuiltins() {
 				line = strings.TrimRight(line, "\n")
 				if indexVar != "" {
 					state.Vars[indexVar] = theIndex
+					// state.Vars[indexVar] = strconv.Itoa(theIndex)
 				}
 				if itemVar != "" {
 					state.Vars[itemVar] = line
@@ -1812,6 +1824,7 @@ func initBuiltins() {
 				} else {
             		if indexVar != "" {
 						state.Vars[indexVar] = theIndex+1
+						// state.Vars[indexVar] = strconv.Itoa(theIndex+1)
             		}
             		if itemVar != "" {
 						state.Vars[itemVar] = (*arr)[theIndex]
@@ -1876,6 +1889,7 @@ func initBuiltins() {
 				} else {
             		if indexVar != "" {
 						state.Vars[indexVar] = theIndex+1
+						// state.Vars[indexVar] = strconv.Itoa(theIndex+1)
             		}
             		if itemVar != "" {
 						state.Vars[itemVar] = (*arr)[theIndex]
@@ -2266,18 +2280,7 @@ func initBuiltins() {
 			// TODO flow for keeping file open
 			contents := popT(state.Vals).(string)
 			fileName := popT(state.Vals).(string)
-			err := os.MkdirAll(filepath.Dir(fileName), os.ModePerm)
-			if err != nil {
-				panic(err)
-			}
-			f, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-			if err != nil {
-				panic(err)
-			}
-			defer f.Close()
-			if _, err := f.WriteString(contents); err != nil {
-				panic(err)
-			}
+			appendFile(fileName, contents)
 			clearFuncToken(state)
 			return state
 		},
@@ -2285,18 +2288,7 @@ func initBuiltins() {
 			// TODO flow for keeping file open
 			contents := popT(state.Vals).(string)
 			fileName := popT(state.Vals).(string)
-			err := os.MkdirAll(filepath.Dir(fileName), os.ModePerm)
-			if err != nil {
-				panic(err)
-			}
-			f, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
-			if err != nil {
-				panic(err)
-			}
-			defer f.Close()
-			if _, err := f.WriteString(contents + "\n"); err != nil {
-				panic(err)
-			}
+			appendFile(fileName, contents + "\n")
 			clearFuncToken(state)
 			return state
 		},
@@ -2395,7 +2387,7 @@ func initBuiltins() {
 		    return state
 		},
 		"sleep": func(state *State) *State {
-			ms := popT(state.Vals).(int)
+			ms := toIntInternal(popT(state.Vals))
 			clearFuncToken(state)
 			go func() {
 				time.Sleep(time.Duration(ms) * time.Millisecond)
@@ -2516,8 +2508,8 @@ func initBuiltins() {
 			return state
 		},
 		"writePipe": func(state *State) *State {
-			timeoutMs := popT(state.Vals).(int)
-			bufSize := popT(state.Vals).(int)
+			timeoutMs := toIntInternal(popT(state.Vals))
+			bufSize := toIntInternal(popT(state.Vals))
 			data := popT(state.Vals).(string)
 			fifoPath := popT(state.Vals).(string)
 			go func() {
@@ -3031,9 +3023,9 @@ func spliceT(s *[]any, start int, deleteCount int, elements *[]any) *[]any {
 }
 
 func splice(sAny any, start any, end any, elements any) any {
-	startInt := start.(int)
+	startInt := toIntInternal(start)
     s := sAny.(*[]any)
-	endInt := end.(int)
+	endInt := toIntInternal(end)
 	if startInt < 0 {
 		startInt = len(*s) + startInt + 1
 	}
@@ -3156,154 +3148,275 @@ func split(a any, b any) any {
 	return &rr
 }
 
-func plus(a, b any) any {
+
+func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fString func(string, string) any) func(any, any) any {
+    return func(a, b any) any {
+		switch a := a.(type) {
+		case int:
+		     switch b := b.(type) {
+		         case int:
+					return fInt(a, b)
+		         case float64:
+					return fFloat(float64(a), b)
+		         case string:
+		             return fString(strconv.Itoa(a), b)
+		 	 	 default:
+					return 0
+		     }
+		case float64:
+		     switch b := b.(type) {
+		         case int:
+					return fFloat(a, float64(b))
+		         case float64:
+		            return fFloat(a, b)
+		         case string:
+		             return fString(strconv.FormatFloat(a, 'f', -1, 64), b)
+		 	 	 default:
+					return 0
+		     }
+		case string:
+		     switch b := b.(type) {
+		         case int:
+					return fString(a, strconv.Itoa(b))
+		         case float64:
+		            return fString(a, strconv.FormatFloat(b, 'f', -1, 64))
+		         case string:
+		             return fString(a, b)
+		 	 	 default:
+					return 0
+		     }
+		default:
+			fmt.Printf("bad type lol: %T\n", a)
+			return 0
+		}
+    }
+}
+
+
+// Round function to round a float to the specified number of decimal places
+func roundFloat(num float64, places int) float64 {
+	scale := math.Pow(10, float64(places))
+	return math.Round(num*scale) / scale
+}
+
+
+func round(a, b any) any {
 	switch a := a.(type) {
 	case int:
-		return a + b.(int)
+	    return a
 	case float64:
-		return a + b.(float64)
+	     switch b := b.(type) {
+	         case int:
+				return roundFloat(a, b)
+	         case float64:
+	            return roundFloat(a, int(b))
+	         case string:
+	             return roundFloat(a, toIntInternal(b))
+	 	 	 default:
+				return 0
+	     }
 	case string:
-		return Add(a, toStringInternal(b))
+	     switch b := b.(type) {
+	         case int:
+				return Round(a, b)
+	         case float64:
+	            return Round(a, int(b))
+	         case string:
+	             d, _ := strconv.Atoi(b)
+	             return Round(a, d)
+	 	 	 default:
+				return 0
+	     }
 	default:
 		fmt.Printf("bad type lol: %T\n", a)
+		return 0
 	}
-	return nil
 }
+var plus = makeMather(
+    func(a, b int) any {
+        return a + b
+    },
+    func(a, b float64) any {
+        return a + b
+    },
+    func(a, b string) any {
+        return Add(a, b)
+    },
+)
 
-func lt(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a < b.(int)
-	case float64:
-		return a < b.(float64)
-	case string:
-		return a < b.(string)
-	}
-	return false
-}
 
-func gt(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a > b.(int)
-	case float64:
-		return a > b.(float64)
-	case string:
-		return a > b.(string)
-	}
-	return false
-}
+// minus uses subtraction (calls Subtract for strings)
+var minus = makeMather(
+	func(a, b int) any {
+		return a - b
+	},
+	func(a, b float64) any {
+		return a - b
+	},
+	func(a, b string) any {
+		return Subtract(a, b)
+	},
+)
 
-func lte(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a <= b.(int)
-	case float64:
-		return a <= b.(float64)
-	case string:
-		return a <= b.(string)
-	}
-	return false
-}
+var times = makeMather(
+	func(a, b int) any {
+        return a * b
+	},
+	func(a, b float64) any {
+        return a * b
+	},
+	func(a, b string) any {
+		return Multiply(a, b)
+	},
+)
 
-func gte(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a >= b.(int)
-	case float64:
-		return a >= b.(float64)
-	case string:
-		return a >= b.(string)
-	}
-	return false
-}
+var decimalPrecision = 50
+// divide uses division (calls Divide for strings)
+var divide = makeMather(
+	func(a, b int) any {
+		// Note: integer division
+		if b == 0 {
+			// return "division by zero"
+			return 0 // ?
+		}
+		if a % b == 0 {
+			return a / b
+		}
+        return Divide(strconv.Itoa(a), strconv.Itoa(b), decimalPrecision)
+	},
+	func(a, b float64) any {
+		if b == 0 {
+			// return "division by zero"
+			return 0 // ?
+		}
+		return a / b
+	},
+	func(a, b string) any {
+		return Divide(a, b, decimalPrecision)
+	},
+)
 
-func eq(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a == b.(int)
-	case float64:
-		return a == b.(float64)
-	case string:
-		return a == b.(string)
-	}
-	return a == b
-}
-func is(a, b any) any {
-	return a == b
-}
-
-func neq(a, b any) any {
-	return !(eq(a, b).(bool))
-}
-
-func minus(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a - b.(int)
-	case float64:
-		return a - b.(float64)
-	case string:
-		return Subtract(a, toStringInternal(b))
-	}
-	return nil
-}
-
-func times(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a * b.(int)
-	case float64:
-		return a * b.(float64)
-	case string:
-		return Multiply(a, toStringInternal(b))
-	}
-	return nil
-}
-
-func divide(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a / b.(int)
-	case float64:
-		return a / b.(float64)
-	case string:
-		return Divide(a, toStringInternal(b), 10)
-	}
-	return nil
-}
-
-func mod(a, b any) any {
-	switch a := a.(type) {
-	case int:
-		return a % b.(int)
-	case float64:
-		// this right?
-		return a - float64(int(a/b.(float64)))*b.(float64)
-	}
-	return nil
-}
-
-// double check this chatgpt code
-func exponent(a, b any) any {
-	switch a := a.(type) {
-	case int:
+// pow uses exponentiation (calls Pow for strings)
+var pow = makeMather(
+	func(a, b int) any {
+		// Simple integer exponentiation. Only for positive exponents.
+		if b < 0 {
+        	return Pow(strconv.Itoa(a), strconv.Itoa(b), decimalPrecision)
+		}
 		result := 1
-		base := a
-		exp := b.(int)
-		for exp > 0 {
-			if exp%2 == 1 {
-				result *= base
-			}
-			base *= base
-			exp /= 2
+		for i := 0; i < b; i++ {
+			result *= a
 		}
 		return result
-	case float64:
-		return math.Pow(a, b.(float64))
-	}
-	return nil
-}
+	},
+	func(a, b float64) any {
+		return math.Pow(a, b)
+	},
+	func(a, b string) any {
+		return Pow(a, b, decimalPrecision)
+	},
+)
+
+// mod uses modulo (calls Mod for strings)
+var mod = makeMather(
+	func(a, b int) any {
+		if b == 0 {
+			return "modulo by zero"
+		}
+		return a % b
+	},
+	func(a, b float64) any {
+		if b == 0 {
+			return "modulo by zero"
+		}
+		return math.Mod(a, b)
+	},
+	func(a, b string) any {
+		return Mod(a, b)
+	},
+)
+
+// lt returns whether a is less than b.
+var lt = makeMather(
+	func(a, b int) any {
+		return a < b
+	},
+	func(a, b float64) any {
+		return a < b
+	},
+	func(a, b string) any {
+		return a < b
+	},
+)
+
+// gt returns whether a is greater than b.
+var gt = makeMather(
+	func(a, b int) any {
+		return a > b
+	},
+	func(a, b float64) any {
+		return a > b
+	},
+	func(a, b string) any {
+		return a > b
+	},
+)
+
+// lte returns whether a is less than or equal to b.
+var lte = makeMather(
+	func(a, b int) any {
+		return a <= b
+	},
+	func(a, b float64) any {
+		return a <= b
+	},
+	func(a, b string) any {
+		return a <= b
+	},
+)
+
+// gte returns whether a is greater than or equal to b.
+var gte = makeMather(
+	func(a, b int) any {
+		return a >= b
+	},
+	func(a, b float64) any {
+		return a >= b
+	},
+	func(a, b string) any {
+		return a >= b
+	},
+)
+
+// is returns whether a equals b.
+var is = makeMather(
+	func(a, b int) any {
+		return a == b
+	},
+	func(a, b float64) any {
+		return a == b
+	},
+	func(a, b string) any {
+		return a == b
+	},
+)
+
+// isnt returns whether a is not equal to b.
+var isnt = makeMather(
+	func(a, b int) any {
+		return a != b
+	},
+	func(a, b float64) any {
+		return a != b
+	},
+	func(a, b string) any {
+		return a != b
+	},
+)
+
+
+
+
 
 func cc(a, b any) any {
 	if aArr, ok1 := a.(*[]any); ok1 {
@@ -3316,8 +3429,6 @@ func cc(a, b any) any {
 
 	return toString(a).(string) + toString(b).(string)
 }
-
-
 
 func toIntInternal(a any) int {
 	switch a := a.(type) {
@@ -3344,7 +3455,7 @@ func toInt(a any) any {
     return toIntInternal(a)
 }
 
-func toFloat(a any) any {
+func toFloatInternal(a any) float64 {
 	switch a := a.(type) {
 	case bool:
 		if a {
@@ -3364,6 +3475,9 @@ func toFloat(a any) any {
 		return 0.0
 	}
 	return 0.0
+}
+func toFloat(a any) any {
+    return toFloatInternal(a)
 }
 
 
@@ -3494,7 +3608,7 @@ func setProp(a, b, c any) {
 func setIndex(a, b, c any) {
 	theArrPointer := a.(*[]any)
 	theArr := *theArrPointer
-	theArr[b.(int)] = c
+	theArr[toIntInternal(b)] = c
 }
 func setPropVKO(v, k, o any) {
 	o.(map[string]any)[k.(string)] = v
@@ -4067,4 +4181,19 @@ func startCgiServer(domain string) {
     }
 
     log.Fatal(httpsSrv.ListenAndServeTLS("", ""))
+}
+
+func appendFile(fileName, contents string) {
+	err := os.MkdirAll(filepath.Dir(fileName), os.ModePerm)
+	if err != nil {
+		panic(err)
+	}
+	f, err := os.OpenFile(fileName, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(contents); err != nil {
+		panic(err)
+	}
 }

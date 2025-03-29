@@ -575,9 +575,9 @@ func Sqrt(num string, precision int) string {
 		// (precision+5 extra digits are used)
 		// It is safe to use Divide here since our functions work with decimal strings.
 		guess := Divide(num, "2", precision+5)
-		return roundStr(sqrtIter(num, guess, precision+5), precision)
+		return Round(sqrtIter(num, guess, precision+5), precision)
 	} else {
-		return roundStr(sqrtIter(num, "1", precision+5), precision)
+		return Round(sqrtIter(num, "1", precision+5), precision)
 	}
 }
 
@@ -602,7 +602,7 @@ func sqrtIter(num, guess string, calcPrec int) string {
 
 // roundStr rounds a number given as a string (that may include a decimal point)
 // to the specified number of digits after the decimal point. It applies conventional rounding.
-func roundStr(num string, precision int) string {
+func Round(num string, precision int) string {
 	// If there is no decimal point, nothing to round.
 	if !strings.Contains(num, ".") {
 		return num

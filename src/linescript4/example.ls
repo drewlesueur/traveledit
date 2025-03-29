@@ -1,4 +1,23 @@
-#!/usr/bin/env -S go run linescript4.go funcs.go
+#!/usr/bin/env -S go run linescript4.go stringmath.go 
+
+
+say "hello"
+say 30 (+ 20)
+say 30 (+ 20) (/ 3)
+(100 / 999) (* 999)
+say "num:" dupit
+round 7
+say "rounded:" it
+# say (100 / 999)
+say (100f / 999) (* 999)
+
+
+# 100 loop
+#     say 50f (/ 3)
+# end
+
+exit
+
 
 
 # go
