@@ -1,6 +1,29 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
 
+
+let :loops 10_000
+
+say loops
+
+# 20 loop :i
+#     say i
+# end
+
+exit
+
+
+say foo
+
+# slice 1 3 + 1
+
+say now
+
+exit
+
+say bananas
+exit
+
 say "hello"
 say 30 (+ 20)
 say 30 (+ 20) (/ 3)
