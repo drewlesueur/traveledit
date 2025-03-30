@@ -1,5 +1,37 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
+say "hello"
+
+say "whatup" len
+
+let :x 1 + 1
+if x is 2
+     say "it 2"
+else if x is 3
+     say "it 3"
+end
+
+
+
+say len "abc" + len "defg"
+say + len "abc" len "defg"
+say (len ("abc" (+ (len "defg"))))
+say "----"
+say (len "abc") + (len "defg")
+say + (len "abc") (len "defg")
+
+say len "abc", plus len "defg"
+
+40
+30
+20
+say it it
+say it
+
+
+
+
+exit
 
 
 let :loops 10_000

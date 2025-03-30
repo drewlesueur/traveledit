@@ -138,12 +138,13 @@ type State struct {
 	ValsStack          []*[]any
 	EndStack           []func(*State) *State
 	Vars               map[string]any
-	CurrFuncToken      func(*State) *State
-	FuncTokenStack     []func(*State) *State
-	FuncTokenSpot      int // position of the first "argument" in vals, even tho it can grab from earlier
-	FuncTokenSpotStack []int
+	CurrFuncTokens     []func(*State) *State
+	FuncTokenStack     [][]func(*State) *State
+	FuncTokenSpots     []int // position of the first "argument" in vals, even tho it can grab from earlier
+	FuncTokenSpotStack [][]int
 
 	NewlineSpot int
+	InCurrentCall bool
 
 	LexicalParent *State
 	CallingParent *State
@@ -186,9 +187,9 @@ func MakeState(fileName, code string) *State {
 		ValsStack:          nil,
 		EndStack:           nil,
 		Vars:               map[string]any{},
-		CurrFuncToken:      nil,
+		CurrFuncTokens:      nil,
 		FuncTokenStack:     nil,
-		FuncTokenSpot:      -1,
+		FuncTokenSpots:      nil,
 		FuncTokenSpotStack: nil,
 
 		NewlineSpot: -1,
@@ -322,6 +323,11 @@ evalLoop:
 			cancel(state)
 			return nil
 		}
+		if state.InCurrentCall {
+		    // essentially closing all the implied parens (lite)
+		    state = callFunc(state)
+		    continue
+		}
 		token, name := nextToken(state)
 		// #cyan
 		// if state.DebugTokens {
@@ -355,18 +361,21 @@ evalLoop:
 				for _, v := range callback.ReturnValues {
 					pushT(state.Vals, v)
 				}
+				// so "it" works after wait
 				state.NewlineSpot = len(*state.Vals)
 			}
 		case builtinFuncToken:
-			state.CurrFuncToken = token
-			state.FuncTokenSpot = len(*state.Vals)
+			state.CurrFuncTokens = append(state.CurrFuncTokens, token)
+			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+	    // case builtinToken:
+	        // ??
 		case getVarToken:
 			evaled := getVar(state, string(token))
 			pushT(state.Vals, evaled)
 		case getVarFuncToken:
 			evaledFunc := getVar(state, string(token)).(func(*State) *State)
-			state.CurrFuncToken = evaledFunc
-			state.FuncTokenSpot = len(*state.Vals)
+			state.CurrFuncTokens = append(state.CurrFuncTokens, evaledFunc)
+			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
 
 			// this was an attempt to replace the above cases, but slower than switch
 			// every added case is slow, but interfaces (and closures) are even slower
@@ -440,18 +449,40 @@ func findParent(state *State, varName string) *State {
 }
 
 func clearFuncToken(state *State) {
-	state.CurrFuncToken = nil
-	state.FuncTokenSpot = -1
+	// see got moved to callFunc
+	// state.CurrFuncToken = nil
+	// state.FuncTokenSpot = -1
+	
 }
 
+// if x is 3 len 
+// let :x plus 2 3
+
 func callFunc(state *State) *State {
-	if state.CurrFuncToken == nil {
-		// for i, v := range *state.Vals {
-		// 	fmt.Printf("-->%d: %s\n", i, toString(v))
-		// }
+	if len(state.CurrFuncTokens) == 0 {
 		return state
 	}
-	newState := state.CurrFuncToken(state)
+	state.InCurrentCall = true
+	f := state.CurrFuncTokens[len(state.CurrFuncTokens)-1]
+	newState := f(state)
+	state.CurrFuncTokens = state.CurrFuncTokens[:len(state.CurrFuncTokens)-1]
+	state.FuncTokenSpots = state.FuncTokenSpots[:len(state.FuncTokenSpots)-1]
+	if len(state.CurrFuncTokens) == 0 {
+	    state.InCurrentCall = false
+	}
+	
+	// if state.ImpliedParenCount > 0 {
+	//     state.ImpliedParenCount--
+	// 	state.Mode = state.ModeStack[len(state.ModeStack)-1]
+	// 	state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+	// 	state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
+	// 	state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
+	// 	state.FuncTokenSpot = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
+	// 	state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
+	// } else {
+	// 	state.CurrFuncToken = nil
+	// 	state.FuncTokenSpot = -1
+	// }
 	return newState
 }
 
@@ -545,38 +576,38 @@ type builtinFuncToken func(*State) *State
 type immediateToken func(*State) *State
 
 // attempt
-func makeImmediateFromBuiltinFuncToken(token func(*State) *State) immediateToken {
-	return immediateToken(func(state *State) *State {
-		state.CurrFuncToken = token
-		state.FuncTokenSpot = len(*state.Vals)
-		return state
-	})
-}
+// func makeImmediateFromBuiltinFuncToken(token func(*State) *State) immediateToken {
+// 	return immediateToken(func(state *State) *State {
+// 		state.CurrFuncToken = token
+// 		state.FuncTokenSpot = len(*state.Vals)
+// 		return state
+// 	})
+// }
 
-type Immediate interface {
-	Process(state *State) *State
-}
-
-func (token builtinFuncToken) Process(state *State) *State {
-	state.CurrFuncToken = token
-	state.FuncTokenSpot = len(*state.Vals)
-	return state
-}
-func (token getVarToken) Process(state *State) *State {
-	evaled := getVar(state, string(token))
-	pushT(state.Vals, evaled)
-	return state
-}
-func (token getVarFuncToken) Process(state *State) *State {
-	evaledFunc := getVar(state, string(token)).(func(*State) *State)
-	state.CurrFuncToken = evaledFunc
-	state.FuncTokenSpot = len(*state.Vals)
-	return state
-}
-func (token immediateToken) Process(state *State) *State {
-	state = token(state)
-	return state
-}
+// type Immediate interface {
+// 	Process(state *State) *State
+// }
+// 
+// func (token builtinFuncToken) Process(state *State) *State {
+// 	state.CurrFuncToken = token
+// 	state.FuncTokenSpot = len(*state.Vals)
+// 	return state
+// }
+// func (token getVarToken) Process(state *State) *State {
+// 	evaled := getVar(state, string(token))
+// 	pushT(state.Vals, evaled)
+// 	return state
+// }
+// func (token getVarFuncToken) Process(state *State) *State {
+// 	evaledFunc := getVar(state, string(token)).(func(*State) *State)
+// 	state.CurrFuncToken = evaledFunc
+// 	state.FuncTokenSpot = len(*state.Vals)
+// 	return state
+// }
+// func (token immediateToken) Process(state *State) *State {
+// 	state = token(state)
+// 	return state
+// }
 
 func noop(state *State) *State {
 	return state
@@ -608,24 +639,19 @@ func makeToken(state *State, val string) any {
 	if b, ok := builtins[val]; ok {
 		// wow we can switch on the mode at compile time?!
 		// the first run is compile time, interesting
+		
+		
 		switch state.Mode {
 		case "normal":
-			if state.CurrFuncToken == nil {
-				return builtinFuncToken(b)
-
-				// attempt to require fewer cases in token switch
-				// but it's slower, with closure and even polymorphic types, it's slower.
-				// compared to switch
-				// tho too many switch cases bad
-				// return makeImmediateFromBuiltinFuncToken(b)
-			} else {
-				if val == "if" {
-					fmt.Println("Warning if is not a function!")
-					debugStateI(state, state.I)
-				}
-				return builtinToken(b)
-			}
+			return builtinFuncToken(b)
+        
+			// attempt to require fewer cases in token switch
+			// but it's slower, with closure and even polymorphic types, it's slower.
+			// compared to switch
+			// tho too many switch cases bad
+			// return makeImmediateFromBuiltinFuncToken(b)
 		case "array", "object":
+			// need this?
 			return builtinToken(b)
 		}
 	}
@@ -680,45 +706,20 @@ func makeToken(state *State, val string) any {
 		return stdinReader
 	}
 
-	if state.CurrFuncToken != nil {
-		// if state.CurrFuncToken.Name == "let" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
-		// 	return stringToken(s)
-		// }
-		// if state.CurrFuncToken.Name == "local" && (len(*state.Vals) - state.FuncTokenSpot == 0) {
-		// 	return stringToken(s)
-		// }
-		// if state.CurrFuncToken.Name == "def" {
-		// 	return stringToken(s)
-		// }
-		// if state.CurrFuncToken.Name == "func" {
-		// 	return stringToken(s)
-		// }
-		// if state.CurrFuncToken.Name == "each" && (len(*state.Vals) - state.FuncTokenSpot > 0) {
-		// 	return stringToken(s)
-		// }
-		// if state.CurrFuncToken.Name == "loop" && (len(*state.Vals) - state.FuncTokenSpot > 0) {
-		// 	return stringToken(s)
-		// }
-	}
-
 	switch state.Mode {
 	case "normal":
-		if state.CurrFuncToken == nil {
-			// return getVarToken(val)
-
-			evaled := getVar(state, val)
-			// once a func, always a func
-			// but have to eval twice the first round?!
-			// TODO: fix the double eval
-			if _, ok := evaled.(func(*State) *State); ok {
-				return getVarFuncToken(val)
-			} else {
-				return getVarToken(val)
-			}
+		// return getVarToken(val)
+		evaled := getVar(state, val)
+		// once a func, always a func
+		// but have to eval twice the first round?!
+		// TODO: fix the double eval
+		if _, ok := evaled.(func(*State) *State); ok {
+			return getVarFuncToken(val)
 		} else {
 			return getVarToken(val)
 		}
 	case "array", "object":
+		// need this?
 		return getVarToken(val)
 	}
 	panic("no slash?")
@@ -917,10 +918,10 @@ func initBuiltins() {
 			// fmt.Println("#yellow, post", len(state.ModeStack))
 			state.Mode = "normal"
 
-			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
-			state.CurrFuncToken = nil
-			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
-			state.FuncTokenSpot = -1
+			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncTokens)
+			state.CurrFuncTokens = nil
+			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpots)
+			state.FuncTokenSpots = nil
 
 			return state
 		},
@@ -931,7 +932,8 @@ func initBuiltins() {
 			state = callFunc(state)
 
 			// using ModeStack as a representative of paren level
-			if state.OneLiner && state.OneLinerParenLevel == len(state.ModeStack) {
+			// this needs fixing
+			if state.InCurrentCall && state.OneLiner && state.OneLinerParenLevel == len(state.ModeStack) {
 				state = doEnd(state)
 				if state.OneLiner {
 					return state
@@ -943,11 +945,9 @@ func initBuiltins() {
 			// fmt.Println("#aqua, pre", len(oldState.ModeStack))
 			oldState.Mode = oldState.ModeStack[len(oldState.ModeStack)-1]
 			oldState.ModeStack = oldState.ModeStack[:len(oldState.ModeStack)-1]
-			// fmt.Println("#aqua, post", len(oldState.ModeStack))
-
-			oldState.CurrFuncToken = oldState.FuncTokenStack[len(oldState.FuncTokenStack)-1]
+			oldState.CurrFuncTokens = oldState.FuncTokenStack[len(oldState.FuncTokenStack)-1]
 			oldState.FuncTokenStack = oldState.FuncTokenStack[:len(oldState.FuncTokenStack)-1]
-			oldState.FuncTokenSpot = oldState.FuncTokenSpotStack[len(oldState.FuncTokenSpotStack)-1]
+			oldState.FuncTokenSpots = oldState.FuncTokenSpotStack[len(oldState.FuncTokenSpotStack)-1]
 			oldState.FuncTokenSpotStack = oldState.FuncTokenSpotStack[:len(oldState.FuncTokenSpotStack)-1]
 
 			return state
@@ -957,10 +957,10 @@ func initBuiltins() {
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "array"
 
-			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
-			state.CurrFuncToken = nil
-			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
-			state.FuncTokenSpot = -1
+			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncTokens)
+			state.CurrFuncTokens = nil
+			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpots)
+			state.FuncTokenSpots = nil
 
 			state.ValsStack = append(state.ValsStack, state.Vals)
 			state.Vals = &[]any{}
@@ -971,9 +971,9 @@ func initBuiltins() {
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
 
-			state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
+			state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
 			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-			state.FuncTokenSpot = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
+			state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
 			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
 
 			myArr := state.Vals
@@ -988,10 +988,10 @@ func initBuiltins() {
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "object"
 
-			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
-			state.CurrFuncToken = nil
-			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
-			state.FuncTokenSpot = -1
+			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncTokens)
+			state.CurrFuncTokens = nil
+			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpots)
+			state.FuncTokenSpots = nil
 
 			state.ValsStack = append(state.ValsStack, state.Vals)
 			state.Vals = &[]any{}
@@ -1002,9 +1002,9 @@ func initBuiltins() {
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
 
-			state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
+			state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
 			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-			state.FuncTokenSpot = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
+			state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
 			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
 
 			myObj := map[string]any{}
@@ -1100,7 +1100,11 @@ func initBuiltins() {
 			// items := spliceT(state.Vals, state.FuncTokenSpot-1, 1, nil)
 			items := spliceT(state.Vals, state.NewlineSpot-1, 1, nil)
 			state.NewlineSpot--
-			state.FuncTokenSpot--
+			// f1 a f2 b f3 c it
+			// state.FuncTokenSpots[len(state.FuncTokenSpots)-1]--
+			for i, v := range state.FuncTokenSpots {
+				state.FuncTokenSpots[i] = v - 1
+			}
 			item := (*items)[0]
 			pushT(state.Vals, item)
 			return state
@@ -1152,24 +1156,26 @@ func initBuiltins() {
 			return state
 		},
 		",": func(state *State) *State {
-			state = callFunc(state)
+			newState := callFunc(state)
+			// we want to set NewlineSpot here?
 			state.NewlineSpot = len(*state.Vals)
-			return state
+			state.InCurrentCall = false
+			return newState
 		},
 		"|": func(state *State) *State {
 			state = callFunc(state)
 			return state
 		},
-		"func": func(state *State) *State {
+		"func (old before auto implied parens)": func(state *State) *State {
 			// fmt.Println("#yellow, mode stack up d (func)")
-			state.ModeStack = append(state.ModeStack, state.Mode)
-			state.Mode = "normal"
 
 			// open implied parens
-			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
-			state.CurrFuncToken = funcBuiltin
-			state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
-			state.FuncTokenSpot = len(*state.Vals)
+			// state.ModeStack = append(state.ModeStack, state.Mode)
+			// state.Mode = "normal"
+			// state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
+			// state.CurrFuncToken = funcBuiltin
+			// state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
+			// state.FuncTokenSpot = len(*state.Vals)
 
 			return state
 		},
@@ -1291,7 +1297,7 @@ func initBuiltins() {
 		"toInt":    makeBuiltin_1_1(toInt),
 		"toFloat":  makeBuiltin_1_1(toFloat),
 		"say": func(state *State) *State {
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			things := getArgs(state)
 			thingsVal := *things
 			if len(thingsVal) == 0 {
 				thingsVal = append(thingsVal, popT(state.Vals))
@@ -1559,7 +1565,7 @@ func initBuiltins() {
 		"loop": func(state *State) *State {
 			theIndex := 0
 
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			things := getArgs(state)
 			thingsVal := *things
 
 			var indexVar string
@@ -1610,7 +1616,7 @@ func initBuiltins() {
 		"loopRange": func(state *State) *State {
 			var theIndex int
 
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			things := getArgs(state)
 			thingsVal := *things
 
 			var indexVar string
@@ -1686,7 +1692,7 @@ func initBuiltins() {
 		"each": func(state *State) *State {
 			theIndex := -1
 
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			things := getArgs(state)
 			thingsVal := *things
 
 			var indexVar string
@@ -1765,7 +1771,7 @@ func initBuiltins() {
 		"readFileByLine": func(state *State) *State {
 			theIndex := -1
 
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			things := getArgs(state)
 			thingsVal := *things
 
 			var indexVar string
@@ -1841,7 +1847,7 @@ func initBuiltins() {
 			// start at -1 and jump to end to force the end check first
 			theIndex := -1
 
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			things := getArgs(state)
 			thingsVal := *things
 
 			var indexVar string
@@ -1903,7 +1909,7 @@ func initBuiltins() {
 			// start at -1 and jump to end to force the length check first
 			theIndex := -1
 
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			things := getArgs(state)
 			thingsVal := *things
 
 			var indexVar string
@@ -2014,7 +2020,7 @@ func initBuiltins() {
 		},
 		//
 		"go": func(state *State) *State {
-			things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			things := getArgs(state)
 			thingsVal := *things
 
 			newState := MakeState(state.FileName, state.Code)
@@ -2085,7 +2091,9 @@ func initBuiltins() {
 			return state
 		},
 		"def": func(state *State) *State {
-			params := spliceT(state.Vals, state.FuncTokenSpot+1, len(*state.Vals)-(state.FuncTokenSpot+1), nil)
+			// params := spliceT(state.Vals, state.FuncTokenSpot+1, len(*state.Vals)-(state.FuncTokenSpot+1), nil)
+			ftSpot := state.FuncTokenSpots[len(state.FuncTokenSpots)-1]
+			params := spliceT(state.Vals, ftSpot+1, len(*state.Vals)-(ftSpot+1), nil)
 			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
 				paramStrings[i] = p.(string)
@@ -2122,7 +2130,7 @@ func initBuiltins() {
 			return state
 		},
 		"func": func(state *State) *State {
-			params := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
+			params := getArgs(state)
 			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
 				paramStrings[i] = p.(string)
@@ -2154,22 +2162,15 @@ func initBuiltins() {
 				f.EndI = r.I
 			}
 
-			// close implied parens
+			// close implied parens,
+			// TODO REVISIT
 			// fmt.Println("#aqua, mode stack down d (func)")
 			state.Mode = state.ModeStack[len(state.ModeStack)-1]
 			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
-
-			state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
+			state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
 			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-			// fmt.Println("#gold **cft is:", state.CurrFuncToken)
-			// fmt.Println("mode", state.Mode)
-
-			state.FuncTokenSpot = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
+			state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
 			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
-
-			// token, _ := nextTokenRaw(state.Code, state.I)
-			// fmt.Printf("next token: %v %T\n", token, token)
-			// fmt.Printf("next token: %v\n", runImmediates["\n"])
 
 			// not calling clear because we re-assigned it above
 			// clearFuncToken(state)
@@ -2512,13 +2513,13 @@ func initBuiltins() {
 			//     fmt.Printf("#pink val: %d %q\n", i, toString(v))
 			// }
 			var f func(state *State) *State
-			if len(*state.Vals)-state.FuncTokenSpot == 0 {
+			if len(*state.Vals)-state.FuncTokenSpots[len(state.FuncTokenSpots)-1] == 0 {
 				f = popT(state.Vals).(func(state *State) *State)
 			} else {
-				fWrapper := spliceT(state.Vals, state.FuncTokenSpot, 1, nil)
+				fWrapper := spliceT(state.Vals, state.FuncTokenSpots[len(state.FuncTokenSpots)-1], 1, nil)
 				f = (*fWrapper)[0].(func(state *State) *State)
 			}
-			state.CurrFuncToken = f
+			state.CurrFuncTokens[len(state.CurrFuncTokens)-1] = f
 			newState := callFunc(state)
 			clearFuncToken(state) // needed here?
 			return newState
@@ -2609,6 +2610,11 @@ func initBuiltins() {
 		},
 	}
 	funcBuiltin = builtins["func"]
+}
+
+func getArgs(state *State) *[]any {
+	ftSpot := state.FuncTokenSpots[len(state.FuncTokenSpots)-1]
+	return spliceT(state.Vals, ftSpot, len(*state.Vals)-ftSpot, nil)
 }
 
 // createNamedPipe checks if the FIFO exists and creates it if it doesn't.
@@ -2917,8 +2923,8 @@ func readPipe(fifoPath string, bufSize int, timeoutMs int) ([]byte, error) {
 // closures seem to be in par with interfaces
 func makeFuncToken(token *Func) func(*State) *State {
 	return func(state *State) *State {
-		state.CurrFuncToken = nil
-		state.FuncTokenSpot = -1
+		state.CurrFuncTokens = nil
+		state.FuncTokenSpots = nil
 		newState := MakeState(token.FileName, token.Code)
 		newState.Machine = state.Machine
 		newState.CachedTokens = token.CachedTokens
