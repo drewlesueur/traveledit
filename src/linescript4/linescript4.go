@@ -45,6 +45,11 @@ package main
 //     return a.(int) + b.(int) // Type assertion needed
 // }
 
+// after recent tweaks. a way to
+
+// newer version can try more child states, and not so many stacks?
+// less performant?
+
 import (
 	"bufio"
 	"bytes"
@@ -127,10 +132,11 @@ type State struct {
 	I                  int
 	Code               string
 	CachedTokens       []*TokenCacheValue
+	// TODO: I think we can get rid of Mode and ModeStack
 	Mode               string
+	ModeStack          []string
 	OneLiner           bool
 	OneLinerParenLevel int
-	ModeStack          []string
 	// todo: caches need to be pointers???
 	GoUpCache          []*int
 	FindMatchingCache  []*FindMatchingResult
@@ -145,6 +151,7 @@ type State struct {
 
 	NewlineSpot int
 	InCurrentCall bool
+	CloseParensAfterLastCall bool
 
 	LexicalParent *State
 	CallingParent *State
@@ -325,9 +332,42 @@ evalLoop:
 		}
 		if state.InCurrentCall {
 		    // essentially closing all the implied parens (lite)
+		    // oldState := state
 		    state = callFunc(state)
 		    continue
 		}
+	    if state.CloseParensAfterLastCall && !state.InCurrentCall {
+	        // see ")"
+	        oldMode := state.Mode
+	        state.CloseParensAfterLastCall = false
+		    state.Mode = state.ModeStack[len(state.ModeStack)-1]
+		    state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+		    state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
+		    state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
+		    state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
+		    state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
+  		    
+  	        if oldMode == "array" {
+  		        fmt.Println("#tan yay array")
+			    myArr := state.Vals
+			    state.Vals = state.ValsStack[len(state.ValsStack)-1]
+			    state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
+				pushT(state.Vals, myArr)
+  		    } else if oldMode == "object" {
+				myObj := map[string]any{}
+				for i := 0; i < len(*state.Vals); i += 2 {
+					key := (*state.Vals)[i]
+					value := (*state.Vals)[i+1]
+					myObj[toString(key).(string)] = value
+				}
+				state.Vals = state.ValsStack[len(state.ValsStack)-1]
+				state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
+   
+				pushT(state.Vals, myObj)
+  		    }
+   
+		    continue
+	    }
 		token, name := nextToken(state)
 		// #cyan
 		// if state.DebugTokens {
@@ -462,7 +502,7 @@ func callFunc(state *State) *State {
 	if len(state.CurrFuncTokens) == 0 {
 		return state
 	}
-	state.InCurrentCall = true
+	state.InCurrentCall = true // true when we stared calling but not finished
 	f := state.CurrFuncTokens[len(state.CurrFuncTokens)-1]
 	newState := f(state)
 	state.CurrFuncTokens = state.CurrFuncTokens[:len(state.CurrFuncTokens)-1]
@@ -630,30 +670,30 @@ func makeToken(state *State, val string) any {
 		return immediateToken(f)
 	}
 	if f, ok := runImmediates[val]; ok {
-		if state.Mode == "normal" {
+		// if state.Mode == "normal" {
 			return immediateToken(f)
-		} else {
-			return immediateToken(noop)
-		}
+		// } else {
+			// return immediateToken(noop)
+		// }
 	}
 	if b, ok := builtins[val]; ok {
 		// wow we can switch on the mode at compile time?!
 		// the first run is compile time, interesting
 		
+		return builtinFuncToken(b)
 		
-		switch state.Mode {
-		case "normal":
-			return builtinFuncToken(b)
-        
-			// attempt to require fewer cases in token switch
-			// but it's slower, with closure and even polymorphic types, it's slower.
-			// compared to switch
-			// tho too many switch cases bad
-			// return makeImmediateFromBuiltinFuncToken(b)
-		case "array", "object":
-			// need this?
-			return builtinToken(b)
-		}
+		// switch state.Mode {
+		// case "normal":
+		// 	return builtinFuncToken(b)
+		// 	// attempt to require fewer cases in token switch
+		// 	// but it's slower, with closure and even polymorphic types, it's slower.
+		// 	// compared to switch
+		// 	// tho too many switch cases bad
+		// 	// return makeImmediateFromBuiltinFuncToken(b)
+		// case "array", "object":
+		// 	// need this?
+		// 	return builtinToken(b)
+		// }
 	}
 	// string shortcut
 	if val[0] == ':' {
@@ -706,22 +746,31 @@ func makeToken(state *State, val string) any {
 		return stdinReader
 	}
 
-	switch state.Mode {
-	case "normal":
-		// return getVarToken(val)
-		evaled := getVar(state, val)
-		// once a func, always a func
-		// but have to eval twice the first round?!
-		// TODO: fix the double eval
-		if _, ok := evaled.(func(*State) *State); ok {
-			return getVarFuncToken(val)
-		} else {
-			return getVarToken(val)
-		}
-	case "array", "object":
-		// need this?
+	evaled := getVar(state, val)
+	// once a func, always a func
+	// but have to eval twice the first round?!
+	// TODO: fix the double eval
+	if _, ok := evaled.(func(*State) *State); ok {
+		return getVarFuncToken(val)
+	} else {
 		return getVarToken(val)
 	}
+	// switch state.Mode {
+	// case "normal":
+	// 	// return getVarToken(val)
+	// 	evaled := getVar(state, val)
+	// 	// once a func, always a func
+	// 	// but have to eval twice the first round?!
+	// 	// TODO: fix the double eval
+	// 	if _, ok := evaled.(func(*State) *State); ok {
+	// 		return getVarFuncToken(val)
+	// 	} else {
+	// 		return getVarToken(val)
+	// 	}
+	// case "array", "object":
+	// 	// need this?
+	// 	return getVarToken(val)
+	// }
 	panic("no slash?")
 	return nil
 }
@@ -939,17 +988,7 @@ func initBuiltins() {
 					return state
 				}
 			}
-
-			// this mode stuff was above the callFunc before?
-			// fmt.Println("#aqua, mode stack down a")
-			// fmt.Println("#aqua, pre", len(oldState.ModeStack))
-			oldState.Mode = oldState.ModeStack[len(oldState.ModeStack)-1]
-			oldState.ModeStack = oldState.ModeStack[:len(oldState.ModeStack)-1]
-			oldState.CurrFuncTokens = oldState.FuncTokenStack[len(oldState.FuncTokenStack)-1]
-			oldState.FuncTokenStack = oldState.FuncTokenStack[:len(oldState.FuncTokenStack)-1]
-			oldState.FuncTokenSpots = oldState.FuncTokenSpotStack[len(oldState.FuncTokenSpotStack)-1]
-			oldState.FuncTokenSpotStack = oldState.FuncTokenSpotStack[:len(oldState.FuncTokenSpotStack)-1]
-
+            oldState.CloseParensAfterLastCall = true
 			return state
 		},
 		"[": func(state *State) *State {
@@ -968,19 +1007,20 @@ func initBuiltins() {
 		},
 		"]": func(state *State) *State {
 			// fmt.Println("#aqua, mode stack down b")
-			state.Mode = state.ModeStack[len(state.ModeStack)-1]
-			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+			
+			oldState := state
+			state = callFunc(state)
 
-			state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
-			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-			state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
-			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
+			// using ModeStack as a representative of paren level
+			// this needs fixing
+			if state.InCurrentCall && state.OneLiner && state.OneLinerParenLevel == len(state.ModeStack) {
+				state = doEnd(state)
+				if state.OneLiner {
+					return state
+				}
+			}
+            oldState.CloseParensAfterLastCall = true
 
-			myArr := state.Vals
-			state.Vals = state.ValsStack[len(state.ValsStack)-1]
-			state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
-
-			pushT(state.Vals, myArr)
 			return state
 		},
 		"{": func(state *State) *State {
@@ -998,25 +1038,19 @@ func initBuiltins() {
 			return state
 		},
 		"}": func(state *State) *State {
-			// fmt.Println("#aqua, mode stack down c")
-			state.Mode = state.ModeStack[len(state.ModeStack)-1]
-			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+			oldState := state
+			state = callFunc(state)
 
-			state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
-			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-			state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
-			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
-
-			myObj := map[string]any{}
-			for i := 0; i < len(*state.Vals); i += 2 {
-				key := (*state.Vals)[i]
-				value := (*state.Vals)[i+1]
-				myObj[toString(key).(string)] = value
+			// using ModeStack as a representative of paren level
+			// this needs fixing
+			if state.InCurrentCall && state.OneLiner && state.OneLinerParenLevel == len(state.ModeStack) {
+				state = doEnd(state)
+				if state.OneLiner {
+					return state
+				}
 			}
-			state.Vals = state.ValsStack[len(state.ValsStack)-1]
-			state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
+            oldState.CloseParensAfterLastCall = true
 
-			pushT(state.Vals, myObj)
 			return state
 		},
 		"string": func(state *State) *State {
@@ -1157,7 +1191,7 @@ func initBuiltins() {
 		},
 		",": func(state *State) *State {
 			newState := callFunc(state)
-			// we want to set NewlineSpot here?
+			// we want to set NewlineSpot here? I think not
 			state.NewlineSpot = len(*state.Vals)
 			state.InCurrentCall = false
 			return newState

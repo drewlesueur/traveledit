@@ -1,5 +1,30 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
+
+# test funcs after change
+
+# say "hi", say "bye"
+# debugVals
+# 
+say [plus 2 400]
+{"hi" "hola"
+"bya" "adios" upper}
+say
+# say (times 3 len "abc")
+
+say (2 + (4 + 5) * 2) "what"
+say (1 + 2 * 3)
+
+say 1 + 2 * 3
+say 1 + (2 * 3)
+say 1 + 2 (* 3)
+
+20
+say 2 * 3,, + 1
+say
+
+exit
+
 say "hello"
 
 say "whatup" len
@@ -20,7 +45,10 @@ say "----"
 say (len "abc") + (len "defg")
 say + (len "abc") (len "defg")
 
-say len "abc", plus len "defg"
+say times len "abc", 3, plus len "defg"
+say times 3 len "abc",, plus len "defg"
+say (times 3 len "abc") plus len "defg"
+
 
 40
 30
