@@ -170,6 +170,30 @@ body.light .toolbar div.selected {
     text-align: center;
 }
 
+
+
+/* 
+ For iPad
+ */
+@media only screen
+  and (min-width: 700px)
+  and (orientation: portrait) {
+  
+    .toolbar .fileButton {
+        min-width: 60px;
+        height: 46px;
+    }
+    .toolbar .icon,
+    .toolbar .square,
+    .toolbar .longButton,
+    .toolbar .middleButton {
+        width: 120px;
+        height: 54px;
+    }
+}
+
+
+
 .toolbar .slotButton {
     overflow: hidden;
 }
@@ -1655,7 +1679,7 @@ function doSizing() {
     // This condition for the 2021 iPad mini
     if (screen.width == 744 && screen.height == 1133) {
         device = "ipad6"
-        canvasHeightFull = 2750 + (36*3*1)
+        canvasHeightFull = 2720 
         canvasHeightKeyboard = 2200 
         navTouchSize = 60
         // alert(innerWidth + ", " + innerHeight)
@@ -4961,7 +4985,7 @@ function setCanvasHeight(h) {
     }
 
     if (verticalTouchSize * 5 < (canvasHeight/3 /2)) {
-        verticalTouchSize = (canvasHeight/3) * (0.5) / 5
+        verticalTouchSize = (canvasHeight/3) * (0.66) / 5
     }
 
 
@@ -4971,9 +4995,12 @@ function setCanvasHeight(h) {
     
     // verticalTouchSize = (h/3)/5 // 5 buttons
     // verticalTouchSize = (h/3)/7 // 
-    if (verticalTouchSize > 130) {
-        verticalTouchSize = 130
-    }
+
+
+
+    // if (verticalTouchSize > 130) {
+    //     verticalTouchSize = 130
+    // }
 }
 function setCanvasHeightAccordingly() {
     var heightReduction = 0
