@@ -1,6 +1,15 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
 
+[1 2 3] each: say
+
+loopRange 100 115: say upper "ok", it
+
+
+# [1 2 3] each :v
+#     say v
+# end
+
 let :myFunc func
     say "yay this func"
 end

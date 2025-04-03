@@ -491,7 +491,6 @@ func clearFuncToken(state *State) {
 	// see got moved to callFunc
 	// state.CurrFuncToken = nil
 	// state.FuncTokenSpot = -1
-	
 }
 
 // if x is 3 len 
@@ -1771,7 +1770,7 @@ func initBuiltins() {
 						state.Vars[itemVar] = (*arr)[theIndex]
 					} else {
 						// pushT(state.Vals, theIndex)
-						pushT(state.Vals, (*arr)[theIndex+1])
+						pushT(state.Vals, (*arr)[theIndex])
 					}
 					state.I = spot
 					debug("#white add end stack end each")
