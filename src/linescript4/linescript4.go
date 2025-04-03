@@ -348,7 +348,6 @@ evalLoop:
 		    state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
   		    
   	        if oldMode == "array" {
-  		        fmt.Println("#tan yay array")
 			    myArr := state.Vals
 			    state.Vals = state.ValsStack[len(state.ValsStack)-1]
 			    state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
@@ -2199,12 +2198,12 @@ func initBuiltins() {
 			// close implied parens,
 			// TODO REVISIT
 			// fmt.Println("#aqua, mode stack down d (func)")
-			state.Mode = state.ModeStack[len(state.ModeStack)-1]
-			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
-			state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
-			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-			state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
-			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
+			// state.Mode = state.ModeStack[len(state.ModeStack)-1]
+			// state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+			// state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
+			// state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
+			// state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
+			// state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
 
 			// not calling clear because we re-assigned it above
 			// clearFuncToken(state)
@@ -2957,8 +2956,8 @@ func readPipe(fifoPath string, bufSize int, timeoutMs int) ([]byte, error) {
 // closures seem to be in par with interfaces
 func makeFuncToken(token *Func) func(*State) *State {
 	return func(state *State) *State {
-		state.CurrFuncTokens = nil
-		state.FuncTokenSpots = nil
+		// state.CurrFuncTokens = nil
+		// state.FuncTokenSpots = nil
 		newState := MakeState(token.FileName, token.Code)
 		newState.Machine = state.Machine
 		newState.CachedTokens = token.CachedTokens

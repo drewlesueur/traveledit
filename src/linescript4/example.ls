@@ -1,12 +1,46 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
 
+let :myFunc func
+    say "yay this func"
+end
+
+def :myOtherFunc
+    say "other func"
+end
+
+myFunc
+myOtherFunc
+say "got here"
+
+exit
+
+# loop 10: say
+
+# def :timeIt
+#    nowMillis
+#    onEnd func
+#        nowMillis - start
+#    end
+# end
+
+
+say ""
+let :x 4
+if not x is 3
+    say "x is not 3 it's" x
+else
+    say "x is 3"
+end
+
+
 # test funcs after change
 
 # say "hi", say "bye"
 # debugVals
 # 
 say [plus 2 400]
+say [plus 2 400, 300 + 14, 15 16]
 {"hi" "hola"
 "bya" "adios" upper}
 say
@@ -18,6 +52,7 @@ say (1 + 2 * 3)
 say 1 + 2 * 3
 say 1 + (2 * 3)
 say 1 + 2 (* 3)
+say 1 + 2, * 3
 
 20
 say 2 * 3,, + 1

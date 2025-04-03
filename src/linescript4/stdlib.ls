@@ -20,5 +20,5 @@
 # def :map
 # end
 # 
-say "yay stdlib"
+# say "yay stdlib"
 
