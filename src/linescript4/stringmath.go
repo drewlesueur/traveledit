@@ -691,6 +691,64 @@ func Mod(a, b string) string {
 
 
 
+func Compare(a, b string) int {
+	aSign, aInt, aFrac := parse(a)
+	bSign, bInt, bFrac := parse(b)
+
+	// Normalize zero: treat "-0" as "0"
+	if removeLeadingZeros(aInt) == "0" && strings.Trim(aFrac, "0") == "" {
+		aSign = "+"
+	}
+	if removeLeadingZeros(bInt) == "0" && strings.Trim(bFrac, "0") == "" {
+		bSign = "+"
+	}
+
+	// If signs differ
+	if aSign != bSign {
+		if aSign == "-" {
+			return -1
+		}
+		return 1
+	}
+
+	// Both have same sign.
+	cmp := compareAbs(aInt, aFrac, bInt, bFrac)
+	if aSign == "+" {
+		return cmp
+	}
+	// For negatives, reverse the comparison.
+	if cmp == 0 {
+		return 0
+	}
+	if cmp > 0 {
+		return -1
+	}
+	return 1
+}
+
+func LessThan(a, b string) bool {
+	return Compare(a, b) < 0
+}
+
+func GreaterThan(a, b string) bool {
+	return Compare(a, b) > 0
+}
+
+func GreaterThanOrEqualTo(a, b string) bool {
+	return Compare(a, b) >= 0
+}
+
+func LessThanOrEqualTo(a, b string) bool {
+	return Compare(a, b) <= 0
+}
+
+func Equal(a, b string) bool {
+	return Compare(a, b) == 0
+}
+
+
+
+
 
 
 

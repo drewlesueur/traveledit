@@ -260,36 +260,10 @@ func TestPowLargeExponent(t *testing.T) {
 	}
 }
 
-
-// @@file:"/home/ubuntu/traveledit/src/linescript4/stringmath.go"
-
-// func TestPerf(t *testing.T) {
-// 	total := "999999999"
-// 	totalFloat, _ := strconv.ParseFloat(total, 64)
-// 	
-// 	loops := 10_000
-// 	startTime := time.Now()
-// 	for i := 0; i < loops; i++ {
-// 		// _ = Add("12345678901234567890", "98765432109876543210")
-// 		// total = Add(total, "9999999999")
-// 		total = Divide(total, "1.01", 11)
-// 	}
-// 	duration := time.Since(startTime)
-// 	fmt.Printf("Duration for %d additions (%v): %v\n", loops, total, duration)
-// 	
-// 	startTime = time.Now()
-// 	for i := 0; i < loops; i++ {
-// 		// total += 9999999999
-// 		totalFloat /= 1.01
-// 	}
-// 	duration = time.Since(startTime)
-// 	fmt.Printf("Duration for %d additions (%v): %v\n", loops, totalFloat, duration)
-// }
-
-func TestPerf2(t *testing.T) {
+func xTestPerf2(t *testing.T) {
 	total := "0"
 	totalFloat, _ := strconv.ParseFloat(total, 64)
-	
+
 	loops := 10_000_000
 	startTime := time.Now()
 	for i := 0; i < loops; i++ {
@@ -307,3 +281,114 @@ func TestPerf2(t *testing.T) {
 	fmt.Printf("Duration for %d additions (%v): %v\n", loops, totalFloat, duration)
 }
 
+func TestLessThan(t *testing.T) {
+	tests := []struct {
+		a, b     string
+		expected bool
+	}{
+		{"1", "2", true},
+		{"2", "1", false},
+		{"-2", "-1", true},
+		{"-1", "0", true},
+		{"0", "0", false},
+		{"001", "1", false},
+		{"1.0", "1", false},
+		{"-0", "0", false},
+		{"1.000", "1.001", true},
+		{"24.5555", "8", false},
+	}
+	for _, tc := range tests {
+		if LessThan(tc.a, tc.b) != tc.expected {
+			t.Errorf("LessThan(%q, %q) = %v; expected %v", tc.a, tc.b, LessThan(tc.a, tc.b), tc.expected)
+		}
+	}
+}
+
+func TestGreaterThan(t *testing.T) {
+	tests := []struct {
+		a, b     string
+		expected bool
+	}{
+		{"1", "2", false},
+		{"2", "1", true},
+		{"-2", "-1", false},
+		{"-1", "0", false},
+		{"0", "0", false},
+		{"001", "1", false},
+		{"1.0", "1", false},
+		{"-0", "0", false},
+		{"1.001", "1.000", true},
+	}
+	for _, tc := range tests {
+		if GreaterThan(tc.a, tc.b) != tc.expected {
+			t.Errorf("GreaterThan(%q, %q) = %v; expected %v", tc.a, tc.b, GreaterThan(tc.a, tc.b), tc.expected)
+		}
+	}
+}
+
+func TestLessThanOrEqualTo(t *testing.T) {
+	tests := []struct {
+		a, b     string
+		expected bool
+	}{
+		{"1", "2", true},
+		{"2", "1", false},
+		{"-2", "-1", true},
+		{"-1", "0", true},
+		{"0", "0", true},
+		{"001", "1", true},
+		{"1.0", "1", true},
+		{"-0", "0", true},
+		{"1.001", "1.000", false},
+	}
+	for _, tc := range tests {
+		if LessThanOrEqualTo(tc.a, tc.b) != tc.expected {
+			t.Errorf("LessThanOrEqualTo(%q, %q) = %v; expected %v", tc.a, tc.b, LessThanOrEqualTo(tc.a, tc.b), tc.expected)
+		}
+	}
+}
+
+func TestGreaterThanOrEqualTo(t *testing.T) {
+	tests := []struct {
+		a, b     string
+		expected bool
+	}{
+		{"1", "2", false},
+		{"2", "1", true},
+		{"-2", "-1", false},
+		{"-1", "0", false},
+		{"0", "0", true},
+		{"001", "1", true},
+		{"1.0", "1", true},
+		{"-0", "0", true},
+		{"1.001", "1.000", true},
+	}
+	for _, tc := range tests {
+		if GreaterThanOrEqualTo(tc.a, tc.b) != tc.expected {
+			t.Errorf("GreaterThanOrEqualTo(%q, %q) = %v; expected %v", tc.a, tc.b, GreaterThanOrEqualTo(tc.a, tc.b), tc.expected)
+		}
+	}
+}
+
+func TestEqual(t *testing.T) {
+	tests := []struct {
+		a, b     string
+		expected bool
+	}{
+		{"1", "1", true},
+		{"1", "2", false},
+		{"-1", "-1", true},
+		{"-1", "1", false},
+		{"0", "0", true},
+		{"001", "1", true},
+		{"1.0", "1", true},
+		{"1.000", "1.0", true},
+		{"-0", "0", true},
+		{"0", "", true},
+	}
+	for _, tc := range tests {
+		if Equal(tc.a, tc.b) != tc.expected {
+			t.Errorf("Equal(%q, %q) = %v; expected %v", tc.a, tc.b, Equal(tc.a, tc.b), tc.expected)
+		}
+	}
+}
