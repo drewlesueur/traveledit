@@ -161,7 +161,8 @@ type State struct {
 	Done          bool
 	Canceled      bool // need this?
 	Waiters       []*State
-	IsTop         bool
+	IsTopOfOwnGoroutine         bool
+	IsMainTop bool
 	AsyncChildren map[int]*State // needed? alternative, find all children whos asyncTop is that state? but still need children?
 	// Deadline time.Time
 
@@ -224,6 +225,13 @@ var httpAddr string
 var domain string
 var cgiUrl string
 
+// func init() {
+//     c := make(chan int)
+//     go func() {
+//        fmt.Println("eternal....")
+//        <- c
+//     }()
+// }
 func main() {
 	cgi := flag.Bool("cgi", false, "Start cgi server")
 	flag.StringVar(&httpsAddr, "httpsaddr", ":443", "address for http")
@@ -289,8 +297,9 @@ func main() {
 		CallbacksCh: make(chan Callback),
 		Index:       0,
 	}
-	state.IsTop = true
+	state.IsTopOfOwnGoroutine = true
 	state.Out = os.Stdout
+	state.IsMainTop = true
 
 	// start := time.Now()
 	// for state.I >= 0 {
@@ -329,12 +338,15 @@ func debugStateI(state *State, endI int) {
 	fmt.Println("state:", toJson(startI), toJson(state.Code[startI:endI]))
 }
 
+
 func Eval(state *State) *State {
 	var origState = state
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Recovered from panic:", r)
-			debugStateI(state, state.I)
+			if state != nil {
+				debugStateI(state, state.I)
+			}
 			panic(r)
 		}
 	}()
@@ -392,8 +404,15 @@ evalLoop:
 		case immediateToken:
 			o := state
 			state = token(state)
+			if o.Done && o.IsMainTop {
+		    	// this so we don't have to explicitly exit
+		    	break evalLoop
+			}
 			if state == nil {
 				if o.Done {
+					// for now we only close if new state is nil
+					// we could close even if new state is not nil
+					
 					// fmt.Println("#crimson ending!", o.I)
 					for _, w := range o.Waiters {
 						o.AddCallback(Callback{
@@ -402,6 +421,7 @@ evalLoop:
 						})
 					}
 					o.Waiters = nil
+					
 				}
 				// need another state, let's get one from callback channel
 				// fmt.Println("#yellow waiting for new state")
@@ -1141,6 +1161,10 @@ func initBuiltins() {
 		}),
 		"__vals": func(state *State) *State {
 			pushT(state.Vals, state.Vals)
+			return state
+		},
+		"__state": func(state *State) *State {
+			pushT(state.Vals, state)
 			return state
 		},
 		"it": func(state *State) *State {
@@ -2093,7 +2117,7 @@ func initBuiltins() {
 			newState.CallingParent = nil
 			newState.LexicalParent = state
 			newState.OneLiner = state.OneLiner
-			newState.IsTop = true
+			newState.IsTopOfOwnGoroutine = true
 			newState.Out = state.Out
 
 			if state.OneLiner {
@@ -2560,6 +2584,18 @@ func initBuiltins() {
 		},
 		"sleep": sleepMs,
 		"sleepMs": sleepMs,
+		"pause": func (state *State) *State {
+            return nil
+        },
+		"resume": func (state *State) *State {
+			things := getArgs(state)
+			thingsVal := *things
+			state.AddCallback(Callback{
+				State:        thingsVal[0].(*State),
+				ReturnValues: *slice(things, 2, -1).(*[]any),
+			})
+            return state
+        },
 		"eval": func(state *State) *State {
 			code := popT(state.Vals).(string)
 			// fmt.Println(unsafe.Pointer(&code))
@@ -4378,50 +4414,6 @@ func startCgiServerOld(httpsAddr, httpAddr string) {
 	}
 }
 
-func startLocalService() {
-	state := MakeState("__local", "")
-	state.Machine = &Machine{
-		CallbacksCh: make(chan Callback),
-		Index:       0,
-	}
-	state.IsTop = true
-	state.Out = os.Stdout
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	})
-	mux.HandleFunc("/eval", func(w http.ResponseWriter, r *http.Request) {
-		// fmt.Fprintf("gi")
-		var code string
-		if r.Method == "GET" {
-			code = r.FormValue("code")
-		} else {
-			body, _ := io.ReadAll(r.Body)
-			code = string(body)
-		}
-		// see "eval"
-		evalState := MakeState("__eval", code + "\n")
-		evalState.Machine = state.Machine
-		evalState.Vals = state.Vals
-		evalState.Vars = state.Vars
-
-		evalState.CallingParent = nil
-		evalState.LexicalParent = state
-		evalState.Out = w
-
-		state.AddCallback(Callback{
-			State:        evalState,
-			ReturnValues: []any{},
-		})
-	})
-	httpSrv := &http.Server{
-		Addr:    "localhost:6389",
-		Handler: mux,
-	}
-	go log.Fatal(httpSrv.ListenAndServe())
-}
-
-
 func startCgiServer(domain, httpsAddr, httpAddr string) {
 
 	state := MakeState("__local", "")
@@ -4429,7 +4421,7 @@ func startCgiServer(domain, httpsAddr, httpAddr string) {
 		CallbacksCh: make(chan Callback),
 		Index:       0,
 	}
-	state.IsTop = true
+	state.IsTopOfOwnGoroutine = true
 	state.Out = os.Stdout
 
 	mux := http.NewServeMux()
@@ -4454,6 +4446,7 @@ func startCgiServer(domain, httpsAddr, httpAddr string) {
 		evalState.CallingParent = nil
 		evalState.LexicalParent = state
 		evalState.Out = w
+		evalState.DoneCh = make(chan int)
 
 		state.AddCallback(Callback{
 			State:        evalState,
