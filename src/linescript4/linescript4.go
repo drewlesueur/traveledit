@@ -1361,6 +1361,12 @@ func initBuiltins() {
 		"endsWith": makeBuiltin_2_1(func(a, b any) any {
 			return strings.HasSuffix(a.(string), b.(string))
 		}),
+		"trimPrefix": makeBuiltin_2_1(func(a, b any) any {
+			return strings.TrimPrefix(a.(string), b.(string))
+		}),
+		"trimSuffix": makeBuiltin_2_1(func(a, b any) any {
+			return strings.TrimSuffix(a.(string), b.(string))
+		}),
 		"upper": makeBuiltin_1_1(func(a any) any {
 			return strings.ToUpper(a.(string))
 		}),
