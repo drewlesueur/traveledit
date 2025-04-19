@@ -11,6 +11,8 @@ button to increase or decrease number
 allow graphs and visualizations
 
 issue with streaming chatgpt after refresh
+
+remove the thumbscript4 logs at startup
 -->
 <html>
 <head>
@@ -390,6 +392,7 @@ They get changed later on.
     <div class=middleButton onclick=runChatGPT('gpt-4.1-mini')>4.1 mini</div>
     <div class=middleButton onclick="runChatGPT('gpt-4.1-mini', {extra: onlyCode})">4.1 mini code</div>
     <div class=square onclick="window.open(location.origin+location.pathname+'/saveload?browser=1&fullpath=' + encodeURIComponent(fx.fullPath))">open browser</div>
+    <div class=middleButton onclick=openAtCursor()>open</div>
     <div class=middleButton onclick="runScript()">action2</div>
     <div class=middleButton onclick="runScript()">action3</div>
 </div>
@@ -4338,11 +4341,8 @@ function runScript() {
         return
     }
     
-    if (theScriptLines[0] == "#thumbscript" || theScriptLines[0] == "#ths") {
-            // lol
-            thumbscriptWorld = thumbscript4.eval(theScriptLines.join("\n"), window) // lol the window
-            // alert(thumbscriptWorld)
-            // return w.stack.pop()
+    if (false && theScriptLines[0] == "#thumbscript" || theScriptLines[0] == "#ths") {
+            // thumbscriptWorld = thumbscript4.eval(theScriptLines.join("\n"), window) // lol the window
     } else {
         // add return to the last non-empty line
         for (var i=theScriptLines.length-1; i>=0; i--) {
@@ -4365,7 +4365,7 @@ function runScript() {
     }
     
     showLog()
-    if (thumbscriptWorld) {
+    if (false && thumbscriptWorld) {
         // only one at a time for now
         logFile.thumbscriptWorld = thumbscriptWorld
     }
