@@ -1,6 +1,69 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
 
+execShell curl ("https://stg.taptosign.com/__eval", cc "?code=say%20yo")
+say
+
+
+def .yo .x
+    if x eq 3
+        return 300
+    end
+    return 200
+end
+
+say yo 32
+
+say .say .hello
+exit
+
+# [
+#     ['1 == 2' false]
+#     # ['1 == 3' true]
+#     ['true == true' true]
+#     ['true == false' false]
+#     ['1 == true' true]
+#     ['"" == false' true]
+#     ['"" == false' true]
+# ] each :v
+#     if not (eval v at 1) == (v at 2)
+#         say "#orangered fail"
+#         say "#tomato expexted" (v at 1) "to be" (v at 2)
+#     else
+#         say "#lawngreen pass"
+#     end
+# end
+
+
+let :falsy [0 0f false 0.0 "0" "0000" 0.000 "" "-friend"]
+let :truthy [1 1.1 true "false" -20 "30" 45 "friend" "7cm"]
+say ""
+truthy each :t
+    if toBool t
+        say "#lawngreen" t (getType t) "is truthy and should be"
+    else
+        say "#orangered" t (getType t) "is falsy and shouldn't be""
+    end
+end
+
+falsy each :t
+    if not toBool t
+        say "#yellow" t (getType t) "is falsy and should be"
+    else
+        say "#darkorange" t (getType t) "is truthy and shouldn't be"
+    end
+end
+# truthy each :t
+#     falsy each :f
+#         say toJson t, getType t, "==" toJson f, getType f, "------"
+#     end
+# end
+
+
+
+exit
+
+
 [1 2 3] each: say
 
 loopRange 100 115: say upper "ok", it

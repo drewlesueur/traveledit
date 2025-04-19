@@ -4183,7 +4183,7 @@ function clearLog2() {
     // debugOutput = []
     debugOutput.splice(0, debugOutput.length)
 }
-function showLog() {
+function showLog(preventFocus) {
     if (logFile == null || files.indexOf(logFile) == -1) {
         logFile = makeFile("__output", 0, "")
         logFile.fileMode = "file"
@@ -4195,30 +4195,42 @@ function showLog() {
         render()
         return
     }
-    setCurrentFile(logFile)
+    if (!preventFocus) {
+        setCurrentFile(logFile)
+    }
 }
 
-function log2() {
+function log2Internal(pre, args) {
     var logRow = []
-    for (var i=0; i<arguments.length; i++) {
-        if (typeof arguments[i] == "object") {
+    for (var i=0; i<args.length; i++) {
+        if (typeof args[i] == "object") {
             try {
-                logRow.push(JSON.stringify(arguments[i], "", "   "))
+                logRow.push(JSON.stringify(args[i], "", "   "))
             } catch (e) {
                 logRow.push("**curcular**")
             }
             continue
         }
-        logRow.push(arguments[i])
+        logRow.push(args[i])
     }
     var logLines = logRow.join(" ").split("\n")
     for (var i=0; i<logLines.length; i++) {
-        debugOutput.push(logLines[i])
+        if (!pre) {
+            debugOutput.push(logLines[i])
+        } else {
+            debugOutput.unshift(logLines[i])
+        }
     }
     if (logFile) {
         logFile.marginLeft = calcMarginLeft(logFile.lines.length)
     }
     render()
+}
+function log2() {
+    log2Internal(false, arguments)
+}
+function log2Pre() {
+    log2Internal(true, arguments)
 }
 
 
@@ -6068,13 +6080,16 @@ function processPollResponse(wrapperR) {
 var abortController = new AbortController()
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
-        // alert("aborting")
+        // log2Pre(new Date(), "aborting")
         abortController.abort()
         abortController = new AbortController()
     }
 });
-
+var pollId = 0
 function pollTerminals() {
+    pollId++
+    // showLog(true)
+    // log2Pre(new Date(), pollId, "pollTerminals")
     lastPolled = new Date()
     lastPollResponse = null
     lastPollError = null
@@ -6095,10 +6110,12 @@ function pollTerminals() {
     }).then(r => {
         return r.json()
     }).then(wrapperR => {
+        // log2Pre(new Date(), pollId, "successPoll")
         pollInFlight = false
         lastPollResponse = new Date()
         processPollResponse(wrapperR)
     }).catch(e => {
+        // log2Pre(new Date(), pollId, "failPoll")
         // todo: does an error in the prev block also go here
         // if so we need to make sure we don't double poll
         // as a double check, in the polling code if there id a request
