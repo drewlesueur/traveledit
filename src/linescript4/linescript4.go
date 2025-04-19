@@ -60,7 +60,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"golang.org/x/sys/unix"
+	// "golang.org/x/sys/unix"
 	"io"
 	"log"
 	"math"
@@ -1323,10 +1323,10 @@ func initBuiltins() {
 		"divBy": makeBuiltin_2_1(divide),
 		"toThe": makeBuiltin_2_1(pow),
 		"mod":   makeBuiltin_2_1(mod),
-		"lt":    makeBuiltin_2_1(lt),
-		"gt":    makeBuiltin_2_1(gt),
-		"lte":   makeBuiltin_2_1(lte),
-		"gte":   makeBuiltin_2_1(gte),
+		"lt":    makeBuiltin_2_1(lts),
+		"gt":    makeBuiltin_2_1(gts),
+		"lte":   makeBuiltin_2_1(ltes),
+		"gte":   makeBuiltin_2_1(gtes),
 		// TODO: lex versions
 		"is":    makeBuiltin_2_1(is),
 		"isnt":  makeBuiltin_2_1(isnt),
@@ -1850,7 +1850,7 @@ func initBuiltins() {
 		// the endEach handles the iteration!
 		// also use bufio.NewReader cuz I don't know how long each line will be
 		"readFileByLine": func(state *State) *State {
-			theIndex := -1
+			theIndex := 0
 
 			things := getArgs(state)
 			thingsVal := *things
@@ -2713,58 +2713,58 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"writePipe": func(state *State) *State {
-			timeoutMs := toIntInternal(popT(state.Vals))
-			bufSize := toIntInternal(popT(state.Vals))
-			data := popT(state.Vals).(string)
-			fifoPath := popT(state.Vals).(string)
-			go func() {
-				err := writePipe(fifoPath, []byte(data), bufSize, timeoutMs)
-				if err != nil {
-					log.Println("Error writing:", err)
-					if strings.Contains(err.Error(), "timeout") {
-						state.AddCallback(Callback{
-							State:        state,
-							ReturnValues: []any{err == nil},
-						})
-					} else {
-						panic(err)
-					}
-					return
-				}
-				state.AddCallback(Callback{
-					State:        state,
-					ReturnValues: []any{err == nil},
-				})
-			}()
-			clearFuncToken(state)
-			return nil
-		},
-		"readPipe": func(state *State) *State {
-			timeoutMs := popT(state.Vals).(int)
-			bufSize := popT(state.Vals).(int)
-			fifoPath := popT(state.Vals).(string)
-			go func() {
-				b, err := readPipe(fifoPath, bufSize, timeoutMs)
-				if err != nil {
-					if strings.Contains(err.Error(), "timeout") {
-						state.AddCallback(Callback{
-							State:        state,
-							ReturnValues: []any{""},
-						})
-					} else {
-						panic(err)
-					}
-					return
-				}
-				state.AddCallback(Callback{
-					State:        state,
-					ReturnValues: []any{string(b)},
-				})
-			}()
-			clearFuncToken(state)
-			return nil
-		},
+		// "writePipe": func(state *State) *State {
+		// 	timeoutMs := toIntInternal(popT(state.Vals))
+		// 	bufSize := toIntInternal(popT(state.Vals))
+		// 	data := popT(state.Vals).(string)
+		// 	fifoPath := popT(state.Vals).(string)
+		// 	go func() {
+		// 		err := writePipe(fifoPath, []byte(data), bufSize, timeoutMs)
+		// 		if err != nil {
+		// 			log.Println("Error writing:", err)
+		// 			if strings.Contains(err.Error(), "timeout") {
+		// 				state.AddCallback(Callback{
+		// 					State:        state,
+		// 					ReturnValues: []any{err == nil},
+		// 				})
+		// 			} else {
+		// 				panic(err)
+		// 			}
+		// 			return
+		// 		}
+		// 		state.AddCallback(Callback{
+		// 			State:        state,
+		// 			ReturnValues: []any{err == nil},
+		// 		})
+		// 	}()
+		// 	clearFuncToken(state)
+		// 	return nil
+		// },
+		// "readPipe": func(state *State) *State {
+		// 	timeoutMs := popT(state.Vals).(int)
+		// 	bufSize := popT(state.Vals).(int)
+		// 	fifoPath := popT(state.Vals).(string)
+		// 	go func() {
+		// 		b, err := readPipe(fifoPath, bufSize, timeoutMs)
+		// 		if err != nil {
+		// 			if strings.Contains(err.Error(), "timeout") {
+		// 				state.AddCallback(Callback{
+		// 					State:        state,
+		// 					ReturnValues: []any{""},
+		// 				})
+		// 			} else {
+		// 				panic(err)
+		// 			}
+		// 			return
+		// 		}
+		// 		state.AddCallback(Callback{
+		// 			State:        state,
+		// 			ReturnValues: []any{string(b)},
+		// 		})
+		// 	}()
+		// 	clearFuncToken(state)
+		// 	return nil
+		// },
 	}
 	funcBuiltin = builtins["func"]
 }
@@ -2775,15 +2775,15 @@ func getArgs(state *State) *[]any {
 }
 
 // createNamedPipe checks if the FIFO exists and creates it if it doesn't.
-func createNamedPipe(fifoPath string) error {
-	if _, err := os.Stat(fifoPath); os.IsNotExist(err) {
-		if err := unix.Mkfifo(fifoPath, 0666); err != nil {
-			return fmt.Errorf("mkfifo: %w", err)
-		}
-		fmt.Printf("FIFO created at %s\n", fifoPath)
-	}
-	return nil
-}
+// func createNamedPipe(fifoPath string) error {
+// 	if _, err := os.Stat(fifoPath); os.IsNotExist(err) {
+// 		if err := unix.Mkfifo(fifoPath, 0666); err != nil {
+// 			return fmt.Errorf("mkfifo: %w", err)
+// 		}
+// 		fmt.Printf("FIFO created at %s\n", fifoPath)
+// 	}
+// 	return nil
+// }
 
 // writePipe writes the given data to the FIFO located at fifoPath.
 // It polls for the FIFO to be writable for up to timeoutMs milliseconds.
@@ -2888,85 +2888,85 @@ func createNamedPipe(fifoPath string) error {
 
 // writePipe writes the given data to the FIFO located at fifoPath.
 // It opens the FIFO in non-blocking mode and writes the data to it, with a timeout.
-func writePipe(fifoPath string, data []byte, bufSize int, timeoutMs int) error {
-	// Ensure the FIFO exists.
-	if err := createNamedPipe(fifoPath); err != nil {
-		return fmt.Errorf("writePipe: create error: %v", err)
-	}
-
-	timeout := time.Duration(timeoutMs) * time.Millisecond
-	deadline := time.Now().Add(timeout)
-
-	var fd int
-	var err error
-
-	// Try to open the FIFO in non-blocking mode until timeout is reached.
-	for {
-		// fd, err = unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
-		fd, err = unix.Open(fifoPath, unix.O_WRONLY, 0)
-		if err == nil {
-			// Successfully opened; exit the loop.
-			break
-		}
-
-		if time.Now().After(deadline) {
-			return fmt.Errorf("timeout after %d ms while trying to open FIFO: %w", timeoutMs, err)
-		}
-
-		// Sleep for a short interval before retrying.
-		// time.Sleep(50 * time.Millisecond)
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	defer unix.Close(fd)
-
-	// Calculate remaining timeout for the poll.
-	remainingMs := int(time.Until(deadline).Milliseconds())
-
-	if false {
-
-		// Set up the pollfd structure to wait for write readiness.
-		pfds := []unix.PollFd{
-			{
-				Fd:     int32(fd),
-				Events: unix.POLLOUT,
-			},
-		}
-
-		// Poll for write readiness with the remaining timeout.
-		n, err := unix.Poll(pfds, remainingMs)
-		if err != nil {
-			return fmt.Errorf("writePipe poll: %w", err)
-		}
-		if n == 0 {
-			return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
-		}
-	}
-
-	// Write the data to the FIFO.
-
-	// fill up the buffer for simplicity, every message takes up buffer size
-	if len(data) < bufSize {
-		wrapped := make([]byte, bufSize)
-		for i := len(data); i < bufSize; i++ {
-			wrapped[i] = ' '
-		}
-		copy(wrapped, data)
-		data = wrapped
-	}
-
-	nWritten, err := unix.Write(fd, data)
-	if err != nil {
-		log.Println("writePipe: write error", err)
-		return fmt.Errorf("write: %w", err)
-	}
-	if nWritten != len(data) {
-		log.Println("writePipe: incomplete error", err)
-		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
-	}
-	fmt.Println("successfully wrote", string(data))
-	return nil
-}
+// func writePipe(fifoPath string, data []byte, bufSize int, timeoutMs int) error {
+// 	// Ensure the FIFO exists.
+// 	if err := createNamedPipe(fifoPath); err != nil {
+// 		return fmt.Errorf("writePipe: create error: %v", err)
+// 	}
+// 
+// 	timeout := time.Duration(timeoutMs) * time.Millisecond
+// 	deadline := time.Now().Add(timeout)
+// 
+// 	var fd int
+// 	var err error
+// 
+// 	// Try to open the FIFO in non-blocking mode until timeout is reached.
+// 	for {
+// 		// fd, err = unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
+// 		fd, err = unix.Open(fifoPath, unix.O_WRONLY, 0)
+// 		if err == nil {
+// 			// Successfully opened; exit the loop.
+// 			break
+// 		}
+// 
+// 		if time.Now().After(deadline) {
+// 			return fmt.Errorf("timeout after %d ms while trying to open FIFO: %w", timeoutMs, err)
+// 		}
+// 
+// 		// Sleep for a short interval before retrying.
+// 		// time.Sleep(50 * time.Millisecond)
+// 		time.Sleep(500 * time.Millisecond)
+// 	}
+// 
+// 	defer unix.Close(fd)
+// 
+// 	// Calculate remaining timeout for the poll.
+// 	remainingMs := int(time.Until(deadline).Milliseconds())
+// 
+// 	if false {
+// 
+// 		// Set up the pollfd structure to wait for write readiness.
+// 		pfds := []unix.PollFd{
+// 			{
+// 				Fd:     int32(fd),
+// 				Events: unix.POLLOUT,
+// 			},
+// 		}
+// 
+// 		// Poll for write readiness with the remaining timeout.
+// 		n, err := unix.Poll(pfds, remainingMs)
+// 		if err != nil {
+// 			return fmt.Errorf("writePipe poll: %w", err)
+// 		}
+// 		if n == 0 {
+// 			return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
+// 		}
+// 	}
+// 
+// 	// Write the data to the FIFO.
+// 
+// 	// fill up the buffer for simplicity, every message takes up buffer size
+// 	if len(data) < bufSize {
+// 		wrapped := make([]byte, bufSize)
+// 		for i := len(data); i < bufSize; i++ {
+// 			wrapped[i] = ' '
+// 		}
+// 		copy(wrapped, data)
+// 		data = wrapped
+// 	}
+// 
+// 	nWritten, err := unix.Write(fd, data)
+// 	if err != nil {
+// 		log.Println("writePipe: write error", err)
+// 		return fmt.Errorf("write: %w", err)
+// 	}
+// 	if nWritten != len(data) {
+// 		log.Println("writePipe: incomplete error", err)
+// 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
+// 	}
+// 	fmt.Println("successfully wrote", string(data))
+// 	return nil
+// }
 
 // I sometimes get missed writes??! and no error?
 // this code is racey?
@@ -3004,47 +3004,47 @@ func writePipe(fifoPath string, data []byte, bufSize int, timeoutMs int) error {
 // readPipe reads up to bufSize bytes from the FIFO located at fifoPath.
 // It polls for the FIFO to have data (readable) for up to timeoutMs milliseconds.
 // Returns the read bytes along with any error.
-func readPipe(fifoPath string, bufSize int, timeoutMs int) ([]byte, error) {
-	// Ensure the FIFO exists.
-	if err := createNamedPipe(fifoPath); err != nil {
-		return nil, err
-	}
-
-	// Open the FIFO in non-blocking read-only mode.
-	// fd, err := unix.Open(fifoPath, unix.O_RDONLY|unix.O_NONBLOCK, 0)
-	fd, err := unix.Open(fifoPath, unix.O_RDONLY, 0)
-	if err != nil {
-		return nil, fmt.Errorf("open: %w", err)
-	}
-	defer unix.Close(fd)
-	if false {
-		// Set up the pollfd structure to wait for read readiness.
-		pfds := []unix.PollFd{
-			{
-				Fd:     int32(fd),
-				Events: unix.POLLIN,
-			},
-		}
-
-		// Poll for read readiness with the specified timeout.
-		n, err := unix.Poll(pfds, timeoutMs)
-		if err != nil {
-			return nil, fmt.Errorf("poll: %w", err)
-		}
-		if n == 0 {
-			return nil, fmt.Errorf("timeout after %d ms, no data received", timeoutMs)
-		}
-	}
-
-	// Read from the FIFO.
-	buf := make([]byte, bufSize)
-	nRead, err := unix.Read(fd, buf)
-	if err != nil {
-		return nil, fmt.Errorf("read: %w", err)
-	}
-
-	return buf[:nRead], nil
-}
+// func readPipe(fifoPath string, bufSize int, timeoutMs int) ([]byte, error) {
+// 	// Ensure the FIFO exists.
+// 	if err := createNamedPipe(fifoPath); err != nil {
+// 		return nil, err
+// 	}
+// 
+// 	// Open the FIFO in non-blocking read-only mode.
+// 	// fd, err := unix.Open(fifoPath, unix.O_RDONLY|unix.O_NONBLOCK, 0)
+// 	fd, err := unix.Open(fifoPath, unix.O_RDONLY, 0)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("open: %w", err)
+// 	}
+// 	defer unix.Close(fd)
+// 	if false {
+// 		// Set up the pollfd structure to wait for read readiness.
+// 		pfds := []unix.PollFd{
+// 			{
+// 				Fd:     int32(fd),
+// 				Events: unix.POLLIN,
+// 			},
+// 		}
+// 
+// 		// Poll for read readiness with the specified timeout.
+// 		n, err := unix.Poll(pfds, timeoutMs)
+// 		if err != nil {
+// 			return nil, fmt.Errorf("poll: %w", err)
+// 		}
+// 		if n == 0 {
+// 			return nil, fmt.Errorf("timeout after %d ms, no data received", timeoutMs)
+// 		}
+// 	}
+// 
+// 	// Read from the FIFO.
+// 	buf := make([]byte, bufSize)
+// 	nRead, err := unix.Read(fd, buf)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("read: %w", err)
+// 	}
+// 
+// 	return buf[:nRead], nil
+// }
 
 // func main() {
 // 	// Set the parameters.
@@ -3621,20 +3621,15 @@ var mod = makeMather(
 // lt returns whether a is less than b.
 var lt = makeMather(
 	func(a, b int) any {
-		fmt.Println("#aqua lt int", a, b)
 		return a < b
 	},
 	func(a, b float64) any {
-		fmt.Println("#thistle int", a, b)
 		return a < b
 	},
 	func(a, b string) any {
 		return LessThan(a, b)
 	},
 )
-
-
-
 
 // gt returns whether a is greater than b.
 var gt = makeMather(
@@ -3675,31 +3670,66 @@ var gte = makeMather(
 	},
 )
 
-// is returns whether a equals b.
-var is = makeMather(
+// lt returns whether a is less than b.
+var lts = makeMather(
 	func(a, b int) any {
-		return a == b
+		return a < b
 	},
 	func(a, b float64) any {
-		return a == b
+		return a < b
 	},
 	func(a, b string) any {
-		return a == b
+		return a < b
 	},
 )
 
-// isnt returns whether a is not equal to b.
-var isnt = makeMather(
+// gt returns whether a is greater than b.
+var gts = makeMather(
 	func(a, b int) any {
-		return a != b
+		return a > b
 	},
 	func(a, b float64) any {
-		return a != b
+		return a > b
 	},
 	func(a, b string) any {
-		return a != b
+		return a > b
 	},
 )
+
+// lte returns whether a is less than or equal to b.
+var ltes = makeMather(
+	func(a, b int) any {
+		return a <= b
+	},
+	func(a, b float64) any {
+		return a <= b
+	},
+	func(a, b string) any {
+		return a <= b
+	},
+)
+
+// gte returns whether a is greater than or equal to b.
+var gtes = makeMather(
+	func(a, b int) any {
+		return a >= b
+	},
+	func(a, b float64) any {
+		return a >= b
+	},
+	func(a, b string) any {
+		return a >= b
+	},
+)
+
+// is returns whether a equals b.
+var is = func(a, b any) any {
+	return a == b
+}
+var isnt = func(a, b any) any {
+	return a != b
+}
+
 
 // is returns whether a equals b.
 var eq = makeMather(
@@ -3723,7 +3753,7 @@ var neq = makeMather(
 		return a != b
 	},
 	func(a, b string) any {
-		return! Equal(a, b)
+		return !Equal(a, b)
 	},
 )
 
