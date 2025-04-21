@@ -50,6 +50,10 @@ package main
 // newer version can try more child states, and not so many stacks?
 // less performant?
 
+// alternate indention ui for params
+// too much caching on GoUpCache (what about dynamic jumps?)
+// it, dupit, nowMs don't need to be immediates anymore? because of func stack?
+
 import (
 	"bufio"
 	"bytes"
@@ -60,6 +64,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	// "golang.org/x/sys/unix"
 	"io"
 	"log"
@@ -77,8 +82,8 @@ import (
 	"sync"
 	"time"
 
-  	"golang.org/x/crypto/acme/autocert"
-    "github.com/fsnotify/fsnotify"
+	"github.com/fsnotify/fsnotify"
+	"golang.org/x/crypto/acme/autocert"
 )
 
 type FindMatchingResult struct {
@@ -129,10 +134,10 @@ type Machine struct {
 // debate with child states vs different Stacks
 // Still have child states
 type State struct {
-	FileName           string
-	I                  int
-	Code               string
-	CachedTokens       []*TokenCacheValue
+	FileName     string
+	I            int
+	Code         string
+	CachedTokens []*TokenCacheValue
 	// TODO: I think we can get rid of Mode and ModeStack
 	Mode               string
 	ModeStack          []string
@@ -150,26 +155,26 @@ type State struct {
 	FuncTokenSpots     []int // position of the first "argument" in vals, even tho it can grab from earlier
 	FuncTokenSpotStack [][]int
 
-	NewlineSpot int
-	InCurrentCall bool
+	NewlineSpot              int
+	InCurrentCall            bool
 	CloseParensAfterLastCall bool
 
 	LexicalParent *State
 	CallingParent *State
 	DebugTokens   bool
 
-	Done          bool
-	Canceled      bool // need this?
-	Waiters       []*State
-	IsTopOfOwnGoroutine         bool
-	IsMainTop bool
-	AsyncChildren map[int]*State // needed? alternative, find all children whos asyncTop is that state? but still need children?
+	Done                bool
+	Canceled            bool // need this?
+	Waiters             []*State
+	IsTopOfOwnGoroutine bool
+	IsMainTop           bool
+	AsyncChildren       map[int]*State // needed? alternative, find all children whos asyncTop is that state? but still need children?
 	// Deadline time.Time
 
 	Out io.Writer
 
 	Machine *Machine
-	DoneCh chan int
+	DoneCh  chan int
 }
 
 func (state *State) AddCallback(callback Callback) {
@@ -178,7 +183,7 @@ func (state *State) AddCallback(callback Callback) {
 	}()
 }
 func (state *State) Wait() {
-    <-state.DoneCh
+	<-state.DoneCh
 }
 
 func MakeState(fileName, code string) *State {
@@ -200,9 +205,9 @@ func MakeState(fileName, code string) *State {
 		ValsStack:          nil,
 		EndStack:           nil,
 		Vars:               map[string]any{},
-		CurrFuncTokens:      nil,
+		CurrFuncTokens:     nil,
 		FuncTokenStack:     nil,
-		FuncTokenSpots:      nil,
+		FuncTokenSpots:     nil,
 		FuncTokenSpotStack: nil,
 
 		NewlineSpot: -1,
@@ -225,13 +230,13 @@ var httpAddr string
 var domain string
 var cgiUrl string
 
-// func init() {
-//     c := make(chan int)
-//     go func() {
-//        fmt.Println("eternal....")
-//        <- c
-//     }()
-// }
+//	func init() {
+//	    c := make(chan int)
+//	    go func() {
+//	       fmt.Println("eternal....")
+//	       <- c
+//	    }()
+//	}
 func main() {
 	cgi := flag.Bool("cgi", false, "Start cgi server")
 	flag.StringVar(&httpsAddr, "httpsaddr", ":443", "address for http")
@@ -241,7 +246,7 @@ func main() {
 
 	cgiUrl = "https://" + domain
 	if httpsAddr != ":443" {
-	    cgiUrl += httpsAddr
+		cgiUrl += httpsAddr
 	}
 
 	if *cgi {
@@ -292,7 +297,7 @@ func main() {
 	code := string(data)
 	// fmt.Println(code)
 	// TODO: init caches here?
-	state := MakeState(fileName, code + "\n")
+	state := MakeState(fileName, code+"\n")
 	state.Machine = &Machine{
 		CallbacksCh: make(chan Callback),
 		Index:       0,
@@ -314,7 +319,7 @@ func main() {
 	// if strings come from source then we can cache it, but not worth it
 
 	// see "eval" implementation,
-	evalState := MakeState("__stdlib", stdlib + "\n")
+	evalState := MakeState("__stdlib", stdlib+"\n")
 	evalState.Machine = state.Machine
 	evalState.Vals = state.Vals
 	evalState.Vars = state.Vars
@@ -338,7 +343,6 @@ func debugStateI(state *State, endI int) {
 	fmt.Println("state:", toJson(startI), toJson(state.Code[startI:endI]))
 }
 
-
 func Eval(state *State) *State {
 	var origState = state
 	defer func() {
@@ -357,28 +361,28 @@ evalLoop:
 			return nil
 		}
 		if state.InCurrentCall {
-		    // essentially closing all the implied parens (lite)
-		    // oldState := state
-		    state = callFunc(state)
-		    continue
+			// essentially closing all the implied parens (lite)
+			// oldState := state
+			state = callFunc(state)
+			continue
 		}
-	    if state.CloseParensAfterLastCall && !state.InCurrentCall {
-	        // see ")"
-	        oldMode := state.Mode
-	        state.CloseParensAfterLastCall = false
-		    state.Mode = state.ModeStack[len(state.ModeStack)-1]
-		    state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
-		    state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
-		    state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-		    state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
-		    state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
+		if state.CloseParensAfterLastCall && !state.InCurrentCall {
+			// see ")"
+			oldMode := state.Mode
+			state.CloseParensAfterLastCall = false
+			state.Mode = state.ModeStack[len(state.ModeStack)-1]
+			state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
+			state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
+			state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
+			state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
+			state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
 
-  	        if oldMode == "array" {
-			    myArr := state.Vals
-			    state.Vals = state.ValsStack[len(state.ValsStack)-1]
-			    state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
+			if oldMode == "array" {
+				myArr := state.Vals
+				state.Vals = state.ValsStack[len(state.ValsStack)-1]
+				state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
 				pushT(state.Vals, myArr)
-  		    } else if oldMode == "object" {
+			} else if oldMode == "object" {
 				myObj := map[string]any{}
 				for i := 0; i < len(*state.Vals); i += 2 {
 					key := (*state.Vals)[i]
@@ -389,14 +393,14 @@ evalLoop:
 				state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
 
 				pushT(state.Vals, myObj)
-  		    }
+			}
 
-		    continue
-	    }
+			continue
+		}
 		token, name := nextToken(state)
 		// #cyan
 		if state.DebugTokens {
-		// fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
+			// fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
 			appendFile("delme_tokens.txt", fmt.Sprintf("token: %q       %T (%s:%d/%d)\n", name, token, state.FileName, state.I, len(state.Code)-1))
 		}
 		_ = name
@@ -405,14 +409,14 @@ evalLoop:
 			o := state
 			state = token(state)
 			if o.Done && o.IsMainTop {
-		    	// this so we don't have to explicitly exit
-		    	break evalLoop
+				// this so we don't have to explicitly exit
+				break evalLoop
 			}
 			if state == nil {
 				if o.Done {
 					// for now we only close if new state is nil
 					// we could close even if new state is not nil
-					
+
 					// fmt.Println("#crimson ending!", o.I)
 					for _, w := range o.Waiters {
 						o.AddCallback(Callback{
@@ -421,7 +425,7 @@ evalLoop:
 						})
 					}
 					o.Waiters = nil
-					
+
 				}
 				// need another state, let's get one from callback channel
 				// fmt.Println("#yellow waiting for new state")
@@ -440,8 +444,8 @@ evalLoop:
 		case builtinFuncToken:
 			state.CurrFuncTokens = append(state.CurrFuncTokens, token)
 			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
-	    // case builtinToken:
-	        // ??
+			// case builtinToken:
+			// ??
 		case getVarToken:
 			evaled := getVar(state, string(token))
 			pushT(state.Vals, evaled)
@@ -540,7 +544,7 @@ func callFunc(state *State) *State {
 	state.CurrFuncTokens = state.CurrFuncTokens[:len(state.CurrFuncTokens)-1]
 	state.FuncTokenSpots = state.FuncTokenSpots[:len(state.FuncTokenSpots)-1]
 	if len(state.CurrFuncTokens) == 0 {
-	    state.InCurrentCall = false
+		state.InCurrentCall = false
 	}
 
 	// if state.ImpliedParenCount > 0 {
@@ -703,9 +707,9 @@ func makeToken(state *State, val string) any {
 	}
 	if f, ok := runImmediates[val]; ok {
 		// if state.Mode == "normal" {
-			return immediateToken(f)
+		return immediateToken(f)
 		// } else {
-			// return immediateToken(noop)
+		// return immediateToken(noop)
 		// }
 	}
 	if b, ok := builtins[val]; ok {
@@ -728,7 +732,7 @@ func makeToken(state *State, val string) any {
 		// }
 	}
 	// string shortcut, maybe phase out : for . ?
-	if val[0] == ':'  || val[0] == '.' {
+	if val[0] == ':' || val[0] == '.' {
 		if len(val) == 1 {
 			// panic("skipping!!")
 			// return Skip("")
@@ -766,6 +770,8 @@ func makeToken(state *State, val string) any {
 		return false
 	case "newline":
 		return "\n"
+	case "formFeed":
+		return "\f"
 	case "carriageReturn":
 		return "\r"
 	case "crlf":
@@ -1020,7 +1026,7 @@ func initBuiltins() {
 					return state
 				}
 			}
-            oldState.CloseParensAfterLastCall = true
+			oldState.CloseParensAfterLastCall = true
 			return state
 		},
 		"[": func(state *State) *State {
@@ -1051,7 +1057,7 @@ func initBuiltins() {
 					return state
 				}
 			}
-            oldState.CloseParensAfterLastCall = true
+			oldState.CloseParensAfterLastCall = true
 
 			return state
 		},
@@ -1081,7 +1087,7 @@ func initBuiltins() {
 					return state
 				}
 			}
-            oldState.CloseParensAfterLastCall = true
+			oldState.CloseParensAfterLastCall = true
 
 			return state
 		},
@@ -1155,7 +1161,7 @@ func initBuiltins() {
 		// -- __
 		"now":       makeBuiltin_0_1(now),
 		"nowMillis": makeBuiltin_0_1(now),
-		"nowMs": makeBuiltin_0_1(now),
+		"nowMs":     makeBuiltin_0_1(now),
 		"nowSeconds": makeBuiltin_0_1(func() any {
 			return int(time.Now().Unix())
 		}),
@@ -1331,8 +1337,8 @@ func initBuiltins() {
 		"is":    makeBuiltin_2_1(is),
 		"isnt":  makeBuiltin_2_1(isnt),
 		"eq":    makeBuiltin_2_1(eq),
-		"neq":  makeBuiltin_2_1(neq),
-		"!=":  makeBuiltin_2_1(neq),
+		"neq":   makeBuiltin_2_1(neq),
+		"!=":    makeBuiltin_2_1(neq),
 		"==":    makeBuiltin_2_1(eq),
 		"round": makeBuiltin_2_1(round),
 
@@ -1376,7 +1382,7 @@ func initBuiltins() {
 		"toString": makeBuiltin_1_1(toString),
 		"toInt":    makeBuiltin_1_1(toInt),
 		"toFloat":  makeBuiltin_1_1(toFloat),
-		"toBool":  makeBuiltin_1_1(toBool),
+		"toBool":   makeBuiltin_1_1(toBool),
 		"say": func(state *State) *State {
 			things := getArgs(state)
 			thingsVal := *things
@@ -1467,10 +1473,55 @@ func initBuiltins() {
 		"deleteProp":  makeBuiltin_2_0(deleteProp),
 		"keys":        makeBuiltin_1_1(keys),
 		"interpolate": makeBuiltin_2_1(interpolate),
+		"unquote": makeBuiltin_1_1(func(a any) any {
+			q := a.(string)
+			r, err := strconv.Unquote(q)
+			if err != nil {
+				return ""
+			}
+			return r
+		}),
+		"tcpConnect": makeBuiltin_1_1(func(a any) any {
+			conn, err := net.Dial("tcp", a.(string))
+			if err != nil {
+				panic(err)
+			}
+			return conn
+		}),
+		"tcpClose": makeBuiltin_1_0(func(a any) {
+			a.(net.Conn).Close()
+		}),
+		"tcpWrite": makeBuiltin_2_0(func(a, b any) {
+			bts := []byte(toStringInternal(b))
+			n, err := a.(net.Conn).Write(bts)
+			if err != nil {
+				panic(err)
+			}
+			if n != len(bts) {
+				panic("short write")
+			}
+		}),
+		"tcpRead": makeBuiltin_2_1(func(a, b any) any {
+			buf := make([]byte, toIntInternal(b))
+			n, err := a.(net.Conn).Read(buf)
+			if err != nil {
+				if err == io.EOF {
+				} else {
+					panic("short write")
+				}
+			}
+			return string(buf[:n])
+		}),
 		"fromJson": makeBuiltin_1_1(func(a any) any {
 			j := a.(string)
 			var r any
-			json.Unmarshal([]byte(j), &r)
+			err := json.Unmarshal([]byte(j), &r)
+			if err != nil {
+				panic(err)
+			}
+			if r, ok := r.([]any); ok {
+				return &r
+			}
 			return r
 		}),
 		"toJson": makeBuiltin_1_1(func(a any) any {
@@ -2270,12 +2321,12 @@ func initBuiltins() {
 			thingsVal := *things
 			thingsString := make([]string, len(thingsVal))
 			for i, v := range thingsVal {
-			    thingsString[i] = toStringInternal(v)
+				thingsString[i] = toStringInternal(v)
 			}
 			name := thingsString[0]
 			var args []string
 			if len(thingsString) > 1 {
-			    args = thingsString[1:]
+				args = thingsString[1:]
 			}
 			cmd := exec.Command(name, args...)
 			cmdOutput, err := cmd.Output()
@@ -2402,6 +2453,7 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		// todo rename
 		"writeFile": func(state *State) *State {
 			contents := popT(state.Vals).(string)
 			fileName := popT(state.Vals).(string)
@@ -2420,44 +2472,43 @@ func initBuiltins() {
 			timeoutMs := toIntInternal(popT(state.Vals))
 			dir := popT(state.Vals).(string)
 
-            watcher, err := fsnotify.NewWatcher()
-            if err != nil {
-                panic(err)
-            }
-            defer watcher.Close()
+			watcher, err := fsnotify.NewWatcher()
+			if err != nil {
+				panic(err)
+			}
+			defer watcher.Close()
 
-            err = watcher.Add(dir)
-            if err != nil {
-                panic(err)
-            }
+			err = watcher.Add(dir)
+			if err != nil {
+				panic(err)
+			}
 
-            timer := time.NewTimer(time.Duration(timeoutMs) * time.Millisecond)
-            defer timer.Stop()
+			timer := time.NewTimer(time.Duration(timeoutMs) * time.Millisecond)
+			defer timer.Stop()
 
-            for {
-                select {
-                case event, ok := <-watcher.Events:
-                    if !ok {
-                        panic(fmt.Errorf("watcher events channel closed"))
-                    }
-                    if event.Op&fsnotify.Create == fsnotify.Create {
-                        fmt.Println("New file detected:", event.Name)
-			            pushT(state.Vals, event.Name)
-                    }
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					if !ok {
+						panic(fmt.Errorf("watcher events channel closed"))
+					}
+					if event.Op&fsnotify.Create == fsnotify.Create {
+						fmt.Println("New file detected:", event.Name)
+						pushT(state.Vals, event.Name)
+					}
 
-                case err, ok := <-watcher.Errors:
-                    if !ok {
-                        panic(fmt.Errorf("watcher errors channel closed"))
-                    }
-                    panic(fmt.Errorf("watcher error: %w", err))
+				case err, ok := <-watcher.Errors:
+					if !ok {
+						panic(fmt.Errorf("watcher errors channel closed"))
+					}
+					panic(fmt.Errorf("watcher error: %w", err))
 
-                case <-timer.C:
-                    panic(fmt.Errorf("timeout: no file created within %d", timeoutMs))
-			        return state
-                }
-            }
+				case <-timer.C:
+					panic(fmt.Errorf("timeout: no file created within %d", timeoutMs))
+					return state
+				}
+			}
 			return state
-
 
 		},
 		"gunzip": func(state *State) *State {
@@ -2588,25 +2639,25 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		"sleep": sleepMs,
+		"sleep":   sleepMs,
 		"sleepMs": sleepMs,
-		"pause": func (state *State) *State {
-            return nil
-        },
-		"resume": func (state *State) *State {
+		"pause": func(state *State) *State {
+			return nil
+		},
+		"resume": func(state *State) *State {
 			things := getArgs(state)
 			thingsVal := *things
 			state.AddCallback(Callback{
 				State:        thingsVal[0].(*State),
 				ReturnValues: *slice(things, 2, -1).(*[]any),
 			})
-            return state
-        },
+			return state
+		},
 		"eval": func(state *State) *State {
 			code := popT(state.Vals).(string)
 			// fmt.Println(unsafe.Pointer(&code))
 			// if strings come from source then we can cache it, but not worth it
-			evalState := MakeState("__eval", code + "\n")
+			evalState := MakeState("__eval", code+"\n")
 			evalState.Machine = state.Machine
 			evalState.Vals = state.Vals
 			evalState.Vars = state.Vars
@@ -2893,13 +2944,13 @@ func getArgs(state *State) *[]any {
 // 	if err := createNamedPipe(fifoPath); err != nil {
 // 		return fmt.Errorf("writePipe: create error: %v", err)
 // 	}
-// 
+//
 // 	timeout := time.Duration(timeoutMs) * time.Millisecond
 // 	deadline := time.Now().Add(timeout)
-// 
+//
 // 	var fd int
 // 	var err error
-// 
+//
 // 	// Try to open the FIFO in non-blocking mode until timeout is reached.
 // 	for {
 // 		// fd, err = unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
@@ -2908,23 +2959,23 @@ func getArgs(state *State) *[]any {
 // 			// Successfully opened; exit the loop.
 // 			break
 // 		}
-// 
+//
 // 		if time.Now().After(deadline) {
 // 			return fmt.Errorf("timeout after %d ms while trying to open FIFO: %w", timeoutMs, err)
 // 		}
-// 
+//
 // 		// Sleep for a short interval before retrying.
 // 		// time.Sleep(50 * time.Millisecond)
 // 		time.Sleep(500 * time.Millisecond)
 // 	}
-// 
+//
 // 	defer unix.Close(fd)
-// 
+//
 // 	// Calculate remaining timeout for the poll.
 // 	remainingMs := int(time.Until(deadline).Milliseconds())
-// 
+//
 // 	if false {
-// 
+//
 // 		// Set up the pollfd structure to wait for write readiness.
 // 		pfds := []unix.PollFd{
 // 			{
@@ -2932,7 +2983,7 @@ func getArgs(state *State) *[]any {
 // 				Events: unix.POLLOUT,
 // 			},
 // 		}
-// 
+//
 // 		// Poll for write readiness with the remaining timeout.
 // 		n, err := unix.Poll(pfds, remainingMs)
 // 		if err != nil {
@@ -2942,9 +2993,9 @@ func getArgs(state *State) *[]any {
 // 			return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
 // 		}
 // 	}
-// 
+//
 // 	// Write the data to the FIFO.
-// 
+//
 // 	// fill up the buffer for simplicity, every message takes up buffer size
 // 	if len(data) < bufSize {
 // 		wrapped := make([]byte, bufSize)
@@ -2954,7 +3005,7 @@ func getArgs(state *State) *[]any {
 // 		copy(wrapped, data)
 // 		data = wrapped
 // 	}
-// 
+//
 // 	nWritten, err := unix.Write(fd, data)
 // 	if err != nil {
 // 		log.Println("writePipe: write error", err)
@@ -3009,7 +3060,7 @@ func getArgs(state *State) *[]any {
 // 	if err := createNamedPipe(fifoPath); err != nil {
 // 		return nil, err
 // 	}
-// 
+//
 // 	// Open the FIFO in non-blocking read-only mode.
 // 	// fd, err := unix.Open(fifoPath, unix.O_RDONLY|unix.O_NONBLOCK, 0)
 // 	fd, err := unix.Open(fifoPath, unix.O_RDONLY, 0)
@@ -3025,7 +3076,7 @@ func getArgs(state *State) *[]any {
 // 				Events: unix.POLLIN,
 // 			},
 // 		}
-// 
+//
 // 		// Poll for read readiness with the specified timeout.
 // 		n, err := unix.Poll(pfds, timeoutMs)
 // 		if err != nil {
@@ -3035,14 +3086,14 @@ func getArgs(state *State) *[]any {
 // 			return nil, fmt.Errorf("timeout after %d ms, no data received", timeoutMs)
 // 		}
 // 	}
-// 
+//
 // 	// Read from the FIFO.
 // 	buf := make([]byte, bufSize)
 // 	nRead, err := unix.Read(fd, buf)
 // 	if err != nil {
 // 		return nil, fmt.Errorf("read: %w", err)
 // 	}
-// 
+//
 // 	return buf[:nRead], nil
 // }
 
@@ -3358,13 +3409,13 @@ func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fStr
 			case bool:
 				var bInt int
 				if b {
-				    bInt = 1
+					bInt = 1
 				}
 				return fInt(a, bInt)
 			case nil:
 				return fInt(a, 0)
 			default:
-			    panic("unknown type A")
+				panic("unknown type A")
 				return 0
 			}
 		case float64:
@@ -3378,17 +3429,17 @@ func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fStr
 			case bool:
 				var aInt int
 				if a != 0 {
-				    aInt = 1
+					aInt = 1
 				}
 				var bInt int
 				if b {
-				    bInt = 1
+					bInt = 1
 				}
 				return fInt(aInt, bInt)
 			case nil:
 				return fFloat(a, 0)
 			default:
-			    panic("unknown type B")
+				panic("unknown type B")
 				return 0
 			}
 		case string:
@@ -3402,23 +3453,23 @@ func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fStr
 			case bool:
 				var aInt int
 				if !Equal(a, "0") {
-				    aInt = 1
+					aInt = 1
 				}
 				var bInt int
 				if b {
-				    bInt = 1
+					bInt = 1
 				}
 				return fInt(aInt, bInt)
 			case nil:
 				return fString(a, "")
 			default:
-			    panic("unknown type B")
+				panic("unknown type B")
 				return 0
 			}
 		case bool:
 			var aInt int
 			if a {
-			    aInt = 1
+				aInt = 1
 			}
 			switch b := b.(type) {
 			case int:
@@ -3426,25 +3477,25 @@ func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fStr
 			case float64:
 				var bInt int
 				if b != 0 {
-				    bInt = 1
+					bInt = 1
 				}
 				return fInt(aInt, bInt)
 			case string:
 				var aString = "0"
 				if a {
-				    aString = "1"
+					aString = "1"
 				}
 				return fString(aString, b)
 			case bool:
 				var bInt int
 				if b {
-				    bInt = 1
+					bInt = 1
 				}
 				return fInt(aInt, bInt)
 			case nil:
 				return fInt(aInt, 0)
 			default:
-			    panic("unknown type C")
+				panic("unknown type C")
 				return 0
 			}
 		case nil:
@@ -3458,18 +3509,18 @@ func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fStr
 			case bool:
 				var bInt int
 				if b {
-				    bInt = 1
+					bInt = 1
 				}
 				return fInt(0, bInt)
 			case nil:
 				return fInt(0, 0)
 			default:
-			    panic("unknown type B")
+				panic("unknown type B")
 				return 0
 			}
 		default:
 			fmt.Printf("bad type lol mather: %T\n", a)
-		    panic("unknown type D " + fmt.Sprintf("%T", a))
+			panic("unknown type D " + fmt.Sprintf("%T", a))
 			return 0
 		}
 	}
@@ -3730,7 +3781,6 @@ var isnt = func(a, b any) any {
 	return a != b
 }
 
-
 // is returns whether a equals b.
 var eq = makeMather(
 	func(a, b int) any {
@@ -3853,9 +3903,9 @@ func toBool(a any) any {
 	case float64:
 		return a != 0
 	case string:
-	    if isNumeric(a) {
-	        return !Equal(a, "0")
-	    }
+		if isNumeric(a) {
+			return !Equal(a, "0")
+		}
 		return a != ""
 	case bool:
 		return a
@@ -4403,7 +4453,7 @@ func cgiHandler(w http.ResponseWriter, r *http.Request) {
 		"CONTENT_LENGTH="+r.Header.Get("Content-Length"),
 		"REQUEST_URI="+r.RequestURI,
 		"REQUEST_URI="+r.RequestURI,
-		"LS_EVAL_URL=" + cgiUrl + "/__eval",
+		"LS_EVAL_URL="+cgiUrl+"/__eval",
 	)
 
 	// Add additional HTTP headers with "HTTP_" prefix
@@ -4474,7 +4524,7 @@ func startCgiServer(domain, httpsAddr, httpAddr string) {
 			code = string(body)
 		}
 		// see "eval"
-		evalState := MakeState("__eval", code + "\n")
+		evalState := MakeState("__eval", code+"\n")
 		evalState.Machine = state.Machine
 		evalState.Vals = state.Vals
 		evalState.Vars = state.Vars
