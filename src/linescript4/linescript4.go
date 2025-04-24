@@ -1436,6 +1436,16 @@ func initBuiltins() {
 			}
 			return string(data)
 		}),
+		"base64Encode": makeBuiltin_1_1(func(a any) any {
+			return base64.StdEncoding.EncodeToString([]byte(a.(string))) 
+		}),
+		"base64Decode": makeBuiltin_1_1(func(a any) any {
+			ret, err := base64.StdEncoding.DecodeString(a.(string)) 
+			if err != nil {
+				panic(err)
+			}
+			return string(ret)
+		}),
 		"urlEncode": makeBuiltin_1_1(func(a any) any {
 			return url.PathEscape(a.(string))
 		}),
@@ -1477,7 +1487,7 @@ func initBuiltins() {
 			q := a.(string)
 			r, err := strconv.Unquote(q)
 			if err != nil {
-				return ""
+				panic(err)
 			}
 			return r
 		}),
