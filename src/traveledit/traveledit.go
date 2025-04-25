@@ -407,7 +407,7 @@ func writeWorkspaceFile(w http.ResponseWriter, r *http.Request) {
 		logAndErr(w, "marshalling for mysaveworkspace: %v", err)
 		return
 	}
-	err = ioutil.WriteFile("workspaces.json", jsonBytes, 0644)
+	err = ioutil.WriteFile(workspacesFile, jsonBytes, 0644)
 	if err != nil {
 		logAndErr(w, "saving workspaces.json: %v", err)
 		return
@@ -561,14 +561,19 @@ func addCORS(next http.Handler) http.Handler {
 	})
 }
 
+var workspacesFile = "./workspaces.json"
 func main() {
+	if os.Getenv("WORKSPACES_FILE") != "" {
+        workspacesFile = os.Getenv("WORKSPACES_FILE")
+	}
+	fmt.Println("workspaces file", workspacesFile)
 	workspaceCond = sync.NewCond(&workspaceMu)
 	onceCheckGoErrors := NewOnce()
 	// TODO: #wschange save workspace to file so ot persists
 	// TODO: secial path prefix for saving/loading files not just /
 
 	// read in the existing workspaces
-	workspacesJSON, err := ioutil.ReadFile("./workspaces.json")
+	workspacesJSON, err := ioutil.ReadFile(workspacesFile)
 	
 	
 	oneTimeLinks := map[string]string{}
@@ -1229,37 +1234,47 @@ func main() {
 						if err == nil {
 							fileData = string(data)
 						}
-						return "<file>\n    <path>" + theFilePath + "</path>\n    <the_contents>\n        " + fileData + "\n    </the_contents>\n</file>"
+						return "<<<<< Begin File " + theFilePath + " ======\n" + fileData + "\n===== End File " + theFilePath + " >>>>>\n"
 					})
-
-					content = atSignDirPathRe.ReplaceAllStringFunc(content, func(match string) string {
-					    dirPath := match[7:len(match)-1] //.@dir:""
-					    result := "<directory>\n    <path>" + dirPath + "</path>\n"
+                    var processDir func (dirPath string, parentDirPath string) string
+					processDir = func (dirPath string, parentDirPath string) string {
+					    result := "<<<<< Begin Directory " + strings.TrimPrefix(dirPath, parentDirPath) + " =====\n"
 					    entries, err := os.ReadDir(dirPath)
 					    if err == nil {
 					        for _, entry := range entries {
-					            if !entry.IsDir() {
-					                fileName := entry.Name()
-					                fullPath := filepath.Join(dirPath, fileName)
-					                data, err := os.ReadFile(fullPath)
+					            entryPath := filepath.Join(dirPath, entry.Name())
+					            if entry.IsDir() {
+					                // Recursively process the subdirectory
+					                result += processDir(entryPath, dirPath + "/")
+					            } else {
+					                // Read and include file contents
+					                data, err := os.ReadFile(entryPath)
 					                fileData := ""
 					                if err == nil {
 					                    fileData = string(data)
 					                }
-					                result += "    <file>\n        <path>" + fileName + "</path>\n        <the_contents>\n            " + fileData + "\n        </the_contents>\n    </file>\n"
+					                // result += "    <file>\n        <path>" + entry.Name() + "</path>\n        <the_contents>\n            " + fileData + "\n        </the_contents>\n    </file>\n"
+									// result += "<<<<< Begin File " + entry.Name() + " ======\n" + fileData[0:0] + "\n===== End File " + entry.Name() + " >>>>>\n"
+									result += "<<<<< Begin File " + entry.Name() + " ======\n" + fileData + "\n===== End File " + entry.Name() + " >>>>>\n"
 					            }
 					        }
 					    }
-					    result += "</directory>"
+					    // result += "===== End Directory " + dirPath + " =====\n"
+					    result += "===== End Directory " + strings.TrimPrefix(dirPath, parentDirPath) + " >>>>>\n"
 					    return result
+					}
+					content = atSignDirPathRe.ReplaceAllStringFunc(content, func(match string) string {
+					    dirPath := match[7:len(match)-1] //.@dir:""
+					    return processDir(dirPath, "")
 					})
+
+                    // debugging
+					fmt.Println("content is")
+					fmt.Println(content)
+
 					messages[i]["content"] = content
 					fmt.Println("chatgpt content:")
 					fmt.Println(content)
-
-
-
-
 				}
 				newMessagesJSON, err := json.Marshal(messages)
 				if err != nil {

@@ -690,7 +690,8 @@ func noop(state *State) *State {
 }
 
 type Reader struct {
-	Reader io.Reader
+	// Reader: io.Reader
+	io.Reader
 }
 
 // TODO: files must end in newline!
@@ -2368,6 +2369,26 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		"execBashStdout": func(state *State) *State {
+		    val := popT(state.Vals).(string)
+		    cmd := exec.Command("/bin/bash", "-c", val)
+		    stdout, err := cmd.StdoutPipe()
+		    if err != nil {
+		        fmt.Println("StdoutPipe Error:", err)
+		        pushT(state.Vals, nil)
+		        clearFuncToken(state)
+		        return state
+		    }
+		    if err := cmd.Start(); err != nil {
+		        fmt.Println("Start Error:", err)
+		        pushT(state.Vals, nil)
+		        clearFuncToken(state)
+		        return state
+		    }
+		    pushT(state.Vals, &Reader{Reader:stdout}) // Push the io.ReadCloser
+		    clearFuncToken(state)
+		    return state
+		},
 		// make a version of this that allows a reader too (as another popT)
 		// if it's a string then make a new Reader out of the string and make that the Stdin of the command
 		// If it's a Reader already then make that the Stdin of the command.
@@ -3898,13 +3919,33 @@ func not(a any) any {
 
 func say(out io.Writer, vals ...any) {
 	for i, v := range vals {
-		if i < len(vals)-1 {
-			fmt.Fprintf(out, "%s ", toString(v).(string))
+		if r, ok := v.(io.Reader); ok {
+			buf := make([]byte, 1024)
+			for {
+				n, err := r.Read(buf)
+				if n > 0 {
+					out.Write(buf[:n])
+					// time.Sleep(2 * time.Second)
+				}
+				if err != nil {
+					break
+				}
+			}
+			if i < len(vals)-1 {
+				out.Write([]byte(" "))
+			} else {
+				out.Write([]byte("\n"))
+			}
 		} else {
-			fmt.Fprintf(out, "%s\n", toString(v).(string))
+			if i < len(vals)-1 {
+				fmt.Fprintf(out, "%s ", toString(v).(string))
+			} else {
+				fmt.Fprintf(out, "%s\n", toString(v).(string))
+			}
 		}
 	}
 }
+
 
 func toBool(a any) any {
 	switch a := a.(type) {
