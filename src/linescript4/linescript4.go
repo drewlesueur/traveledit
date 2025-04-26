@@ -1530,10 +1530,25 @@ func initBuiltins() {
 			if err != nil {
 				panic(err)
 			}
-			if r, ok := r.([]any); ok {
-				return &r
+			var recursivelyPtrArrays func(any) any
+			recursivelyPtrArrays = func(x any) any {
+				switch x := x.(type) {
+				case []any:
+					// Recursively process each element
+					for i, v := range x {
+						x[i] = recursivelyPtrArrays(v)
+					}
+					return &x // Return pointer to the array
+				case map[string]any:
+					for k, v := range x {
+						x[k] = recursivelyPtrArrays(v)
+					}
+					return x
+				default:
+					return x
+				}
 			}
-			return r
+			return recursivelyPtrArrays(r)
 		}),
 		"toJson": makeBuiltin_1_1(func(a any) any {
 			b, err := json.Marshal(a)
