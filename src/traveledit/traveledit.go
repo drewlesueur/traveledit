@@ -29,9 +29,11 @@ import "encoding/hex"
 import "path/filepath"
 import "context"
 import "regexp"
+import "unicode/utf8"
 
 import "mime/multipart"
 import "net/textproto"
+
 // import "github.com/NYTimes/gziphandler"
 import "compress/gzip"
 
@@ -43,20 +45,20 @@ type SaveResponse struct {
 	Error string `json:"error"`
 }
 
-// func setCookieHandler(w http.ResponseWriter, r *http.Request) {
-//     // Create a new cookie
-//     cookie := &http.Cookie{
-//         Name:     "exampleCookie",
-//         Value:    "this is a test cookie",
-//         Path:     "/",
-//         Expires:  time.Now().Add(24 * time.Hour), // Cookie expires in 24 hours
-//         HttpOnly: true,
-//     }
-//     // Set the cookie in the response
-//     http.SetCookie(w, cookie)
-//     // Inform the client that the cookie has been set
-//     w.Write([]byte("Cookie has been set!"))
-// }
+//	func setCookieHandler(w http.ResponseWriter, r *http.Request) {
+//	    // Create a new cookie
+//	    cookie := &http.Cookie{
+//	        Name:     "exampleCookie",
+//	        Value:    "this is a test cookie",
+//	        Path:     "/",
+//	        Expires:  time.Now().Add(24 * time.Hour), // Cookie expires in 24 hours
+//	        HttpOnly: true,
+//	    }
+//	    // Set the cookie in the response
+//	    http.SetCookie(w, cookie)
+//	    // Inform the client that the cookie has been set
+//	    w.Write([]byte("Cookie has been set!"))
+//	}
 func PretendBasicAuth(r *http.Request) (string, string, bool) {
 	cookie, err := r.Cookie("pretendba")
 	if err != nil {
@@ -280,7 +282,7 @@ type HighlightMatch struct {
 }
 
 type PathDecorator struct {
-	Path           string
+	Path      string
 	Decorator string
 }
 
@@ -308,8 +310,8 @@ type File struct {
 	LineNumber int
 
 	// CSS color
-	Color string
-	Group string // group is for emoji
+	Color  string
+	Group  string // group is for emoji
 	Pinned bool
 
 	HighlightText   string // deprecated
@@ -330,24 +332,22 @@ type File struct {
 	Pty           *os.File
 	ReadBuffer    []byte
 	ChatGPTBuffer []string
-	FileErrors map[string]FileError
+	FileErrors    map[string]FileError
 	// pop
-	Closed        bool
-	Name          string
-	
-	
+	Closed bool
+	Name   string
 }
 
 type Workspace struct {
-	Files     []*File
-	Name      string
-	DarkMode  bool
+	Files       []*File
+	Name        string
+	DarkMode    bool
 	InDebugView bool
-	FontName  string
-	FontScale float64
+	FontName    string
+	FontScale   float64
 
 	HighlightMatches []*HighlightMatch
-	PathDecorators []*PathDecorator
+	PathDecorators   []*PathDecorator
 	// Weeor
 	RemotePasteBuffer string
 }
@@ -443,7 +443,7 @@ func workspaceView(w *Workspace) map[string]interface{} {
 		"FontName":         w.FontName,
 		"FontScale":        w.FontScale,
 		"HighlightMatches": w.HighlightMatches,
-		"PathDecorators": w.PathDecorators,
+		"PathDecorators":   w.PathDecorators,
 		"Files":            files,
 	}
 	return workspaceRet
@@ -524,17 +524,17 @@ var workspaces []*Workspace
 var workspace *Workspace
 
 type FileError struct {
-    Line int
-    Col int
-    Message string
+	Line    int
+	Col     int
+	Message string
 }
 type TerminalResponse struct {
 	Base64 string
 	// CWD ?? so we can keep track of directory changes
-	Error            string   `json:",omitempty"`
-	Closed           bool     `json:",omitempty"`
-	ChatGPTResponses []string `json:",omitempty"`
-	FileErrors map[string]FileError `json:",omitempty"`
+	Error            string               `json:",omitempty"`
+	Closed           bool                 `json:",omitempty"`
+	ChatGPTResponses []string             `json:",omitempty"`
+	FileErrors       map[string]FileError `json:",omitempty"`
 }
 
 var lastFileID = 0
@@ -547,7 +547,6 @@ var chatGPTShouldBeRunning = false
 
 var oneTimeLinksMu sync.Mutex
 var oneTimeLinks map[string]string
-
 
 var proxyPath *string
 
@@ -562,9 +561,10 @@ func addCORS(next http.Handler) http.Handler {
 }
 
 var workspacesFile = "./workspaces.json"
+
 func main() {
 	if os.Getenv("WORKSPACES_FILE") != "" {
-        workspacesFile = os.Getenv("WORKSPACES_FILE")
+		workspacesFile = os.Getenv("WORKSPACES_FILE")
 	}
 	fmt.Println("workspaces file", workspacesFile)
 	workspaceCond = sync.NewCond(&workspaceMu)
@@ -574,10 +574,9 @@ func main() {
 
 	// read in the existing workspaces
 	workspacesJSON, err := ioutil.ReadFile(workspacesFile)
-	
-	
+
 	oneTimeLinks := map[string]string{}
-	
+
 	if err != nil {
 		log.Printf("could not read workspaces.json: %v", err)
 	} else {
@@ -595,7 +594,7 @@ func main() {
 					InDebugView:      tmpW.InDebugView,
 					Name:             tmpW.Name,
 					HighlightMatches: tmpW.HighlightMatches,
-					PathDecorators: tmpW.PathDecorators,
+					PathDecorators:   tmpW.PathDecorators,
 				}
 				for _, f := range tmpW.Files {
 					if f.Type == "file" {
@@ -701,12 +700,10 @@ func main() {
 	}()
 
 	mux := http.NewServeMux()
-	
+
 	fs := http.FileServer(http.Dir("./public"))
 	// mux.Handle("/tepublic/", http.StripPrefix("/tepublic/", fs))
 	mux.Handle("/tepublic/", addCORS(http.StripPrefix("/tepublic/", fs)))
-    
-
 
 	publicPath2 := os.Getenv("PUBLICPATH")
 	if publicPath2 != "" {
@@ -1152,36 +1149,30 @@ func main() {
 		cwd := r.FormValue("cwd")
 		openTerminal(cwd, w)
 	})
-	
+
 	mux.HandleFunc("/cancelchatgpt", func(w http.ResponseWriter, r *http.Request) {
 		chatGPTMu.Lock()
 		defer chatGPTMu.Unlock()
-		
+
 		chatGPTShouldBeRunning = false
 	})
-	
-	
-	// atSignPathRe := regexp.MustCompile(`@(/[^\s]+)`)
-	atSignFilePathRe := regexp.MustCompile(`@`+`@file:(?:"([^"]+)"|(/[^ "]+(?: [^ "]+)*))`)
-	atSignDirPathRe := regexp.MustCompile(`@`+`@dir:(?:"([^"]+)"|(/[^ "]+(?: [^ "]+)*))`)
-	
-	
+
 	mux.HandleFunc("/chatgpt", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("got to /chatgpt endpoint")
 		chatGPTMu.Lock()
 		defer chatGPTMu.Unlock()
 		log.Println("locked the chatgptMu")
-        // fmt.Fprintf(w, "Yay chatgpt response")
-		
+		// fmt.Fprintf(w, "Yay chatgpt response")
+
 		// small race cond. between here and when we actually set to running.
 		if chatGPTIsRunning || chatGPTShouldBeRunning {
-        	fmt.Fprintf(w, "chatgpt already")
-		    return
+			fmt.Fprintf(w, "chatgpt already")
+			return
 		}
 		log.Println("chatgpt log 2.0")
-		
+
 		chatGPTShouldBeRunning = true
-		
+
 		// workspaceMu.Lock()
 		// defer workspaceMu.Unlock()
 		// return
@@ -1208,15 +1199,15 @@ func main() {
 				// find all occurances of @/path/to/file
 				// where "/path/to/file" is any file path starting with a forward slash
 				// replace it with the this snippet
-                //
+				//
 				// 	<file>
 				// 	    <path>the full path to the file<path>
 				// 	    <contents>
 				// 	        The full contents of the file.
 				// 	    </contents>
 				// 	<file>
-                //
-			 	//    Then convert back to json and assign to the messagesJSON variable
+				//
+				//    Then convert back to json and assign to the messagesJSON variable
 				var messages []map[string]any
 				if err := json.Unmarshal([]byte(messagesJSON), &messages); err != nil {
 					// handle error as needed
@@ -1227,51 +1218,7 @@ func main() {
 					if !ok {
 						continue
 					}
-					content = atSignFilePathRe.ReplaceAllStringFunc(content, func(match string) string {
-						theFilePath := match[8:len(match)-1] //.@file:""
-						data, err := os.ReadFile(theFilePath)
-						fileData := ""
-						if err == nil {
-							fileData = string(data)
-						}
-						return "<<<<< Begin File " + theFilePath + " ======\n" + fileData + "\n===== End File " + theFilePath + " >>>>>\n"
-					})
-                    var processDir func (dirPath string, parentDirPath string) string
-					processDir = func (dirPath string, parentDirPath string) string {
-					    result := "<<<<< Begin Directory " + strings.TrimPrefix(dirPath, parentDirPath) + " =====\n"
-					    entries, err := os.ReadDir(dirPath)
-					    if err == nil {
-					        for _, entry := range entries {
-					            entryPath := filepath.Join(dirPath, entry.Name())
-					            if entry.IsDir() {
-					                // Recursively process the subdirectory
-					                result += processDir(entryPath, dirPath + "/")
-					            } else {
-					                // Read and include file contents
-					                data, err := os.ReadFile(entryPath)
-					                fileData := ""
-					                if err == nil {
-					                    fileData = string(data)
-					                }
-					                // result += "    <file>\n        <path>" + entry.Name() + "</path>\n        <the_contents>\n            " + fileData + "\n        </the_contents>\n    </file>\n"
-									// result += "<<<<< Begin File " + entry.Name() + " ======\n" + fileData[0:0] + "\n===== End File " + entry.Name() + " >>>>>\n"
-									result += "<<<<< Begin File " + entry.Name() + " ======\n" + fileData + "\n===== End File " + entry.Name() + " >>>>>\n"
-					            }
-					        }
-					    }
-					    // result += "===== End Directory " + dirPath + " =====\n"
-					    result += "===== End Directory " + strings.TrimPrefix(dirPath, parentDirPath) + " >>>>>\n"
-					    return result
-					}
-					content = atSignDirPathRe.ReplaceAllStringFunc(content, func(match string) string {
-					    dirPath := match[7:len(match)-1] //.@dir:""
-					    return processDir(dirPath, "")
-					})
-
-                    // debugging
-					fmt.Println("content is")
-					fmt.Println(content)
-
+					content = interpolatateFiles(content)
 					messages[i]["content"] = content
 					fmt.Println("chatgpt content:")
 					fmt.Println(content)
@@ -1283,9 +1230,6 @@ func main() {
 				}
 				messagesJSON = string(newMessagesJSON)
 
-
-
-
 				payload := `{
           			"model": "` + model + `",
           			"stream": true,
@@ -1293,7 +1237,7 @@ func main() {
           	    }
 	        	`
 				log.Printf("chatgpt json: %s", payload)
-				
+
 				chatReq, err := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", strings.NewReader(payload))
 				if err != nil {
 					log.Printf("new request to chatgpt: %d: %v", ID, err)
@@ -1331,14 +1275,14 @@ func main() {
 					chatGPTMu.Lock()
 					chatGPTIsRunning = true
 					if !chatGPTShouldBeRunning {
-					    chatGPTIsRunning = false
-					    resp.Body.Close()
+						chatGPTIsRunning = false
+						resp.Body.Close()
 						chatGPTMu.Unlock()
 						log.Println("breaking the loop for chatGPT")
-					    break
+						break
 					}
 					chatGPTMu.Unlock()
-					
+
 					line := scanner.Text()
 					// log.Printf("chatgpt line: %s", line)
 					// ignore comments and empty lines
@@ -1367,7 +1311,6 @@ func main() {
 		}()
 	})
 
-
 	// mux.HandleFunc("/doWhisper", func(w http.ResponseWriter, r *http.Request) {
 	// 	log.Printf(" doing whisper")
 	// 	r.ParseMultipartForm(32 << 20) // 32MB memory limit
@@ -1380,14 +1323,14 @@ func main() {
 	// 	// Create buffer to store data for the file
 	// 	var buffer bytes.Buffer
 	// 	writer := multipart.NewWriter(&buffer)
-// 
+	//
 	// 	// Add form field(s)
 	// 	writer.WriteField("model", "whisper-1")
 	// 	prompt := r.FormValue("prompt")
 	// 	writer.WriteField("prompt", prompt)
 	// 	// log.Printf("prompt: %s", prompt)
 	// 	// Add file to form field
-// 
+	//
 	// 	// fileWriter, err := writer.CreateFormFile("file", "myfile.mp4")
 	// 	// if err != nil {
 	// 	// 	fmt.Println("Error writing to buffer:", err)
@@ -1397,10 +1340,10 @@ func main() {
 	// 	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "file", "myfile.mp4"))
 	// 	h.Set("Content-Type", handler.Header.Get("Content-Type"))
 	// 	fileWriter, _ := writer.CreatePart(h)
-// 
+	//
 	// 	// https://community.openai.com/t/whisper-api-cannot-read-files-correctly/93420/13
 	// 	// https://stackoverflow.com/questions/21130566/how-to-set-content-type-for-a-form-filed-using-multipart-in-go
-// 
+	//
 	// 	// Copy file to buffer
 	// 	_, err = io.Copy(fileWriter, file)
 	// 	if err != nil {
@@ -1417,12 +1360,12 @@ func main() {
 	// 		fmt.Println("Error creating request:", err)
 	// 		return
 	// 	}
-// 
+	//
 	// 	err = ioutil.WriteFile("debug_file.txt", buffer.Bytes(), 0644)
 	// 	if err != nil {
 	// 		log.Printf("Failed to write to debug file: %v", err)
 	// 	}
-// 
+	//
 	// 	// Set headers
 	// 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	// 	// set the request header to indicate that we're sending JSON
@@ -1439,86 +1382,86 @@ func main() {
 	// 	w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
 	// 	io.Copy(w, res.Body)
 	// })
-	
+
 	// update this function to write the audio file to a local file
 	// then run ffmpeg on it (using exec.Cmd) to convert it to webm
 	// then make the webm file the one we send to openai api
 
-    mux.HandleFunc("/doWhisper", func(w http.ResponseWriter, r *http.Request) {
-    	log.Printf(" doing whisper")
-    	r.ParseMultipartForm(32 << 20) // 32MB memory limit
-    	file, handler, err := r.FormFile("file")
-    	_ = handler 
-    	if err != nil {
-    		logAndErr(w, "Error retrieving file: %v", err)
-    		return
-    	}
-    	defer file.Close()
-    	// Write the audio file to a local temporary file
-    	tmpFile, err := ioutil.TempFile("", "audio-*")
-    	if err != nil {
-    		fmt.Println("Error creating temp file:", err)
-    		return
-    	}
-    	defer os.Remove(tmpFile.Name())
-    	_, err = io.Copy(tmpFile, file)
-    	if err != nil {
-    		fmt.Println("Error writing to temp file:", err)
-    		return
-    	}
-    	tmpFile.Close()
-    	// Convert the audio to webm format using ffmpeg
-    	webmFile := tmpFile.Name() + ".webm"
-    	defer os.Remove(webmFile)
-    	log.Println("converting to webm")
-    	cmd := exec.Command("ffmpeg", "-i", tmpFile.Name(), webmFile)
-    	err = cmd.Run()
-    	if err != nil {
-    		fmt.Println("Error converting audio to webm with ffmpeg:", err)
-    		return
-    	}
-    	log.Println("converted to webm")
-    	// Read the converted file and pass it to the API
-    	convertedFile, err := os.Open(webmFile)
-    	if err != nil {
-    		fmt.Println("Error opening converted file:", err)
-    		return
-    	}
-    	defer convertedFile.Close()
-    	var buffer bytes.Buffer
-    	writer := multipart.NewWriter(&buffer)
-    	writer.WriteField("model", "whisper-1")
-    	prompt := r.FormValue("prompt")
-    	writer.WriteField("prompt", prompt)
-    	h := make(textproto.MIMEHeader)
-    	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "file", "myfile.webm"))
-    	// h.Set("Content-Type", handler.Header.Get("Content-Type"))
-    	h.Set("Content-Type", "audio/webm")
-    	fileWriter, _ := writer.CreatePart(h)
-    	_, err = io.Copy(fileWriter, convertedFile)
-    	if err != nil {
-    		fmt.Println("Error copying file to buffer:", err)
-    		return
-    	}
-    	writer.Close()
-    	req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/transcriptions", &buffer)
-    	if err != nil {
-    		fmt.Println("Error creating request:", err)
-    		return
-    	}
-    	req.Header.Set("Content-Type", writer.FormDataContentType())
-    	req.Header.Set("Authorization", "Bearer "+os.Getenv("CHATGPTKEY"))
-    	client := &http.Client{}
-    	res, err := client.Do(req)
-    	if err != nil {
-    		fmt.Println("Error sending whisper request:", err)
-    		return
-    	}
-    	defer res.Body.Close()
-    	log.Printf("whisper response code; %d", res.StatusCode)
-    	w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
-    	io.Copy(w, res.Body)
-    })
+	mux.HandleFunc("/doWhisper", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf(" doing whisper")
+		r.ParseMultipartForm(32 << 20) // 32MB memory limit
+		file, handler, err := r.FormFile("file")
+		_ = handler
+		if err != nil {
+			logAndErr(w, "Error retrieving file: %v", err)
+			return
+		}
+		defer file.Close()
+		// Write the audio file to a local temporary file
+		tmpFile, err := ioutil.TempFile("", "audio-*")
+		if err != nil {
+			fmt.Println("Error creating temp file:", err)
+			return
+		}
+		defer os.Remove(tmpFile.Name())
+		_, err = io.Copy(tmpFile, file)
+		if err != nil {
+			fmt.Println("Error writing to temp file:", err)
+			return
+		}
+		tmpFile.Close()
+		// Convert the audio to webm format using ffmpeg
+		webmFile := tmpFile.Name() + ".webm"
+		defer os.Remove(webmFile)
+		log.Println("converting to webm")
+		cmd := exec.Command("ffmpeg", "-i", tmpFile.Name(), webmFile)
+		err = cmd.Run()
+		if err != nil {
+			fmt.Println("Error converting audio to webm with ffmpeg:", err)
+			return
+		}
+		log.Println("converted to webm")
+		// Read the converted file and pass it to the API
+		convertedFile, err := os.Open(webmFile)
+		if err != nil {
+			fmt.Println("Error opening converted file:", err)
+			return
+		}
+		defer convertedFile.Close()
+		var buffer bytes.Buffer
+		writer := multipart.NewWriter(&buffer)
+		writer.WriteField("model", "whisper-1")
+		prompt := r.FormValue("prompt")
+		writer.WriteField("prompt", prompt)
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, "file", "myfile.webm"))
+		// h.Set("Content-Type", handler.Header.Get("Content-Type"))
+		h.Set("Content-Type", "audio/webm")
+		fileWriter, _ := writer.CreatePart(h)
+		_, err = io.Copy(fileWriter, convertedFile)
+		if err != nil {
+			fmt.Println("Error copying file to buffer:", err)
+			return
+		}
+		writer.Close()
+		req, err := http.NewRequest("POST", "https://api.openai.com/v1/audio/transcriptions", &buffer)
+		if err != nil {
+			fmt.Println("Error creating request:", err)
+			return
+		}
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+		req.Header.Set("Authorization", "Bearer "+os.Getenv("CHATGPTKEY"))
+		client := &http.Client{}
+		res, err := client.Do(req)
+		if err != nil {
+			fmt.Println("Error sending whisper request:", err)
+			return
+		}
+		defer res.Body.Close()
+		log.Printf("whisper response code; %d", res.StatusCode)
+		w.Header().Set("Content-Type", res.Header.Get("Content-Type"))
+		io.Copy(w, res.Body)
+	})
 
 	//how do I set the correct content type in the fileWriter?
 
@@ -1758,9 +1701,9 @@ func main() {
 	//
 	// })
 	mux.HandleFunc("/makeOneTimeLink", func(w http.ResponseWriter, r *http.Request) {
-	    oneTimeLinksMu.Lock()
-	    defer oneTimeLinksMu.Unlock()
-	    // golang generate a random 64 character hex string
+		oneTimeLinksMu.Lock()
+		defer oneTimeLinksMu.Unlock()
+		// golang generate a random 64 character hex string
 		randBytes := make([]byte, 32)
 		_, err := rand.Read(randBytes)
 		if err != nil {
@@ -1768,22 +1711,21 @@ func main() {
 		}
 		hexString := hex.EncodeToString(randBytes)
 		oneTimeLinks[hexString] = r.FormValue("fullpath")
-		fmt.Fprintf(w, "%s", "//" + r.Host + "/oneTimeLink?code=" + hexString)
+		fmt.Fprintf(w, "%s", "//"+r.Host+"/oneTimeLink?code="+hexString)
 	})
 	mux.HandleFunc("/oneTimeLink", func(w http.ResponseWriter, r *http.Request) {
-	    oneTimeLinksMu.Lock()
-	    defer oneTimeLinksMu.Unlock()
-	    code := r.FormValue("code")
-	    fullPath := oneTimeLinks[code]
+		oneTimeLinksMu.Lock()
+		defer oneTimeLinksMu.Unlock()
+		code := r.FormValue("code")
+		fullPath := oneTimeLinks[code]
 
+		if fullPath == "" {
+			fmt.Fprintf(w, "%s", "Error, could not find it")
+			return
+		}
 
-	    if fullPath == "" {
-	        fmt.Fprintf(w, "%s", "Error, could not find it")
-	        return
-	    }
-	    
-	    // one time
-	    // delete(oneTimeLinks, code)
+		// one time
+		// delete(oneTimeLinks, code)
 
 		fullPath = combinePath(*location, fullPath)
 		fileInfo, err := os.Stat(fullPath)
@@ -1797,7 +1739,7 @@ func main() {
 			return
 		}
 
-	    // see also saveload
+		// see also saveload
 		parts := strings.Split(fullPath, "/")
 		theName := parts[len(parts)-1]
 		w.Header().Set("Content-Type", GetContentType(fullPath))
@@ -1982,13 +1924,13 @@ func main() {
 				s.Saved = true
 			}
 			if strings.HasSuffix(theFilePath, ".go") {
-			    go func() {
-			       // checkGoErrors(theFilePath, false) 
-			       go onceCheckGoErrors.Run(func () {
-			           checkGoErrors(theFilePath, false) 
-			       })
-			       // checkGoErrors(theFilePath, true) 
-			    }()
+				go func() {
+					// checkGoErrors(theFilePath, false)
+					go onceCheckGoErrors.Run(func() {
+						checkGoErrors(theFilePath, false)
+					})
+					// checkGoErrors(theFilePath, true)
+				}()
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(s)
@@ -2004,26 +1946,26 @@ func main() {
 		proxyToLangServer.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("/gotodef", func(w http.ResponseWriter, r *http.Request) {
-    	fileSpot := r.FormValue("fileSpot")
-        fmt.Println("gotodef called for", fileSpot)
-    	parts := strings.Split(fileSpot, ":")
-    	if len(parts) < 3 {
-		    logAndErr(w, "invalid fileSpot %s", fileSpot)
-    	}
+		fileSpot := r.FormValue("fileSpot")
+		fmt.Println("gotodef called for", fileSpot)
+		parts := strings.Split(fileSpot, ":")
+		if len(parts) < 3 {
+			logAndErr(w, "invalid fileSpot %s", fileSpot)
+		}
 
-    	fullPath := parts[0]
-        theDir := filepath.Dir(fullPath)
-    	cmd := exec.Command("gopls", "definition", fileSpot)
-    	cmd.Dir = theDir
-        output, err := cmd.CombinedOutput()
-        fmt.Println("the gopls output is:", string(output))
-        if err != nil {
-		    logAndErr(w, "invalid goto def: %v, %s", err, output)
-		    return
-        }
-        json.NewEncoder(w).Encode(map[string]any{
-            "output": string(output),
-        })
+		fullPath := parts[0]
+		theDir := filepath.Dir(fullPath)
+		cmd := exec.Command("gopls", "definition", fileSpot)
+		cmd.Dir = theDir
+		output, err := cmd.CombinedOutput()
+		fmt.Println("the gopls output is:", string(output))
+		if err != nil {
+			logAndErr(w, "invalid goto def: %v, %s", err, output)
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"output": string(output),
+		})
 	})
 
 	var mainMux http.Handler = mux
@@ -2110,25 +2052,25 @@ func main() {
 		return
 	}
 
-    autocertManager := &autocert.Manager{
-        Cache:      autocert.DirCache(os.Getenv("CERTSPATH")), // Store certificates in a directory
-        Prompt:     autocert.AcceptTOS,         // Automatically accept Let's Encrypt TOS
-        HostPolicy: autocert.HostWhitelist(os.Getenv("DOMAIN")), // Set allowed domains
-    }
-    fmt.Println("certs path:", os.Getenv("CERTSPATH"))
-    fmt.Println("domain:", os.Getenv("DOMAIN"))
+	autocertManager := &autocert.Manager{
+		Cache:      autocert.DirCache(os.Getenv("CERTSPATH")),   // Store certificates in a directory
+		Prompt:     autocert.AcceptTOS,                          // Automatically accept Let's Encrypt TOS
+		HostPolicy: autocert.HostWhitelist(os.Getenv("DOMAIN")), // Set allowed domains
+	}
+	fmt.Println("certs path:", os.Getenv("CERTSPATH"))
+	fmt.Println("domain:", os.Getenv("DOMAIN"))
 	// redirectMux := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	// 	http.Redirect(w, r, "https://"+r.URL.Host, http.StatusFound)
 	// })
 	httpServer := http.Server{
-		Addr:         *serverAddress,
+		Addr: *serverAddress,
 		// Handler:      redirectMux,
-        Handler:      autocertManager.HTTPHandler(nil),
+		Handler:      autocertManager.HTTPHandler(nil),
 		ReadTimeout:  20 * time.Second,
 		WriteTimeout: 20 * time.Second,
 	}
 	httpsServer := &http.Server{
-        TLSConfig:    &tls.Config{GetCertificate: autocertManager.GetCertificate},
+		TLSConfig:    &tls.Config{GetCertificate: autocertManager.GetCertificate},
 		Addr:         *serverAddress,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -2293,7 +2235,7 @@ var extensionsToMime = map[string]string{
 	"gif":  "image/gif",
 	"svg":  "image/svg+xml",
 	"pdf":  "application/pdf",
-	"gz":  "application/gzip",
+	"gz":   "application/gzip",
 }
 
 func GetContentType(thePath string) string {
@@ -2314,8 +2256,6 @@ func GetContentType(thePath string) string {
 	}
 	return mime + ";charset=utf-8"
 }
-
-
 
 // golang write a gzip middleware for an http Handler
 type gzipResponseWriter struct {
@@ -2352,126 +2292,283 @@ func GzipMiddleware(next http.Handler) http.Handler {
 // 	mux.Handle("/", GzipMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 // 		w.Write([]byte("Hello, World!"))
 // 	})))
-// 
+//
 // 	http.ListenAndServe(":8080", mux)
 // }
 
 func findGoModRoot(filePath string) (string, error) {
-    dir := filepath.Dir(filePath)
-    for {
-    	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-    		return dir, nil
-    	}
-    	parent := filepath.Dir(dir)
-    	if parent == dir {
-    		break
-    	}
-    	dir = parent
-    }
-    return "", fmt.Errorf("go.mod not found")
+	dir := filepath.Dir(filePath)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir, nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return "", fmt.Errorf("go.mod not found")
 }
 
 type Once struct {
-    Mu sync.Mutex
-    IsCalling bool
-    NeedsCall bool
+	Mu        sync.Mutex
+	IsCalling bool
+	NeedsCall bool
 }
 
 func (o *Once) Run(f func()) {
-    o.Mu.Lock()
-    if o.IsCalling {
-        o.NeedsCall = true
-        o.Mu.Unlock()
-        return
-    }
-    o.IsCalling = true
-    o.Mu.Unlock()
+	o.Mu.Lock()
+	if o.IsCalling {
+		o.NeedsCall = true
+		o.Mu.Unlock()
+		return
+	}
+	o.IsCalling = true
+	o.Mu.Unlock()
 
-    f()
-    for {
-        o.Mu.Lock()
-        if !o.NeedsCall {
-            o.IsCalling = false
-            o.Mu.Unlock()
-            return
-        }
-        o.NeedsCall = false
-        o.Mu.Unlock()
-        f()
-    }
+	f()
+	for {
+		o.Mu.Lock()
+		if !o.NeedsCall {
+			o.IsCalling = false
+			o.Mu.Unlock()
+			return
+		}
+		o.NeedsCall = false
+		o.Mu.Unlock()
+		f()
+	}
 }
 
-
 func NewOnce() *Once {
-    return &Once{
-        Mu: sync.Mutex{},
-    }
+	return &Once{
+		Mu: sync.Mutex{},
+	}
 }
 
 func checkGoErrors(theFilePath string, checkRoot bool) {
 
-    // not yet limiting this to only one at a time
-    var theDir string
-    if checkRoot {
-        root, err := findGoModRoot(theFilePath)
-        if err != nil {
-            log.Printf("error finding go.mod root: %v", err)
-            return
-        }
-        theDir = root
-    } else {
-        theDir = filepath.Dir(theFilePath)
-    }
+	// not yet limiting this to only one at a time
+	var theDir string
+	if checkRoot {
+		root, err := findGoModRoot(theFilePath)
+		if err != nil {
+			log.Printf("error finding go.mod root: %v", err)
+			return
+		}
+		theDir = root
+	} else {
+		theDir = filepath.Dir(theFilePath)
+	}
 
-    // cmd := exec.Command("go", "build", "-o", "/dev/null", "./...")
-    cmd := exec.Command("go", "test", "-c", "-o", "/dev/null", "./...")
-    cmd.Dir = theDir
-    output, err := cmd.CombinedOutput()
-    fileErrorsByFile := map[string]map[string]FileError{}
-    if err != nil {
-        log.Printf("error running go build: %v\nOutput: %s", err, string(output))
-        lines := strings.Split(string(output), "\n")
-        for _, line := range lines {
-            if strings.HasPrefix(line, "./") {
-                line = strings.TrimPrefix(line, "./")
-            }
-            parts := strings.Split(line, ":")
-            if len(parts) < 4 {
-                continue
-            }
-            // ./traveledit.go:2226:5: syntax error: unexpected go at end of statement
-            fullPath := theDir + "/" + parts[0]
-            if fileErrorsByFile[fullPath] == nil {
-                fileErrorsByFile[fullPath] = map[string]FileError{}
-            }
-            line, _ := strconv.Atoi(parts[1])
-            col, _ := strconv.Atoi(parts[2])
-            fileErrorsByFile[fullPath][parts[1]] = FileError{
-                Line: line,
-                Col: col,
-                Message: strings.Join(parts[3:], ":")[1:],
-                // set @message parts sliceFrom 3 join ":" sliceFrom 1
-            }
-        }
+	// cmd := exec.Command("go", "build", "-o", "/dev/null", "./...")
+	cmd := exec.Command("go", "test", "-c", "-o", "/dev/null", "./...")
+	cmd.Dir = theDir
+	output, err := cmd.CombinedOutput()
+	fileErrorsByFile := map[string]map[string]FileError{}
+	if err != nil {
+		log.Printf("error running go build: %v\nOutput: %s", err, string(output))
+		lines := strings.Split(string(output), "\n")
+		for _, line := range lines {
+			if strings.HasPrefix(line, "./") {
+				line = strings.TrimPrefix(line, "./")
+			}
+			parts := strings.Split(line, ":")
+			if len(parts) < 4 {
+				continue
+			}
+			// ./traveledit.go:2226:5: syntax error: unexpected go at end of statement
+			fullPath := theDir + "/" + parts[0]
+			if fileErrorsByFile[fullPath] == nil {
+				fileErrorsByFile[fullPath] = map[string]FileError{}
+			}
+			line, _ := strconv.Atoi(parts[1])
+			col, _ := strconv.Atoi(parts[2])
+			fileErrorsByFile[fullPath][parts[1]] = FileError{
+				Line:    line,
+				Col:     col,
+				Message: strings.Join(parts[3:], ":")[1:],
+				// set @message parts sliceFrom 3 join ":" sliceFrom 1
+			}
+		}
 
-        fmt.Println("fileErrorsByFile: ")
-        logJSON(fileErrorsByFile)
+		fmt.Println("fileErrorsByFile: ")
+		logJSON(fileErrorsByFile)
 		workspaceMu.Lock()
 		for _, f := range workspace.Files {
-		    fileErrors, ok := fileErrorsByFile[f.FullPath]
-		    if !ok {
-		        continue
-		    }
-		    f.FileErrors = fileErrors
-        	// fmt.Println("#coral fileErrors: ")
-        	// logJSON(fileErrors)
+			fileErrors, ok := fileErrorsByFile[f.FullPath]
+			if !ok {
+				continue
+			}
+			f.FileErrors = fileErrors
+			// fmt.Println("#coral fileErrors: ")
+			// logJSON(fileErrors)
 		}
-		
+
 		workspaceCond.Broadcast()
 		workspaceMu.Unlock()
-        return
-    }
-    log.Println("go build completed without errors")
+		return
+	}
+	log.Println("go build completed without errors")
 }
 
-// boo
+var atSignFilePathRe *regexp.Regexp
+var atSignDirPathRe *regexp.Regexp
+
+// myproject
+// ├── orchard
+// │   └── maple.go
+// ├── canyon
+// │   └── echo.go
+// └── lantern
+//
+//	└── beacon.go
+func readAndFormat(path string) string {
+	data, err := os.ReadFile(path)
+	return formatFileBlock(path, data, err)
+}
+func interpolatateFiles(content string) string {
+	if atSignFilePathRe == nil {
+		atSignFilePathRe = regexp.MustCompile(`@@file:(?:"([^"]+)"|(/[^ "]+(?: [^ "]+)*))`)
+		atSignDirPathRe = regexp.MustCompile(`@@dir:(?:"([^"]+)"|(/[^ "]+(?: [^ "]+)*))`)
+	}
+
+	// 1) Handle @@file:
+	content = atSignFilePathRe.ReplaceAllStringFunc(content, func(match string) string {
+		// strip off @@file: and optional quotes, get `path`
+		path := stripQuotes(match[len("@@file:"):])
+
+		// now use our helper
+		return readAndFormat(path)
+	})
+
+	// 2) Handle @@dir:
+	content = atSignDirPathRe.ReplaceAllStringFunc(content, func(match string) string {
+		path := stripQuotes(match[len("@@dir:"):])
+
+		tree, files, err := buildTree(path)
+		if err != nil {
+			return fmt.Sprintf("** ERROR WALKING DIR %s: %v **", path, err)
+		}
+
+		var out strings.Builder
+		out.WriteString(tree)
+		out.WriteString("\n")
+
+		for _, f := range files {
+			data, err := os.ReadFile(f)
+			// again, use the same helper
+			out.WriteString(formatFileBlock(f, data, err))
+			out.WriteString("\n")
+		}
+		return out.String()
+	})
+
+	// debugging
+	fmt.Println("content is:")
+	fmt.Println(content)
+	return content
+}
+
+// stripQuotes removes wrapping double‐quotes if present
+func stripQuotes(s string) string {
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		return s[1 : len(s)-1]
+	}
+	return s
+}
+
+// isBinary returns true if data looks like a binary file.
+// Here we simply say “binary” if there's a NUL byte
+// or it’s not valid UTF-8.
+func isBinary(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+	if bytes.IndexByte(data, 0) != -1 {
+		return true
+	}
+	if !utf8.Valid(data) {
+		return true
+	}
+	return false
+}
+
+// formatFileBlock wraps your existing formatting and
+// skips dumping raw bytes if we detect a binary file.
+func formatFileBlock(path string, data []byte, err error) string {
+	var sb strings.Builder
+	prefix := "-----"
+	suffix := "-----"
+	sb.WriteString(fmt.Sprintf("%s file %s %s\n", prefix, path, suffix))
+
+	if err != nil {
+		sb.WriteString("**ERROR READING FILE**\n")
+	} else if isBinary(data) {
+		sb.WriteString(fmt.Sprintf("**BINARY FILE: %s (omitted)**\n", path))
+	} else {
+		sb.Write(data)
+		// ensure there's a newline before the end marker
+		if len(data) == 0 || data[len(data)-1] != '\n' {
+			sb.WriteByte('\n')
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf("%s end %s %s\n", prefix, path, suffix))
+	return sb.String()
+}
+
+func buildTree(dir string) (string, []string, error) {
+	var (
+		files []string
+		sb    strings.Builder
+	)
+
+	// clean it up and pick off the leaf for the “. ” line
+	dir = filepath.Clean(dir)
+	root := filepath.Base(dir)
+	sb.WriteString(root + "\n")
+
+	// … rest of your code, but start walk from dir, not “.”
+	// i.e. walk("", dir)
+	type void struct{}
+	var walk func(prefix, cur string) error
+	walk = func(prefix, cur string) error {
+		entries, err := os.ReadDir(cur)
+		if err != nil {
+			return err
+		}
+		for i, de := range entries {
+			isLast := i == len(entries)-1
+			name := de.Name()
+			full := filepath.Join(cur, name)
+
+			branch := "├── "
+			nextPrefix := prefix + "│   "
+			if isLast {
+				branch = "└── "
+				nextPrefix = prefix + "    "
+			}
+
+			sb.WriteString(prefix + branch + name + "\n")
+
+			if de.IsDir() {
+				if name == ".git" {
+					continue
+				}
+				if err := walk(nextPrefix, full); err != nil {
+					return err
+				}
+			} else {
+				files = append(files, full)
+			}
+		}
+		return nil
+	}
+
+	if err := walk("", dir); err != nil {
+		return "", nil, err
+	}
+	return sb.String(), files, nil
+}
