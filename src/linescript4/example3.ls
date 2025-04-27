@@ -1,6 +1,6 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
-
+say "what?"
 # let s __state
 # go :s
 #     sleepMs 1000

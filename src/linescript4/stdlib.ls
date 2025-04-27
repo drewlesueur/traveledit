@@ -1,4 +1,4 @@
-
+# say "wow std lib"
 # def :timeIt
 #    nowMillis
 #    onEnd func

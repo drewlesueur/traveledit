@@ -4451,15 +4451,47 @@ func startCgiServerOld(httpsAddr, httpAddr string) {
 }
 
 func startCgiServer(domain, httpsAddr, httpAddr string) {
-
-	state := MakeState("__local", "")
+	state := MakeState("__local", "say hi" + "\n")
 	state.Machine = &Machine{
 		CallbacksCh: make(chan Callback),
 		Index:       0,
 	}
 	state.IsTopOfOwnGoroutine = true
 	state.Out = os.Stdout
+	fmt.Fprintf(state.Out, "%s", "testing stdout")
+	state.IsMainTop = true
 
+	// see "eval" implementation,
+	evalState := MakeState("__stdlib", stdlib + "\n")
+	evalState.Machine = state.Machine
+	evalState.Vals = state.Vals
+	evalState.Vars = state.Vars
+	evalState.CallingParent = state
+	evalState.Out = state.Out
+
+	Eval(evalState)
+
+	// state := MakeState("__local", "say hiworld; say 200;")
+	// state.Machine = &Machine{
+	// 	CallbacksCh: make(chan Callback),
+	// 	Index:       0,
+	// }
+	// state.IsTopOfOwnGoroutine = true
+	// state.IsMainTop = true
+	// state.Out = os.Stdout
+ //
+	// evalState := MakeState("__stdlib", stdlib + "\n")
+	// evalState.Machine = state.Machine
+	// evalState.Vals = state.Vals
+	// evalState.Vars = state.Vars
+	// evalState.CallingParent = state
+	// evalState.Out = state.Out
+	// go func() {
+	// 	fmt.Println("evaling state")
+	// 	Eval(evalState)
+	// 	fmt.Println("done!")
+	// }()
+ //
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", cgiHandler)
 
@@ -4488,7 +4520,9 @@ func startCgiServer(domain, httpsAddr, httpAddr string) {
 			State:        evalState,
 			ReturnValues: []any{},
 		})
-		evalState.Wait()
+		time.Sleep(3 * time.Second)
+		// evalState.Wait()
+		
 	})
 
 	m := &autocert.Manager{

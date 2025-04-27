@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 // removeLeadingZeros removes any extra leading zeros from a string number.
@@ -261,41 +260,6 @@ func Divide(a, b string, precision int) string {
 	return quotient
 }
 
-// parse breaks a number string into its sign, integer part, and fractional part.
-// Updated to remove any underscores "_" in the input.
-func parse(num string) (sign, intPart, fracPart string) {
-	num = strings.TrimSpace(num)
-	// Remove underscores.
-	num = strings.ReplaceAll(num, "_", "")
-	if num == "" {
-		return "+", "0", ""
-	}
-	if len(num) > 0 && (num[0] == '-' || num[0] == '+') {
-		sign = string(num[0])
-		num = num[1:]
-	} else {
-		sign = "+"
-	}
-	// Remove any characters except digits and dot.
-	num = strings.TrimFunc(num, func(r rune) bool { return !unicode.IsDigit(r) && r != '.' })
-	parts := strings.Split(num, ".")
-	intPart = parts[0]
-	if intPart == "" {
-		intPart = "0"
-	}
-	if len(parts) > 1 {
-		fracPart = parts[1]
-	}
-	// Keep only digit characters in the fractional part.
-	fracDigits := ""
-	for _, r := range fracPart {
-		if unicode.IsDigit(r) {
-			fracDigits += string(r)
-		}
-	}
-	fracPart = fracDigits
-	return
-}
 
 // Add returns the sum of two number strings.
 func Add(a, b string) string {
@@ -745,6 +709,125 @@ func LessThanOrEqualTo(a, b string) bool {
 func Equal(a, b string) bool {
 	return Compare(a, b) == 0
 }
+
+
+
+// make an implementation of Add that's way faster for strings that are intergers
+// make it it super performant
+
+// FastAdd adds two integer strings (no decimals or underscores) in a very optimized way.
+// It assumes that the input strings represent integer numbers,
+// with an optional leading '+' or '-' sign.
+// When one number is negative and the other positive, it falls back to your own Subtract function.
+func FastAdd(a, b string) string {
+	// Check for decimal points; if any, we fall back to the full Add.
+	if strings.Contains(a, ".") || strings.Contains(b, ".") {
+		return Add(a, b) // your full-featured implementation
+	}
+
+	// Process signs.
+	aSign, aDigits := parseSign(a)
+	bSign, bDigits := parseSign(b)
+
+	// If both numbers are positive, or both negative, we add and reapply the sign.
+	if aSign == bSign {
+		sum := fastAddPositive(aDigits, bDigits)
+		if aSign == "-" && sum != "0" {
+			return "-" + sum
+		}
+		return sum
+	}
+	// Otherwise, we have one positive and one negative.
+	// For best performance you could implement a fast subtraction,
+	// but here we simply delegate to the full Subtract routine.
+	if aSign == "+" {
+		return Subtract(a, b)
+	}
+	return Subtract(a, b)
+}
+
+// parseSign extracts the sign and the unsigned digits from a string number.
+// It assumes that the number has no extra characters (like underscores or dots).
+func parseSign(num string) (sign string, digits string) {
+	if num == "" {
+		return "+", "0"
+	}
+	if num[0] == '-' || num[0] == '+' {
+		return string(num[0]), num[1:]
+	}
+	return "+", num
+}
+
+// fastAddPositive assumes a and b are nonnegative integer strings (without any sign)
+// and returns the sum as a string.
+func fastAddPositive(a, b string) string {
+	ia, ib := len(a)-1, len(b)-1
+	carry := byte(0)
+	// The maximum number of digits is max(len(a), len(b)) + 1.
+	res := make([]byte, 0, len(a)+1)
+	for ia >= 0 || ib >= 0 || carry > 0 {
+		var sum byte = carry
+		if ia >= 0 {
+			sum += a[ia] - '0'
+			ia--
+		}
+		if ib >= 0 {
+			sum += b[ib] - '0'
+			ib--
+		}
+		carry = sum / 10
+		// Prepend the digit. (We append to a slice that will be reversed later.)
+		res = append(res, (sum % 10) + '0')
+	}
+	// Reverse the result since digits are in reverse order.
+	reverseBytes(res)
+	return string(res)
+}
+
+// reverseBytes reverses a slice of bytes in place.
+func reverseBytes(b []byte) {
+	for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
+		b[i], b[j] = b[j], b[i]
+	}
+}
+
+// parse splits a number string into its sign, integer part, and fractional part.
+// This version removes underscores and supports decimals.
+func parse(num string) (sign, intPart, fracPart string) {
+	num = strings.TrimSpace(num)
+	num = strings.ReplaceAll(num, "_", "")
+	if num == "" {
+		return "+", "0", ""
+	}
+	if len(num) > 0 && (num[0] == '-' || num[0] == '+') {
+		sign = string(num[0])
+		num = num[1:]
+	} else {
+		sign = "+"
+	}
+	// Keep only digits and the dot.
+	num = strings.TrimFunc(num, func(r rune) bool { return (r < '0' || r > '9') && r != '.' })
+	parts := strings.Split(num, ".")
+	intPart = parts[0]
+	if intPart == "" {
+		intPart = "0"
+	}
+	if len(parts) > 1 {
+		fracPart = parts[1]
+	}
+	// Remove any non-digit from fractional part.
+	fracDigits := ""
+	for _, r := range fracPart {
+		if r >= '0' && r <= '9' {
+			fracDigits += string(r)
+		}
+	}
+	fracPart = fracDigits
+	return
+}
+
+
+
 
 
 

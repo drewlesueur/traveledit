@@ -4,7 +4,6 @@ import (
    "testing"
    "time"
    "fmt"
-   "strconv"
 )
 
 func TestAdd(t *testing.T) {
@@ -260,17 +259,65 @@ func TestPowLargeExponent(t *testing.T) {
 	}
 }
 
-func xTestPerf2(t *testing.T) {
+type Foo struct {
+    Int int
+}
+
+type FastObject struct {
+    Slice []any
+    KeyPositions map[string]int
+}
+
+func NewFastObject() *FastObject {
+    return &FastObject{KeyPositions: map[string]int{}}
+}
+
+func (f *FastObject) Set(key string, value any) int {
+    if pos, exists := f.KeyPositions[key]; exists {
+        f.Slice[pos] = value
+        return pos
+    } else {
+        f.KeyPositions[key] = len(f.Slice)
+        f.Slice = append(f.Slice, value)
+        return pos
+    }
+}
+func (f *FastObject) Get(key string) (any) {
+    pos, exists := f.KeyPositions[key]
+    if !exists {
+        return nil
+    }
+    return f.Slice[pos]
+}
+    
+// make a similar type as FastObject called GenericFastObject
+// but instead of any, use a type parameter (generics)
+// to allow it to be an int, string, float64, or another GenericFastObject
+
+
+
+func TestPerf2(t *testing.T) {
 	total := "0"
-	totalFloat, _ := strconv.ParseFloat(total, 64)
+	totalFloat := 0.0
+	totalInt := 0
 
 	loops := 10_000_000
 	startTime := time.Now()
-	for i := 0; i < loops; i++ {
-		total = Add(total, "1")
-	}
+	// for i := 0; i < loops; i++ {
+	// 	total = Add(total, "1")
+	// }
 	duration := time.Since(startTime)
-	fmt.Printf("Duration for %d additions (%v): %v\n", loops, total, duration)
+	fmt.Printf("Duration for %d Add (%v): %v\n", loops, total, duration)
+	
+	total = "0"
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		total = FastAdd(total, "1")
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d FastAdd (%v): %v\n", loops, total, duration)
+	
+	
 
 	startTime = time.Now()
 	for i := 0; i < loops; i++ {
@@ -278,7 +325,81 @@ func xTestPerf2(t *testing.T) {
 		totalFloat += 1
 	}
 	duration = time.Since(startTime)
-	fmt.Printf("Duration for %d additions (%v): %v\n", loops, totalFloat, duration)
+	fmt.Printf("Duration for %d + (%v): %v\n", loops, totalFloat, duration)
+
+
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		totalInt += 1
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d + (%v): %v\n", loops, totalInt, duration)
+
+    totalInt = 0
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		totalInt = AddAny(totalInt, get1()).(int)
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d AddAny (%v): %v\n", loops, totalInt, duration)
+	
+	
+    totalInt = 0
+    foo := Foo{1}
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		totalInt += foo.Int
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d Struct (%v): %v\n", loops, totalInt, duration)
+
+    totalInt = 0
+    fooP := &Foo{1}
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		totalInt += fooP.Int
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d StructP (%v): %v\n", loops, totalInt, duration)
+    
+    
+    totalInt = 0
+    fooMap := map[string]any{"Int": 1}
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		totalInt += fooMap["Int"].(int)
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d Map (%v): %v\n", loops, totalInt, duration)
+
+    totalInt = 0
+    fooFast := NewFastObject()
+    fooFast.Set("Int", 1) 
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		totalInt += fooFast.Get("Int").(int)
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d FO (%v): %v\n", loops, totalInt, duration)
+
+    totalInt = 0
+    fooFast = NewFastObject()
+    index := fooFast.Set("Int", 1) 
+	startTime = time.Now()
+	for i := 0; i < loops; i++ {
+		totalInt += fooFast.Slice[index].(int)
+	}
+	duration = time.Since(startTime)
+	fmt.Printf("Duration for %d FOC (%v): %v\n", loops, totalInt, duration)
+}
+
+func get1() any {
+    return 1
+}
+
+
+func AddAny(a any, b any) any {
+    return a.(int) + b.(int)
 }
 
 func TestLessThan(t *testing.T) {
