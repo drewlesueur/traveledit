@@ -4,6 +4,7 @@ import (
 	"fmt"
 	// "log"
 	"strings"
+	"testing"
 )
 
 func runApplyDiff(a, b string) string {
@@ -149,4 +150,9 @@ d
 	// cc
 	// dd
 	// d
+}
+
+func TestInterpolateFiles(t *testing.T) {
+    // fmt.Println(interpolatateFiles(`@@file:"./traveledit.go"`))
+    fmt.Println(interpolatateFiles(`@@dir:"../traveledit"`))
 }
