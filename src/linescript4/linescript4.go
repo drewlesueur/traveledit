@@ -1154,14 +1154,17 @@ func initBuiltins() {
 		},
 		"%%": func(state *State) *State {
 			end := strings.Index(state.Code[state.I:], "\n")
-            s := state.Code[state.I:state.I+end]
-			state.I = state.I + end
             // TODO: cached or more optimal way of doing this.
             // you could even handle in the parser?
+            
+            s := state.Code[state.I:state.I+end]
+            state.I += end
             var parts []string
             start := 0
+            depth := 0
+            parseState := "out"
             doAppend := func(str string) {
-                if len(parts) % 2 == 0 {
+                if len(parts)%2 == 0 {
                     wrapped := `xyzzylol"` + str + `"xyzzylol`
                     parts = append(parts, wrapped)
                 } else {
@@ -1170,19 +1173,61 @@ func initBuiltins() {
                 }
             }
             for i := 0; i < len(s); i++ {
-                if s[i] == '(' || s[i] == ')' {
-                    if start < i {
-                        doAppend(s[start:i])
+                if parseState == "inParen" {
+                    switch s[i] {
+                    case '(':
+                        depth++
+                    case ')':
+                        depth--
+                        if depth == 0 {
+                            if start < i {
+                                doAppend(s[start:i])
+                            }
+                            start = i + 1
+                            parseState = "out"
+                        }
                     }
-                    start = i + 1
+                } else if parseState == "inPercent" {
+                    switch s[i] {
+                    case ' ':
+                        if start < i {
+                            doAppend(s[start:i])
+                        }
+                        start = i
+                        parseState = "out"
+                    }
+                } else if parseState == "out" {
+                    switch s[i] {
+                    case '%':
+                        if depth == 0 && len(s) > i && s[i+1] != ' ' {
+                            if start < i {
+                                doAppend(s[start:i])
+                            }
+                            start = i + 1
+                            parseState = "inPercent"
+                        }
+                        // depth++
+                    case '(':
+                        if len(s) > i && s[i+1] == '%' {
+                            if start < i {
+                                doAppend(s[start:i])
+                            }
+                            start = i + 2
+                            parseState = "inParen"
+                            depth++
+                        }
+                    }
                 }
             }
             if start < len(s) {
                 doAppend(s[start:])
             }
+            // for _, v := range parts {
+            //     fmt.Println("#aqua", v)
+            // }
             
             code := "([" + strings.Join(parts, " ") + `] join "")`
-            fmt.Println("code", code)
+            // fmt.Println("code", code)
 
 			// fmt.Println(unsafe.Pointer(&code))
 			// if strings come from source then we can cache it, but not worth it

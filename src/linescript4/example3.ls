@@ -8,7 +8,10 @@ say .yo ++ .man
 
 # say %% Hello my name is $name
 # say %% Hello my name is <name> and I am <info at .age>
-say %% Hello my name is (name) and I am (info at .age) 
+# say %% Hello my name is (name) and I am (info at .age, (- 1)) years old (lp)as of last year(rp)
+# say %% Hello my name is (name) and I am (info at .age, (- 1)) years old ("(as of last year)")
+say %% Hello my name is (% name) and I am (% info at .age, (- 1)) years old (as of last year)
+say %% Hello my name is %name and I am (% info at .age, (- 1)) years old (as of last year)
 # say %% Hello my name is [name] and I am [info at .age]
 # say %% Hello my name is {name} and I am {info at .age}
 # say %% Hello my name is %name% and I am %info at .age%
