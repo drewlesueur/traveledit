@@ -53,7 +53,7 @@ package main
 // alternate indention ui for params
 // too much caching on GoUpCache (what about dynamic jumps?)
 // it, dupit, nowMs don't need to be immediates anymore? because of func stack?
-// end] // should that work?
+// end] // should that work? update: it works now that "end" is am immediate
 
 
 import (
