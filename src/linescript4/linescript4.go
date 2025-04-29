@@ -703,6 +703,7 @@ var stdinReader = &Reader{
 
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
+	// The 2 immediate styles can be consolidated now
 	if f, ok := runAlwaysImmediates[val]; ok {
 		return immediateToken(f)
 	}
@@ -1100,7 +1101,9 @@ func initBuiltins() {
 				// 2 because of ": "
 				// 1 because we want after "\n"
 				pushT(state.Vals, state.Code[state.I+2:state.I+2+end])
-				state.I = state.I + 2 + end + 1
+				// state.I = state.I + 2 + end + 1
+				state.I = state.I + 2 + end
+				// actually we don't want after the newline
 			} else {
 				r := findMatchingAfter(state, 0, []string{"end"})
 				str := state.Code[state.I+1 : r.I-3]
@@ -1123,7 +1126,9 @@ func initBuiltins() {
 				// 2 because of ": "
 				// 1 because we want after "\n"
 				pushT(state.Vals, interpolateDollar(state, state.Code[state.I+2:state.I+2+end]))
-				state.I = state.I + 2 + end + 1
+				// state.I = state.I + 2 + end + 1
+				state.I = state.I + 2 + end
+				// actually we don't want after the newline
 			} else {
 				r := findMatchingAfter(state, 0, []string{"end"})
 				str := state.Code[state.I+1 : r.I-3]
@@ -1139,6 +1144,57 @@ func initBuiltins() {
 				state.I = r.I
 			}
 			return state
+		},
+		// alternative to istring
+		"$$": func(state *State) *State {
+			end := strings.Index(state.Code[state.I:], "\n")
+			pushT(state.Vals, interpolateDollar(state, state.Code[state.I:state.I+end]))
+			state.I = state.I + end
+			return state
+		},
+		"%%": func(state *State) *State {
+			end := strings.Index(state.Code[state.I:], "\n")
+            s := state.Code[state.I:state.I+end]
+			state.I = state.I + end
+            // TODO: cached or more optimal way of doing this.
+            // you could even handle in the parser?
+            var parts []string
+            start := 0
+            doAppend := func(str string) {
+                if len(parts) % 2 == 0 {
+                    wrapped := `xyzzylol"` + str + `"xyzzylol`
+                    parts = append(parts, wrapped)
+                } else {
+                    wrapped := `(` + str + `)`
+                    parts = append(parts, wrapped)
+                }
+            }
+            for i := 0; i < len(s); i++ {
+                if s[i] == '(' || s[i] == ')' {
+                    if start < i {
+                        doAppend(s[start:i])
+                    }
+                    start = i + 1
+                }
+            }
+            if start < len(s) {
+                doAppend(s[start:])
+            }
+            
+            code := "([" + strings.Join(parts, " ") + `] join "")`
+            fmt.Println("code", code)
+
+			// fmt.Println(unsafe.Pointer(&code))
+			// if strings come from source then we can cache it, but not worth it
+			evalState := MakeState("__eval", code+"\n")
+			evalState.Machine = state.Machine
+			evalState.Vals = state.Vals
+			evalState.Vars = state.Vars
+
+			evalState.CallingParent = state
+			evalState.LexicalParent = state
+			evalState.Out = state.Out
+			return evalState
 		},
 	}
 	runImmediates = map[string]func(state *State) *State{
@@ -1345,6 +1401,7 @@ func initBuiltins() {
 
 		"not":         makeBuiltin_1_1(not),
 		"cc":          makeBuiltin_2_1(cc),
+		"++":          makeBuiltin_2_1(cc),
 		"indexOf":     makeBuiltin_2_1(indexOf),
 		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
 		"split":       makeBuiltin_2_1(split),
@@ -1355,7 +1412,7 @@ func initBuiltins() {
 			// TODO: allow anything to use slice of strings too
 			strSlice := make([]string, len(*a.(*[]any)))
 			for i, v := range *a.(*[]any) {
-				strSlice[i] = v.(string)
+				strSlice[i] = toStringInternal(v)
 			}
 			return strings.Join(strSlice, b.(string))
 		}),
@@ -1594,6 +1651,17 @@ func initBuiltins() {
 			return state
 		},
 		"let": func(state *State) *State {
+			b := popT(state.Vals)
+			a := popT(state.Vals).(string)
+			parentState := findParent(state, a)
+			if parentState == nil {
+				parentState = state
+			}
+			parentState.Vars[a] = b
+			clearFuncToken(state)
+			return state
+		},
+		"=": func(state *State) *State {
 			b := popT(state.Vals)
 			a := popT(state.Vals).(string)
 			parentState := findParent(state, a)
