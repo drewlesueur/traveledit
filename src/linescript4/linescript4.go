@@ -4695,6 +4695,11 @@ type SliceIterator struct {
     Slice []any
     I int // 1 based
 }
+// type MapIterator struct {
+//     Map map[string]any
+//     Keys []string
+//     I int // 1 based
+// }
 
 func makeSliceIterator(theSlice []any) (*SliceIterator) {
     return &SliceIterator{
@@ -4702,6 +4707,14 @@ func makeSliceIterator(theSlice []any) (*SliceIterator) {
         I: 1,
     }
 }
+// func makeMapIterator(theMap []any) (*MapIterator) {
+//     keys := make([]string, len(theMap))
+//     return &MapIterator{
+//         Map: theMap,
+//         Keys: keys,
+//         I: 1,
+//     }
+// }
 
 func (s *SliceIterator) Next() (int, any, bool) {
     if s.I <= len(s.Slice) {
@@ -4712,11 +4725,22 @@ func (s *SliceIterator) Next() (int, any, bool) {
     }
     return s.I, nil, false
 }
+// func (s *MapIterator) Next() (int, any, bool) {
+//     if s.I <= len(s.Slice) {
+//         ret := s.Slice[s.I-1]
+//         i := s.I
+//         s.I++
+//         return i, ret, true
+//     }
+//     return s.I, nil, false
+// }
 
 func makeIterator(v any) (Iterator) {
 	switch actualArr := v.(type) {
 	case *[]any:
 		return makeSliceIterator(*actualArr)
+	// case map[string]any:
+	// 	return makeMapIterator(actualArr)
 	case []any:
 		// not a normal case we should get in
 		return makeSliceIterator(actualArr)
