@@ -53,6 +53,8 @@ package main
 // alternate indention ui for params
 // too much caching on GoUpCache (what about dynamic jumps?)
 // it, dupit, nowMs don't need to be immediates anymore? because of func stack?
+// end] // should that work? update: it works now that "end" is am immediate
+
 
 import (
 	"bufio"
@@ -707,6 +709,7 @@ var stdinReader = &Reader{
 
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
+	// The 2 immediate styles can be consolidated now
 	if f, ok := runAlwaysImmediates[val]; ok {
 		return immediateToken(f)
 	}
@@ -1104,7 +1107,9 @@ func initBuiltins() {
 				// 2 because of ": "
 				// 1 because we want after "\n"
 				pushT(state.Vals, state.Code[state.I+2:state.I+2+end])
-				state.I = state.I + 2 + end + 1
+				// state.I = state.I + 2 + end + 1
+				state.I = state.I + 2 + end
+				// actually we don't want after the newline
 			} else {
 				r := findMatchingAfter(state, 0, []string{"end"})
 				str := state.Code[state.I+1 : r.I-3]
@@ -1127,7 +1132,9 @@ func initBuiltins() {
 				// 2 because of ": "
 				// 1 because we want after "\n"
 				pushT(state.Vals, interpolateDollar(state, state.Code[state.I+2:state.I+2+end]))
-				state.I = state.I + 2 + end + 1
+				// state.I = state.I + 2 + end + 1
+				state.I = state.I + 2 + end
+				// actually we don't want after the newline
 			} else {
 				r := findMatchingAfter(state, 0, []string{"end"})
 				str := state.Code[state.I+1 : r.I-3]
@@ -1143,6 +1150,117 @@ func initBuiltins() {
 				state.I = r.I
 			}
 			return state
+		},
+		"%%": func(state *State) *State {
+			end := strings.Index(state.Code[state.I:], "\n")
+            var s string
+            // if false && end == 0 {
+            if end == 0 {
+				r := findMatchingAfter(state, 0, []string{"end"})
+				str := state.Code[state.I+1 : r.I-3]
+				lines := strings.Split(str, "\n")
+				lines = lines[0 : len(lines)-1]
+				prefixToTrim := r.Indent + "    "
+				for i, line := range lines {
+					// fmt.Printf("%q %q" prefixToTrim, line)
+					lines[i] = strings.TrimPrefix(line, prefixToTrim)
+				}
+				s = strings.Join(lines, "\n")
+				state.I = r.I
+            } else {
+                s = state.Code[state.I:state.I+end]
+                state.I += end
+            }
+            // TODO: cached or more optimal way of doing this.
+            // you could even handle in the parser?
+            
+            var parts []string
+            start := 0
+            depth := 0
+            parseState := "out"
+            doAppend := func(str string) {
+                if len(parts)%2 == 0 {
+                    wrapped := `xyzzylol"` + str + `"xyzzylol`
+                    parts = append(parts, wrapped)
+                } else {
+                    // wrapped := `(` + str + `)`
+                    wrapped := str
+                    parts = append(parts, wrapped)
+                }
+            }
+            for i := 0; i < len(s); i++ {
+                if parseState == "inParen" {
+                    switch s[i] {
+                    case '(':
+                        depth++
+                    case ')':
+                        depth--
+                        if depth == 0 {
+                            if start < i {
+                                doAppend(s[start:i])
+                            }
+                            start = i + 1
+                            parseState = "out"
+                        }
+                    }
+                } else if parseState == "inPercent" {
+                    switch s[i] {
+                    case ' ', '\n':
+                        if start < i {
+                            doAppend(s[start:i])
+                        }
+                        start = i
+                        parseState = "out"
+                    }
+                } else if parseState == "out" {
+                    switch s[i] {
+                    case '%':
+                        if depth == 0 && len(s) > i && s[i+1] != ' ' {
+                            if start < i {
+                                doAppend(s[start:i])
+                            }
+                            start = i + 1
+                            parseState = "inPercent"
+                        }
+                        // depth++
+                    case '(':
+                        if len(s) > i && s[i+1] == '%' {
+                            if start < i {
+                                doAppend(s[start:i])
+                            }
+                            start = i + 2
+                            parseState = "inParen"
+                            depth++
+                        }
+                    }
+                }
+            }
+            if start < len(s) {
+                doAppend(s[start:])
+            }
+            // for _, v := range parts {
+            //     fmt.Println("#aqua", v)
+            // }
+            
+            // code := "([\n" + strings.Join(parts, " ") + "\n]" + ` join "")`
+            code := "([\n" + strings.Join(parts, " ") + "\n]" + ` join "")`
+            // code := "([\n" + strings.Join(parts, "\n") + `] join "")`
+            // code := "([\n" + strings.Join(parts, " newline\n ") + `] join "", see)`
+            // fmt.Println("====code====")
+            // fmt.Println(code)
+            // fmt.Println("========")
+
+			// fmt.Println(unsafe.Pointer(&code))
+			// if strings come from source then we can cache it, but not worth it
+			evalState := MakeState("__eval", code+"\n")
+			evalState.Machine = state.Machine
+			evalState.Vals = state.Vals
+			evalState.Vars = state.Vars
+
+			evalState.CallingParent = state
+			evalState.LexicalParent = state
+			evalState.Out = state.Out
+			return evalState
 		},
 	}
 	runImmediates = map[string]func(state *State) *State{
@@ -1277,6 +1395,7 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		"end": doEnd,
 	}
 	builtins = map[string]func(state *State) *State{
 		"formatTimestamp": makeBuiltin_2_1(func(m any, f any) any {
@@ -1349,6 +1468,7 @@ func initBuiltins() {
 
 		"not":         makeBuiltin_1_1(not),
 		"cc":          makeBuiltin_2_1(cc),
+		"++":          makeBuiltin_2_1(cc),
 		"indexOf":     makeBuiltin_2_1(indexOf),
 		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
 		"split":       makeBuiltin_2_1(split),
@@ -1359,7 +1479,7 @@ func initBuiltins() {
 			// TODO: allow anything to use slice of strings too
 			strSlice := make([]string, len(*a.(*[]any)))
 			for i, v := range *a.(*[]any) {
-				strSlice[i] = v.(string)
+				strSlice[i] = toStringInternal(v)
 			}
 			return strings.Join(strSlice, b.(string))
 		}),
@@ -1598,6 +1718,17 @@ func initBuiltins() {
 			return state
 		},
 		"let": func(state *State) *State {
+			b := popT(state.Vals)
+			a := popT(state.Vals).(string)
+			parentState := findParent(state, a)
+			if parentState == nil {
+				parentState = state
+			}
+			parentState.Vars[a] = b
+			clearFuncToken(state)
+			return state
+		},
+		"=": func(state *State) *State {
 			b := popT(state.Vals)
 			a := popT(state.Vals).(string)
 			parentState := findParent(state, a)
@@ -2157,7 +2288,7 @@ func initBuiltins() {
 		// else was here
 		// but needs to be in the immediates
 		// "loopN":
-		"end": doEnd,
+		// "end": doEnd,
 		"return": func(state *State) *State {
 			clearFuncToken(state) // needed?
 			if state.CallingParent == nil {
