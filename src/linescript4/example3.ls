@@ -1,5 +1,11 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
+[100 20 500 30 900]
+filter
+    > 100
+end
+say
+exit
 
 "./go.sum" readFileByLine .i .line
     say i " => " line

@@ -2019,7 +2019,7 @@ func initBuiltins() {
 		},
 		"map": func(state *State) *State {
 			ret := []any{}
-			return processLoop(state, func(state *State) {
+			return processLoop(state, func(state *State, theIndex int, value any) {
 				ret = append(ret, popT(state.Vals))
 			}, func(state *State) {
 				pushT(state.Vals, &ret)
@@ -2043,87 +2043,19 @@ func initBuiltins() {
 			})
 			return state
 		},
-
-		// update this so that the "arr" argument
-		// is a filename (string)
-		// and the looping it does is over each line of the file
-		// the indexVar is the line index
-		// the itemVar is the string that's the line of the file
-		// call the name of the function "fileByLine"
-		// Note that you won't loop in this function!
-		// the endEach handles the iteration!
-		// also use bufio.NewReader cuz I don't know how long each line will be
-		"readFileByLineOld": func(state *State) *State {
-			theIndex := 0
-
-			things := getArgs(state)
-			thingsVal := *things
-
-			var indexVar string
-			var itemVar string
-
-			if len(thingsVal) == 2 {
-				indexVar = thingsVal[0].(string)
-				itemVar = thingsVal[1].(string)
-			} else if len(thingsVal) == 1 {
-				itemVar = thingsVal[0].(string)
-			}
-
-			// Pop the filename from the stack and open the file
-			fileName := popT(state.Vals).(string)
-			f, err := os.Open(fileName)
-			if err != nil {
-				// other idea is go to end
-				panic(err)
-			}
-			reader := bufio.NewReader(f)
-
-			if indexVar != "" {
-				state.Vars[indexVar] = theIndex
-				// state.Vars[indexVar] = strconv.Itoa(theIndex)
-			}
-			if itemVar != "" {
-				state.Vars[itemVar] = nil
-			}
-
-			spot := state.I
-			var endFileLine func(state *State) *State
-			endFileLine = func(state *State) *State {
-				debug("#thistle fileByLine End")
-				theIndex++
-
-				line, err := reader.ReadString('\n')
-				if err != nil {
-					f.Close()
-					state.OneLiner = false
-					return state
+		"filter": func(state *State) *State {
+			ret := []any{}
+			return processLoop(state, func(state *State, theIndex int, value any) {
+				v := popT(state.Vals).(bool)
+				if v {
+					ret = append(ret, value)
 				}
-				line = strings.TrimRight(line, "\n")
-				if indexVar != "" {
-					state.Vars[indexVar] = theIndex
-					// state.Vars[indexVar] = strconv.Itoa(theIndex)
-				}
-				if itemVar != "" {
-					state.Vars[itemVar] = line
-				} else {
-					pushT(state.Vals, line)
-				}
-				state.I = spot
-				state.EndStack = append(state.EndStack, endFileLine)
-				return state
-			}
-			state.EndStack = append(state.EndStack, endFileLine)
-			var i int
-			if state.OneLiner {
-				i = findBeforeEndLineOnlyLine(state)
-			} else {
-				i = findMatchingBefore(state, []string{"end"})
-			}
-			state.I = i
-			clearFuncToken(state)
+			}, func(state *State) {
+				pushT(state.Vals, &ret)
+			})
 			return state
 		},
-		"filter": func(state *State) *State {
+		"filterOld": func(state *State) *State {
 			// start at -1 and jump to end to force the length check first
 			theIndex := -1
 
@@ -4835,7 +4767,7 @@ func setLoopVars(state *State, indexVar, itemVar string, theIndex int, value any
 	}
 }
 
-func processLoop(state *State, process, onEnd func(state *State)) *State {
+func processLoop(state *State, process func(*State, int, any), onEnd func(state *State)) *State {
 	theIndex := 0 // 1 based so we start less than 1
     indexVar, itemVar := getLoopVars(state)
 
@@ -4847,7 +4779,7 @@ func processLoop(state *State, process, onEnd func(state *State)) *State {
 	var ok bool
 	endEach = func(state *State) *State {
         if theIndex > 0 && process != nil {
-		    process(state)
+		    process(state, theIndex, value)
         }
 		theIndex, value, ok = iterator.Next()
 		if !ok {
