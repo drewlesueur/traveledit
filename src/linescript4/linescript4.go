@@ -694,11 +694,50 @@ func noop(state *State) *State {
 type Reader struct {
 	// Reader: io.Reader
 	io.Reader
+	Index int
 }
 
-func (r *Reader) Iterator() {
-    return 
+func (r *Reader) Iterator() Iterator {
+    return r
 }
+// could make this separate
+func (r *Reader) Next() (int, any, bool) {
+	r.Index++
+	buf := make([]byte, 1024)
+	n, err := r.Read(buf)
+	if err != nil {
+		if err == io.EOF {
+		} else {
+			panic(err)
+		}
+	}
+	// if we get EOF and bytes, must call again. hopefully this simplifies
+	return r.Index, buf[0:n], err == nil || n > 0
+}
+
+type Newliner struct {
+    Index int
+    Reader *bufio.Reader
+}
+func (n *Newliner) Iterator() Iterator {
+    return n
+}
+// could make this separate
+func (n *Newliner) Next() (int, any, bool) {
+	n.Index++
+	line, err := n.Reader.ReadString('\n')
+	if err != nil {
+		if err == io.EOF {
+		} else {
+			panic(err)
+		}
+	}
+	fmt.Printf("got %q, %v", line, err)
+	origLine := line
+	line = strings.TrimRight(line, "\n")
+	return n.Index, line, err == nil || len(origLine) > 0
+}
+
 
 // TODO: files must end in newline!
 type Skip string
@@ -1338,6 +1377,7 @@ func initBuiltins() {
 				state = doEnd(state)
 			}
 			oldState.NewlineSpot = len(*oldState.Vals)
+			// fmt.Println(" setting NewlineSpot to", oldState.NewlineSpot)
 			return state
 		},
 		":": func(state *State) *State {
@@ -1634,7 +1674,7 @@ func initBuiltins() {
 			if err != nil {
 				if err == io.EOF {
 				} else {
-					panic("short write")
+					panic(err)
 				}
 			}
 			return string(buf[:n])
@@ -1975,32 +2015,32 @@ func initBuiltins() {
 			return state
 		},
 		"each": func(state *State) *State {
-			theIndex := 0
-            indexVar, itemVar := getLoopVars(state)
-
-			iterator := makeIterator(popT(state.Vals))
-			setLoopVarsInit(state, indexVar, itemVar, theIndex, nil)
-			var spot = state.I
-			var endEach func(state *State) *State
-			endEach = func(state *State) *State {
-				theIndex, value, ok := iterator.Next()
-				if !ok {
-					state.OneLiner = false
-					return state
-				}
-				setLoopVars(state, indexVar, itemVar, theIndex, value)
-				state.I = spot
-				state.EndStack = append(state.EndStack, endEach)
-				return state
+			return processLoop(state, nil, nil)
+		},
+		"map": func(state *State) *State {
+			ret := []any{}
+			return processLoop(state, func(state *State) {
+				ret = append(ret, popT(state.Vals))
+			}, func(state *State) {
+				pushT(state.Vals, &ret)
+			})
+			return state
+		},
+		"readFileByLine": func(state *State) *State {
+			ftSpot := state.FuncTokenSpots[len(state.FuncTokenSpots)-1] - 1
+			// fmt.Println("ftspot: ", ftSpot)
+			fileName := toStringInternal((*state.Vals)[ftSpot])
+			// fmt.Println("filename: ", fileName)
+			f, err := os.Open(fileName)
+			if err != nil {
+				// other idea is go to end
+				panic(err)
 			}
-			state.EndStack = append(state.EndStack, endEach)
-			var i int
-			if state.OneLiner {
-				i = findBeforeEndLineOnlyLine(state)
-			} else {
-				i = findMatchingBefore(state, []string{"end"})
-			}
-			state.I = i
+			reader := bufio.NewReader(f)
+			(*state.Vals)[ftSpot] = &Newliner{Reader: reader}
+			return processLoop(state, nil, func(state *State) {
+			    f.Close()
+			})
 			return state
 		},
 
@@ -2013,7 +2053,7 @@ func initBuiltins() {
 		// Note that you won't loop in this function!
 		// the endEach handles the iteration!
 		// also use bufio.NewReader cuz I don't know how long each line will be
-		"readFileByLine": func(state *State) *State {
+		"readFileByLineOld": func(state *State) *State {
 			theIndex := 0
 
 			things := getArgs(state)
@@ -2069,77 +2109,10 @@ func initBuiltins() {
 					pushT(state.Vals, line)
 				}
 				state.I = spot
-				debug("#white add end stack end fileByLine")
 				state.EndStack = append(state.EndStack, endFileLine)
 				return state
 			}
-			debug("#white add end stack start fileByLine")
 			state.EndStack = append(state.EndStack, endFileLine)
-			var i int
-			if state.OneLiner {
-				i = findBeforeEndLineOnlyLine(state)
-			} else {
-				i = findMatchingBefore(state, []string{"end"})
-			}
-			state.I = i
-			clearFuncToken(state)
-			return state
-		},
-		"map": func(state *State) *State {
-			// alternate implementation where we don't
-			// jump to end first and we start at 0
-
-			// start at 1 and jump to end to force the end check first
-			theIndex := 0
-
-			things := getArgs(state)
-			thingsVal := *things
-
-			var indexVar string
-			var itemVar string
-
-			if len(thingsVal) == 2 {
-				indexVar = thingsVal[0].(string)
-				itemVar = thingsVal[1].(string)
-			} else if len(thingsVal) == 1 {
-				itemVar = thingsVal[0].(string)
-			}
-
-			var arr *[]any
-			switch actualArr := popT(state.Vals).(type) {
-			case *[]any:
-				arr = actualArr
-			case []any:
-				arr = &actualArr
-			}
-			var spot = state.I
-			ret := []any{}
-			var endEach func(state *State) *State
-			endEach = func(state *State) *State {
-				if theIndex != -1 {
-					ret = append(ret, popT(state.Vals))
-				}
-				theIndex++
-				if theIndex >= len(*arr) {
-					state.OneLiner = false
-					pushT(state.Vals, &ret)
-					return state
-				} else {
-					if indexVar != "" {
-						state.Vars[indexVar] = theIndex + 1
-						// state.Vars[indexVar] = strconv.Itoa(theIndex+1)
-					}
-					if itemVar != "" {
-						state.Vars[itemVar] = (*arr)[theIndex]
-					} else {
-						pushT(state.Vals, (*arr)[theIndex])
-					}
-					state.I = spot
-					state.EndStack = append(state.EndStack, endEach)
-				}
-				return state
-			}
-			state.EndStack = append(state.EndStack, endEach)
 			var i int
 			if state.OneLiner {
 				i = findBeforeEndLineOnlyLine(state)
@@ -4856,6 +4829,46 @@ func setLoopVars(state *State, indexVar, itemVar string, theIndex int, value any
 	if itemVar != "" {
 		state.Vars[itemVar] = value
 	} else {
+		// fmt.Println("pushing", value)
 		pushT(state.Vals, value)
+		state.NewlineSpot = len(*state.Vals)
 	}
+}
+
+func processLoop(state *State, process, onEnd func(state *State)) *State {
+	theIndex := 0 // 1 based so we start less than 1
+    indexVar, itemVar := getLoopVars(state)
+
+	iterator := makeIterator(popT(state.Vals))
+	setLoopVarsInit(state, indexVar, itemVar, theIndex, nil)
+	var spot = state.I
+	var endEach func(state *State) *State
+	var value any
+	var ok bool
+	endEach = func(state *State) *State {
+        if theIndex > 0 && process != nil {
+		    process(state)
+        }
+		theIndex, value, ok = iterator.Next()
+		if !ok {
+			state.OneLiner = false
+			if onEnd != nil {
+			    onEnd(state)
+			}
+			return state
+		}
+		setLoopVars(state, indexVar, itemVar, theIndex, value)
+		state.I = spot
+		state.EndStack = append(state.EndStack, endEach)
+		return state
+	}
+	state.EndStack = append(state.EndStack, endEach)
+	var i int
+	if state.OneLiner {
+		i = findBeforeEndLineOnlyLine(state)
+	} else {
+		i = findMatchingBefore(state, []string{"end"})
+	}
+	state.I = i
+	return state
 }

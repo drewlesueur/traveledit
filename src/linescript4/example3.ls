@@ -1,9 +1,10 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
-[.one .two .three .four]
-each .v
-    say v
+
+"./go.sum" readFileByLine .i .line
+    say i " => " line
 end
+
 
 [.one .two .three .four]
 each .i .v
@@ -11,21 +12,32 @@ each .i .v
 end
 
 [.one .two .three .four]
+map .v
+    v ++ "."
+end
+say
+
+
+[.one .two .three .four]
+each
+    say it
+end
+exit
+
+
+[.one .two .three .four]
+each .v
+    say v
+end
+
+
+[.one .two .three .four]
 each .i .v
     say %% (%i) => %v
 end
 .name = "Drew"
 say %% The name is %name
-exit
 
-
-exit
-
-# [.one .two .three .four]
-# each
-#     say it
-# end
-exit
 
 
 [.yo .a .test .here]
