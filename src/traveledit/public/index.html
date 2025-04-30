@@ -6101,8 +6101,8 @@ function processPollResponse(wrapperR) {
 // ```javascript
 function processTerminal(theBase64, file) {
     var strToProcess = atob(theBase64)
-    log(strToProcess)
-    log(JSON.stringify(strToProcess))
+    // log(strToProcess)
+    // log(JSON.stringify(strToProcess))
     // simple parsing for now
 
     // TODO: what if the chunk we get ends on a control character.
@@ -6227,7 +6227,7 @@ function processTerminal(theBase64, file) {
                           // case "?7":  // wraparound mode
                           // …
                           default:
-                            log(`Unhandled DEC private mode ?${param}${theChr}`);
+                            // log(`Unhandled DEC private mode ?${param}${theChr}`);
                         }
                       });
                     } else {
@@ -6296,7 +6296,7 @@ function processTerminal(theBase64, file) {
                             // AI: add any other CSI final bytes you need, e.g. 'r', 'h', 'l'
                             default:
                                 // AI: unhandled CSI code: log or ignore
-                                log("Unhandled CSI " + theChr + " params: " + controlValues.join(";"))
+                                // log("Unhandled CSI " + theChr + " params: " + controlValues.join(";"))
                         }
                     }
                     parseState = "literal"

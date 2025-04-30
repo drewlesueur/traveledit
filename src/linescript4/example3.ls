@@ -1,5 +1,40 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
+[.one .two .three .four]
+each .v
+    say v
+end
+
+[.one .two .three .four]
+each .i .v
+    say i v
+end
+
+[.one .two .three .four]
+each .i .v
+    say %% (%i) => %v
+end
+.name = "Drew"
+say %% The name is %name
+exit
+
+
+exit
+
+# [.one .two .three .four]
+# each
+#     say it
+# end
+exit
+
+
+[.yo .a .test .here]
+each .k .v
+    say k v
+    say %% what 
+end
+
+
 string
     foobar
     yo
@@ -52,10 +87,6 @@ say verycool"yo man"verycool
 
 
 
-[.one .two .three .four]
-each
-    say it
-end
 # let s __state
 # go :s
 #     sleepMs 1000

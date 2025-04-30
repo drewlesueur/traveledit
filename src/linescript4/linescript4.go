@@ -1196,9 +1196,7 @@ func initBuiltins() {
                     case ')':
                         depth--
                         if depth == 0 {
-                            if start < i {
-                                doAppend(s[start:i])
-                            }
+                            doAppend(s[start:i])
                             start = i + 1
                             parseState = "out"
                         }
@@ -1206,9 +1204,7 @@ func initBuiltins() {
                 } else if parseState == "inPercent" {
                     switch s[i] {
                     case ' ', '\n':
-                        if start < i {
-                            doAppend(s[start:i])
-                        }
+                        doAppend(s[start:i])
                         start = i
                         parseState = "out"
                     }
@@ -1216,18 +1212,14 @@ func initBuiltins() {
                     switch s[i] {
                     case '%':
                         if depth == 0 && len(s) > i && s[i+1] != ' ' {
-                            if start < i {
-                                doAppend(s[start:i])
-                            }
+                            doAppend(s[start:i])
                             start = i + 1
                             parseState = "inPercent"
                         }
                         // depth++
                     case '(':
                         if len(s) > i && s[i+1] == '%' {
-                            if start < i {
-                                doAppend(s[start:i])
-                            }
+                            doAppend(s[start:i])
                             start = i + 2
                             parseState = "inParen"
                             depth++
@@ -1984,27 +1976,10 @@ func initBuiltins() {
 		},
 		"each": func(state *State) *State {
 			theIndex := 0
-
-			things := getArgs(state)
-			thingsVal := *things
-
-			var indexVar string
-			var itemVar string
-
-			if len(thingsVal) == 2 {
-				indexVar = thingsVal[0].(string)
-				itemVar = thingsVal[1].(string)
-			} else if len(thingsVal) == 1 {
-				itemVar = thingsVal[0].(string)
-			}
+            indexVar, itemVar := getLoopVars(state)
 
 			iterator := makeIterator(popT(state.Vals))
-			if indexVar != "" {
-				state.Vars[indexVar] = theIndex
-			}
-			if itemVar != "" {
-				state.Vars[itemVar] = nil
-			}
+			setLoopVarsInit(state, indexVar, itemVar, theIndex, nil)
 			var spot = state.I
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
@@ -2013,14 +1988,7 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				}
-				if indexVar != "" {
-					state.Vars[indexVar] = theIndex
-				}
-				if itemVar != "" {
-					state.Vars[itemVar] = value
-				} else {
-					pushT(state.Vals, value)
-				}
+				setLoopVars(state, indexVar, itemVar, theIndex, value)
 				state.I = spot
 				state.EndStack = append(state.EndStack, endEach)
 				return state
@@ -2033,7 +2001,6 @@ func initBuiltins() {
 				i = findMatchingBefore(state, []string{"end"})
 			}
 			state.I = i
-			clearFuncToken(state)
 			return state
 		},
 
@@ -2122,8 +2089,8 @@ func initBuiltins() {
 			// alternate implementation where we don't
 			// jump to end first and we start at 0
 
-			// start at -1 and jump to end to force the end check first
-			theIndex := -1
+			// start at 1 and jump to end to force the end check first
+			theIndex := 0
 
 			things := getArgs(state)
 			thingsVal := *things
@@ -4854,5 +4821,41 @@ func makeIterator(v any) (Iterator) {
 	        panic("not eachable")
 	    }
 	    return Iterable.Iterator()
+	}
+}
+
+
+func getLoopVars(state *State) (string, string) {
+	things := getArgs(state)
+	thingsVal := *things
+
+	var indexVar string
+	var itemVar string
+
+	if len(thingsVal) == 2 {
+		indexVar = thingsVal[0].(string)
+		itemVar = thingsVal[1].(string)
+	} else if len(thingsVal) == 1 {
+		itemVar = thingsVal[0].(string)
+	}
+	return indexVar, itemVar
+}
+
+func setLoopVarsInit(state *State, indexVar, itemVar string, theIndex int, value any)  {
+	if indexVar != "" {
+		state.Vars[indexVar] = theIndex
+	}
+	if itemVar != "" {
+		state.Vars[itemVar] = value
+	}
+}
+func setLoopVars(state *State, indexVar, itemVar string, theIndex int, value any)  {
+	if indexVar != "" {
+		state.Vars[indexVar] = theIndex
+	}
+	if itemVar != "" {
+		state.Vars[itemVar] = value
+	} else {
+		pushT(state.Vals, value)
 	}
 }
