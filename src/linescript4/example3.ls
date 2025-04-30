@@ -1,6 +1,13 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
 say "what?"
+
+
+
+[.one .two .three .four]
+each
+    say it
+end
 # let s __state
 # go :s
 #     sleepMs 1000

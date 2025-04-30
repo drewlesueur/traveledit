@@ -694,6 +694,10 @@ type Reader struct {
 	io.Reader
 }
 
+func (r *Reader) Iterator() {
+    return 
+}
+
 // TODO: files must end in newline!
 type Skip string
 
@@ -1848,7 +1852,7 @@ func initBuiltins() {
 			return state
 		},
 		"each": func(state *State) *State {
-			theIndex := -1
+			theIndex := 0
 
 			things := getArgs(state)
 			thingsVal := *things
@@ -1863,18 +1867,9 @@ func initBuiltins() {
 				itemVar = thingsVal[0].(string)
 			}
 
-			var arr *[]any
-			switch actualArr := popT(state.Vals).(type) {
-			case *[]any:
-				arr = actualArr
-			case []any:
-				arr = &actualArr
-			}
+			iterator := makeIterator(popT(state.Vals))
 			if indexVar != "" {
-				// TODO: this should be + 1?
-				// TODO: check empty loop and after loop
 				state.Vars[indexVar] = theIndex
-				// state.Vars[indexVar] = strconv.Itoa(theIndex)
 			}
 			if itemVar != "" {
 				state.Vars[itemVar] = nil
@@ -1882,29 +1877,23 @@ func initBuiltins() {
 			var spot = state.I
 			var endEach func(state *State) *State
 			endEach = func(state *State) *State {
-				debug("#thistle each End")
-				theIndex++
-				if theIndex >= len(*arr) {
+				theIndex, value, ok := iterator.Next()
+				if !ok {
 					state.OneLiner = false
 					return state
-				} else {
-					if indexVar != "" {
-						state.Vars[indexVar] = theIndex + 1
-						// state.Vars[indexVar] = strconv.Itoa(theIndex+1)
-					}
-					if itemVar != "" {
-						state.Vars[itemVar] = (*arr)[theIndex]
-					} else {
-						// pushT(state.Vals, theIndex)
-						pushT(state.Vals, (*arr)[theIndex])
-					}
-					state.I = spot
-					debug("#white add end stack end each")
-					state.EndStack = append(state.EndStack, endEach)
 				}
+				if indexVar != "" {
+					state.Vars[indexVar] = theIndex
+				}
+				if itemVar != "" {
+					state.Vars[itemVar] = value
+				} else {
+					pushT(state.Vals, value)
+				}
+				state.I = spot
+				state.EndStack = append(state.EndStack, endEach)
 				return state
 			}
-			debug("#white add end stack start each")
 			state.EndStack = append(state.EndStack, endEach)
 			var i int
 			if state.OneLiner {
@@ -4689,4 +4678,50 @@ func sleepMs(state *State) *State {
 		state.AddCallback(Callback{State: state})
 	}()
 	return nil
+}
+
+type Iterable interface{
+    Iterator() Iterator
+}
+
+type Iterator interface {
+    Next() (int, any, bool)
+}
+
+type SliceIterator struct {
+    Slice []any
+    I int // 1 based
+}
+
+func makeSliceIterator(theSlice []any) (*SliceIterator) {
+    return &SliceIterator{
+        Slice: theSlice,
+        I: 1,
+    }
+}
+
+func (s *SliceIterator) Next() (int, any, bool) {
+    if s.I <= len(s.Slice) {
+        ret := s.Slice[s.I-1]
+        i := s.I
+        s.I++
+        return i, ret, true
+    }
+    return s.I, nil, false
+}
+
+func makeIterator(v any) (Iterator) {
+	switch actualArr := v.(type) {
+	case *[]any:
+		return makeSliceIterator(*actualArr)
+	case []any:
+		// not a normal case we should get in
+		return makeSliceIterator(actualArr)
+	default:
+	    Iterable, ok := actualArr.(Iterable)
+	    if !ok {
+	        panic("not eachable")
+	    }
+	    return Iterable.Iterator()
+	}
 }

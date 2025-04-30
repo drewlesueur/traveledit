@@ -18,6 +18,9 @@ type Record struct {
     Values []RValue
     KeyPositions map[RS]RI
 }
+type List struct {
+    Values []RValue
+}
 
 
 func (r *Record) Slice(startV, stopV RValue) RValue {
