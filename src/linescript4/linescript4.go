@@ -600,7 +600,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 		case stateOut:
 			switch b {
 			// leave off the : here so if it's a word starting with :, that can be a string
-			case '{', '}', '(', ')', '[', ']', ',', '\n', '|':
+			case '{', '}', '(', ')', '[', ']', ',', '\n', ';', '|':
 				str := string(b)
 				return makeToken(state, str), str, i + 1
 			case ' ', '\t', '\r':
@@ -623,7 +623,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 			}
 		case stateIn:
 			switch b {
-			case '{', '}', '(', ')', '[', ']', ',', '\n', '|', ':', '.':
+			case '{', '}', '(', ')', '[', ']', ',', '\n', ';', '|', ':', '.':
 				str := code[start:i]
 				return makeToken(state, str), str, i
 			case ' ', '\t', '\r':
@@ -926,7 +926,7 @@ func findBeforeEndLine(state *State) int {
 			}
 			continue
 		}
-		if chr == '\n' || chr == ',' || chr == '|' {
+		if chr == '\n' || chr == ';' || chr == ',' || chr == '|' {
 			if parenCount == 0 {
 				// i--
 				break
@@ -963,7 +963,7 @@ func findBeforeEndLineOnlyLine(state *State) int {
 			}
 			continue
 		}
-		if chr == '\n' {
+		if chr == '\n' || chr == ';' {
 			if parenCount == 0 {
 				// i--
 				break
@@ -1241,12 +1241,27 @@ func initBuiltins() {
                         }
                     }
                 } else if parseState == "inPercent" {
-                    switch s[i] {
-                    case ' ', '\n':
+                    // switch s[i] {
+                    // case ' ', '\n':
+                    //     doAppend(s[start:i])
+                    //     start = i
+                    //     parseState = "out"
+                    // }
+                    // change this case to anything non alphanumeric and underscore
+                    // use simple math for thr ranges, not unicode package 
+
+                    switch {
+                    case s[i] < '0' ||
+                        (s[i] > '9' && s[i] < 'A') ||
+                        (s[i] > 'Z' && s[i] < '_') ||
+                        (s[i] > '_' && s[i] < 'a') ||
+                        s[i] > 'z':
                         doAppend(s[start:i])
                         start = i
                         parseState = "out"
                     }
+
+
                 } else if parseState == "out" {
                     switch s[i] {
                     case '%':
@@ -1380,11 +1395,14 @@ func initBuiltins() {
 			// fmt.Println(" setting NewlineSpot to", oldState.NewlineSpot)
 			return state
 		},
-		":": func(state *State) *State {
-			state.OneLiner = true
-			state.OneLinerParenLevel = len(state.ModeStack)
+		";": func(state *State) *State {
+			// same as newline
+			oldState := state
 			state = callFunc(state)
-			// state.OneLiner = false
+			if oldState == state && oldState.OneLiner {
+				state = doEnd(state)
+			}
+			oldState.NewlineSpot = len(*oldState.Vals)
 			return state
 		},
 		",": func(state *State) *State {
@@ -1393,6 +1411,13 @@ func initBuiltins() {
 			state.NewlineSpot = len(*state.Vals)
 			state.InCurrentCall = false
 			return newState
+		},
+		":": func(state *State) *State {
+			state.OneLiner = true
+			state.OneLinerParenLevel = len(state.ModeStack)
+			state = callFunc(state)
+			// state.OneLiner = false
+			return state
 		},
 		"|": func(state *State) *State {
 			state = callFunc(state)
@@ -1597,6 +1622,16 @@ func initBuiltins() {
 			return base64.StdEncoding.EncodeToString([]byte(a.(string))) 
 		}),
 		"base64Decode": makeBuiltin_1_1(func(a any) any {
+			ret, err := base64.StdEncoding.DecodeString(a.(string)) 
+			if err != nil {
+				panic(err)
+			}
+			return string(ret)
+		}),
+		"toBase64": makeBuiltin_1_1(func(a any) any {
+			return base64.StdEncoding.EncodeToString([]byte(a.(string))) 
+		}),
+		"fromBase64": makeBuiltin_1_1(func(a any) any {
 			ret, err := base64.StdEncoding.DecodeString(a.(string)) 
 			if err != nil {
 				panic(err)
