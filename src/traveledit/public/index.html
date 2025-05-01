@@ -3678,7 +3678,7 @@ function findDown(searchDir, wrap, startTop) {
        startY = 0
     }
     if (document.activeElement != searchText) {
-        if (fx.selectedRegions.length) {
+        if (searchText.value == "" && fx.selectedRegions.length) {
             searchText.value = getSelectedLines(fx, false, true).lines[0]
             saveSearchHistory()
             return
@@ -3758,7 +3758,9 @@ function findDown(searchDir, wrap, startTop) {
             if (!searchText.preventXNav) {
                 fx.cursorColIndex = expandTabIndex(originalLineToSearch, pos, i, fx)
             }
-
+            if (fx.selectedRegions.length) {
+                moveSelectionToCursor(fx.selectedRegions[0])
+            }
             updateCursorXY()
             ensureCursorInScreen()
 
@@ -3815,7 +3817,8 @@ function findUp() {
         fx.cursorLineIndex = searchText.value.slice(1) - 1
         ensureCursorInScreen()
     }
-    if (fx.selectedRegions.length) {
+    // if (fx.selectedRegions.length) {
+    if (searchText.value == "" && fx.selectedRegions.length) {
         searchText.value = getSelectedLines(fx, false, true).lines[0]
         saveSearchHistory()
         return
@@ -3905,6 +3908,9 @@ function findUp() {
                     // in the future we could probably make the non regexp more consistent where it loops to the last one. (maybe better than reversing string?)
                     fx.cursorColIndex = expandTabIndex(lineToSearch, pos, null, null, "nocache")
                 }
+            }
+            if (fx.selectedRegions.length) {
+                moveSelectionToCursor(fx.selectedRegions[0])
             }
             updateCursorXY()
             ensureCursorInScreen()
@@ -10274,28 +10280,7 @@ function onStart(e) {
         if (cursorType == "select") {
             overflowX = 0
             overflowY = 0
-            var cli = fx.cursorLineIndex
-            if (cli >= fx.lines.length) {
-                cli = fx.lines.length - 1
-            }
-            var line = fx.lines[cli] || ""
-            if (selectedRegion.selectedWord) {
-                selectedRegion.selectedWord = false
-                // selectedRegion.stopX = selectedRegion.origStopX
-            }
-            if ("origStartX" in selectedRegion) {
-                selectedRegion.startX = selectedRegion.origStartX
-                selectMode = "char"
-            }
-            if (selectedRegion.selectedLine) {
-                selectedRegion.selectedLine = false
-            }
-            selectedRegion.stopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
-            selectedRegion.stopY = bind(cli, 0, fx.lines.length-1)
-            selectedRegion.stopped = true // TODO: I think stop can be removed
-            if (fx.cursorColIndex < 0 || selectMode == "line") {
-                selectedRegion.stopX = expandTabIndex(line, line.length, cli)
-            }
+            moveSelectionToCursor(selectedRegion)
         }
         // attempt at #snappingCursor
         // TODO: also look at snapping away whitespace
@@ -10601,29 +10586,9 @@ function onStart(e) {
                 if (false && highlightMatchesSingleRegExp) {
                     prevHighlightText()
                 // } else if (searchText.value !== "" && !fx.selectedRegions.length) {
-                } else if (!fx.selectedRegions.length || selectMode == "char") {
+                // } else if (!fx.selectedRegions.length || selectMode == "char") {
+                } else if (true) {
                     findUp()
-                } else {
-                    fx.cursorLineIndex -= 1
-                    if (fx.cursorLineIndex < 0) {
-                        fx.cursorLineIndex = 0
-                    }
-                    ensureCursorInScreen()
-                    if (fx.selectedRegions.length) {
-                        fx.selectedRegions[0].stopY -= 1
-                        if (fx.selectedRegions[0].stopY < fx.selectedRegions[0].startY) {
-                            fx.selectedRegions[0].stopY = fx.selectedRegions[0].startY
-                        }
-                        var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
-                        fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
-                    } else if (document.activeElement != theText) {
-                        // ??
-                        fx.offsetY -= 1
-                        if (fx.offsetY < 0) {
-                            // fx.offsetY = -minSpaceForHeader
-                            fx.offsetY = 0
-                        }
-                    }
                 }
             },
             "3farRight": function () {
@@ -10632,28 +10597,9 @@ function onStart(e) {
                 // if (fx.highlightText) {
                 if (false && highlightMatchesSingleRegExp) {
                     nextHighlightText()
-                } else if (!fx.selectedRegions.length || selectMode == "char") {
+                // } else if (!fx.selectedRegions.length || selectMode == "char") {
+                } else if (true) {
                     findDown()
-                } else {
-                    fx.cursorLineIndex += 1
-                    if (fx.cursorLineIndex >= fx.lines.length) {
-                        fx.cursorLineIndex = fx.lines.length - 1
-                    }
-                    ensureCursorInScreen()
-                    if (fx.selectedRegions.length) {
-                        fx.selectedRegions[0].stopY += 1
-                        if (fx.selectedRegions[0].stopY > fx.lines.length - 1) { // stopY is inclusive I think, stopX isn't
-                            fx.selectedRegions[0].stopY = fx.lines.length - 1
-                        }
-                        var theLine = fx.lines[fx.selectedRegions[0].stopY] || ""
-                        fx.selectedRegions[0].stopX = expandTabIndex(theLine, theLine.length, fx.selectedRegions[0].stopY)
-                    } else if (document.activeElement != theText) {
-                        // ??
-                        fx.offsetY += 1
-                        if (fx.offsetY > fx.lines.length - 10) {
-                            fx.offsetY = lines.length - 10
-                        }
-                    }
                 }
             },
             "2farLeft": navFileLeft,
@@ -14495,6 +14441,32 @@ function deleteToEndOfLine() {
     })
 }
 
+
+function moveSelectionToCursor() {
+    
+    var cli = fx.cursorLineIndex
+    if (cli >= fx.lines.length) {
+        cli = fx.lines.length - 1
+    }
+    var line = fx.lines[cli] || ""
+    if (selectedRegion.selectedWord) {
+        selectedRegion.selectedWord = false
+        // selectedRegion.stopX = selectedRegion.origStopX
+    }
+    if ("origStartX" in selectedRegion) {
+        selectedRegion.startX = selectedRegion.origStartX
+        selectMode = "char"
+    }
+    if (selectedRegion.selectedLine) {
+        selectedRegion.selectedLine = false
+    }
+    selectedRegion.stopX = bind(fx.cursorColIndex, 0, expandTabIndex(line, line.length))
+    selectedRegion.stopY = bind(cli, 0, fx.lines.length-1)
+    selectedRegion.stopped = true // TODO: I think stop can be removed
+    if (fx.cursorColIndex < 0 || selectMode == "line") {
+        selectedRegion.stopX = expandTabIndex(line, line.length, cli)
+    }
+}
 
 
 
