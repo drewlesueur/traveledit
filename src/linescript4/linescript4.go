@@ -701,7 +701,7 @@ func (r *Reader) Iterator() Iterator {
     return r
 }
 // could make this separate
-func (r *Reader) Next() (int, any, bool) {
+func (r *Reader) Next() (any, any, bool) {
 	r.Index++
 	buf := make([]byte, 1024)
 	n, err := r.Read(buf)
@@ -723,7 +723,7 @@ func (n *Newliner) Iterator() Iterator {
     return n
 }
 // could make this separate
-func (n *Newliner) Next() (int, any, bool) {
+func (n *Newliner) Next() (any, any, bool) {
 	n.Index++
 	line, err := n.Reader.ReadString('\n')
 	if err != nil {
@@ -2054,7 +2054,7 @@ func initBuiltins() {
 		},
 		"map": func(state *State) *State {
 			ret := []any{}
-			return processLoop(state, func(state *State, theIndex int, value any) {
+			return processLoop(state, func(state *State, theIndex any, value any) {
 				ret = append(ret, popT(state.Vals))
 			}, func(state *State) {
 				pushT(state.Vals, &ret)
@@ -2080,7 +2080,7 @@ func initBuiltins() {
 		},
 		"filter": func(state *State) *State {
 			ret := []any{}
-			return processLoop(state, func(state *State, theIndex int, value any) {
+			return processLoop(state, func(state *State, theIndex any, value any) {
 				v := popT(state.Vals).(bool)
 				if v {
 					ret = append(ret, value)
@@ -2088,71 +2088,6 @@ func initBuiltins() {
 			}, func(state *State) {
 				pushT(state.Vals, &ret)
 			})
-			return state
-		},
-		"filterOld": func(state *State) *State {
-			// start at -1 and jump to end to force the length check first
-			theIndex := -1
-
-			things := getArgs(state)
-			thingsVal := *things
-
-			var indexVar string
-			var itemVar string
-
-			if len(thingsVal) == 2 {
-				indexVar = thingsVal[0].(string)
-				itemVar = thingsVal[1].(string)
-			} else if len(thingsVal) == 1 {
-				itemVar = thingsVal[0].(string)
-			}
-
-			var arr *[]any
-			switch actualArr := popT(state.Vals).(type) {
-			case *[]any:
-				arr = actualArr
-			case []any:
-				arr = &actualArr
-			}
-			var spot = state.I
-			ret := []any{}
-			var endEach func(state *State) *State
-			endEach = func(state *State) *State {
-				if theIndex != -1 {
-					v := popT(state.Vals).(bool)
-					if v {
-						ret = append(ret, (*arr)[theIndex])
-					}
-				}
-				theIndex++
-				if theIndex >= len(*arr) {
-					state.OneLiner = false
-					pushT(state.Vals, &ret)
-					return state
-				} else {
-					if indexVar != "" {
-						state.Vars[indexVar] = theIndex + 1
-						// state.Vars[indexVar] = strconv.Itoa(theIndex+1)
-					}
-					if itemVar != "" {
-						state.Vars[itemVar] = (*arr)[theIndex]
-					} else {
-						pushT(state.Vals, (*arr)[theIndex])
-					}
-					state.I = spot
-					state.EndStack = append(state.EndStack, endEach)
-				}
-				return state
-			}
-			state.EndStack = append(state.EndStack, endEach)
-			var i int
-			if state.OneLiner {
-				i = findBeforeEndLineOnlyLine(state)
-			} else {
-				i = findMatchingBefore(state, []string{"end"})
-			}
-			state.I = i
-			clearFuncToken(state)
 			return state
 		},
 		"if": func(state *State) *State {
@@ -4723,18 +4658,18 @@ type Iterable interface{
 }
 
 type Iterator interface {
-    Next() (int, any, bool)
+    Next() (any, any, bool)
 }
 
 type SliceIterator struct {
     Slice []any
     I int // 1 based
 }
-// type MapIterator struct {
-//     Map map[string]any
-//     Keys []string
-//     I int // 1 based
-// }
+type MapIterator struct {
+    Map map[string]any
+    Keys []string
+    I int // 1 based
+}
 
 func makeSliceIterator(theSlice []any) (*SliceIterator) {
     return &SliceIterator{
@@ -4742,16 +4677,21 @@ func makeSliceIterator(theSlice []any) (*SliceIterator) {
         I: 1,
     }
 }
-// func makeMapIterator(theMap []any) (*MapIterator) {
-//     keys := make([]string, len(theMap))
-//     return &MapIterator{
-//         Map: theMap,
-//         Keys: keys,
-//         I: 1,
-//     }
-// }
+func makeMapIterator(theMap map[string]any) (*MapIterator) {
+    keys := make([]string, len(theMap))
+    i := 0
+    for k, _ := range theMap {
+        keys[i] = k
+        i ++
+    }
+    return &MapIterator{
+        Map: theMap,
+        Keys: keys,
+        I: 1,
+    }
+}
 
-func (s *SliceIterator) Next() (int, any, bool) {
+func (s *SliceIterator) Next() (any, any, bool) {
     if s.I <= len(s.Slice) {
         ret := s.Slice[s.I-1]
         i := s.I
@@ -4760,22 +4700,22 @@ func (s *SliceIterator) Next() (int, any, bool) {
     }
     return s.I, nil, false
 }
-// func (s *MapIterator) Next() (int, any, bool) {
-//     if s.I <= len(s.Slice) {
-//         ret := s.Slice[s.I-1]
-//         i := s.I
-//         s.I++
-//         return i, ret, true
-//     }
-//     return s.I, nil, false
-// }
+func (s *MapIterator) Next() (any, any, bool) {
+    if s.I <= len(s.Keys) {
+        key := s.Keys[s.I-1]
+        s.I++
+        value := s.Map[key]
+        return key, value, true
+    }
+    return nil, nil, false
+}
 
 func makeIterator(v any) (Iterator) {
 	switch actualArr := v.(type) {
 	case *[]any:
 		return makeSliceIterator(*actualArr)
-	// case map[string]any:
-	// 	return makeMapIterator(actualArr)
+	case map[string]any:
+		return makeMapIterator(actualArr)
 	case []any:
 		// not a normal case we should get in
 		return makeSliceIterator(actualArr)
@@ -4805,7 +4745,7 @@ func getLoopVars(state *State) (string, string) {
 	return indexVar, itemVar
 }
 
-func setLoopVarsInit(state *State, indexVar, itemVar string, theIndex int, value any)  {
+func setLoopVarsInit(state *State, indexVar, itemVar string, theIndex, value any)  {
 	if indexVar != "" {
 		state.Vars[indexVar] = theIndex
 	}
@@ -4813,7 +4753,7 @@ func setLoopVarsInit(state *State, indexVar, itemVar string, theIndex int, value
 		state.Vars[itemVar] = value
 	}
 }
-func setLoopVars(state *State, indexVar, itemVar string, theIndex int, value any)  {
+func setLoopVars(state *State, indexVar, itemVar string, theIndex, value any)  {
 	if indexVar != "" {
 		state.Vars[indexVar] = theIndex
 	}
@@ -4826,8 +4766,8 @@ func setLoopVars(state *State, indexVar, itemVar string, theIndex int, value any
 	}
 }
 
-func processLoop(state *State, process func(*State, int, any), onEnd func(state *State)) *State {
-	theIndex := 0 // 1 based so we start less than 1
+func processLoop(state *State, process func(*State, any, any), onEnd func(state *State)) *State {
+	var theIndex any = nil // 1 based so we start less than 1
     indexVar, itemVar := getLoopVars(state)
 
 	iterator := makeIterator(popT(state.Vals))
@@ -4837,7 +4777,7 @@ func processLoop(state *State, process func(*State, int, any), onEnd func(state 
 	var value any
 	var ok bool
 	endEach = func(state *State) *State {
-        if theIndex > 0 && process != nil {
+        if theIndex != nil && process != nil {
 		    process(state, theIndex, value)
         }
 		theIndex, value, ok = iterator.Next()

@@ -1,5 +1,19 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
+{
+    .tree .arbol
+    .sun .sol
+    .leaf .oja
+    .star .estrella
+} each .k .v
+    say %% %k is %v
+end
+
+
+
+
+
+
 [100 20 500 30 900]
 filter
     > 100
