@@ -1,6 +1,17 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
 
+foo. = {name. drew.}
+
+say %% hello (%foo at name.) yo (%foo at name.)
+
+[wow. this. is. cool. i. think. apples. are. cool.]
+sort
+say
+exit
+
+
+
 
 
 execBashStdout %%

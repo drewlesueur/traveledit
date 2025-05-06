@@ -5925,6 +5925,7 @@ function handleChatGPTResponse(file, responses) {
 var allowPolling = true
 var isPollingTerminal = false
 var lastPolled = null
+var lastAborted = null
 var lastPollResponse = null
 var lastPollError = null
 var pollInFlight = null
@@ -6453,18 +6454,28 @@ var abortController = new AbortController()
 document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {
         // log2Pre(new Date(), "aborting")
+        log("a: " + new Date().toLocaleTimeString())
+        lastAborted = new Date()
         abortController.abort()
         abortController = new AbortController()
+        render()
     }
 });
+
+function timeWithMillis() {
+    var d = new Date()
+    return `${d.toLocaleTimeString()}.${d.getMilliseconds()}`
+}
 var pollId = 0
 function pollTerminals() {
+    log("p: " + timeWithMillis())
     pollId++
     // showLog(true)
     // log2Pre(new Date(), pollId, "pollTerminals")
     lastPolled = new Date()
     lastPollResponse = null
     lastPollError = null
+    render()
     if (!allowPolling) {
         // so we can manually disable polling
         return false
@@ -6482,11 +6493,14 @@ function pollTerminals() {
     }).then(r => {
         return r.json()
     }).then(wrapperR => {
+        log("r: " + timeWithMillis())
         // log2Pre(new Date(), pollId, "successPoll")
         pollInFlight = false
         lastPollResponse = new Date()
+        render()
         processPollResponse(wrapperR)
     }).catch(e => {
+        log("e: " + timeWithMillis())
         // log2Pre(new Date(), pollId, "failPoll")
         // todo: does an error in the prev block also go here
         // if so we need to make sure we don't double poll
@@ -6495,6 +6509,7 @@ function pollTerminals() {
         // alert("polling error: " + e)
         lastPollError = new Date()
         pollInFlight = false
+        render()
         setTimeout(pollTerminals, 1)
     })
 }
@@ -7926,6 +7941,7 @@ function render() {
         theStatus.fileErrors = fx.fileErrors
         theStatus.currTime__ = new Date()
         theStatus.lastPolled = lastPolled
+        theStatus.lastAborted = lastAborted
         theStatus.lastPollResponse = lastPollResponse
         theStatus.lastPollError = lastPollError
         theStatus.isPollingTerminal = isPollingTerminal

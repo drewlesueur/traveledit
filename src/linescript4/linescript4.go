@@ -83,6 +83,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"sort"
 
 	"github.com/fsnotify/fsnotify"
 	"golang.org/x/crypto/acme/autocert"
@@ -622,7 +623,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 			}
 		case stateIn:
 			switch b {
-			case '{', '}', '(', ')', '[', ']', ',', '\n', ';', '|', ':', '.':
+			case '{', '}', '(', ')', '[', ']', ',', '\n', ';', '|', ':':
 				str := code[start:i]
 				return makeToken(state, str), str, i
 			case ' ', '\t', '\r':
@@ -777,6 +778,7 @@ func makeToken(state *State, val string) any {
 		// 	return builtinToken(b)
 		// }
 	}
+	
 	// string shortcut, maybe phase out : for . ?
 	if val[0] == ':' || val[0] == '.' {
 		if len(val) == 1 {
@@ -786,6 +788,10 @@ func makeToken(state *State, val string) any {
 			return val
 		}
 		theString := val[1:]
+		return theString
+	}
+	if val[len(val)-1] == '.' {
+		theString := val[0:len(val)-1]
 		return theString
 	}
 	if isNumeric(val) {
@@ -1221,8 +1227,8 @@ func initBuiltins() {
                     wrapped := `xyzzylol"` + str + `"xyzzylol`
                     parts = append(parts, wrapped)
                 } else {
-                    // wrapped := `(` + str + `)`
-                    wrapped := str
+                    wrapped := `(` + str + `)`
+                    // wrapped := str
                     parts = append(parts, wrapped)
                 }
             }
@@ -2063,6 +2069,15 @@ func initBuiltins() {
 			}
 			state.I = i
 			clearFuncToken(state)
+			return state
+		},
+		"sort": func(state *State) *State {
+			a := popT(state.Vals).(*[]any)
+			aVal := *a
+			sort.Slice(aVal, func(i, j int) bool {
+			    return toString(aVal[i]).(string) < toString(aVal[j]).(string)
+			})
+			pushT(state.Vals, a)
 			return state
 		},
 		"each": func(state *State) *State {
@@ -4727,6 +4742,7 @@ func makeMapIterator(theMap map[string]any) (*MapIterator) {
         keys[i] = k
         i ++
     }
+    sort.Strings(keys)
     return &MapIterator{
         Map: theMap,
         Keys: keys,
