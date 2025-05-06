@@ -440,7 +440,6 @@ evalLoop:
 				for _, v := range callback.ReturnValues {
 					pushT(state.Vals, v)
 				}
-				// so "it" works after wait
 				state.NewlineSpot = len(*state.Vals)
 			}
 		case builtinFuncToken:
@@ -1212,7 +1211,7 @@ func initBuiltins() {
             }
             // TODO: cached or more optimal way of doing this.
             // you could even handle in the parser?
-            
+
             var parts []string
             start := 0
             depth := 0
@@ -1248,7 +1247,7 @@ func initBuiltins() {
                     //     parseState = "out"
                     // }
                     // change this case to anything non alphanumeric and underscore
-                    // use simple math for thr ranges, not unicode package 
+                    // use simple math for thr ranges, not unicode package
 
                     switch {
                     case s[i] < '0' ||
@@ -1287,7 +1286,7 @@ func initBuiltins() {
             // for _, v := range parts {
             //     fmt.Println("#aqua", v)
             // }
-            
+
             // code := "([\n" + strings.Join(parts, " ") + "\n]" + ` join "")`
             code := "([\n" + strings.Join(parts, " ") + "\n]" + ` join "")`
             // code := "([\n" + strings.Join(parts, "\n") + `] join "")`
@@ -1571,9 +1570,7 @@ func initBuiltins() {
 			if len(thingsVal) == 0 {
 				thingsVal = append(thingsVal, popT(state.Vals))
 			}
-			say(state.Out, thingsVal...)
-			clearFuncToken(state)
-			return state
+			return say(state, state.Out, thingsVal...)
 		},
 		"sayRaw": func(state *State) *State {
 			v := popT(state.Vals)
@@ -1619,20 +1616,20 @@ func initBuiltins() {
 			return string(data)
 		}),
 		"base64Encode": makeBuiltin_1_1(func(a any) any {
-			return base64.StdEncoding.EncodeToString([]byte(a.(string))) 
+			return base64.StdEncoding.EncodeToString([]byte(a.(string)))
 		}),
 		"base64Decode": makeBuiltin_1_1(func(a any) any {
-			ret, err := base64.StdEncoding.DecodeString(a.(string)) 
+			ret, err := base64.StdEncoding.DecodeString(a.(string))
 			if err != nil {
 				panic(err)
 			}
 			return string(ret)
 		}),
 		"toBase64": makeBuiltin_1_1(func(a any) any {
-			return base64.StdEncoding.EncodeToString([]byte(a.(string))) 
+			return base64.StdEncoding.EncodeToString([]byte(a.(string)))
 		}),
 		"fromBase64": makeBuiltin_1_1(func(a any) any {
-			ret, err := base64.StdEncoding.DecodeString(a.(string)) 
+			ret, err := base64.StdEncoding.DecodeString(a.(string))
 			if err != nil {
 				panic(err)
 			}
@@ -1713,6 +1710,39 @@ func initBuiltins() {
 				}
 			}
 			return string(buf[:n])
+		}),
+		"close": makeBuiltin_1_0(func(a any) {
+		    if a, ok := a.(io.Closer); ok {
+		        a.Close()
+		    }
+		}),
+		// TODO, wrangle the panics
+		// maybe don't panic
+		"read": makeBuiltin_2_1(func(a, b any) any {
+		    if a, ok := a.(io.Reader); ok {
+				buf := make([]byte, toIntInternal(b))
+		        n, err := a.Read(buf)
+				if err != nil {
+					if err == io.EOF {
+					} else {
+						panic(err)
+					}
+				}
+				return string(buf[:n])
+		    }
+		    return ""
+		}),
+		"write": makeBuiltin_2_0(func(a, b any) {
+		    if a, ok := a.(io.Writer); ok {
+				bts := []byte(toStringInternal(b))
+				n, err := a.(net.Conn).Write(bts)
+				if err != nil {
+					panic(err)
+				}
+				if n != len(bts) {
+					panic("short write")
+				}
+		    }
 		}),
 		"fromJson": makeBuiltin_1_1(func(a any) any {
 			j := a.(string)
@@ -1806,18 +1836,47 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
+		// "as": func(state *State) *State {
+		// 	b := popT(state.Vals).(string)
+		// 	a := popT(state.Vals)
+		// 	state.Vars[b] = a
+		// 	return state
+		// },
+		// make it so if b is a slice,
+		// and a is a slice that we set the state Vars accordingly
+		// just use a type switch, not reflection
+
+
 		"as": func(state *State) *State {
-			// say(state.Vals)
-			b := popT(state.Vals).(string)
-			a := popT(state.Vals)
-			// if b == "IntA" {
-			//     state.IntA = a.(int)
-			//     return state
-			// }
-			state.Vars[b] = a
-			clearFuncToken(state)
-			return state
+		    // Note: we pop b first, then a
+		    rawB := popT(state.Vals)
+		    rawA := popT(state.Vals)
+
+		    switch b := rawB.(type) {
+		    case string:
+		        // simple: single variable
+		        state.Vars[b] = rawA
+
+		    case *[]any:
+		        // case: keys are in a []interface{} (each must be a string)
+		        aSlice, ok := rawA.(*[]any)
+		        if !ok {
+		            panic(fmt.Sprintf("as: unexpected RHS type %T, want []interface{}", rawA))
+		        }
+		        for i, keyI := range *b {
+		            if i < len(*aSlice) {
+		                state.Vars[toStringInternal(keyI)] = (*aSlice)[i]
+		            } else {
+		                state.Vars[toStringInternal(keyI)] = nil
+		            }
+		        }
+		    default:
+		        panic(fmt.Sprintf("as: unsupported LHS type %T", rawB))
+		    }
+		    return state
 		},
+
+
 		"goUp": func(state *State) *State {
 			locText := popT(state.Vals).(string)
 			indent := getPrevIndent(state)
@@ -1854,7 +1913,21 @@ func initBuiltins() {
 			return state
 		},
 		"forever": func(state *State) *State {
-			clearFuncToken(state)
+			var spot = state.I
+			var endEach func(state *State) *State
+			endEach = func(state *State) *State {
+				state.I = spot
+				state.EndStack = append(state.EndStack, endEach)
+				return state
+			}
+			state.EndStack = append(state.EndStack, endEach)
+			var i int
+			if state.OneLiner {
+				i = findBeforeEndLineOnlyLine(state)
+			} else {
+				i = findMatchingBefore(state, []string{"end"})
+			}
+			state.I = i
 			return state
 		},
 		"break": func(state *State) *State {
@@ -1865,63 +1938,6 @@ func initBuiltins() {
 			clearFuncToken(state)
 			return state
 		},
-		// "onEnd": func(state *State) *State {
-		// 	endFunc := popT(state.Vals).(func (*State) *State)
-		//
-		// 	write Go(lang) idiom
-		// 	for poping a value (a) from a slice
-		// 	then pushing a value (b)
-		// 	then pushing (a) again
-		//
-		// 	s = append(s[1:], b, s[0])
-		//
-		// 	but we pop from the end
-		//
-		// 	In Go, if you want to pop a value from the end of a slice, then push a new value and the popped value back to the slice, you can achieve this by manipulating the slice indices. Here's how you could implement it idiomatically:
-		//
-		// 	```go
-		// 	package main
-		//
-		// 	import "fmt"
-		//
-		// 	func main() {
-		// 		// Example slice
-		// 		s := []int{1, 2, 3, 4, 5}
-		//
-		// 		// Pop the value from the end
-		// 		a := s[len(s)-1]
-		// 		s = s[:len(s)-1]
-		//
-		// 		// Declare b as the new value to push
-		// 		b := 10
-		//
-		// 		// Push b and the popped value a back to the slice
-		// 		s = append(s, b, a)
-		//
-		// 		fmt.Println(s) // Output: [1 2 3 4 10 5]
-		// 	}
-		// 	```
-		//
-		// 	### Explanation:
-		//
-		// 	1. **Pop the value from the end:**
-		// 	   - `a := s[len(s)-1]` stores the last element of the slice in `a`.
-		// 	   - `s = s[:len(s)-1]` resizes the slice to exclude the last element, effectively popping it.
-		//
-		// 	2. **Push a new value:**
-		// 	   - `b` is declared as the new value to be pushed. You can change `b` to whatever value you’d like to push.
-		//
-		// 	3. **Push the popped value and new value back:**
-		// 	   - `s = append(s, b, a)` appends `b` and then `a` to the slice.
-		//
-		// 	This results in a slice with the new value `b` and the previously popped value `a` at the end.
-		//
-		//
-		//
-		// 	state.EndStack = append(state.EndStack, endFunc)
-		// 	clearFuncToken(state)
-		// 	return state
-		// },
 		"loop": func(state *State) *State {
 			theIndex := 0
 
@@ -2081,7 +2097,7 @@ func initBuiltins() {
 		"filter": func(state *State) *State {
 			ret := []any{}
 			return processLoop(state, func(state *State, theIndex any, value any) {
-				v := popT(state.Vals).(bool)
+				v := toBool(popT(state.Vals)).(bool)
 				if v {
 					ret = append(ret, value)
 				}
@@ -2174,7 +2190,7 @@ func initBuiltins() {
 				state.I = r.I
 				// f.EndI = r.I
 			}
-
+            // In think I want this back on
 			// state.AsyncChildren[] = newState
 			state.AddCallback(Callback{
 				State: newState,
@@ -2719,7 +2735,7 @@ func initBuiltins() {
 		},
 		"see": func(state *State) *State {
 			a := popT(state.Vals)
-			say(state.Out, a)
+			say(state, state.Out, a)
 			pushT(state.Vals, a)
 			clearFuncToken(state)
 			return state
@@ -3894,25 +3910,51 @@ func not(a any) any {
 	return nil
 }
 
-func say(out io.Writer, vals ...any) {
+func say(state *State, out io.Writer, vals ...any) *State {
 	for i, v := range vals {
 		if r, ok := v.(io.Reader); ok {
 			buf := make([]byte, 1024)
-			for {
-				n, err := r.Read(buf)
-				if n > 0 {
-					out.Write(buf[:n])
-					// time.Sleep(2 * time.Second)
+			
+			// go func() {
+			// 	n, err := r.Read(buf)
+			// 	if n > 0 {
+			// 		out.Write(buf[:n])
+			// 		state.AddCallback(Callback{
+			// 		    State: state,
+			// 		    ReturnValues: []any{v},
+			// 		    FuncTokens: []func(*State)*State{builtins["say"], },
+			// 		})
+			// 	}
+			// 	if err != nil {
+			// 		state.AddCallback(Callback{
+			// 		    State: state,
+			// 		    ReturnValues: []any{},
+			// 		    // FuncTokens: []*State[]
+			// 		})
+			// 	}
+			// }()
+			go func() {
+				for {
+					n, err := r.Read(buf)
+					if n > 0 {
+						out.Write(buf[:n])
+						// time.Sleep(2 * time.Second)
+					}
+					if err != nil {
+						break
+					}
 				}
-				if err != nil {
-					break
+				if i < len(vals)-1 {
+					out.Write([]byte(" "))
+				} else {
+					out.Write([]byte("\n"))
 				}
-			}
-			if i < len(vals)-1 {
-				out.Write([]byte(" "))
-			} else {
-				out.Write([]byte("\n"))
-			}
+				state.AddCallback(Callback{
+				    State: state,
+				    ReturnValues: []any{},
+				})
+			}()
+			return nil
 		} else {
 			if i < len(vals)-1 {
 				fmt.Fprintf(out, "%s ", toString(v).(string))
@@ -3921,6 +3963,7 @@ func say(out io.Writer, vals ...any) {
 			}
 		}
 	}
+	return state
 }
 
 
@@ -4600,7 +4643,7 @@ func startCgiServer(domain, httpsAddr, httpAddr string) {
 		})
 		time.Sleep(3 * time.Second)
 		// evalState.Wait()
-		
+
 	})
 
 	m := &autocert.Manager{

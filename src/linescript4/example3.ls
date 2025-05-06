@@ -1,5 +1,39 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
+
+
+
+execBashStdout %%
+    # bash script to loop 10 times print the date and a message each time, then end
+    COUNT=10
+    for i in $(seq 1 "$COUNT"); do
+      echo "$i: $(date)"
+      sleep 1
+    done
+    echo "All $COUNT iterations completed."
+end
+drop go
+    execBashStdout %%
+        # bash script to loop 10 times print the date and a message each time, then end
+        COUNT=10
+        for i in $(seq 1 "$COUNT"); do
+          echo "async: $i: $(date)"
+          sleep 1
+        done
+        echo "All $COUNT iterations completed."
+    end
+    say
+end
+say
+
+exit
+
+["mountain", "tree", cloud]
+as [.M .T .C]
+say M T C
+
+exit
+
 {
     .tree .arbol
     .sun .sol
