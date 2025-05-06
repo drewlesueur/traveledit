@@ -13435,6 +13435,13 @@ function touchAreasPressWhileSelected(e, state) {
             editSearch()
             // openEditorCommandText()
         },
+        "3midLeft": function () {
+            clearSearch()
+            return
+        },
+        "3midRight": function () {
+            clearSearch()
+        },
         "2left": function() {
             if (selectMode == "line") {
                 // only if you select the whole line can you comment.

@@ -2173,6 +2173,7 @@ func initBuiltins() {
 		"go": func(state *State) *State {
 			things := getArgs(state)
 			thingsVal := *things
+			
 
 			newState := MakeState(state.FileName, state.Code)
 			newState.Machine = state.Machine
@@ -2185,8 +2186,13 @@ func initBuiltins() {
 			// instead of assigning. I want newstate.Vals to be a shallow copy
 
 			// newState.Vals = things
-			for _, v := range thingsVal {
-				newState.Vars[v.(string)] = getVar(state, v.(string))
+			if len(thingsVal) == 0 {
+				// pushT(newState.Vals, popT(state.Vals))
+			} else {
+				for _, v := range thingsVal {
+				
+					newState.Vars[v.(string)] = getVar(state, v.(string))
+				}
 			}
 
 			// newState.CallingParent = state
