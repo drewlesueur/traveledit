@@ -1,4 +1,24 @@
-#!/usr/bin/env -S go run linescript4.go funcs.go
+#!/usr/bin/env -S go run linescript4.go funcs.go stringmath.go
+
+let .loopCount 2
+let .theStart now
+let .val 0
+let .i 0
+loopCount loop .i
+    i - 0.1
+    + toFloat val
+    as .val
+end
+let .theEnd now
+say "+it took " (- theEnd theStart) " millis"
+say "+loops: " loopCount
+say "and val is " val
+
+say "---"
+exit
+
+
+
 
 let :loopCount 1000000
 # let :loopCount 1
@@ -14,6 +34,7 @@ say "+loops: " loopCount
 say "and val is " val
 
 say "---"
+exit
 
 
 eval %"
