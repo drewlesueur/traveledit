@@ -1,5 +1,6 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
-
+local .foo .bar
+exit
 
 foo. = {name. drew.}
 

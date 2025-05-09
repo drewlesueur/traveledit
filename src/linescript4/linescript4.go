@@ -55,6 +55,8 @@ package main
 // it, dupit, nowMs don't need to be immediates anymore? because of func stack?
 // end] // should that work? update: it works now that "end" is am immediate
 
+// DStrings with underlying index
+
 
 import (
 	"bufio"
@@ -100,11 +102,9 @@ type Func struct {
 	EndI     int
 	// Note: the code and the cache should be bundled? (check perf)
 	Code         string
-	CachedTokens []*TokenCacheValue // these aren't pointers, could be problem?
+	ICache []*ICache
 	// TODO check these caches, or combine them ?
 	// in a function are they correctly copied?
-	GoUpCache         []*int
-	FindMatchingCache []*FindMatchingResult
 	Params            []string
 	LexicalParent     *State
 	Builtin           func(state *State) *State
@@ -134,21 +134,83 @@ type Machine struct {
 	Index       int
 }
 
+
+type Record struct {
+    Values     []any
+    KeyToIndex map[string]int
+    Keys       []string
+}
+
+// NewRecord creates an empty Record ready for Set/Get calls.
+func NewRecord() *Record {
+    return &Record{
+        Values:     make([]any, 0),
+        KeyToIndex: make(map[string]int),
+        Keys:       make([]string, 0),
+    }
+}
+
+// Set assigns value to key. If key is new, it appends it.
+func (r *Record) Set(key string, value any) {
+    if idx, ok := r.KeyToIndex[key]; ok {
+        r.Values[idx] = value
+    } else {
+        r.Keys = append(r.Keys, key)
+        r.Values = append(r.Values, value)
+        r.KeyToIndex[key] = len(r.Values) - 1
+    }
+}
+
+// Get returns the value for key. The bool is false if key was not present.
+func (r *Record) Get(key string) (any, bool) {
+    if idx, ok := r.KeyToIndex[key]; ok {
+        return r.Values[idx], true
+    }
+    return nil, false
+}
+
+// SetIndex changes the value at the given index. Returns an error if out of range.
+func (r *Record) SetIndex(index int, value any) {
+    if index < 0 || index >= len(r.Values) {
+        return
+    }
+    r.Values[index] = value
+}
+
+// GetIndex returns the value at the given index or an error if out of range.
+func (r *Record) GetIndex(index int) any {
+    if index < 0 || index >= len(r.Values) {
+        return nil
+    }
+    return r.Values[index]
+}
+
+type ICache struct {
+    GoUp *int
+    FindMatching *FindMatchingResult
+    CachedToken *TokenCacheValue
+    NextTokenName *string
+}
+
 // debate with child states vs different Stacks
 // Still have child states
 type State struct {
 	FileName     string
 	I            int
 	Code         string
-	CachedTokens []*TokenCacheValue
 	// TODO: I think we can get rid of Mode and ModeStack
 	Mode               string
 	ModeStack          []string
 	OneLiner           bool
 	OneLinerParenLevel int
+	
 	// todo: caches need to be pointers???
-	GoUpCache          []*int
-	FindMatchingCache  []*FindMatchingResult
+	// also caches are unoptimally as bug as every char in codebase
+	// also goUpCache breaks on dynamic jumps
+	ICache []*ICache
+	// CachedTokens []*TokenCacheValue
+	// GoUpCache          []*int
+	// FindMatchingCache  []*FindMatchingResult
 	Vals               *[]any
 	ValsStack          []*[]any
 	EndStack           []func(*State) *State
@@ -197,12 +259,8 @@ func MakeState(fileName, code string) *State {
 		Mode:      "normal",
 		ModeStack: nil,
 
-		CachedTokens: make([]*TokenCacheValue, len(code)+1),
-
 		// Preinitializing this makes eval in a loop slower if it doesn't use these
 		// though if you eval in a loop with a static string, you should be able to optimize
-		GoUpCache:         make([]*int, len(code)+1),
-		FindMatchingCache: make([]*FindMatchingResult, len(code)+1),
 
 		Vals:               &[]any{},
 		ValsStack:          nil,
@@ -305,6 +363,7 @@ func main() {
 		CallbacksCh: make(chan Callback),
 		Index:       0,
 	}
+	state.ICache = make([]*ICache, len(code)+2)
 	state.IsTopOfOwnGoroutine = true
 	state.Out = os.Stdout
 	state.IsMainTop = true
@@ -323,6 +382,7 @@ func main() {
 
 	// see "eval" implementation,
 	evalState := MakeState("__stdlib", stdlib+"\n")
+	evalState.ICache = make([]*ICache, len(stdlib)+2)
 	evalState.Machine = state.Machine
 	evalState.Vals = state.Vals
 	evalState.Vars = state.Vars
@@ -573,14 +633,22 @@ type TokenCacheValue struct {
 func nextToken(state *State) (any, string) {
 	code := state.Code
 	i := state.I
-	if cached := state.CachedTokens[i]; cached != nil {
-		state.I = cached.I
-		return cached.Token, cached.Name
+	// fmt.Println("i:", i, "len", len(state.ICache))
+	// if i >= len(state.ICache) {
+	//     fmt.Println(state.Code)
+	//     panic("fake")
+	// }
+	if cached := state.ICache[i]; cached != nil && cached.CachedToken != nil {
+		state.I = cached.CachedToken.I
+		return cached.CachedToken.Token, cached.CachedToken.Name
 	}
 	// fmt.Println("cache miss")
 	token, name, newI := nextTokenRaw(state, code, i)
 	state.I = newI
-	state.CachedTokens[i] = &TokenCacheValue{I: newI, Token: token, Name: name}
+	if state.ICache[i] == nil {
+	    state.ICache[i] = &ICache{}
+	}
+	state.ICache[i].CachedToken = &TokenCacheValue{I: newI, Token: token, Name: name}
 	return token, name
 }
 
@@ -919,8 +987,8 @@ loopy:
 func findBeforeEndLine(state *State) int {
 	// line or parens or alternate line enders (, |)
 	// reusing this helpful cache
-	if c := state.FindMatchingCache[state.I]; c != nil {
-		return c.I
+	if c := state.ICache[state.I]; c != nil && c.FindMatching != nil {
+		return c.FindMatching.I
 	}
 	parenCount := 0
 	var i int
@@ -951,13 +1019,16 @@ func findBeforeEndLine(state *State) int {
 		Match:  "",
 		Indent: "",
 	}
-	state.FindMatchingCache[state.I] = ret
+	if state.ICache[state.I] == nil {
+	    state.ICache[state.I] = &ICache{}
+	}
+	state.ICache[state.I].FindMatching = ret
 	return ret.I
 }
 func findBeforeEndLineOnlyLine(state *State) int {
 	// reusing this helpful cache
-	if c := state.FindMatchingCache[state.I]; c != nil {
-		return c.I
+	if c := state.ICache[state.I]; c != nil && c.FindMatching != nil {
+		return c.FindMatching.I
 	}
 	parenCount := 0
 	var i int
@@ -988,7 +1059,10 @@ func findBeforeEndLineOnlyLine(state *State) int {
 		Match:  "",
 		Indent: "",
 	}
-	state.FindMatchingCache[state.I] = ret
+	if state.ICache[state.I] == nil {
+	    state.ICache[state.I] = &ICache{}
+	}
+	state.ICache[state.I].FindMatching = ret
 	return ret.I
 }
 
@@ -1005,8 +1079,8 @@ func findMatchingAfter(state *State, dedentCount int, things []string) *FindMatc
 	// fmt.Println("#goldenrod findMatchingAfter")
 	// debugStateI(state, state.I)
 
-	if c := state.FindMatchingCache[state.I]; c != nil {
-		return c
+	if c := state.ICache[state.I]; c != nil && c.FindMatching != nil {
+		return c.FindMatching
 	}
 	indent := getPrevIndent(state)
 
@@ -1040,7 +1114,10 @@ func findMatchingAfter(state *State, dedentCount int, things []string) *FindMatc
 		Match:  things[closestIndex],
 		Indent: indent,
 	}
-	state.FindMatchingCache[state.I] = ret
+	if state.ICache[state.I] == nil {
+	    state.ICache[state.I] = &ICache{}
+	}
+	state.ICache[state.I].FindMatching = ret
 	// fmt.Println("#yellow foundMatchingAfter", toJson(ret.Match))
 	// debugStateI(state, ret.I)
 	return ret
@@ -1310,7 +1387,9 @@ func initBuiltins() {
 
 			// fmt.Println(unsafe.Pointer(&code))
 			// if strings come from source then we can cache it, but not worth it
+			// TODO: we can cache this
 			evalState := MakeState("__eval", code+"\n")
+			evalState.ICache = make([]*ICache, len(code)+2)
 			evalState.Machine = state.Machine
 			evalState.Vals = state.Vals
 			evalState.Vars = state.Vars
@@ -1322,6 +1401,15 @@ func initBuiltins() {
 		},
 	}
 	runImmediates = map[string]func(state *State) *State{
+		// "local": func(state *State) *State {
+		//     if nextTokenName state.NextTokenCache[state.I]
+		//     _, name, i := nextTokenRaw(state, state.Code, state.I)
+		//     state.I = i
+		//     fmt.Println("name is", name)
+		//     fmt.Println(toJson(state.Code[state.I:state.I+100]))
+		//     return state
+		// },
+		
 		// "gotoEnd": func(state *State) *State {
 		// 	things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
 		// 	thingsVal := *things
@@ -1893,12 +1981,15 @@ func initBuiltins() {
 		"goUp": func(state *State) *State {
 			locText := popT(state.Vals).(string)
 			indent := getPrevIndent(state)
-			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
-				state.I = *cachedI
+			if cachedI := state.ICache[state.I]; cachedI != nil && cachedI.GoUp != nil {
+				state.I = *cachedI.GoUp
 			} else {
 				toSearch := "#" + locText
 				newI := strings.LastIndex(state.Code[0:state.I], toSearch)
-				state.GoUpCache[state.I] = &newI
+				if state.ICache[state.I] == nil {
+				    state.ICache[state.I] = &ICache{}
+				}
+				state.ICache[state.I].GoUp = &newI
 				state.I = newI
 			}
 			newIndent := getIndent(state, 0)
@@ -1911,12 +2002,15 @@ func initBuiltins() {
 			locText := popT(state.Vals).(string)
 			indent := getPrevIndent(state)
 			// assuming static location
-			if cachedI := state.GoUpCache[state.I]; cachedI != nil {
-				state.I = *cachedI
+			if cachedI := state.ICache[state.I]; cachedI != nil && cachedI.GoUp != nil {
+				state.I = *cachedI.GoUp
 			} else {
 				toSearch := "#" + locText
 				newI := strings.Index(state.Code[state.I:], toSearch) + state.I
-				state.GoUpCache[state.I] = &newI
+				if state.ICache[state.I] == nil {
+				    state.ICache[state.I] = &ICache{}
+				}
+				state.ICache[state.I].GoUp = &newI
 				state.I = newI
 			}
 			newIndent := getIndent(state, 0)
@@ -2184,9 +2278,7 @@ func initBuiltins() {
 
 			newState := MakeState(state.FileName, state.Code)
 			newState.Machine = state.Machine
-			newState.CachedTokens = state.CachedTokens
-			newState.GoUpCache = state.GoUpCache
-			newState.FindMatchingCache = state.FindMatchingCache
+			newState.ICache = state.ICache
 			newState.I = state.I
 			// newState.Vals = state.Vals
 			// the vals is of type *[]any (in Go)
@@ -2267,9 +2359,7 @@ func initBuiltins() {
 				FileName:          state.FileName,
 				I:                 state.I,
 				Code:              state.Code,
-				CachedTokens:      state.CachedTokens,
-				GoUpCache:         state.GoUpCache,
-				FindMatchingCache: state.FindMatchingCache,
+				ICache:            state.ICache,
 				Params:            paramStrings,
 				LexicalParent:     state,
 				OneLiner:          state.OneLiner,
@@ -2303,9 +2393,7 @@ func initBuiltins() {
 				FileName:          state.FileName,
 				I:                 state.I,
 				Code:              state.Code,
-				CachedTokens:      state.CachedTokens,
-				GoUpCache:         state.GoUpCache,
-				FindMatchingCache: state.FindMatchingCache,
+				ICache:              state.ICache,
 				Params:            paramStrings,
 				LexicalParent:     state,
 				OneLiner:          state.OneLiner,
@@ -2713,6 +2801,7 @@ func initBuiltins() {
 			evalState.Machine = state.Machine
 			evalState.Vals = state.Vals
 			evalState.Vars = state.Vars
+			evalState.ICache = make([]*ICache, len(code)+2)
 
 			evalState.CallingParent = state
 			evalState.LexicalParent = state
@@ -2728,10 +2817,11 @@ func initBuiltins() {
 			if err != nil {
 				panic(err)
 			}
-			evalState := MakeState(filename, string(b))
+			evalState := MakeState(filename, string(b) + "\n")
 			evalState.Machine = state.Machine
 			evalState.Vals = state.Vals
 			evalState.Vars = state.Vars
+			evalState.ICache = make([]*ICache, len(string(b)) + 2)
 
 			evalState.CallingParent = state
 			evalState.LexicalParent = state
@@ -3187,9 +3277,8 @@ func makeFuncToken(token *Func) func(*State) *State {
 		// state.FuncTokenSpots = nil
 		newState := MakeState(token.FileName, token.Code)
 		newState.Machine = state.Machine
-		newState.CachedTokens = token.CachedTokens
-		newState.GoUpCache = token.GoUpCache
-		newState.FindMatchingCache = token.FindMatchingCache
+		
+		newState.ICache = token.ICache
 		newState.I = token.I
 		newState.Vals = state.Vals
 		newState.CallingParent = state
@@ -4601,6 +4690,7 @@ func startCgiServerOld(httpsAddr, httpAddr string) {
 
 func startCgiServer(domain, httpsAddr, httpAddr string) {
 	state := MakeState("__local", "say hi" + "\n")
+	// TODO: add Icache
 	state.Machine = &Machine{
 		CallbacksCh: make(chan Callback),
 		Index:       0,
@@ -4612,6 +4702,7 @@ func startCgiServer(domain, httpsAddr, httpAddr string) {
 
 	// see "eval" implementation,
 	evalState := MakeState("__stdlib", stdlib + "\n")
+	evalState.ICache = make([]*ICache, len(stdlib)+2)
 	evalState.Machine = state.Machine
 	evalState.Vals = state.Vals
 	evalState.Vars = state.Vars
@@ -4656,6 +4747,7 @@ func startCgiServer(domain, httpsAddr, httpAddr string) {
 		}
 		// see "eval"
 		evalState := MakeState("__eval", code+"\n")
+		evalState.ICache = make([]*ICache, len(code)+2)
 		evalState.Machine = state.Machine
 		evalState.Vals = state.Vals
 		evalState.Vars = state.Vars
