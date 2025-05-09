@@ -1,4 +1,5 @@
-#!/usr/bin/env -S go run linescript4.go funcs.go stringmath.go
+#!/usr/local/bin/linescript4
+
 
 # say getType 7
 # say getType 0.1
@@ -15,6 +16,7 @@ let .i 0
 loopCount loop .i
     i - 1
     - 0.1
+    # + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2
     + val
     as .val
 end

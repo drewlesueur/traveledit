@@ -1,4 +1,3 @@
-// <code>
 package main
 
 // fix "it" when there is another on line
@@ -138,6 +137,8 @@ type DString struct {
     String string
     RecordIndex int
     Record *Record
+    SourceI int
+    SourceState *State
 }
 
 
@@ -167,6 +168,7 @@ func (r *Record) Set(key string, value any) {
     }
 }
 func (r *Record) SetDString(key *DString, value any) {
+    // if true || key.RecordIndex == -1 {
     if key.RecordIndex == -1 {
         key.RecordIndex = r.SetSeeIndex(key.String, value)
         key.Record = r // likely not used because we set in different spot than get
@@ -258,6 +260,7 @@ type State struct {
 	// also caches are unoptimally as bug as every char in codebase
 	// also goUpCache breaks on dynamic jumps
 	ICache []*ICache
+	DStringCache map[string]*DString
 	// CachedTokens []*TokenCacheValue
 	// GoUpCache          []*int
 	// FindMatchingCache  []*FindMatchingResult
@@ -317,6 +320,7 @@ func MakeState(fileName, code string) *State {
 		EndStack:           nil,
 		// Vars:               map[string]any{},
 		Vars:               NewRecord(),
+		DStringCache: make(map[string]*DString),
 		CurrFuncTokens:     nil,
 		FuncTokenStack:     nil,
 		FuncTokenSpots:     nil,
@@ -915,12 +919,14 @@ func makeToken(state *State, val string) any {
 		}
 		theString := val[1:]
 		// return theString
-		return &DString{String: theString, RecordIndex: -1}
+		// return &DString{String: theString, RecordIndex: -1}
+		return GetDString(state, theString)
 	}
 	if val[len(val)-1] == '.' {
 		theString := val[0:len(val)-1]
 		// return theString
-		return &DString{String: theString, RecordIndex: -1}
+		// return &DString{String: theString, RecordIndex: -1}
+		return GetDString(state, theString)
 	}
 	if isNumeric(val) {
 		if val[len(val)-1:] == "f" {
@@ -971,7 +977,8 @@ func makeToken(state *State, val string) any {
 		return stdinReader
 	}
 
-    dval := &DString{String: val, RecordIndex: -1}
+    // dval := &DString{String: val, RecordIndex: -1}
+    dval := GetDString(state, val)
 	evaled := getVar(state, dval)
 	// once a func, always a func
 	// but have to eval twice the first round?!
@@ -985,6 +992,20 @@ func makeToken(state *State, val string) any {
 	panic("no slash?")
 	return nil
 }
+
+// won't work for keys of different objects
+// need to use a map where key is pointer to object
+// TODO: maybe remove this?
+func GetDString(state *State, name string) *DString {
+    // fmt.Println("GetDString")
+    if d, ok := state.DStringCache[name]; ok {
+        return d
+    }
+    d := &DString{String: name, RecordIndex: -1}
+    state.DStringCache[name] = d
+    return d
+}
+
 
 func isNumeric(s string) bool {
 	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || (s[0] == '-' && len(s) > 1))
@@ -2083,6 +2104,7 @@ func initBuiltins() {
 				} else {
 					if indexVar != nil {
 						state.Vars.SetDString(indexVar, theIndex)
+						// state.Vars.Set(indexVar.String, theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
 					}
@@ -3329,6 +3351,10 @@ func pushTo(value any, slice any) {
 }
 func pushT(s *[]any, value any) {
 	*s = append(*s, value)
+	// v := append(*s, value)
+	// if cap(v) != cap(*s) {
+	//     *s = v
+	// }
 }
 
 func pushm(slice any, values any) {
@@ -3373,6 +3399,9 @@ func popT(s *[]any) any {
 	}
 	return nil
 }
+
+
+
 func popTString(s *[]any) string {
 	if len(*s) > 0 {
 		val := (*s)[len(*s)-1]
@@ -4986,3 +5015,103 @@ func processLoop(state *State, process func(*State, any, any), onEnd func(state 
 	state.I = i
 	return state
 }
+
+
+/*
+Do you see any low hanging fruit performance optimizations that can be made here?
+Specifically with the flow of Eval function
+
+Here are a few small changes you can make today that will measurably speed up your Eval loop without rewriting the whole VM.
+
+1) Hoist hot‐loop fields into locals  
+   Every time through your `for` you do a dozen `state.xxx` loads.  The Go compiler can only hoist so much for you.  Pull the really hot ones into locals at the top of the loop and write them back only when they change.  
+   
+   ```go
+   evalLoop:
+   for {
+     icache    := state.ICache
+     vals      := state.Vals
+     funcs     := state.CurrFuncTokens
+     funcSpots := state.FuncTokenSpots
+     // … now use icache, vals, funcs, funcSpots in this iteration
+     // when you mutate them write back:
+     state.Vals               = vals
+     state.CurrFuncTokens     = funcs
+     state.FuncTokenSpots     = funcSpots
+     // etc.
+   }
+   ```
+   You’ll eliminate a lot of pointer dereferences and bounds‐checks.
+
+2) Don’t return the token name from nextToken  
+   You only use the name in debug mode.  Change  
+   ```go
+   func nextToken(state *State) (any, string)
+   ```  
+   to  
+   ```go
+   func nextToken(state *State) any
+   ```  
+   and have a separate debug method to peek at the string.  You’ll save an allocation or copy on every token.
+
+3) Collapse the interface type‐switch on token  
+   Right now you do  
+   ```go
+   switch token := token.(type) {
+   case immediateToken: …
+   case builtinFuncToken: …
+   case getVarToken: …
+   case getVarFuncToken: …
+   default: pushT(...)
+   }
+   ```  
+   That dynamic type switch is fairly expensive.  The easiest “low‐hanging” change is to give each token a small integer opcode.  e.g.  
+   ```go
+   type Token struct {
+     kind byte       // 0=literal,1=immediate,2=builtin,3=getvar,4=getvarfunc
+     val  interface{} 
+   }
+   ```  
+   and then your loop is  
+   ```go
+   tok := nextToken(state)
+   switch tok.kind {
+   case lit:
+     pushT(vals,tok.val)
+   case imm:
+     state = tok.val.(immediateToken)(state)
+   case bfun:
+     funcs = append(funcs, tok.val.(builtinFuncToken))
+     // …
+   }
+   ```  
+   No more runtime type‐switch on Go’s `interface{}`.
+
+4) Move your deferred recover out of the inner loop  
+   A `defer` in a hot loop can interfere with inlining and register allocation.  You only really need to catch panics at the very top.  Instead of  
+   ```go
+   func Eval(state *State) *State {
+     defer func(){ … }()
+   evalLoop:
+     for { … }
+   }
+   ```  
+   pull your `recover` into the caller of `Eval` (or wrap the whole `for state!=nil` loop in a single defer) so that none of the per‐token logic carries the cost of a deferred closure.
+
+5) Pre‐allocate your stacks to reasonable capacities  
+   You know in advance roughly how deep your nested calls, your `EndStack`, and your `Vals` slice will grow.  Right after you `MakeState` do something like  
+   ```go
+   state.Vals      = &make([]any, 0, 128)
+   state.EndStack  = make([]func(*State)*State, 0, 32)
+   state.ModeStack = make([]string, 0, 16)
+   // …
+   ```  
+   This avoids repeated re‐allocations and heap‐grows in your hot loops.
+
+6) Inline callFunc and doEnd  
+   Both of those are tiny wrappers around a few lines of code.  Inlining them by copy/paste into your two “`if InCurrentCall`” and “`if CloseParensAfterLastCall`” branches will remove two function calls per invocation.  
+
+---
+
+Taken together you should see a 10–30% improvement just by removing repeated field dereferences, interface switches, and small call overheads.  The next step beyond that is a single‐pass token‐to‐opcode compilation so that your dispatch in the main loop is a single integer switch or even a threaded‐code jump table.
+*/
