@@ -150,6 +150,7 @@ func NewRecord() *Record {
     }
 }
 
+
 // Set assigns value to key. If key is new, it appends it.
 func (r *Record) Set(key string, value any) {
     if idx, ok := r.KeyToIndex[key]; ok {
@@ -162,11 +163,44 @@ func (r *Record) Set(key string, value any) {
 }
 
 // Get returns the value for key. The bool is false if key was not present.
-func (r *Record) Get(key string) (any, bool) {
+func (r *Record) Get(key string) any {
+    if idx, ok := r.KeyToIndex[key]; ok {
+        return r.Values[idx]
+    }
+    return nil
+}
+
+func (r *Record) GetHas(key string) (any, bool) {
     if idx, ok := r.KeyToIndex[key]; ok {
         return r.Values[idx], true
     }
     return nil, false
+}
+func (r *Record) GetHasSeeIndex(key string) (any, bool, int) {
+    if idx, ok := r.KeyToIndex[key]; ok {
+        return r.Values[idx], true, idx
+    }
+    return nil, false, -1
+}
+
+func (r *Record) SetSeeIndex(key string, value any) int {
+    if idx, ok := r.KeyToIndex[key]; ok {
+        r.Values[idx] = value
+        return idx
+    }
+    // new key
+    idx := len(r.Values)
+    r.Keys = append(r.Keys, key)
+    r.Values = append(r.Values, value)
+    r.KeyToIndex[key] = idx
+    return idx
+}
+func (r *Record) GetSeeIndex(key string) (value any, idx int) {
+    idx, ok := r.KeyToIndex[key]
+    if !ok {
+        return nil, -1
+    }
+    return r.Values[idx], idx
 }
 
 // SetIndex changes the value at the given index. Returns an error if out of range.
@@ -214,7 +248,7 @@ type State struct {
 	Vals               *[]any
 	ValsStack          []*[]any
 	EndStack           []func(*State) *State
-	Vars               map[string]any
+	Vars               *Record
 	CurrFuncTokens     []func(*State) *State
 	FuncTokenStack     [][]func(*State) *State
 	FuncTokenSpots     []int // position of the first "argument" in vals, even tho it can grab from earlier
@@ -265,7 +299,8 @@ func MakeState(fileName, code string) *State {
 		Vals:               &[]any{},
 		ValsStack:          nil,
 		EndStack:           nil,
-		Vars:               map[string]any{},
+		// Vars:               map[string]any{},
+		Vars:               NewRecord(),
 		CurrFuncTokens:     nil,
 		FuncTokenStack:     nil,
 		FuncTokenSpots:     nil,
@@ -560,14 +595,14 @@ evalLoop:
 func cancel(state *State) {
 	state.Done = true
 	state.Canceled = true
-	fmt.Println("#coral canceling", state.Vars["name"])
+	fmt.Println("#coral canceling", state.Vars.Get("name"))
 	for _, c := range state.AsyncChildren {
 		cancel(c)
 	}
 	state.AsyncChildren = map[int]*State{}
 }
 func getVar(state *State, varName string) any {
-	if v, ok := state.Vars[varName]; ok {
+	if v, ok := state.Vars.GetHas(varName); ok {
 		return v
 	}
 	if state.LexicalParent != nil {
@@ -578,7 +613,7 @@ func getVar(state *State, varName string) any {
 }
 
 func findParent(state *State, varName string) *State {
-	if _, ok := state.Vars[varName]; ok {
+	if _, ok := state.Vars.GetHas(varName); ok {
 		return state
 	}
 	if state.LexicalParent != nil {
@@ -1912,14 +1947,14 @@ func initBuiltins() {
 		},
 		"incr": func(state *State) *State {
 			a := toStringInternal(popT(state.Vals))
-			state.Vars[a] = toIntInternal(state.Vars[a]) + 1
+			state.Vars.Set(a, toIntInternal(state.Vars.Get(a)) + 1)
 			clearFuncToken(state)
 			return state
 		},
 		"local": func(state *State) *State {
 			b := popT(state.Vals)
 			a := toStringInternal(popT(state.Vals))
-			state.Vars[a] = b
+			state.Vars.Set(a, b)
 			clearFuncToken(state)
 			return state
 		},
@@ -1930,7 +1965,7 @@ func initBuiltins() {
 			if parentState == nil {
 				parentState = state
 			}
-			parentState.Vars[a] = b
+			parentState.Vars.Set(a, b)
 			clearFuncToken(state)
 			return state
 		},
@@ -1941,19 +1976,10 @@ func initBuiltins() {
 			if parentState == nil {
 				parentState = state
 			}
-			parentState.Vars[a] = b
+			parentState.Vars.Set(a, b)
 			clearFuncToken(state)
 			return state
 		},
-		// "as": func(state *State) *State {
-		// 	b := popTString(state.Vals)
-		// 	a := popT(state.Vals)
-		// 	state.Vars[b] = a
-		// 	return state
-		// },
-		// make it so if b is a slice,
-		// and a is a slice that we set the state Vars accordingly
-		// just use a type switch, not reflection
 
 
 		"as": func(state *State) *State {
@@ -1964,11 +1990,10 @@ func initBuiltins() {
 		    switch b := rawB.(type) {
 		    case DString:
 		        // simple: single variable
-		        state.Vars[b.String] = rawA
+		        state.Vars.Set(b.String, rawA)
 		    case string:
 		        // simple: single variable
-		        state.Vars[b] = rawA
-
+		        state.Vars.Set(b, rawA)
 		    case *[]any:
 		        // case: keys are in a []interface{} (each must be a string)
 		        aSlice, ok := rawA.(*[]any)
@@ -1977,9 +2002,9 @@ func initBuiltins() {
 		        }
 		        for i, keyI := range *b {
 		            if i < len(*aSlice) {
-		                state.Vars[toStringInternal(keyI)] = (*aSlice)[i]
+		                state.Vars.Set(toStringInternal(keyI), (*aSlice)[i])
 		            } else {
-		                state.Vars[toStringInternal(keyI)] = nil
+		                state.Vars.Set(toStringInternal(keyI), nil)
 		            }
 		        }
 		    default:
@@ -2075,7 +2100,7 @@ func initBuiltins() {
 			}
 
 			if indexVar != "" {
-				state.Vars[indexVar] = -1
+				state.Vars.Set(indexVar, -1)
 			}
 			var spot = state.I
 			var endEach func(state *State) *State
@@ -2086,7 +2111,7 @@ func initBuiltins() {
 					return state
 				} else {
 					if indexVar != "" {
-						state.Vars[indexVar] = theIndex
+						state.Vars.Set(indexVar, theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
 					}
@@ -2162,8 +2187,7 @@ func initBuiltins() {
 					return state
 				} else {
 					if indexVar != "" {
-						state.Vars[indexVar] = theIndex
-						// state.Vars[indexVar] = strconv.Itoa(theIndex)
+						state.Vars.Set(indexVar, theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
 					}
@@ -2300,8 +2324,7 @@ func initBuiltins() {
 				// pushT(newState.Vals, popT(state.Vals))
 			} else {
 				for _, v := range thingsVal {
-				
-					newState.Vars[toStringInternal(v)] = getVar(state, toStringInternal(v))
+					newState.Vars.Set(toStringInternal(v), getVar(state, toStringInternal(v)))
 				}
 			}
 
@@ -2376,7 +2399,7 @@ func initBuiltins() {
 				OneLiner:          state.OneLiner,
 			}
 			stateFunc := makeFuncToken(f)
-			state.Vars[funcName] = stateFunc
+			state.Vars.Set(funcName, stateFunc)
 			// state.Vars[funcName] = f
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
@@ -3297,7 +3320,7 @@ func makeFuncToken(token *Func) func(*State) *State {
 		newState.OneLiner = token.OneLiner
 		for i := len(token.Params) - 1; i >= 0; i-- {
 			param := token.Params[i]
-			newState.Vars[param] = popT(state.Vals)
+			newState.Vars.Set(param, popT(state.Vals))
 		}
 		newState.Machine = state.Machine
 		newState.Out = state.Out
@@ -4926,18 +4949,18 @@ func getLoopVars(state *State) (string, string) {
 
 func setLoopVarsInit(state *State, indexVar, itemVar string, theIndex, value any)  {
 	if indexVar != "" {
-		state.Vars[indexVar] = theIndex
+		state.Vars.Set(indexVar, theIndex)
 	}
 	if itemVar != "" {
-		state.Vars[itemVar] = value
+		state.Vars.Set(itemVar, value)
 	}
 }
 func setLoopVars(state *State, indexVar, itemVar string, theIndex, value any)  {
 	if indexVar != "" {
-		state.Vars[indexVar] = theIndex
+		state.Vars.Set(indexVar, theIndex)
 	}
 	if itemVar != "" {
-		state.Vars[itemVar] = value
+		state.Vars.Set(itemVar,  value)
 	} else {
 		// fmt.Println("pushing", value)
 		pushT(state.Vals, value)
