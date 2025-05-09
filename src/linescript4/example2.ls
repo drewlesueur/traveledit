@@ -7,6 +7,7 @@
 # say getType it
 
 let .loopCount 1000000
+# let .loopCount 10
 let .theStart now
 let .val 0
 let .i 0

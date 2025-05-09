@@ -134,6 +134,12 @@ type Machine struct {
 	Index       int
 }
 
+type DString struct {
+    String string
+    RecordIndex int
+    Record *Record
+}
+
 
 type Record struct {
     Values     []any
@@ -150,7 +156,6 @@ func NewRecord() *Record {
     }
 }
 
-
 // Set assigns value to key. If key is new, it appends it.
 func (r *Record) Set(key string, value any) {
     if idx, ok := r.KeyToIndex[key]; ok {
@@ -161,6 +166,16 @@ func (r *Record) Set(key string, value any) {
         r.KeyToIndex[key] = len(r.Values) - 1
     }
 }
+func (r *Record) SetDString(key *DString, value any) {
+    if key.RecordIndex == -1 {
+        key.RecordIndex = r.SetSeeIndex(key.String, value)
+        key.Record = r // likely not used because we set in different spot than get
+    } else {
+        r.Values[key.RecordIndex] = value
+    }
+}
+
+
 
 // Get returns the value for key. The bool is false if key was not present.
 func (r *Record) Get(key string) any {
@@ -176,11 +191,11 @@ func (r *Record) GetHas(key string) (any, bool) {
     }
     return nil, false
 }
-func (r *Record) GetHasSeeIndex(key string) (any, bool, int) {
+func (r *Record) GetHasSeeIndex(key string) (any, int, bool) {
     if idx, ok := r.KeyToIndex[key]; ok {
-        return r.Values[idx], true, idx
+        return r.Values[idx], idx, true
     }
-    return nil, false, -1
+    return nil, -1, false
 }
 
 func (r *Record) SetSeeIndex(key string, value any) int {
@@ -544,10 +559,10 @@ evalLoop:
 			// case builtinToken:
 			// ??
 		case getVarToken:
-			evaled := getVar(state, string(token))
+			evaled := getVar(state, token)
 			pushT(state.Vals, evaled)
 		case getVarFuncToken:
-			evaledFunc := getVar(state, string(token)).(func(*State) *State)
+			evaledFunc := getVar(state, token).(func(*State) *State)
 			state.CurrFuncTokens = append(state.CurrFuncTokens, evaledFunc)
 			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
 
@@ -585,7 +600,7 @@ evalLoop:
 			// see jump_alt and jump_table branches
 			pushT(state.Vals, token)
 			// fmt.Printf("oops type %T\n", token)
-			// panic("fail")
+				// panic("fail")
 		}
 	}
 
@@ -601,25 +616,28 @@ func cancel(state *State) {
 	}
 	state.AsyncChildren = map[int]*State{}
 }
-func getVar(state *State, varName string) any {
-	if v, ok := state.Vars.GetHas(varName); ok {
-		return v
+func getVar(state *State, varName *DString) any {
+	parent, v := findParentAndValue(state, varName)
+	if parent == nil {
+	    panic("var not found: " + varName.String)
 	}
-	if state.LexicalParent != nil {
-		return getVar(state.LexicalParent, varName)
-	}
-	// return nil
-	return varName
+	return v
 }
 
-func findParent(state *State, varName string) *State {
-	if _, ok := state.Vars.GetHas(varName); ok {
-		return state
+func findParentAndValue(state *State, varName *DString) (*Record, any) {
+	if varName.Record != nil {
+	    return varName.Record, varName.Record.Values[varName.RecordIndex]
 	}
-	if state.LexicalParent != nil {
-		return findParent(state.LexicalParent, varName)
+	for state != nil {
+		v, idx, ok := state.Vars.GetHasSeeIndex(varName.String)
+		if ok {
+		    varName.Record = state.Vars
+		    varName.RecordIndex = idx
+		    return state.Vars, v
+		}
+		state = state.LexicalParent
 	}
-	return nil
+	return nil, nil
 }
 
 func clearFuncToken(state *State) {
@@ -675,6 +693,7 @@ func nextToken(state *State) (any, string) {
 	// }
 	if cached := state.ICache[i]; cached != nil && cached.CachedToken != nil {
 		state.I = cached.CachedToken.I
+		// fmt.Printf("yay cached token %T\n", cached.CachedToken.Token)
 		return cached.CachedToken.Token, cached.CachedToken.Name
 	}
 	// fmt.Println("cache miss")
@@ -750,8 +769,9 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 	return immediateToken(endOfCodeImmediate), "got to end?", -1
 }
 
-type getVarFuncToken string
-type getVarToken string
+type getVarFuncToken *DString
+// type getVarToken string
+type getVarToken *DString
 type builtinToken func(*State) *State
 type builtinFuncToken func(*State) *State
 type immediateToken func(*State) *State
@@ -850,11 +870,6 @@ var stdinReader = &Reader{
 }
 
 
-type DString struct {
-    // this could have cachedI on it?
-    String string
-    RecordIndex int
-}
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
 	// The 2 immediate styles can be consolidated now
@@ -898,12 +913,12 @@ func makeToken(state *State, val string) any {
 		}
 		theString := val[1:]
 		// return theString
-		return DString{String: theString, RecordIndex: -1}
+		return &DString{String: theString, RecordIndex: -1}
 	}
 	if val[len(val)-1] == '.' {
 		theString := val[0:len(val)-1]
 		// return theString
-		return DString{String: theString, RecordIndex: -1}
+		return &DString{String: theString, RecordIndex: -1}
 	}
 	if isNumeric(val) {
 		if val[len(val)-1:] == "f" {
@@ -954,31 +969,17 @@ func makeToken(state *State, val string) any {
 		return stdinReader
 	}
 
-	evaled := getVar(state, val)
+    dval := &DString{String: val, RecordIndex: -1}
+	evaled := getVar(state, dval)
 	// once a func, always a func
 	// but have to eval twice the first round?!
 	// TODO: fix the double eval
 	if _, ok := evaled.(func(*State) *State); ok {
-		return getVarFuncToken(val)
+		return getVarFuncToken(dval)
 	} else {
-		return getVarToken(val)
+		// return getVarToken(val)
+		return getVarToken(dval)
 	}
-	// switch state.Mode {
-	// case "normal":
-	// 	// return getVarToken(val)
-	// 	evaled := getVar(state, val)
-	// 	// once a func, always a func
-	// 	// but have to eval twice the first round?!
-	// 	// TODO: fix the double eval
-	// 	if _, ok := evaled.(func(*State) *State); ok {
-	// 		return getVarFuncToken(val)
-	// 	} else {
-	// 		return getVarToken(val)
-	// 	}
-	// case "array", "object":
-	// 	// need this?
-	// 	return getVarToken(val)
-	// }
 	panic("no slash?")
 	return nil
 }
@@ -1298,29 +1299,7 @@ func initBuiltins() {
 			return state
 		},
 		"istring": func(state *State) *State {
-			if state.Code[state.I] == ':' {
-				end := strings.Index(state.Code[state.I+2:], "\n")
-				// 2 because of ": "
-				// 1 because we want after "\n"
-				pushT(state.Vals, interpolateDollar(state, state.Code[state.I+2:state.I+2+end]))
-				// state.I = state.I + 2 + end + 1
-				state.I = state.I + 2 + end
-				// actually we don't want after the newline
-			} else {
-				r := findMatchingAfter(state, 0, []string{"end"})
-				str := state.Code[state.I+1 : r.I-3]
-				lines := strings.Split(str, "\n")
-				lines = lines[0 : len(lines)-1]
-				prefixToTrim := r.Indent + "    "
-				for i, line := range lines {
-					// fmt.Printf("%q %q" prefixToTrim, line)
-					lines[i] = strings.TrimPrefix(line, prefixToTrim)
-				}
-				str = strings.Join(lines, "\n")
-				pushT(state.Vals, interpolateDollar(state, str))
-				state.I = r.I
-			}
-			return state
+		    panic("istring feature removed")
 		},
 		"%%": func(state *State) *State {
 			end := strings.Index(state.Code[state.I:], "\n")
@@ -1946,51 +1925,41 @@ func initBuiltins() {
 			return state
 		},
 		"incr": func(state *State) *State {
-			a := toStringInternal(popT(state.Vals))
-			state.Vars.Set(a, toIntInternal(state.Vars.Get(a)) + 1)
-			clearFuncToken(state)
+			panic("fix this")
+			// TODO: parent
+			// a := popT(state.Vals).(*DString)
+			// state.Vars.Set(a, toIntInternal(state.Vars.GetDString(a)) + 1)
+			// clearFuncToken(state)
 			return state
 		},
 		"local": func(state *State) *State {
 			b := popT(state.Vals)
-			a := toStringInternal(popT(state.Vals))
-			state.Vars.Set(a, b)
-			clearFuncToken(state)
+			a := popT(state.Vals).(*DString)
+			state.Vars.SetDString(a, b)
 			return state
 		},
 		"let": func(state *State) *State {
 			b := popT(state.Vals)
-			a := toStringInternal(popT(state.Vals))
-			parentState := findParent(state, a)
-			if parentState == nil {
-				parentState = state
+			a := popT(state.Vals).(*DString)
+			parentVars, _ := findParentAndValue(state, a)
+			if parentVars == nil {
+				parentVars = state.Vars
 			}
-			parentState.Vars.Set(a, b)
-			clearFuncToken(state)
+			parentVars.SetDString(a, b)
 			return state
 		},
 		"=": func(state *State) *State {
-			b := popT(state.Vals)
-			a := toStringInternal(popT(state.Vals))
-			parentState := findParent(state, a)
-			if parentState == nil {
-				parentState = state
-			}
-			parentState.Vars.Set(a, b)
-			clearFuncToken(state)
-			return state
+		    return builtins["let"](state)
 		},
-
-
 		"as": func(state *State) *State {
 		    // Note: we pop b first, then a
 		    rawB := popT(state.Vals)
 		    rawA := popT(state.Vals)
 
 		    switch b := rawB.(type) {
-		    case DString:
+		    case *DString:
 		        // simple: single variable
-		        state.Vars.Set(b.String, rawA)
+		        state.Vars.SetDString(b, rawA)
 		    case string:
 		        // simple: single variable
 		        state.Vars.Set(b, rawA)
@@ -2158,7 +2127,7 @@ func initBuiltins() {
 			}
 
 			if indexVar != "" {
-				state.Vars[indexVar] = -1
+				state.Vars.Set(indexVar, -1)
 			}
 			if loopStart < loopEnd {
 				theIndex = loopStart - 1
@@ -2324,7 +2293,7 @@ func initBuiltins() {
 				// pushT(newState.Vals, popT(state.Vals))
 			} else {
 				for _, v := range thingsVal {
-					newState.Vars.Set(toStringInternal(v), getVar(state, toStringInternal(v)))
+					newState.Vars.SetDString(v.(*DString), getVar(state, v.(*DString)))
 				}
 			}
 
@@ -4148,7 +4117,7 @@ func toStringInternal(a any) string {
 	switch a := a.(type) {
 	case string:
 		return a
-	case DString:
+	case *DString:
 		return a.String
 	case map[string]any:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
@@ -4353,12 +4322,6 @@ func interpolate(a, b any) any {
 
 var variableRe = regexp.MustCompile(`\$[a-zA-Z_][a-zA-Z0-9_]*`)
 
-func interpolateDollar(state *State, str string) string {
-	return variableRe.ReplaceAllStringFunc(str, func(match string) string {
-		varName := match[1:]
-		return toStringInternal(getVar(state, varName))
-	})
-}
 
 func doEnd(state *State) *State {
 	debug("#skyblue END")
