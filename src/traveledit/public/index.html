@@ -4840,7 +4840,8 @@ function scriptLines() {
     var expectedFx = fx
     
     // second-most-recent file
-    var _t = getSelectedLines(lastFile, false)
+    // var _t = getSelectedLines(lastFile, false)
+    var _t = getSelectedLines(lastFile, true)
     var linesToProcess = _t.lines
     var isWholeFile = _t.isWholeFile
 

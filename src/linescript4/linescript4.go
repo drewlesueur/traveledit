@@ -450,7 +450,7 @@ evalLoop:
 				for i := 0; i < len(*state.Vals); i += 2 {
 					key := (*state.Vals)[i]
 					value := (*state.Vals)[i+1]
-					myObj[toString(key).(string)] = value
+					myObj[toStringInternal(key)] = value
 				}
 				state.Vals = state.ValsStack[len(state.ValsStack)-1]
 				state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
@@ -814,6 +814,12 @@ var stdinReader = &Reader{
 	Reader: os.Stdin,
 }
 
+
+type DString struct {
+    // this could have cachedI on it?
+    String string
+    RecordIndex int
+}
 func makeToken(state *State, val string) any {
 	// immediates go first, because it could be an immediate and builtin
 	// The 2 immediate styles can be consolidated now
@@ -856,11 +862,13 @@ func makeToken(state *State, val string) any {
 			return val
 		}
 		theString := val[1:]
-		return theString
+		// return theString
+		return DString{String: theString, RecordIndex: -1}
 	}
 	if val[len(val)-1] == '.' {
 		theString := val[0:len(val)-1]
-		return theString
+		// return theString
+		return DString{String: theString, RecordIndex: -1}
 	}
 	if isNumeric(val) {
 		if val[len(val)-1:] == "f" {
@@ -1558,11 +1566,11 @@ func initBuiltins() {
 		"formatTimestamp": makeBuiltin_2_1(func(m any, f any) any {
 			// from unix millis
 			t := time.Unix(0, int64(toIntInternal(m))*int64(time.Millisecond))
-			formattedTime := t.Format(f.(string))
+			formattedTime := t.Format(toStringInternal(f))
 			return formattedTime
 		}),
 		"rfc3339ToUnixMillis": makeBuiltin_1_1(func(s any) any {
-			t, err := time.Parse(time.RFC3339, s.(string))
+			t, err := time.Parse(time.RFC3339, toStringInternal(s))
 			if err != nil {
 				panic(err)
 			}
@@ -1578,10 +1586,10 @@ func initBuiltins() {
 			return fmt.Sprintf("%T", s)
 		}),
 		"replace": makeBuiltin_3_1(func(s, x, y any) any {
-			return strings.Replace(s.(string), x.(string), y.(string), -1)
+			return strings.Replace(toStringInternal(s), toStringInternal(x), toStringInternal(y), -1)
 		}),
 		"getEnvVar": makeBuiltin_1_1(func(v any) any {
-			return os.Getenv(v.(string))
+			return os.Getenv(toStringInternal(v))
 		}),
 		"+": makeBuiltin_2_1(plus),
 		"-": makeBuiltin_2_1(minus),
@@ -1630,7 +1638,7 @@ func initBuiltins() {
 		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
 		"split":       makeBuiltin_2_1(split),
 		"trim": makeBuiltin_1_1(func(a any) any {
-			return strings.TrimSpace(a.(string))
+			return strings.TrimSpace(toStringInternal(a))
 		}),
 		"join": makeBuiltin_2_1(func(a, b any) any {
 			// TODO: allow anything to use slice of strings too
@@ -1638,28 +1646,28 @@ func initBuiltins() {
 			for i, v := range *a.(*[]any) {
 				strSlice[i] = toStringInternal(v)
 			}
-			return strings.Join(strSlice, b.(string))
+			return strings.Join(strSlice, toStringInternal(b))
 		}),
 		"contains": makeBuiltin_2_1(func(a, b any) any {
-			return strings.Contains(a.(string), b.(string))
+			return strings.Contains(toStringInternal(a), toStringInternal(b))
 		}),
 		"startsWith": makeBuiltin_2_1(func(a, b any) any {
-			return strings.HasPrefix(a.(string), b.(string))
+			return strings.HasPrefix(toStringInternal(a), toStringInternal(b))
 		}),
 		"endsWith": makeBuiltin_2_1(func(a, b any) any {
-			return strings.HasSuffix(a.(string), b.(string))
+			return strings.HasSuffix(toStringInternal(a), toStringInternal(b))
 		}),
 		"trimPrefix": makeBuiltin_2_1(func(a, b any) any {
-			return strings.TrimPrefix(a.(string), b.(string))
+			return strings.TrimPrefix(toStringInternal(a), toStringInternal(b))
 		}),
 		"trimSuffix": makeBuiltin_2_1(func(a, b any) any {
-			return strings.TrimSuffix(a.(string), b.(string))
+			return strings.TrimSuffix(toStringInternal(a), toStringInternal(b))
 		}),
 		"upper": makeBuiltin_1_1(func(a any) any {
-			return strings.ToUpper(a.(string))
+			return strings.ToUpper(toStringInternal(a))
 		}),
 		"lower": makeBuiltin_1_1(func(a any) any {
-			return strings.ToLower(a.(string))
+			return strings.ToLower(toStringInternal(a))
 		}),
 		"toString": makeBuiltin_1_1(toString),
 		"toInt":    makeBuiltin_1_1(toInt),
@@ -1701,15 +1709,15 @@ func initBuiltins() {
 		"setIndex": makeBuiltin_3_0(setIndex),
 		"at":       makeBuiltin_2_1(at),
 		"in": makeBuiltin_2_1(func(a, b any) any {
-			_, ok := b.(map[string]any)[a.(string)]
+			_, ok := b.(map[string]any)[toStringInternal(a)]
 			return ok
 		}),
 		"btoa": makeBuiltin_1_1(func(a any) any {
-			return base64.StdEncoding.EncodeToString([]byte(a.(string)))
+			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
 		}),
 		"atob": makeBuiltin_1_1(func(a any) any {
-			// data, err := base64.StdEncoding.DecodeString(a.(string))
-			data, err := base64.RawStdEncoding.DecodeString(a.(string))
+			// data, err := base64.StdEncoding.DecodeString(toStringInternal(a))
+			data, err := base64.RawStdEncoding.DecodeString(toStringInternal(a))
 			if err != nil {
 				fmt.Println("atob:", err)
 				return ""
@@ -1717,27 +1725,27 @@ func initBuiltins() {
 			return string(data)
 		}),
 		"base64Encode": makeBuiltin_1_1(func(a any) any {
-			return base64.StdEncoding.EncodeToString([]byte(a.(string)))
+			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
 		}),
 		"base64Decode": makeBuiltin_1_1(func(a any) any {
-			ret, err := base64.StdEncoding.DecodeString(a.(string))
+			ret, err := base64.StdEncoding.DecodeString(toStringInternal(a))
 			if err != nil {
 				panic(err)
 			}
 			return string(ret)
 		}),
 		"toBase64": makeBuiltin_1_1(func(a any) any {
-			return base64.StdEncoding.EncodeToString([]byte(a.(string)))
+			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
 		}),
 		"fromBase64": makeBuiltin_1_1(func(a any) any {
-			ret, err := base64.StdEncoding.DecodeString(a.(string))
+			ret, err := base64.StdEncoding.DecodeString(toStringInternal(a))
 			if err != nil {
 				panic(err)
 			}
 			return string(ret)
 		}),
 		"urlEncode": makeBuiltin_1_1(func(a any) any {
-			return url.PathEscape(a.(string))
+			return url.PathEscape(toStringInternal(a))
 		}),
 		"rand": makeBuiltin_2_1(func(a, b any) any {
 			min := toIntInternal(a)
@@ -1745,8 +1753,8 @@ func initBuiltins() {
 			return rand.Intn(max-min+1) + min
 		}),
 		"padLeft": makeBuiltin_3_1(func(s, padChar any, length any) any {
-			str := s.(string)
-			pad := padChar.(string)
+			str := toStringInternal(s)
+			pad := toStringInternal(padChar)
 			padLength := toIntInternal(length)
 			for len(str) < padLength {
 				str = pad + str
@@ -1754,8 +1762,8 @@ func initBuiltins() {
 			return str
 		}),
 		"padRight": makeBuiltin_3_1(func(s, padChar any, length any) any {
-			str := s.(string)
-			pad := padChar.(string)
+			str := toStringInternal(s)
+			pad := toStringInternal(padChar)
 			padLength := length.(int)
 			for len(str) < padLength {
 				str = str + pad
@@ -1774,7 +1782,7 @@ func initBuiltins() {
 		"keys":        makeBuiltin_1_1(keys),
 		"interpolate": makeBuiltin_2_1(interpolate),
 		"unquote": makeBuiltin_1_1(func(a any) any {
-			q := a.(string)
+			q := toStringInternal(a)
 			r, err := strconv.Unquote(q)
 			if err != nil {
 				panic(err)
@@ -1782,7 +1790,7 @@ func initBuiltins() {
 			return r
 		}),
 		"tcpConnect": makeBuiltin_1_1(func(a any) any {
-			conn, err := net.Dial("tcp", a.(string))
+			conn, err := net.Dial("tcp", toStringInternal(a))
 			if err != nil {
 				panic(err)
 			}
@@ -1846,7 +1854,7 @@ func initBuiltins() {
 		    }
 		}),
 		"fromJson": makeBuiltin_1_1(func(a any) any {
-			j := a.(string)
+			j := toStringInternal(a)
 			var r any
 			err := json.Unmarshal([]byte(j), &r)
 			if err != nil {
@@ -1903,21 +1911,21 @@ func initBuiltins() {
 			return state
 		},
 		"incr": func(state *State) *State {
-			a := popT(state.Vals).(string)
+			a := toStringInternal(popT(state.Vals))
 			state.Vars[a] = toIntInternal(state.Vars[a]) + 1
 			clearFuncToken(state)
 			return state
 		},
 		"local": func(state *State) *State {
 			b := popT(state.Vals)
-			a := popT(state.Vals).(string)
+			a := toStringInternal(popT(state.Vals))
 			state.Vars[a] = b
 			clearFuncToken(state)
 			return state
 		},
 		"let": func(state *State) *State {
 			b := popT(state.Vals)
-			a := popT(state.Vals).(string)
+			a := toStringInternal(popT(state.Vals))
 			parentState := findParent(state, a)
 			if parentState == nil {
 				parentState = state
@@ -1928,7 +1936,7 @@ func initBuiltins() {
 		},
 		"=": func(state *State) *State {
 			b := popT(state.Vals)
-			a := popT(state.Vals).(string)
+			a := toStringInternal(popT(state.Vals))
 			parentState := findParent(state, a)
 			if parentState == nil {
 				parentState = state
@@ -1938,7 +1946,7 @@ func initBuiltins() {
 			return state
 		},
 		// "as": func(state *State) *State {
-		// 	b := popT(state.Vals).(string)
+		// 	b := popTString(state.Vals)
 		// 	a := popT(state.Vals)
 		// 	state.Vars[b] = a
 		// 	return state
@@ -1954,6 +1962,9 @@ func initBuiltins() {
 		    rawA := popT(state.Vals)
 
 		    switch b := rawB.(type) {
+		    case DString:
+		        // simple: single variable
+		        state.Vars[b.String] = rawA
 		    case string:
 		        // simple: single variable
 		        state.Vars[b] = rawA
@@ -1979,7 +1990,7 @@ func initBuiltins() {
 
 
 		"goUp": func(state *State) *State {
-			locText := popT(state.Vals).(string)
+			locText := toStringInternal(popT(state.Vals))
 			indent := getPrevIndent(state)
 			if cachedI := state.ICache[state.I]; cachedI != nil && cachedI.GoUp != nil {
 				state.I = *cachedI.GoUp
@@ -1999,7 +2010,7 @@ func initBuiltins() {
 			return state
 		},
 		"goDown": func(state *State) *State {
-			locText := popT(state.Vals).(string)
+			locText := toStringInternal(popT(state.Vals))
 			indent := getPrevIndent(state)
 			// assuming static location
 			if cachedI := state.ICache[state.I]; cachedI != nil && cachedI.GoUp != nil {
@@ -2055,10 +2066,10 @@ func initBuiltins() {
 			var loops int
 			if len(thingsVal) >= 2 {
 				loops = toIntInternal(thingsVal[0])
-				indexVar = thingsVal[1].(string)
+				indexVar = toStringInternal(thingsVal[1])
 			} else if len(thingsVal) == 1 {
 				loops = toIntInternal(popT(state.Vals))
-				indexVar = thingsVal[0].(string)
+				indexVar = toStringInternal(thingsVal[0])
 			} else {
 				loops = toIntInternal(popT(state.Vals))
 			}
@@ -2108,14 +2119,14 @@ func initBuiltins() {
 			if len(thingsVal) >= 3 {
 				loopStart = toIntInternal(thingsVal[0])
 				loopEnd = toIntInternal(thingsVal[1])
-				indexVar = thingsVal[2].(string)
+				indexVar = toStringInternal(thingsVal[2])
 			} else if len(thingsVal) == 2 {
 				loopStart = toIntInternal(thingsVal[0])
 				loopEnd = toIntInternal(thingsVal[1])
 			} else if len(thingsVal) == 1 {
 				loopEnd = toIntInternal(popT(state.Vals))
 				loopStart = toIntInternal(popT(state.Vals))
-				indexVar = thingsVal[0].(string)
+				indexVar = toStringInternal(thingsVal[0])
 			} else {
 				loopStart = toIntInternal(popT(state.Vals))
 				loopEnd = toIntInternal(popT(state.Vals))
@@ -2176,7 +2187,7 @@ func initBuiltins() {
 			a := popT(state.Vals).(*[]any)
 			aVal := *a
 			sort.Slice(aVal, func(i, j int) bool {
-			    return toString(aVal[i]).(string) < toString(aVal[j]).(string)
+			    return toStringInternal(aVal[i]) < toStringInternal(aVal[j])
 			})
 			pushT(state.Vals, a)
 			return state
@@ -2290,7 +2301,7 @@ func initBuiltins() {
 			} else {
 				for _, v := range thingsVal {
 				
-					newState.Vars[v.(string)] = getVar(state, v.(string))
+					newState.Vars[toStringInternal(v)] = getVar(state, toStringInternal(v))
 				}
 			}
 
@@ -2352,9 +2363,9 @@ func initBuiltins() {
 			params := spliceT(state.Vals, ftSpot+1, len(*state.Vals)-(ftSpot+1), nil)
 			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
-				paramStrings[i] = p.(string)
+				paramStrings[i] = toStringInternal(p)
 			}
-			funcName := popT(state.Vals).(string)
+			funcName := toStringInternal(popT(state.Vals))
 			f := &Func{
 				FileName:          state.FileName,
 				I:                 state.I,
@@ -2387,7 +2398,7 @@ func initBuiltins() {
 			params := getArgs(state)
 			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
-				paramStrings[i] = p.(string)
+				paramStrings[i] = toStringInternal(p)
 			}
 			f := &Func{
 				FileName:          state.FileName,
@@ -2430,7 +2441,7 @@ func initBuiltins() {
 
 		},
 		"bashArg": func(state *State) *State {
-			arg := popT(state.Vals).(string)
+			arg := toStringInternal(popT(state.Vals))
 			modified := "'" + strings.Replace(arg, "'", "'\\''", -1) + "'"
 			pushT(state.Vals, string(modified))
 			clearFuncToken(state)
@@ -2463,7 +2474,7 @@ func initBuiltins() {
 			return state
 		},
 		"execBash": func(state *State) *State {
-			val := popT(state.Vals).(string)
+			val := toStringInternal(popT(state.Vals))
 			cmd := exec.Command("/bin/bash", "-c", val)
 			cmdOutput, err := cmd.Output()
 			_ = err
@@ -2479,7 +2490,7 @@ func initBuiltins() {
 			return state
 		},
 		"execBashStdout": func(state *State) *State {
-		    val := popT(state.Vals).(string)
+		    val := popTString(state.Vals)
 		    cmd := exec.Command("/bin/bash", "-c", val)
 		    stdout, err := cmd.StdoutPipe()
 		    if err != nil {
@@ -2503,7 +2514,7 @@ func initBuiltins() {
 		// If it's a Reader already then make that the Stdin of the command.
 		"execBashStdin": func(state *State) *State {
 			input := popT(state.Vals)
-			cmdString := popT(state.Vals).(string)
+			cmdString := popTString(state.Vals)
 			var stdin io.Reader
 			switch v := input.(type) {
 			case string:
@@ -2534,7 +2545,7 @@ func initBuiltins() {
 		},
 
 		"execBashCombined": func(state *State) *State {
-			val := popT(state.Vals).(string)
+			val := popTString(state.Vals)
 			cmd := exec.Command("/bin/bash", "-c", val)
 			cmdOutput, err := cmd.CombinedOutput()
 			_ = err
@@ -2558,7 +2569,7 @@ func initBuiltins() {
 			return state
 		},
 		"readFile": func(state *State) *State {
-			fileName := popT(state.Vals).(string)
+			fileName := popTString(state.Vals)
 			go func() {
 				b, err := os.ReadFile(fileName)
 				if err != nil {
@@ -2573,7 +2584,7 @@ func initBuiltins() {
 			return nil
 		},
 		"readDir": func(state *State) *State {
-			dirName := popT(state.Vals).(string)
+			dirName := popTString(state.Vals)
 			var names []string
 			entries, err := os.ReadDir(dirName)
 			if err != nil {
@@ -2595,8 +2606,8 @@ func initBuiltins() {
 		},
 		// todo rename
 		"writeFile": func(state *State) *State {
-			contents := popT(state.Vals).(string)
-			fileName := popT(state.Vals).(string)
+			contents := popTString(state.Vals)
+			fileName := popTString(state.Vals)
 			err := os.MkdirAll(filepath.Dir(fileName), os.ModePerm)
 			if err != nil {
 				panic(err)
@@ -2610,7 +2621,7 @@ func initBuiltins() {
 		},
 		"waitReadDir": func(state *State) *State {
 			timeoutMs := toIntInternal(popT(state.Vals))
-			dir := popT(state.Vals).(string)
+			dir := popTString(state.Vals)
 
 			watcher, err := fsnotify.NewWatcher()
 			if err != nil {
@@ -2652,7 +2663,7 @@ func initBuiltins() {
 
 		},
 		"gunzip": func(state *State) *State {
-			gzippedData := []byte(popT(state.Vals).(string))
+			gzippedData := []byte(popTString(state.Vals))
 			reader, err := gzip.NewReader(bytes.NewReader(gzippedData))
 			if err != nil {
 				panic(err)
@@ -2671,22 +2682,22 @@ func initBuiltins() {
 		},
 		"appendFile": func(state *State) *State {
 			// TODO flow for keeping file open
-			contents := popT(state.Vals).(string)
-			fileName := popT(state.Vals).(string)
+			contents := popTString(state.Vals)
+			fileName := popTString(state.Vals)
 			appendFile(fileName, contents)
 			clearFuncToken(state)
 			return state
 		},
 		"appendLine": func(state *State) *State {
 			// TODO flow for keeping file open
-			contents := popT(state.Vals).(string)
-			fileName := popT(state.Vals).(string)
+			contents := popTString(state.Vals)
+			fileName := popTString(state.Vals)
 			appendFile(fileName, contents+"\n")
 			clearFuncToken(state)
 			return state
 		},
 		"deleteFile": func(state *State) *State {
-			fileName := popT(state.Vals).(string)
+			fileName := popTString(state.Vals)
 			err := os.Remove(fileName)
 			if err != nil && !os.IsNotExist(err) {
 				panic(err)
@@ -2699,7 +2710,7 @@ func initBuiltins() {
 		// if not exists return ""
 		// panic on error
 		"fileExists": func(state *State) *State {
-			fileName := popT(state.Vals).(string)
+			fileName := popTString(state.Vals)
 			_, err := os.Stat(fileName)
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
@@ -2715,7 +2726,7 @@ func initBuiltins() {
 			return state
 		},
 		"isFile": func(state *State) *State {
-			fileName := popT(state.Vals).(string)
+			fileName := popTString(state.Vals)
 			info, err := os.Stat(fileName)
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
@@ -2731,7 +2742,7 @@ func initBuiltins() {
 			return state
 		},
 		"isDir": func(state *State) *State {
-			fileName := popT(state.Vals).(string)
+			fileName := popTString(state.Vals)
 			info, err := os.Stat(fileName)
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
@@ -2747,7 +2758,7 @@ func initBuiltins() {
 			return state
 		},
 		"isExecutable": func(state *State) *State {
-			fileName := popT(state.Vals).(string)
+			fileName := popTString(state.Vals)
 			info, err := os.Stat(fileName)
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
@@ -2764,7 +2775,7 @@ func initBuiltins() {
 			return state
 		},
 		"getFileSize": func(state *State) *State {
-			fileName := popT(state.Vals).(string)
+			fileName := popTString(state.Vals)
 			info, err := os.Stat(fileName)
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
@@ -2794,7 +2805,7 @@ func initBuiltins() {
 			return state
 		},
 		"eval": func(state *State) *State {
-			code := popT(state.Vals).(string)
+			code := popTString(state.Vals)
 			// fmt.Println(unsafe.Pointer(&code))
 			// if strings come from source then we can cache it, but not worth it
 			evalState := MakeState("__eval", code+"\n")
@@ -2812,7 +2823,7 @@ func initBuiltins() {
 			return evalState
 		},
 		"include": func(state *State) *State {
-			filename := popT(state.Vals).(string)
+			filename := popTString(state.Vals)
 			b, err := os.ReadFile(filename)
 			if err != nil {
 				panic(err)
@@ -2909,8 +2920,8 @@ func initBuiltins() {
 		// "writePipe": func(state *State) *State {
 		// 	timeoutMs := toIntInternal(popT(state.Vals))
 		// 	bufSize := toIntInternal(popT(state.Vals))
-		// 	data := popT(state.Vals).(string)
-		// 	fifoPath := popT(state.Vals).(string)
+		// 	data := popTString(state.Vals)
+		// 	fifoPath := popTString(state.Vals)
 		// 	go func() {
 		// 		err := writePipe(fifoPath, []byte(data), bufSize, timeoutMs)
 		// 		if err != nil {
@@ -2936,7 +2947,7 @@ func initBuiltins() {
 		// "readPipe": func(state *State) *State {
 		// 	timeoutMs := popT(state.Vals).(int)
 		// 	bufSize := popT(state.Vals).(int)
-		// 	fifoPath := popT(state.Vals).(string)
+		// 	fifoPath := popTString(state.Vals)
 		// 	go func() {
 		// 		b, err := readPipe(fifoPath, bufSize, timeoutMs)
 		// 		if err != nil {
@@ -3343,7 +3354,7 @@ func at(mySlice any, index any) any {
 		}
 		return (*v)[indexInt-1]
 	case map[string]any:
-		return v[index.(string)]
+		return v[toStringInternal(index)]
 	case string:
 		indexInt := toIntInternal(index)
 		if indexInt < 0 {
@@ -3367,6 +3378,14 @@ func popT(s *[]any) any {
 		return val
 	}
 	return nil
+}
+func popTString(s *[]any) string {
+	if len(*s) > 0 {
+		val := (*s)[len(*s)-1]
+		*s = (*s)[:len(*s)-1]
+		return toStringInternal(val)
+	}
+	return ""
 }
 func peek(slice any) any {
 	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
@@ -3515,20 +3534,14 @@ func length(slice any) any {
 	return 0
 }
 func indexOf(a any, b any) any {
-	if a, ok := a.(string); ok {
-		return strings.Index(a, b.(string)) + 1
-	}
-	return 0
+	return strings.Index(toStringInternal(a), toStringInternal(b)) + 1
 }
 func lastIndexOf(a any, b any) any {
-	if a, ok := a.(string); ok {
-		return strings.LastIndex(a, b.(string)) + 1
-	}
-	return 0
+	return strings.LastIndex(toStringInternal(a), toStringInternal(b)) + 1
 }
 
 func split(a any, b any) any {
-	r := strings.Split(a.(string), b.(string))
+	r := strings.Split(toStringInternal(a), toStringInternal(b))
 	rr := []any{}
 	for _, value := range r {
 		rr = append(rr, value)
@@ -3957,7 +3970,7 @@ func cc(a, b any) any {
 		}
 	}
 
-	return toString(a).(string) + toString(b).(string)
+	return toStringInternal(a) + toStringInternal(b)
 }
 
 func toIntInternal(a any) int {
@@ -4074,9 +4087,9 @@ func say(state *State, out io.Writer, vals ...any) *State {
 			return nil
 		} else {
 			if i < len(vals)-1 {
-				fmt.Fprintf(out, "%s ", toString(v).(string))
+				fmt.Fprintf(out, "%s ", toStringInternal(v))
 			} else {
-				fmt.Fprintf(out, "%s\n", toString(v).(string))
+				fmt.Fprintf(out, "%s\n", toStringInternal(v))
 			}
 		}
 	}
@@ -4110,6 +4123,10 @@ func toString(a any) any {
 }
 func toStringInternal(a any) string {
 	switch a := a.(type) {
+	case string:
+		return a
+	case DString:
+		return a.String
 	case map[string]any:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
@@ -4133,8 +4150,6 @@ func toStringInternal(a any) string {
 		return strconv.Itoa(int(a))
 	case float64:
 		return strconv.FormatFloat(a, 'f', -1, 64)
-	case string:
-		return a
 	case bool:
 		if a {
 			return "true"
@@ -4187,7 +4202,7 @@ func keys(a any) any {
 	return &ret
 }
 func setProp(a, b, c any) {
-	a.(map[string]any)[b.(string)] = c
+	a.(map[string]any)[toStringInternal(b)] = c
 }
 func setIndex(a, b, c any) {
 	theArrPointer := a.(*[]any)
@@ -4195,16 +4210,16 @@ func setIndex(a, b, c any) {
 	theArr[toIntInternal(b)] = c
 }
 func setPropVKO(v, k, o any) {
-	o.(map[string]any)[k.(string)] = v
+	o.(map[string]any)[toStringInternal(k)] = v
 }
 func getProp(a, b any) any {
-	return a.(map[string]any)[b.(string)]
+	return a.(map[string]any)[toStringInternal(b)]
 }
 func getPropKO(k, o any) any {
-	return o.(map[string]any)[k.(string)]
+	return o.(map[string]any)[toStringInternal(k)]
 }
 func deleteProp(a, b any) {
-	delete(a.(map[string]any), b.(string))
+	delete(a.(map[string]any), toStringInternal(b))
 }
 
 func makeNoop() func(state *State) *State {
@@ -4300,13 +4315,13 @@ func endIf(state *State) *State {
 }
 
 func interpolate(a, b any) any {
-	theString := a.(string)
+	theString := toStringInternal(a)
 	theMap := b.(map[string]any)
 	theArgs := make([]string, len(theMap)*2)
 	i := 0
 	for k, v := range theMap {
 		theArgs[i*2] = k
-		theArgs[(i*2)+1] = toString(v).(string)
+		theArgs[(i*2)+1] = toStringInternal(v)
 		i++
 	}
 	r := strings.NewReplacer(theArgs...)
@@ -4318,7 +4333,7 @@ var variableRe = regexp.MustCompile(`\$[a-zA-Z_][a-zA-Z0-9_]*`)
 func interpolateDollar(state *State, str string) string {
 	return variableRe.ReplaceAllStringFunc(str, func(match string) string {
 		varName := match[1:]
-		return toString(getVar(state, varName)).(string)
+		return toStringInternal(getVar(state, varName))
 	})
 }
 
@@ -4901,10 +4916,10 @@ func getLoopVars(state *State) (string, string) {
 	var itemVar string
 
 	if len(thingsVal) == 2 {
-		indexVar = thingsVal[0].(string)
-		itemVar = thingsVal[1].(string)
+		indexVar = toStringInternal(thingsVal[0])
+		itemVar = toStringInternal(thingsVal[1])
 	} else if len(thingsVal) == 1 {
-		itemVar = thingsVal[0].(string)
+		itemVar = toStringInternal(thingsVal[0])
 	}
 	return indexVar, itemVar
 }
