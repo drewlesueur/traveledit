@@ -804,7 +804,14 @@ func makeToken(state *State, val string) any {
 			return f
 		}
 		if strings.Contains(val, ".") {
-			return val
+			// return val
+			
+			val := strings.Replace(val, "_", "", -1)
+			f, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				panic(err)
+			}
+			return f
 		}
 
 		cleanedVal := strings.Replace(val, "_", "", -1)

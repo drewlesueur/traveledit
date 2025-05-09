@@ -11,6 +11,19 @@ print(f"Execution time: {execution_time} milliseconds")
 print(f"Val is {val}")
 
 print("---")
+exit()
+
+# const loopCount = 1000000;
+# let val = 0;
+# const startTime = Date.now();
+# for (let i = 0; i < loopCount; i++) {
+#   val = i - 0.1 + val;
+# }
+# const endTime = Date.now();
+# const executionTime = endTime - startTime;
+# log2(`Execution time: ${executionTime} milliseconds`);
+# log2(`Val is ${val}`);
+
 
 exec('''
 loop_count = 1000000

@@ -1,12 +1,19 @@
 #!/usr/bin/env -S go run linescript4.go funcs.go stringmath.go
 
-let .loopCount 2
+# say getType 7
+# say getType 0.1
+# 
+# 7 - 0.1
+# say getType it
+
+let .loopCount 1000000
 let .theStart now
 let .val 0
 let .i 0
 loopCount loop .i
-    i - 0.1
-    + toFloat val
+    i - 1
+    - 0.1
+    + val
     as .val
 end
 let .theEnd now
