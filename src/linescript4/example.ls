@@ -1,6 +1,15 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
 
+let .bar 20
+def .foo
+    let .bar 300
+end
+say bar
+foo
+say bar
+exit
+
 execShell curl ("https://stg.taptosign.com/__eval", cc "?code=say%20yo")
 say
 

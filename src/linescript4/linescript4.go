@@ -171,6 +171,7 @@ func (r *Record) SetDString(key *DString, value any) {
         key.RecordIndex = r.SetSeeIndex(key.String, value)
         key.Record = r // likely not used because we set in different spot than get
     } else {
+        // fmt.Println("yay set cache ", key.String)
         r.Values[key.RecordIndex] = value
     }
 }
@@ -626,6 +627,7 @@ func getVar(state *State, varName *DString) any {
 
 func findParentAndValue(state *State, varName *DString) (*Record, any) {
 	if varName.Record != nil {
+        // fmt.Println("yay get cache ", varName.String)
 	    return varName.Record, varName.Record.Values[varName.RecordIndex]
 	}
 	for state != nil {
@@ -2056,20 +2058,20 @@ func initBuiltins() {
 			things := getArgs(state)
 			thingsVal := *things
 
-			var indexVar string
+			var indexVar *DString
 			var loops int
 			if len(thingsVal) >= 2 {
 				loops = toIntInternal(thingsVal[0])
-				indexVar = toStringInternal(thingsVal[1])
+				indexVar = thingsVal[1].(*DString)
 			} else if len(thingsVal) == 1 {
 				loops = toIntInternal(popT(state.Vals))
-				indexVar = toStringInternal(thingsVal[0])
+				indexVar = thingsVal[0].(*DString)
 			} else {
 				loops = toIntInternal(popT(state.Vals))
 			}
 
-			if indexVar != "" {
-				state.Vars.Set(indexVar, -1)
+			if indexVar != nil {
+				state.Vars.SetDString(indexVar, -1)
 			}
 			var spot = state.I
 			var endEach func(state *State) *State
@@ -2079,8 +2081,8 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				} else {
-					if indexVar != "" {
-						state.Vars.Set(indexVar, theIndex)
+					if indexVar != nil {
+						state.Vars.SetDString(indexVar, theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
 					}
@@ -2107,27 +2109,27 @@ func initBuiltins() {
 			things := getArgs(state)
 			thingsVal := *things
 
-			var indexVar string
+			var indexVar *DString
 			var loopStart int
 			var loopEnd int
 			if len(thingsVal) >= 3 {
 				loopStart = toIntInternal(thingsVal[0])
 				loopEnd = toIntInternal(thingsVal[1])
-				indexVar = toStringInternal(thingsVal[2])
+				indexVar = thingsVal[2].(*DString)
 			} else if len(thingsVal) == 2 {
 				loopStart = toIntInternal(thingsVal[0])
 				loopEnd = toIntInternal(thingsVal[1])
 			} else if len(thingsVal) == 1 {
 				loopEnd = toIntInternal(popT(state.Vals))
 				loopStart = toIntInternal(popT(state.Vals))
-				indexVar = toStringInternal(thingsVal[0])
+				indexVar = thingsVal[0].(*DString)
 			} else {
 				loopStart = toIntInternal(popT(state.Vals))
 				loopEnd = toIntInternal(popT(state.Vals))
 			}
 
-			if indexVar != "" {
-				state.Vars.Set(indexVar, -1)
+			if indexVar != nil {
+				state.Vars.SetDString(indexVar, -1)
 			}
 			if loopStart < loopEnd {
 				theIndex = loopStart - 1
@@ -2155,8 +2157,8 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				} else {
-					if indexVar != "" {
-						state.Vars.Set(indexVar, theIndex)
+					if indexVar != nil {
+						state.Vars.SetDString(indexVar, theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
 					}
@@ -3541,7 +3543,23 @@ func split(a any, b any) any {
 	return &rr
 }
 
+
+// func ToFloat64(v interface{}) float64 {
+//     switch n := v.(type) {
+//     case float64:
+//         return n
+//     case int:
+//         return float64(n)
+//     default:
+//         return 0
+//     }
+// }
+
+
 func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fString func(string, string) any) func(any, any) any {
+	// return func(a, b any) any {
+	//     return fFloat(ToFloat64(a), ToFloat64(b))
+	// }
 	return func(a, b any) any {
 		switch a := a.(type) {
 		case int:
@@ -4894,36 +4912,36 @@ func makeIterator(v any) (Iterator) {
 }
 
 
-func getLoopVars(state *State) (string, string) {
+func getLoopVars(state *State) (*DString, *DString) {
 	things := getArgs(state)
 	thingsVal := *things
 
-	var indexVar string
-	var itemVar string
+	var indexVar *DString
+	var itemVar *DString
 
 	if len(thingsVal) == 2 {
-		indexVar = toStringInternal(thingsVal[0])
-		itemVar = toStringInternal(thingsVal[1])
+		indexVar = thingsVal[0].(*DString)
+		itemVar = thingsVal[1].(*DString)
 	} else if len(thingsVal) == 1 {
-		itemVar = toStringInternal(thingsVal[0])
+		itemVar = thingsVal[0].(*DString)
 	}
 	return indexVar, itemVar
 }
 
-func setLoopVarsInit(state *State, indexVar, itemVar string, theIndex, value any)  {
-	if indexVar != "" {
-		state.Vars.Set(indexVar, theIndex)
+func setLoopVarsInit(state *State, indexVar, itemVar *DString, theIndex, value any)  {
+	if indexVar != nil {
+		state.Vars.SetDString(indexVar, theIndex)
 	}
-	if itemVar != "" {
-		state.Vars.Set(itemVar, value)
+	if itemVar != nil {
+		state.Vars.SetDString(itemVar, value)
 	}
 }
-func setLoopVars(state *State, indexVar, itemVar string, theIndex, value any)  {
-	if indexVar != "" {
-		state.Vars.Set(indexVar, theIndex)
+func setLoopVars(state *State, indexVar, itemVar *DString, theIndex, value any)  {
+	if indexVar != nil {
+		state.Vars.SetDString(indexVar, theIndex)
 	}
-	if itemVar != "" {
-		state.Vars.Set(itemVar,  value)
+	if itemVar != nil {
+		state.Vars.SetDString(itemVar,  value)
 	} else {
 		// fmt.Println("pushing", value)
 		pushT(state.Vals, value)
