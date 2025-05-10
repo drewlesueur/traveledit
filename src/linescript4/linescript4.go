@@ -347,13 +347,6 @@ var httpAddr string
 var domain string
 var cgiUrl string
 
-//	func init() {
-//	    c := make(chan int)
-//	    go func() {
-//	       fmt.Println("eternal....")
-//	       <- c
-//	    }()
-//	}
 func main() {
 	cgi := flag.Bool("cgi", false, "Start cgi server")
 	flag.StringVar(&httpsAddr, "httpsaddr", ":443", "address for http")
@@ -671,18 +664,6 @@ func callFunc(state *State) *State {
 		state.InCurrentCall = false
 	}
 
-	// if state.ImpliedParenCount > 0 {
-	//     state.ImpliedParenCount--
-	// 	state.Mode = state.ModeStack[len(state.ModeStack)-1]
-	// 	state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
-	// 	state.CurrFuncToken = state.FuncTokenStack[len(state.FuncTokenStack)-1]
-	// 	state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-	// 	state.FuncTokenSpot = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
-	// 	state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
-	// } else {
-	// 	state.CurrFuncToken = nil
-	// 	state.FuncTokenSpot = -1
-	// }
 	return newState
 }
 
@@ -893,23 +874,7 @@ func makeToken(state *State, val string) any {
 		// }
 	}
 	if b, ok := builtins[val]; ok {
-		// wow we  switch on the mode at compile time?!
-		// the first run is compile time, interesting
-
 		return builtinFuncToken(b)
-
-		// switch state.Mode {
-		// case "normal":
-		// 	return builtinFuncToken(b)
-		// 	// attempt to require fewer cases in token switch
-		// 	// but it's slower, with closure and even polymorphic types, it's slower.
-		// 	// compared to switch
-		// 	// tho too many switch cases bad
-		// 	// return makeImmediateFromBuiltinFuncToken(b)
-		// case "array", "object":
-		// 	// need this?
-		// 	return builtinToken(b)
-		// }
 	}
 	
 	// string shortcut, maybe phase out : for . ?
@@ -1449,33 +1414,6 @@ func initBuiltins() {
 		},
 	}
 	runImmediates = map[string]func(state *State) *State{
-		// "local": func(state *State) *State {
-		//     if nextTokenName state.NextTokenCache[state.I]
-		//     _, name, i := nextTokenRaw(state, state.Code, state.I)
-		//     state.I = i
-		//     fmt.Println("name is", name)
-		//     fmt.Println(toJson(state.Code[state.I:state.I+100]))
-		//     return state
-		// },
-		
-		// "gotoEnd": func(state *State) *State {
-		// 	things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
-		// 	thingsVal := *things
-		// 	times := 1
-		// 	if len(thingsVal) > 0 {
-		// 	    times = thingsVal[0].(int)
-		// 	}
-		// 	// bug with indents,
-		// 	// make a new function get dedented end or something
-		// 	for i := 0; i<times-1; i++ {
-		// 		r := findMatchingAfter(state, []string{"end"})
-		// 		state.I = r.I
-		// 	}
-		// 	r := findMatchingAfter(state, []string{"end"})
-		// 	state.I = r.I - 3
-		// 	return state
-		// },
-		// -- __
 		"now":       makeBuiltin_0_1(now),
 		"nowMillis": makeBuiltin_0_1(now),
 		"nowMs":     makeBuiltin_0_1(now),
@@ -1569,19 +1507,6 @@ func initBuiltins() {
 		},
 		"|": func(state *State) *State {
 			state = callFunc(state)
-			return state
-		},
-		"func (old before auto implied parens)": func(state *State) *State {
-			// fmt.Println("#yellow, mode stack up d (func)")
-
-			// open implied parens
-			// state.ModeStack = append(state.ModeStack, state.Mode)
-			// state.Mode = "normal"
-			// state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncToken)
-			// state.CurrFuncToken = funcBuiltin
-			// state.FuncTokenSpotStack = append(state.FuncTokenSpotStack, state.FuncTokenSpot)
-			// state.FuncTokenSpot = len(*state.Vals)
-
 			return state
 		},
 		"else": func(state *State) *State {
@@ -1723,17 +1648,6 @@ func initBuiltins() {
 			fmt.Fprintf(state.Out, "%v", v)
 			return state
 		},
-		// "say2": func(state *State) *State {
-		// 	things := spliceT(state.Vals, state.FuncTokenSpot, len(*state.Vals)-(state.FuncTokenSpot), nil)
-		// 	thingsVal := *things
-		// 	if len(thingsVal) == 0 {
-		// 		thingsVal = append(thingsVal, popT(state.Vals))
-		// 	}
-		// 	for i, v := range *things {
-		// 		fmt.Printf("%d %#v\n", i, v)
-		// 	}
-		// 	return state
-		// },
 		"put":      makeNoop(),
 		"push":     makeBuiltin_2_0(push),
 		"pushTo":   makeBuiltin_2_0(pushTo),
@@ -1944,9 +1858,6 @@ func initBuiltins() {
 		},
 		"incr": func(state *State) *State {
 			panic("fix this")
-			// TODO: parent
-			// a := popT(state.Vals).(*DString)
-			// state.Vars.Set(a, toIntInternal(state.Vars.GetDString(a)) + 1)
 			return state
 		},
 		"local": func(state *State) *State {
@@ -2423,17 +2334,6 @@ func initBuiltins() {
 				f.EndI = r.I
 			}
 
-			// close implied parens,
-			// TODO REVISIT
-			// fmt.Println("#aqua, mode stack down d (func)")
-			// state.Mode = state.ModeStack[len(state.ModeStack)-1]
-			// state.ModeStack = state.ModeStack[:len(state.ModeStack)-1]
-			// state.CurrFuncTokens = state.FuncTokenStack[len(state.FuncTokenStack)-1]
-			// state.FuncTokenStack = state.FuncTokenStack[:len(state.FuncTokenStack)-1]
-			// state.FuncTokenSpots = state.FuncTokenSpotStack[len(state.FuncTokenSpotStack)-1]
-			// state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
-
-			// not calling clear because we re-assigned it above
 			return state
 
 		},
@@ -2879,56 +2779,6 @@ func initBuiltins() {
 			fmt.Println("#tomato endstack length is", len(state.EndStack))
 			return state
 		},
-		// "writePipe": func(state *State) *State {
-		// 	timeoutMs := toIntInternal(popT(state.Vals))
-		// 	bufSize := toIntInternal(popT(state.Vals))
-		// 	data := popTString(state.Vals)
-		// 	fifoPath := popTString(state.Vals)
-		// 	go func() {
-		// 		err := writePipe(fifoPath, []byte(data), bufSize, timeoutMs)
-		// 		if err != nil {
-		// 			log.Println("Error writing:", err)
-		// 			if strings.Contains(err.Error(), "timeout") {
-		// 				state.AddCallback(Callback{
-		// 					State:        state,
-		// 					ReturnValues: []any{err == nil},
-		// 				})
-		// 			} else {
-		// 				panic(err)
-		// 			}
-		// 			return
-		// 		}
-		// 		state.AddCallback(Callback{
-		// 			State:        state,
-		// 			ReturnValues: []any{err == nil},
-		// 		})
-		// 	}()
-		// 	return nil
-		// },
-		// "readPipe": func(state *State) *State {
-		// 	timeoutMs := popT(state.Vals).(int)
-		// 	bufSize := popT(state.Vals).(int)
-		// 	fifoPath := popTString(state.Vals)
-		// 	go func() {
-		// 		b, err := readPipe(fifoPath, bufSize, timeoutMs)
-		// 		if err != nil {
-		// 			if strings.Contains(err.Error(), "timeout") {
-		// 				state.AddCallback(Callback{
-		// 					State:        state,
-		// 					ReturnValues: []any{""},
-		// 				})
-		// 			} else {
-		// 				panic(err)
-		// 			}
-		// 			return
-		// 		}
-		// 		state.AddCallback(Callback{
-		// 			State:        state,
-		// 			ReturnValues: []any{string(b)},
-		// 		})
-		// 	}()
-		// 	return nil
-		// },
 	}
 	funcBuiltin = builtins["func"]
 }
@@ -2938,308 +2788,6 @@ func getArgs(state *State) *[]any {
 	return spliceT(state.Vals, ftSpot, len(*state.Vals)-ftSpot, nil)
 }
 
-// createNamedPipe checks if the FIFO exists and creates it if it doesn't.
-// func createNamedPipe(fifoPath string) error {
-// 	if _, err := os.Stat(fifoPath); os.IsNotExist(err) {
-// 		if err := unix.Mkfifo(fifoPath, 0666); err != nil {
-// 			return fmt.Errorf("mkfifo: %w", err)
-// 		}
-// 		fmt.Printf("FIFO created at %s\n", fifoPath)
-// 	}
-// 	return nil
-// }
-
-// writePipe writes the given data to the FIFO located at fifoPath.
-// It polls for the FIFO to be writable for up to timeoutMs milliseconds.
-// func writePipe(fifoPath string, data []byte, timeoutMs int) error {
-// 	// Ensure the FIFO exists.
-// 	if err := createNamedPipe(fifoPath); err != nil {
-// 		return err
-// 	}
-//
-// 	// Open the FIFO in non-blocking write-only mode.
-// 	// this will fail right away if there is no reader?
-// 	// fd, err := unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
-//
-// 	fd, err := unix.Open(fifoPath, unix.O_WRONLY, 0)
-// 	if err != nil {
-// 		return fmt.Errorf("fifo open (%s): %w", fifoPath, err)
-// 	}
-//
-// 	defer unix.Close(fd)
-//
-// 	// Set up the pollfd structure to wait for write readiness.
-// 	pfds := []unix.PollFd{
-// 		{
-// 			Fd:     int32(fd),
-// 			Events: unix.POLLOUT,
-// 		},
-// 	}
-//
-// 	// Poll for write readiness with the specified timeout.
-// 	n, err := unix.Poll(pfds, timeoutMs)
-// 	if err != nil {
-// 		return fmt.Errorf("poll: %w", err)
-// 	}
-// 	if n == 0 {
-// 		return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
-// 	}
-//
-// 	// Write the data to the FIFO.
-// 	nWritten, err := unix.Write(fd, data)
-// 	if err != nil {
-// 		return fmt.Errorf("write: %w", err)
-// 	}
-// 	if nWritten != len(data) {
-// 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
-// 	}
-//
-// 	fmt.Printf("Successfully wrote %d bytes to FIFO.\n", nWritten)
-// 	return nil
-// }
-
-// the timeoutMs doesn't seem to be respected
-// is that because it's in blocking mode?
-//
-// Yes, you are correct. The issue you're encountering with the `timeoutMs` not being respected is likely because the FIFO is being opened in blocking mode rather than non-blocking mode. When you open a FIFO in blocking mode (i.e., without the `O_NONBLOCK` flag), operations on that FIFO will block until they can proceed. This means that the `Poll` call effectively becomes unnecessary because the write operation won't proceed until the FIFO is ready for writing.
-//
-// but it fails to open at all if there isn't already a reader when it's in non-blocking mode
-//
-// When opening a FIFO in non-blocking mode, it will indeed fail if there is no process currently reading from the other end of the FIFO. This is expected behavior, as non-blocking mode is designed to return immediately to indicate the current state without waiting for the resource to become available.
-//
-// To handle this situation, you can implement a loop to retry opening the FIFO. This loop should check for the specific error and use a backoff strategy (e.g., a short sleep) to repeatedly attempt to open the FIFO, respecting the specified timeout.
-
-// ok can you just modify that code to not poll, but simply write in blocking mode?
-//
-// Certainly! To modify the function to write in blocking mode without the polling logic, we can simply open the FIFO in blocking mode and directly attempt to write to it. Here's how you can do it:
-
-// writePipe writes the given data to the FIFO located at fifoPath.
-// It opens the FIFO in blocking mode and writes the data to it.
-// func writePipe(fifoPath string, data []byte) error {
-// 	// Ensure the FIFO exists.
-// 	if err := createNamedPipe(fifoPath); err != nil {
-// 		return err
-// 	}
-//
-// 	// Open the FIFO in blocking write-only mode.
-// 	fd, err := unix.Open(fifoPath, unix.O_WRONLY, 0)
-// 	if err != nil {
-// 		return fmt.Errorf("fifo open (%s): %w", fifoPath, err)
-// 	}
-// 	defer unix.Close(fd)
-//
-// 	// Write the data to the FIFO.
-// 	nWritten, err := unix.Write(fd, data)
-// 	if err != nil {
-// 		return fmt.Errorf("write: %w", err)
-// 	}
-// 	if nWritten != len(data) {
-// 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
-// 	}
-//
-// 	fmt.Printf("Successfully wrote %d bytes to FIFO.\n", nWritten)
-// 	return nil
-// }
-
-// ok scratch that, I want non-blocking,
-// but can you do a simple poll on unix.Open
-// if we hit timeoutMs, then return the error,
-// then when we do the unix.Poll, pass in the remaining timeoutMs
-//
-// Certainly! To achieve this, you can implement a retry mechanism while trying to open the FIFO in non-blocking mode. If there’s no reader, you keep retrying until the provided timeout is reached. Once the FIFO is opened successfully, you can proceed with the polling and writing logic with the remaining time available.
-//
-// Here's an updated implementation to handle your requirements:
-
-// writePipe writes the given data to the FIFO located at fifoPath.
-// It opens the FIFO in non-blocking mode and writes the data to it, with a timeout.
-// func writePipe(fifoPath string, data []byte, bufSize int, timeoutMs int) error {
-// 	// Ensure the FIFO exists.
-// 	if err := createNamedPipe(fifoPath); err != nil {
-// 		return fmt.Errorf("writePipe: create error: %v", err)
-// 	}
-//
-// 	timeout := time.Duration(timeoutMs) * time.Millisecond
-// 	deadline := time.Now().Add(timeout)
-//
-// 	var fd int
-// 	var err error
-//
-// 	// Try to open the FIFO in non-blocking mode until timeout is reached.
-// 	for {
-// 		// fd, err = unix.Open(fifoPath, unix.O_WRONLY|unix.O_NONBLOCK, 0)
-// 		fd, err = unix.Open(fifoPath, unix.O_WRONLY, 0)
-// 		if err == nil {
-// 			// Successfully opened; exit the loop.
-// 			break
-// 		}
-//
-// 		if time.Now().After(deadline) {
-// 			return fmt.Errorf("timeout after %d ms while trying to open FIFO: %w", timeoutMs, err)
-// 		}
-//
-// 		// Sleep for a short interval before retrying.
-// 		// time.Sleep(50 * time.Millisecond)
-// 		time.Sleep(500 * time.Millisecond)
-// 	}
-//
-// 	defer unix.Close(fd)
-//
-// 	// Calculate remaining timeout for the poll.
-// 	remainingMs := int(time.Until(deadline).Milliseconds())
-//
-// 	if false {
-//
-// 		// Set up the pollfd structure to wait for write readiness.
-// 		pfds := []unix.PollFd{
-// 			{
-// 				Fd:     int32(fd),
-// 				Events: unix.POLLOUT,
-// 			},
-// 		}
-//
-// 		// Poll for write readiness with the remaining timeout.
-// 		n, err := unix.Poll(pfds, remainingMs)
-// 		if err != nil {
-// 			return fmt.Errorf("writePipe poll: %w", err)
-// 		}
-// 		if n == 0 {
-// 			return fmt.Errorf("timeout after %d ms, FIFO not ready for writing", timeoutMs)
-// 		}
-// 	}
-//
-// 	// Write the data to the FIFO.
-//
-// 	// fill up the buffer for simplicity, every message takes up buffer size
-// 	if len(data) < bufSize {
-// 		wrapped := make([]byte, bufSize)
-// 		for i := len(data); i < bufSize; i++ {
-// 			wrapped[i] = ' '
-// 		}
-// 		copy(wrapped, data)
-// 		data = wrapped
-// 	}
-//
-// 	nWritten, err := unix.Write(fd, data)
-// 	if err != nil {
-// 		log.Println("writePipe: write error", err)
-// 		return fmt.Errorf("write: %w", err)
-// 	}
-// 	if nWritten != len(data) {
-// 		log.Println("writePipe: incomplete error", err)
-// 		return fmt.Errorf("incomplete write: wrote %d bytes, expected %d", nWritten, len(data))
-// 	}
-// 	fmt.Println("successfully wrote", string(data))
-// 	return nil
-// }
-
-// I sometimes get missed writes??! and no error?
-// this code is racey?
-//
-// Your `writePipe` function seems to be encountering issues with missed writes, but without returning an error. There are several potential reasons for this. Let's go through the code and identify areas that may be contributing to this problem:
-//
-// 1. **Check for Non-blocking Behavior**:
-//    - When you open the FIFO with `O_NONBLOCK`, ensure that the consumer is ready to read from the FIFO. If there's no reader, the writes might fail silently depending on the system's buffering characteristics. It's important to understand how your specific environment handles FIFO in non-blocking mode.
-//
-// 2. **Handling of Buffered Writes**:
-//    - The way the buffer is filled (`wrapped` buffer logic) can potentially cause partial writes if not handled properly. Ensure the consumer handles these 'x' padded data properly indicating end of useful data.
-//
-// 3. **Concurrency Issues**:
-//    - If multiple goroutines are attempting to write to the same FIFO, you might face race conditions where bytes are written by different goroutines to the same FIFO at the same time. Use mutexes (synchronization) to prevent concurrent writes if that's the case.
-//
-// 4. **Error Handling During Write**:
-//    - It's worth logging every time an error occurs without exiting immediately, which can give more detailed insights into why a write might be failing.
-//
-// 5. **System Specifics**:
-//    - The behavior can be different based on the operating system and its handling of FIFOs. For instance, on some systems, writing to a non-blocking FIFO could succeed as long as any bytes were transferred. On others, it might block until all bytes are written, depending on flags.
-//
-// 6. **Polling for Write Readiness**:
-//    - Ensure the `Poll()` function is correctly setting up the poll flags and interpreting the results. Sometimes, subtle differences in how poll readiness is interpreted cause writes to proceed when they shouldn't.
-//
-// To mitigate these issues, consider these potential solutions:
-//
-// - Ensure that the reader is ready and consuming from the FIFO before starting the write process.
-// - Double-check the error handling and clarify the logging to better understand where the problem might be.
-// - Use synchronization techniques such as mutexes if there's any chance multiple writers might attempt to write concurrently.
-// - Test this function in a controlled way to isolate the problem (`lsof` can be helpful to check which processes have the FIFO open for reading/writing).
-//
-// Debugging this kind of issue often involves instrumenting the code with additional logging or running in a debugger to understand precisely how the code path is being executed.
-//
-
-// readPipe reads up to bufSize bytes from the FIFO located at fifoPath.
-// It polls for the FIFO to have data (readable) for up to timeoutMs milliseconds.
-// Returns the read bytes along with any error.
-// func readPipe(fifoPath string, bufSize int, timeoutMs int) ([]byte, error) {
-// 	// Ensure the FIFO exists.
-// 	if err := createNamedPipe(fifoPath); err != nil {
-// 		return nil, err
-// 	}
-//
-// 	// Open the FIFO in non-blocking read-only mode.
-// 	// fd, err := unix.Open(fifoPath, unix.O_RDONLY|unix.O_NONBLOCK, 0)
-// 	fd, err := unix.Open(fifoPath, unix.O_RDONLY, 0)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("open: %w", err)
-// 	}
-// 	defer unix.Close(fd)
-// 	if false {
-// 		// Set up the pollfd structure to wait for read readiness.
-// 		pfds := []unix.PollFd{
-// 			{
-// 				Fd:     int32(fd),
-// 				Events: unix.POLLIN,
-// 			},
-// 		}
-//
-// 		// Poll for read readiness with the specified timeout.
-// 		n, err := unix.Poll(pfds, timeoutMs)
-// 		if err != nil {
-// 			return nil, fmt.Errorf("poll: %w", err)
-// 		}
-// 		if n == 0 {
-// 			return nil, fmt.Errorf("timeout after %d ms, no data received", timeoutMs)
-// 		}
-// 	}
-//
-// 	// Read from the FIFO.
-// 	buf := make([]byte, bufSize)
-// 	nRead, err := unix.Read(fd, buf)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("read: %w", err)
-// 	}
-//
-// 	return buf[:nRead], nil
-// }
-
-// func main() {
-// 	// Set the parameters.
-// 	fifoPath := "/path/to/your.fifo"
-// 	timeoutMs := 10000 // 10 seconds timeout
-// 	bufSize := 256     // Buffer size of 256 bytes
-//
-// 	// Select the mode: "read" or "write".
-// 	mode := "write"
-// 	if len(os.Args) > 1 {
-// 		mode = os.Args[1]
-// 	}
-//
-// 	switch mode {
-// 	case "write":
-// 		// Example data to send.
-// 		data := []byte("Hello FIFO!")
-// 		if err := writeToFIFO(fifoPath, timeoutMs, data); err != nil {
-// 			log.Fatal(err)
-// 		}
-// 	case "read":
-// 		data, err := readFromFIFO(fifoPath, timeoutMs, bufSize)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-// 		// Use the returned data as needed.
-// 		fmt.Printf("Data read: %s\n", string(data))
-// 	default:
-// 		log.Fatalf("Invalid mode. Use 'read' or 'write'.")
-// 	}
-// }
 
 // closures seem to be in par with interfaces
 func makeFuncToken(token *Func) func(*State) *State {
@@ -3294,10 +2842,6 @@ func pushTo(value any, slice any) {
 }
 func pushT(s *[]any, value any) {
 	*s = append(*s, value)
-	// v := append(*s, value)
-	// if cap(v) != cap(*s) {
-	//     *s = v
-	// }
 }
 
 func pushm(slice any, values any) {
@@ -3381,21 +2925,6 @@ func spliceT(s *[]any, start int, deleteCount int, elements *[]any) *[]any {
 	if elements != nil {
 		elementsToAdd = *elements
 	}
-	// if start < 0 {
-	// 	start = len(*s) + start
-	// }
-	// if start < 0 {
-	// 	start = 0
-	// }
-	// if start > len(*s) {
-	// 	start = len(*s)
-	// }
-	// if deleteCount < 0 {
-	// 	deleteCount = 0
-	// }
-	// if start+deleteCount > len(*s) {
-	// 	deleteCount = len(*s) - start
-	// }
 	removed := make([]any, deleteCount)
 	copy(removed, (*s)[start:start+deleteCount])
 	*s = append(append((*s)[:start], elementsToAdd...), (*s)[start+deleteCount:]...)
@@ -3514,19 +3043,6 @@ func split(a any, b any) any {
 	}
 	return &rr
 }
-
-
-// func ToFloat64(v interface{}) float64 {
-//     switch n := v.(type) {
-//     case float64:
-//         return n
-//     case int:
-//         return float64(n)
-//     default:
-//         return 0
-//     }
-// }
-
 
 func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fString func(string, string) any) func(any, any) any {
 	// return func(a, b any) any {
@@ -4027,24 +3543,6 @@ func say(state *State, out io.Writer, vals ...any) *State {
 		if r, ok := v.(io.Reader); ok {
 			buf := make([]byte, 1024)
 			
-			// go func() {
-			// 	n, err := r.Read(buf)
-			// 	if n > 0 {
-			// 		out.Write(buf[:n])
-			// 		state.AddCallback(Callback{
-			// 		    State: state,
-			// 		    ReturnValues: []any{v},
-			// 		    FuncTokens: []func(*State)*State{builtins["say"], },
-			// 		})
-			// 	}
-			// 	if err != nil {
-			// 		state.AddCallback(Callback{
-			// 		    State: state,
-			// 		    ReturnValues: []any{},
-			// 		    // FuncTokens: []*State[]
-			// 		})
-			// 	}
-			// }()
 			go func() {
 				for {
 					n, err := r.Read(buf)
@@ -4454,40 +3952,6 @@ func (r *CertificateReloader) ClearCache() {
 	r.certs = make(map[string]*tls.Certificate)
 }
 
-// func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter) error {
-// 	cmd := exec.Command(scriptPath)
-// 	cmd.Env = env
-// 	cmd.Stdin = stdin
-//
-// 	var stderr bytes.Buffer
-// 	cmd.Stderr = &stderr
-//
-// 	stdout, err := cmd.StdoutPipe()
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return err
-// 	}
-//
-// 	if err := cmd.Start(); err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return err
-// 	}
-//
-// 	// Copy script output to the response writer
-// 	if _, err := io.Copy(w, stdout); err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return err
-// 	}
-//
-// 	if err := cmd.Wait(); err != nil {
-// 		http.Error(w, stderr.String(), http.StatusInternalServerError)
-// 		return err
-// 	}
-//
-// 	return nil
-// }
-// This doesn't seem to handle http headers they way I'd
-// expect in cgi
 
 func executeCGI(scriptPath string, env []string, stdin io.Reader, w http.ResponseWriter, r *http.Request) error {
 	cmd := exec.Command(scriptPath)
@@ -4948,6 +4412,11 @@ func processLoop(state *State, process func(*State, any, any), onEnd func(state 
 }
 
 
+
+
+
+
+
 /*
 Do you see any low hanging fruit performance optimizations that can be made here?
 Specifically with the flow of Eval function
@@ -5047,345 +4516,8 @@ Here are a few small changes you can make today that will measurably speed up yo
 Taken together you should see a 10–30% improvement just by removing repeated field dereferences, interface switches, and small call overheads.  The next step beyond that is a single‐pass token‐to‐opcode compilation so that your dispatch in the main loop is a single integer switch or even a threaded‐code jump table.
 */
 
-/* ok I applied this diff
+/* o
 
-
-diff --git a/src/linescript4/linescript4.go b/src/linescript4/linescript4.go
-index f6ae960..ded16c7 100644
---- a/src/linescript4/linescript4.go
-+++ b/src/linescript4/linescript4.go
-@@ -522,8 +522,11 @@ evalLoop:
- 			appendFile("delme_tokens.txt", fmt.Sprintf("token: %q       %T (%s:%d/%d)\n", name, token, state.FileName, state.I, len(state.Code)-1))
- 		}
- 		_ = name
--		switch token := token.(type) {
--		case immediateToken:
-+		// switch token := token.(type) {
-+		switch token.kind {
-+		// case immediateToken:
-+		case ImmediateToken:
-+		    token := token.val.(immediateToken)
- 			o := state
- 			state = token(state)
- 			if o.Done && o.IsMainTop {
-@@ -558,15 +561,16 @@ evalLoop:
- 				}
- 				state.NewlineSpot = len(*state.Vals)
- 			}
--		case builtinFuncToken:
-+		case BuiltinFuncToken:
-+		    token := token.val.(builtinFuncToken)
- 			state.CurrFuncTokens = append(state.CurrFuncTokens, token)
- 			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
--			// case builtinToken:
--			// ??
--		case getVarToken:
-+		case GetVarToken:
-+		    token := token.val.(getVarToken)
- 			evaled := getVar(state, token)
- 			pushT(state.Vals, evaled)
--		case getVarFuncToken:
-+		case GetVarFuncToken:
-+		    token := token.val.(getVarFuncToken)
- 			evaledFunc := getVar(state, token).(func(*State) *State)
- 			state.CurrFuncTokens = append(state.CurrFuncTokens, evaledFunc)
- 			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
-@@ -577,14 +581,6 @@ evalLoop:
- 			// case Immediate:
- 			//     state = token.Process(state)
- 
--		// case string:
--		// 	pushT(state.Vals, token)
--		// case int:
--		// 	pushT(state.Vals, token)
--		// case float64:
--		// 	pushT(state.Vals, token)
--		// case bool:
--		// 	pushT(state.Vals, token)
- 
- 		// slower
- 		// case getVarToken:
-@@ -603,7 +599,8 @@ evalLoop:
- 			// made the 1 million item loop in example2.js go from 24xms to 32xms
- 			// I tried interfaces with a ProcessMethod and that was also slow
- 			// see jump_alt and jump_table branches
--			pushT(state.Vals, token)
-+			// pushT(state.Vals, token)
-+			pushT(state.Vals, token.val)
- 			// fmt.Printf("oops type %T\n", token)
- 				// panic("fail")
- 		}
-@@ -685,11 +682,28 @@ func callFunc(state *State) *State {
- 
- type TokenCacheValue struct {
- 	I     int
--	Token any
-+	// Token any
-+	Token Token
- 	Name  string
- }
- 
--func nextToken(state *State) (any, string) {
-+const (
-+    LiteralToken byte = iota
-+    ImmediateToken
-+    BuiltinFuncToken
-+    GetVarToken
-+    GetVarFuncToken
-+)
-+
-+func WrapToken(theType byte, token any) Token {
-+    return Token{kind: theType, val: token}
-+}
-+
-+type Token struct {
-+    kind byte       // 0=literal,1=immediate,2=builtin,3=getvar,4=getvarfunc
-+    val  any
-+}
-+func nextToken(state *State) (Token, string) {
- 	code := state.Code
- 	i := state.I
- 	// fmt.Println("i:", i, "len", len(state.ICache))
-@@ -715,10 +729,11 @@ func nextToken(state *State) (any, string) {
- const stateOut = 0
- const stateIn = 1
- 
--func nextTokenRaw(state *State, code string, i int) (any, string, int) {
-+// func nextTokenRaw(state *State, code string, i int) (any, string, int) {
-+func nextTokenRaw(state *State, code string, i int) (Token, string, int) {
- 	// TODO: count subsequent newlines as a single newline.
- 	if i >= len(code) {
--		return immediateToken(endOfCodeImmediate), "past end?", -1
-+		return WrapToken(ImmediateToken, immediateToken(endOfCodeImmediate)), "past end?", -1
- 	}
- 	parseState := stateOut
- 	start := -1
-@@ -737,12 +752,12 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
- 				expectedQuoteEnd := string(code[i])
- 				end := strings.Index(code[i+1:], expectedQuoteEnd)
- 				str := code[i+1 : i+1+end]
--				return str, str, i + 1 + end + 1
-+				return WrapToken(LiteralToken, str), str, i + 1 + end + 1
- 			case '#':
- 				// comments
- 				end := strings.Index(code[i+1:], "\n")
- 				if end == -1 {
--					return immediateToken(endOfCodeImmediate), "end in comment", -1
-+					return WrapToken(ImmediateToken, immediateToken(endOfCodeImmediate)), "end in comment", -1
- 				}
- 				i = i + end
- 			default:
-@@ -762,7 +777,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
- 				expectedQuoteEnd := string(code[i]) + str
- 				endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
- 				token := code[i+1 : i+1+endIndex]
--				return token, token, i + 1 + endIndex + len(expectedQuoteEnd)
-+				return WrapToken(LiteralToken, token), token, i + 1 + endIndex + len(expectedQuoteEnd)
- 			default:
- 			}
- 		}
-@@ -772,13 +787,12 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
- 		// return makeToken(state, str), str, i + 1
- 		return makeToken(state, str), str, i
- 	}
--	return immediateToken(endOfCodeImmediate), "got to end?", -1
-+	return WrapToken(ImmediateToken, immediateToken(endOfCodeImmediate)), "got to end?", -1
- }
- 
- type getVarFuncToken *DString
- // type getVarToken string
- type getVarToken *DString
--type builtinToken func(*State) *State
- type builtinFuncToken func(*State) *State
- type immediateToken func(*State) *State
- 
-@@ -876,15 +890,16 @@ var stdinReader = &Reader{
- }
- 
- 
--func makeToken(state *State, val string) any {
-+// func makeToken(state *State, val string) any {
-+func makeToken(state *State, val string) Token {
- 	// immediates go first, because it could be an immediate and builtin
- 	// The 2 immediate styles can be consolidated now
- 	if f, ok := runAlwaysImmediates[val]; ok {
--		return immediateToken(f)
-+		return WrapToken(ImmediateToken, immediateToken(f))
- 	}
- 	if f, ok := runImmediates[val]; ok {
- 		// if state.Mode == "normal" {
--		return immediateToken(f)
-+		return WrapToken(ImmediateToken, immediateToken(f))
- 		// } else {
- 		// return immediateToken(noop)
- 		// }
-@@ -893,20 +908,8 @@ func makeToken(state *State, val string) any {
- 		// wow we  switch on the mode at compile time?!
- 		// the first run is compile time, interesting
- 
--		return builtinFuncToken(b)
--
--		// switch state.Mode {
--		// case "normal":
--		// 	return builtinFuncToken(b)
--		// 	// attempt to require fewer cases in token switch
--		// 	// but it's slower, with closure and even polymorphic types, it's slower.
--		// 	// compared to switch
--		// 	// tho too many switch cases bad
--		// 	// return makeImmediateFromBuiltinFuncToken(b)
--		// case "array", "object":
--		// 	// need this?
--		// 	return builtinToken(b)
--		// }
-+		return WrapToken(BuiltinFuncToken, builtinFuncToken(b))
-+
- 	}
- 	
- 	// string shortcut, maybe phase out : for . ?
-@@ -915,18 +918,18 @@ func makeToken(state *State, val string) any {
- 			// panic("skipping!!")
- 			// return Skip("")
- 			// is this hit?
--			return val
-+			return WrapToken(LiteralToken, val)
- 		}
- 		theString := val[1:]
- 		// return theString
- 		// return &DString{String: theString, RecordIndex: -1}
--		return GetDString(state, theString)
-+		return WrapToken(LiteralToken, GetDString(state, theString))
- 	}
- 	if val[len(val)-1] == '.' {
- 		theString := val[0:len(val)-1]
- 		// return theString
- 		// return &DString{String: theString, RecordIndex: -1}
--		return GetDString(state, theString)
-+		return WrapToken(LiteralToken, GetDString(state, theString))
- 	}
- 	if isNumeric(val) {
- 		if val[len(val)-1:] == "f" {
-@@ -935,7 +938,7 @@ func makeToken(state *State, val string) any {
- 			if err != nil {
- 				panic(err)
- 			}
--			return f
-+			return WrapToken(LiteralToken, f)
- 		}
- 		if strings.Contains(val, ".") {
- 			// return val
-@@ -945,36 +948,36 @@ func makeToken(state *State, val string) any {
- 			if err != nil {
- 				panic(err)
- 			}
--			return f
-+			return WrapToken(LiteralToken, f)
- 		}
- 
- 		cleanedVal := strings.Replace(val, "_", "", -1)
- 		i, err := strconv.Atoi(cleanedVal)
- 		if err != nil {
--			return val
-+			return WrapToken(LiteralToken, val)
- 		}
--		return i
-+		return WrapToken(LiteralToken, i)
- 	}
- 
- 	switch val {
- 	case "true":
--		return true
-+	    return WrapToken(LiteralToken, true)
- 	case "false":
--		return false
-+	    return WrapToken(LiteralToken, false)
- 	case "newline":
--		return "\n"
-+	    return WrapToken(LiteralToken, "\n")
- 	case "formFeed":
--		return "\f"
-+	    return WrapToken(LiteralToken, "\f")
- 	case "carriageReturn":
--		return "\r"
-+	    return WrapToken(LiteralToken, "\r")
- 	case "crlf":
--		return "\r\n"
-+	    return WrapToken(LiteralToken, "\r\n")
- 	case "tab":
--		return "\t"
-+	    return WrapToken(LiteralToken, "\t")
- 	case "null":
--		return nil
-+	    return WrapToken(LiteralToken, nil)
- 	case "stdin":
--		return stdinReader
-+	    return WrapToken(LiteralToken, stdinReader)
- 	}
- 
-     // dval := &DString{String: val, RecordIndex: -1}
-@@ -984,13 +987,12 @@ func makeToken(state *State, val string) any {
- 	// but have to eval twice the first round?!
- 	// TODO: fix the double eval
- 	if _, ok := evaled.(func(*State) *State); ok {
--		return getVarFuncToken(dval)
-+		return WrapToken(GetVarFuncToken, getVarFuncToken(dval))
- 	} else {
--		// return getVarToken(val)
--		return getVarToken(dval)
-+		return WrapToken(GetVarToken, getVarToken(dval))
- 	}
- 	panic("no slash?")
--	return nil
-+	return WrapToken(LiteralToken, nil)
- }
- 
- And guess what, it was not faster!
-
-*/
-/*
-
-undefinedHere are a few quick, “low-hanging” optimizations you can make today in your `Eval` loop—without rewriting the whole VM—that often yield a measurable speed-up:
-
-1) Hoist hot-loop fields into locals  
-   Every time through your `for` you do dozens of `state.X` loads. Go can only hoist so much for you. At the top of your loop copy the really hot ones into local variables, mutate the locals, and write them back to `state` only when you exit that iteration or need to change context. That cuts down on pointer indirections and bounds checks.  
-   
-   ```go
-   evalLoop:
-     for {
-       icache    := state.ICache
-       valsp     := state.Vals
-       funcs     := state.CurrFuncTokens
-       funcSpots := state.FuncTokenSpots
-       // … use icache, valsp, funcs, funcSpots …
-       // when you change them:
-       state.Vals           = valsp
-       state.CurrFuncTokens = funcs
-       state.FuncTokenSpots = funcSpots
-       // etc…
-     }
-   ```
-
-2) Pre-tokenize or cache token kinds  
-   Right now you’re doing `nextToken` → `interface{}` → a `type` switch on each token. Better to do one of these:  
-   • One-time scan of the source into a flat slice of `(kind byte, payload any)` structs, then just walk that array.  
-   • Or assign each token a small integer opcode at parse time, so your dispatch becomes a tiny `switch opcode { … }` rather than a full Go interface type-switch.  
-
-3) Remove the token name in the hot path  
-   You return `(any, string)` from `nextToken` and ignore the `string` 99.9% of the time. Split your API so that in production you do `nextToken() Token` (no string), and only in debug mode do you call something like `tokenName()` behind an `if debugTokens`.
-
-4) Pre-allocate your stacks and slices with a healthy capacity  
-   Right after `MakeState` do something like:
-   ```go
-   state.Vals      = &make([]any, 0, 256)
-   state.EndStack  = make([]func(*State)*State, 0, 32)
-   state.ModeStack = make([]string, 0, 16)
-   ```
-   That avoids repeated heap resizes and bounds-check overhead in the hot path.
-
-5) Inline the tiny helpers  
-   Every call to `callFunc()`, `doEnd()`, `popT()`, etc., is another function call. Copy-and-paste their bodies into the two branches in your main loop. Removing just a couple of calls per token dispatch can buy you a few percent.
-
-6) Move your `defer recover()` out of the inner loop  
-   A `defer` in a hot loop can inhibit inlining and register allocation. You only need to catch panics at the topmost level. For example, wrap your entire `for state!=nil …` in one `defer` in the caller, rather than inside `Eval`.
 
 7) Consider a custom “stack of untyped values” instead of `[]any`  
    Every push/pop allocates an interface box. If you instead use a small struct like  
