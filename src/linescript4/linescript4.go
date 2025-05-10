@@ -39,19 +39,19 @@ package main
 //     return a + b
 // }
 //
-// // Using any
-// func SumAny(a, b any) any {
+// // Using DValue
+// func SumAny(a, b DValue) DValue {
 //     return a.(int) + b.(int) // Type assertion needed
 // }
 
 // after recent tweaks. a way to
 
-// newer version can try more child states, and not so many stacks?
+// newer version can try more child states, and not so mDValue stacks?
 // less performant?
 
 // alternate indention ui for params
 // too much caching on GoUpCache (what about dynamic jumps?)
-// it, dupit, nowMs don't need to be immediates anymore? because of func stack?
+// it, dupit, nowMs don't need to be immediates DValuemore? because of func stack?
 // end] // should that work? update: it works now that "end" is am immediate
 
 // DStrings with underlying index
@@ -124,9 +124,79 @@ type RunImmediate2 struct {
 	Func func(state *State) *State
 }
 
+const (
+    Null byte = iota
+    Int
+    Float
+    String
+    Bool
+    Map
+    Slice
+)
+var null = DValue{Type: 0}
+
+type DValue struct {
+    Type byte
+    Int int
+    Float float64
+    String string
+    DString *DString
+    Reader *Reader
+    Bool bool
+    Map map[string]DValue
+    Slice *[]DValue
+    ByteSlice []byte
+    Func func(state *State) *State
+}
+func DValueSlice(s *[]DValue) DValue {
+    return DValue{
+        Type: Slice,
+        Slice: s,
+    }
+}
+func DValueInt(i int) DValue {
+    return DValue{
+        Type: Int,
+        Int: i,
+    }
+}
+
+func DValueNull() DValue {
+    return DValue{Type: Null}
+}
+func DValueFloat(f float64) DValue {
+    return DValue{Type: Float, Float: f}
+}
+func DValueString(s string) DValue {
+    return DValue{Type: String, String: s}
+}
+func DValueDString(ds *DString) DValue {
+    return DValue{Type: String, DString: ds}
+}
+func DValueReader(r *Reader) DValue {
+    return DValue{Type: String, Reader: r}
+}
+func DValueBool(b bool) DValue {
+    return DValue{Type: Bool, Bool: b}
+}
+func DValueMap(m map[string]DValue) DValue {
+    return DValue{Type: Map, Map: m}
+}
+
+func DValueByteSlice(b []byte) DValue {
+    return DValue{Type: Map, ByteSlice: b}
+}
+func DValueFunc(f func(state *State) *State) DValue {
+    return DValue{Type: Map, Func: f}
+}
+
+
+
+
+
 type Callback struct {
 	State        *State
-	ReturnValues []any
+	ReturnValues []DValue
 }
 type Machine struct {
 	CallbacksCh chan Callback
@@ -143,7 +213,7 @@ type DString struct {
 
 
 type Record struct {
-    Values     []any
+    Values     []DValue
     KeyToIndex map[string]int
     Keys       []string
 }
@@ -151,14 +221,14 @@ type Record struct {
 // NewRecord creates an empty Record ready for Set/Get calls.
 func NewRecord() *Record {
     return &Record{
-        Values:     make([]any, 0),
+        Values:     make([]DValue, 0),
         KeyToIndex: make(map[string]int),
         Keys:       make([]string, 0),
     }
 }
 
 // Set assigns value to key. If key is new, it appends it.
-func (r *Record) Set(key string, value any) {
+func (r *Record) Set(key string, value DValue) {
     if idx, ok := r.KeyToIndex[key]; ok {
         r.Values[idx] = value
     } else {
@@ -167,7 +237,7 @@ func (r *Record) Set(key string, value any) {
         r.KeyToIndex[key] = len(r.Values) - 1
     }
 }
-func (r *Record) SetDString(key *DString, value any) {
+func (r *Record) SetDString(key *DString, value DValue) {
     // if true || key.RecordIndex == -1 {
     if key.RecordIndex == -1 {
         key.RecordIndex = r.SetSeeIndex(key.String, value)
@@ -181,27 +251,27 @@ func (r *Record) SetDString(key *DString, value any) {
 
 
 // Get returns the value for key. The bool is false if key was not present.
-func (r *Record) Get(key string) any {
+func (r *Record) Get(key string) DValue {
     if idx, ok := r.KeyToIndex[key]; ok {
         return r.Values[idx]
     }
-    return nil
+    return null
 }
 
-func (r *Record) GetHas(key string) (any, bool) {
+func (r *Record) GetHas(key string) (DValue, bool) {
     if idx, ok := r.KeyToIndex[key]; ok {
         return r.Values[idx], true
     }
-    return nil, false
+    return null, false
 }
-func (r *Record) GetHasSeeIndex(key string) (any, int, bool) {
+func (r *Record) GetHasSeeIndex(key string) (DValue, int, bool) {
     if idx, ok := r.KeyToIndex[key]; ok {
         return r.Values[idx], idx, true
     }
-    return nil, -1, false
+    return null, -1, false
 }
 
-func (r *Record) SetSeeIndex(key string, value any) int {
+func (r *Record) SetSeeIndex(key string, value DValue) int {
     if idx, ok := r.KeyToIndex[key]; ok {
         r.Values[idx] = value
         return idx
@@ -213,16 +283,16 @@ func (r *Record) SetSeeIndex(key string, value any) int {
     r.KeyToIndex[key] = idx
     return idx
 }
-func (r *Record) GetSeeIndex(key string) (value any, idx int) {
+func (r *Record) GetSeeIndex(key string) (value DValue, idx int) {
     idx, ok := r.KeyToIndex[key]
     if !ok {
-        return nil, -1
+        return null, -1
     }
     return r.Values[idx], idx
 }
 
 // SetIndex changes the value at the given index. Returns an error if out of range.
-func (r *Record) SetIndex(index int, value any) {
+func (r *Record) SetIndex(index int, value DValue) {
     if index < 0 || index >= len(r.Values) {
         return
     }
@@ -230,9 +300,9 @@ func (r *Record) SetIndex(index int, value any) {
 }
 
 // GetIndex returns the value at the given index or an error if out of range.
-func (r *Record) GetIndex(index int) any {
+func (r *Record) GetIndex(index int) DValue {
     if index < 0 || index >= len(r.Values) {
-        return nil
+        return null
     }
     return r.Values[index]
 }
@@ -264,8 +334,8 @@ type State struct {
 	// CachedTokens []*TokenCacheValue
 	// GoUpCache          []*int
 	// FindMatchingCache  []*FindMatchingResult
-	Vals               *[]any
-	ValsStack          []*[]any
+	Vals               *[]DValue
+	ValsStack          []*[]DValue
 	EndStack           []func(*State) *State
 	Vars               *Record
 	CurrFuncTokens     []func(*State) *State
@@ -315,11 +385,11 @@ func MakeState(fileName, code string) *State {
 		// Preinitializing this makes eval in a loop slower if it doesn't use these
 		// though if you eval in a loop with a static string, you should be able to optimize
 
-		Vals:               &[]any{},
-		// Vals:               &make([]any{}, 0, 500),
+		Vals:               &[]DValue{},
+		// Vals:               &make([]DValue{}, 0, 500),
 		ValsStack:          nil,
 		EndStack:           nil,
-		// Vars:               map[string]any{},
+		// Vars:               map[string]DValue{},
 		Vars:               NewRecord(),
 		DStringCache: make(map[string]*DString),
 		CurrFuncTokens:     nil,
@@ -493,9 +563,9 @@ evalLoop:
 				myArr := state.Vals
 				state.Vals = state.ValsStack[len(state.ValsStack)-1]
 				state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
-				pushT(state.Vals, myArr)
+				pushT(state.Vals, DValueSlice(myArr))
 			} else if oldMode == "object" {
-				myObj := map[string]any{}
+				myObj := map[string]DValue{}
 				for i := 0; i < len(*state.Vals); i += 2 {
 					key := (*state.Vals)[i]
 					value := (*state.Vals)[i+1]
@@ -504,7 +574,7 @@ evalLoop:
 				state.Vals = state.ValsStack[len(state.ValsStack)-1]
 				state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
 
-				pushT(state.Vals, myObj)
+				pushT(state.Vals, DValueMap(myObj))
 			}
 
 			continue
@@ -562,7 +632,7 @@ evalLoop:
 			evaled := getVar(state, token)
 			pushT(state.Vals, evaled)
 		case getVarFuncToken:
-			evaledFunc := getVar(state, token).(func(*State) *State)
+			evaledFunc := getVar(state, token).Func
 			state.CurrFuncTokens = append(state.CurrFuncTokens, evaledFunc)
 			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
 
@@ -593,7 +663,8 @@ evalLoop:
 
 		// faster
 
-		default:
+		// default:
+		case DValue:
 			// wow, adding the string, int, float, bool cases
 			// made the 1 million item loop in example2.js go from 24xms to 32xms
 			// I tried interfaces with a ProcessMethod and that was also slow
@@ -601,6 +672,8 @@ evalLoop:
 			pushT(state.Vals, token)
 			// fmt.Printf("oops type %T\n", token)
 				// panic("fail")
+		default:
+		    panic(fmt.Sprintf("not a dvalue: %s", token))
 		}
 	}
 
@@ -622,7 +695,7 @@ func cancel(state *State) {
 	}
 	state.AsyncChildren = map[int]*State{}
 }
-func getVar(state *State, varName *DString) any {
+func getVar(state *State, varName *DString) DValue {
 	parent, v := findParentAndValue(state, varName)
 	if parent == nil {
 	    panic("var not found: " + varName.String)
@@ -630,7 +703,7 @@ func getVar(state *State, varName *DString) any {
 	return v
 }
 
-func findParentAndValue(state *State, varName *DString) (*Record, any) {
+func findParentAndValue(state *State, varName *DString) (*Record, DValue) {
 	if varName.Record != nil {
         // fmt.Println("yay get cache ", varName.String)
 	    return varName.Record, varName.Record.Values[varName.RecordIndex]
@@ -644,7 +717,7 @@ func findParentAndValue(state *State, varName *DString) (*Record, any) {
 		}
 		state = state.LexicalParent
 	}
-	return nil, nil
+	return nil, null
 }
 
 
@@ -814,7 +887,7 @@ func (r *Reader) Iterator() Iterator {
     return r
 }
 // could make this separate
-func (r *Reader) Next() (any, any, bool) {
+func (r *Reader) Next() (DValue, DValue, bool) {
 	r.Index++
 	buf := make([]byte, 1024)
 	n, err := r.Read(buf)
@@ -825,7 +898,7 @@ func (r *Reader) Next() (any, any, bool) {
 		}
 	}
 	// if we get EOF and bytes, must call again. hopefully this simplifies
-	return r.Index, buf[0:n], err == nil || n > 0
+	return DValueInt(r.Index), DValueByteSlice(buf[0:n]), err == nil || n > 0
 }
 
 type Newliner struct {
@@ -836,7 +909,7 @@ func (n *Newliner) Iterator() Iterator {
     return n
 }
 // could make this separate
-func (n *Newliner) Next() (any, any, bool) {
+func (n *Newliner) Next() (DValue, DValue, bool) {
 	n.Index++
 	line, err := n.Reader.ReadString('\n')
 	if err != nil {
@@ -848,7 +921,7 @@ func (n *Newliner) Next() (any, any, bool) {
 	fmt.Printf("got %q, %v", line, err)
 	origLine := line
 	line = strings.TrimRight(line, "\n")
-	return n.Index, line, err == nil || len(origLine) > 0
+	return DValueInt(n.Index), DValueString(line), err == nil || len(origLine) > 0
 }
 
 
@@ -888,13 +961,13 @@ func makeToken(state *State, val string) any {
 		theString := val[1:]
 		// return theString
 		// return &DString{String: theString, RecordIndex: -1}
-		return GetDString(state, theString)
+		return DValueDString(GetDString(state, theString))
 	}
 	if val[len(val)-1] == '.' {
 		theString := val[0:len(val)-1]
 		// return theString
 		// return &DString{String: theString, RecordIndex: -1}
-		return GetDString(state, theString)
+		return DValueDString(GetDString(state, theString))
 	}
 	if isNumeric(val) {
 		if val[len(val)-1:] == "f" {
@@ -903,7 +976,7 @@ func makeToken(state *State, val string) any {
 			if err != nil {
 				panic(err)
 			}
-			return f
+			return DValueFloat(f)
 		}
 		if strings.Contains(val, ".") {
 			// return val
@@ -913,15 +986,15 @@ func makeToken(state *State, val string) any {
 			if err != nil {
 				panic(err)
 			}
-			return f
+			return DValueFloat(f)
 		}
 
 		cleanedVal := strings.Replace(val, "_", "", -1)
 		i, err := strconv.Atoi(cleanedVal)
 		if err != nil {
-			return val
+			return DValueString(val)
 		}
-		return i
+		return DValueInt(i)
 	}
 
 	switch val {
@@ -1211,7 +1284,7 @@ func initBuiltins() {
 			state.FuncTokenSpots = nil
 
 			state.ValsStack = append(state.ValsStack, state.Vals)
-			state.Vals = &[]any{}
+			state.Vals = &[]DValue{}
 			return state
 		},
 		"]": func(state *State) *State {
@@ -1243,7 +1316,7 @@ func initBuiltins() {
 			state.FuncTokenSpots = nil
 
 			state.ValsStack = append(state.ValsStack, state.Vals)
-			state.Vals = &[]any{}
+			state.Vals = &[]DValue{}
 			return state
 		},
 		"}": func(state *State) *State {
@@ -1349,7 +1422,7 @@ func initBuiltins() {
                     //     start = i
                     //     parseState = "out"
                     // }
-                    // change this case to anything non alphanumeric and underscore
+                    // change this case to DValuething non alphanumeric and underscore
                     // use simple math for thr ranges, not unicode package
 
                     switch {
@@ -1417,7 +1490,7 @@ func initBuiltins() {
 		"now":       makeBuiltin_0_1(now),
 		"nowMillis": makeBuiltin_0_1(now),
 		"nowMs":     makeBuiltin_0_1(now),
-		"nowSeconds": makeBuiltin_0_1(func() any {
+		"nowSeconds": makeBuiltin_0_1(func() DValue {
 			return int(time.Now().Unix())
 		}),
 		"__vals": func(state *State) *State {
@@ -1527,32 +1600,32 @@ func initBuiltins() {
 		"end": doEnd,
 	}
 	builtins = map[string]func(state *State) *State{
-		"formatTimestamp": makeBuiltin_2_1(func(m any, f any) any {
+		"formatTimestamp": makeBuiltin_2_1(func(m DValue, f DValue) DValue {
 			// from unix millis
 			t := time.Unix(0, int64(toIntInternal(m))*int64(time.Millisecond))
 			formattedTime := t.Format(toStringInternal(f))
 			return formattedTime
 		}),
-		"rfc3339ToUnixMillis": makeBuiltin_1_1(func(s any) any {
+		"rfc3339ToUnixMillis": makeBuiltin_1_1(func(s DValue) DValue {
 			t, err := time.Parse(time.RFC3339, toStringInternal(s))
 			if err != nil {
 				panic(err)
 			}
 			return int(t.UnixNano() / int64(time.Millisecond))
 		}),
-		"unixMillisToRfc3339": makeBuiltin_1_1(func(s any) any {
+		"unixMillisToRfc3339": makeBuiltin_1_1(func(s DValue) DValue {
 			ms := toIntInternal(s)
 			sec := int64(ms / 1000)
 			nsec := int64(ms%1000) * 1000000
 			return time.Unix(sec, nsec).Format(time.RFC3339)
 		}),
-		"getType": makeBuiltin_1_1(func(s any) any {
+		"getType": makeBuiltin_1_1(func(s DValue) DValue {
 			return fmt.Sprintf("%T", s)
 		}),
-		"replace": makeBuiltin_3_1(func(s, x, y any) any {
+		"replace": makeBuiltin_3_1(func(s, x, y DValue) DValue {
 			return strings.Replace(toStringInternal(s), toStringInternal(x), toStringInternal(y), -1)
 		}),
-		"getEnvVar": makeBuiltin_1_1(func(v any) any {
+		"getEnvVar": makeBuiltin_1_1(func(v DValue) DValue {
 			return os.Getenv(toStringInternal(v))
 		}),
 		"+": makeBuiltin_2_1(plus),
@@ -1599,36 +1672,36 @@ func initBuiltins() {
 		"indexOf":     makeBuiltin_2_1(indexOf),
 		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
 		"split":       makeBuiltin_2_1(split),
-		"trim": makeBuiltin_1_1(func(a any) any {
+		"trim": makeBuiltin_1_1(func(a DValue) DValue {
 			return strings.TrimSpace(toStringInternal(a))
 		}),
-		"join": makeBuiltin_2_1(func(a, b any) any {
-			// TODO: allow anything to use slice of strings too
-			strSlice := make([]string, len(*a.(*[]any)))
-			for i, v := range *a.(*[]any) {
+		"join": makeBuiltin_2_1(func(a, b DValue) DValue {
+			// TODO: allow DValuething to use slice of strings too
+			strSlice := make([]string, len(*a.(*[]DValue)))
+			for i, v := range *a.(*[]DValue) {
 				strSlice[i] = toStringInternal(v)
 			}
 			return strings.Join(strSlice, toStringInternal(b))
 		}),
-		"contains": makeBuiltin_2_1(func(a, b any) any {
+		"contains": makeBuiltin_2_1(func(a, b DValue) DValue {
 			return strings.Contains(toStringInternal(a), toStringInternal(b))
 		}),
-		"startsWith": makeBuiltin_2_1(func(a, b any) any {
+		"startsWith": makeBuiltin_2_1(func(a, b DValue) DValue {
 			return strings.HasPrefix(toStringInternal(a), toStringInternal(b))
 		}),
-		"endsWith": makeBuiltin_2_1(func(a, b any) any {
+		"endsWith": makeBuiltin_2_1(func(a, b DValue) DValue {
 			return strings.HasSuffix(toStringInternal(a), toStringInternal(b))
 		}),
-		"trimPrefix": makeBuiltin_2_1(func(a, b any) any {
+		"trimPrefix": makeBuiltin_2_1(func(a, b DValue) DValue {
 			return strings.TrimPrefix(toStringInternal(a), toStringInternal(b))
 		}),
-		"trimSuffix": makeBuiltin_2_1(func(a, b any) any {
+		"trimSuffix": makeBuiltin_2_1(func(a, b DValue) DValue {
 			return strings.TrimSuffix(toStringInternal(a), toStringInternal(b))
 		}),
-		"upper": makeBuiltin_1_1(func(a any) any {
+		"upper": makeBuiltin_1_1(func(a DValue) DValue {
 			return strings.ToUpper(toStringInternal(a))
 		}),
-		"lower": makeBuiltin_1_1(func(a any) any {
+		"lower": makeBuiltin_1_1(func(a DValue) DValue {
 			return strings.ToLower(toStringInternal(a))
 		}),
 		"toString": makeBuiltin_1_1(toString),
@@ -1657,14 +1730,14 @@ func initBuiltins() {
 		"shift":    makeBuiltin_1_1(shift),
 		"setIndex": makeBuiltin_3_0(setIndex),
 		"at":       makeBuiltin_2_1(at),
-		"in": makeBuiltin_2_1(func(a, b any) any {
-			_, ok := b.(map[string]any)[toStringInternal(a)]
+		"in": makeBuiltin_2_1(func(a, b DValue) DValue {
+			_, ok := b.(map[string]DValue)[toStringInternal(a)]
 			return ok
 		}),
-		"btoa": makeBuiltin_1_1(func(a any) any {
+		"btoa": makeBuiltin_1_1(func(a DValue) DValue {
 			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
 		}),
-		"atob": makeBuiltin_1_1(func(a any) any {
+		"atob": makeBuiltin_1_1(func(a DValue) DValue {
 			// data, err := base64.StdEncoding.DecodeString(toStringInternal(a))
 			data, err := base64.RawStdEncoding.DecodeString(toStringInternal(a))
 			if err != nil {
@@ -1673,35 +1746,35 @@ func initBuiltins() {
 			}
 			return string(data)
 		}),
-		"base64Encode": makeBuiltin_1_1(func(a any) any {
+		"base64Encode": makeBuiltin_1_1(func(a DValue) DValue {
 			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
 		}),
-		"base64Decode": makeBuiltin_1_1(func(a any) any {
+		"base64Decode": makeBuiltin_1_1(func(a DValue) DValue {
 			ret, err := base64.StdEncoding.DecodeString(toStringInternal(a))
 			if err != nil {
 				panic(err)
 			}
 			return string(ret)
 		}),
-		"toBase64": makeBuiltin_1_1(func(a any) any {
+		"toBase64": makeBuiltin_1_1(func(a DValue) DValue {
 			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
 		}),
-		"fromBase64": makeBuiltin_1_1(func(a any) any {
+		"fromBase64": makeBuiltin_1_1(func(a DValue) DValue {
 			ret, err := base64.StdEncoding.DecodeString(toStringInternal(a))
 			if err != nil {
 				panic(err)
 			}
 			return string(ret)
 		}),
-		"urlEncode": makeBuiltin_1_1(func(a any) any {
+		"urlEncode": makeBuiltin_1_1(func(a DValue) DValue {
 			return url.PathEscape(toStringInternal(a))
 		}),
-		"rand": makeBuiltin_2_1(func(a, b any) any {
+		"rand": makeBuiltin_2_1(func(a, b DValue) DValue {
 			min := toIntInternal(a)
 			max := toIntInternal(b)
 			return rand.Intn(max-min+1) + min
 		}),
-		"padLeft": makeBuiltin_3_1(func(s, padChar any, length any) any {
+		"padLeft": makeBuiltin_3_1(func(s, padChar DValue, length DValue) DValue {
 			str := toStringInternal(s)
 			pad := toStringInternal(padChar)
 			padLength := toIntInternal(length)
@@ -1710,7 +1783,7 @@ func initBuiltins() {
 			}
 			return str
 		}),
-		"padRight": makeBuiltin_3_1(func(s, padChar any, length any) any {
+		"padRight": makeBuiltin_3_1(func(s, padChar DValue, length DValue) DValue {
 			str := toStringInternal(s)
 			pad := toStringInternal(padChar)
 			padLength := length.(int)
@@ -1730,7 +1803,7 @@ func initBuiltins() {
 		"deleteProp":  makeBuiltin_2_0(deleteProp),
 		"keys":        makeBuiltin_1_1(keys),
 		"interpolate": makeBuiltin_2_1(interpolate),
-		"unquote": makeBuiltin_1_1(func(a any) any {
+		"unquote": makeBuiltin_1_1(func(a DValue) DValue {
 			q := toStringInternal(a)
 			r, err := strconv.Unquote(q)
 			if err != nil {
@@ -1738,17 +1811,17 @@ func initBuiltins() {
 			}
 			return r
 		}),
-		"tcpConnect": makeBuiltin_1_1(func(a any) any {
+		"tcpConnect": makeBuiltin_1_1(func(a DValue) DValue {
 			conn, err := net.Dial("tcp", toStringInternal(a))
 			if err != nil {
 				panic(err)
 			}
 			return conn
 		}),
-		"tcpClose": makeBuiltin_1_0(func(a any) {
+		"tcpClose": makeBuiltin_1_0(func(a DValue) {
 			a.(net.Conn).Close()
 		}),
-		"tcpWrite": makeBuiltin_2_0(func(a, b any) {
+		"tcpWrite": makeBuiltin_2_0(func(a, b DValue) {
 			bts := []byte(toStringInternal(b))
 			n, err := a.(net.Conn).Write(bts)
 			if err != nil {
@@ -1758,7 +1831,7 @@ func initBuiltins() {
 				panic("short write")
 			}
 		}),
-		"tcpRead": makeBuiltin_2_1(func(a, b any) any {
+		"tcpRead": makeBuiltin_2_1(func(a, b DValue) DValue {
 			buf := make([]byte, toIntInternal(b))
 			n, err := a.(net.Conn).Read(buf)
 			if err != nil {
@@ -1769,14 +1842,14 @@ func initBuiltins() {
 			}
 			return string(buf[:n])
 		}),
-		"close": makeBuiltin_1_0(func(a any) {
+		"close": makeBuiltin_1_0(func(a DValue) {
 		    if a, ok := a.(io.Closer); ok {
 		        a.Close()
 		    }
 		}),
 		// TODO, wrangle the panics
 		// maybe don't panic
-		"read": makeBuiltin_2_1(func(a, b any) any {
+		"read": makeBuiltin_2_1(func(a, b DValue) DValue {
 		    if a, ok := a.(io.Reader); ok {
 				buf := make([]byte, toIntInternal(b))
 		        n, err := a.Read(buf)
@@ -1790,7 +1863,7 @@ func initBuiltins() {
 		    }
 		    return ""
 		}),
-		"write": makeBuiltin_2_0(func(a, b any) {
+		"write": makeBuiltin_2_0(func(a, b DValue) {
 		    if a, ok := a.(io.Writer); ok {
 				bts := []byte(toStringInternal(b))
 				n, err := a.(net.Conn).Write(bts)
@@ -1802,7 +1875,8 @@ func initBuiltins() {
 				}
 		    }
 		}),
-		"fromJson": makeBuiltin_1_1(func(a any) any {
+		"fromJson": makeBuiltin_1_1(func(a DValue) DValue {
+			panic("need to get this working for dvalue")
 			j := toStringInternal(a)
 			var r any
 			err := json.Unmarshal([]byte(j), &r)
@@ -1829,14 +1903,14 @@ func initBuiltins() {
 			}
 			return recursivelyPtrArrays(r)
 		}),
-		"toJson": makeBuiltin_1_1(func(a any) any {
+		"toJson": makeBuiltin_1_1(func(a DValue) DValue {
 			b, err := json.Marshal(a)
 			if err != nil {
 				panic(err)
 			}
 			return string(b)
 		}),
-		"toJsonF": makeBuiltin_1_1(func(a any) any {
+		"toJsonF": makeBuiltin_1_1(func(a DValue) DValue {
 			b, err := json.MarshalIndent(a, "", "    ")
 			if err != nil {
 				panic(err)
@@ -1849,11 +1923,11 @@ func initBuiltins() {
 			return nil
 		},
 		"makeObject": func(state *State) *State {
-			pushT(state.Vals, map[string]any{})
+			pushT(state.Vals, map[string]DValue{})
 			return state
 		},
 		"makeArray": func(state *State) *State {
-			pushT(state.Vals, &[]any{})
+			pushT(state.Vals, &[]DValue{})
 			return state
 		},
 		"incr": func(state *State) *State {
@@ -1891,9 +1965,9 @@ func initBuiltins() {
 		    case string:
 		        // simple: single variable
 		        state.Vars.Set(b, rawA)
-		    case *[]any:
+		    case *[]DValue:
 		        // case: keys are in a []interface{} (each must be a string)
-		        aSlice, ok := rawA.(*[]any)
+		        aSlice, ok := rawA.(*[]DValue)
 		        if !ok {
 		            panic(fmt.Sprintf("as: unexpected RHS type %T, want []interface{}", rawA))
 		        }
@@ -2101,7 +2175,7 @@ func initBuiltins() {
 			return state
 		},
 		"sort": func(state *State) *State {
-			a := popT(state.Vals).(*[]any)
+			a := popT(state.Vals).(*[]DValue)
 			aVal := *a
 			sort.Slice(aVal, func(i, j int) bool {
 			    return toStringInternal(aVal[i]) < toStringInternal(aVal[j])
@@ -2113,8 +2187,8 @@ func initBuiltins() {
 			return processLoop(state, nil, nil)
 		},
 		"map": func(state *State) *State {
-			ret := []any{}
-			return processLoop(state, func(state *State, theIndex any, value any) {
+			ret := []DValue{}
+			return processLoop(state, func(state *State, theIndex DValue, value DValue) {
 				ret = append(ret, popT(state.Vals))
 			}, func(state *State) {
 				pushT(state.Vals, &ret)
@@ -2139,8 +2213,8 @@ func initBuiltins() {
 			return state
 		},
 		"filter": func(state *State) *State {
-			ret := []any{}
-			return processLoop(state, func(state *State, theIndex any, value any) {
+			ret := []DValue{}
+			return processLoop(state, func(state *State, theIndex DValue, value DValue) {
 				v := toBool(popT(state.Vals)).(bool)
 				if v {
 					ret = append(ret, value)
@@ -2207,7 +2281,7 @@ func initBuiltins() {
 			newState.ICache = state.ICache
 			newState.I = state.I
 			// newState.Vals = state.Vals
-			// the vals is of type *[]any (in Go)
+			// the vals is of type *[]DValue (in Go)
 			// instead of assigning. I want newstate.Vals to be a shallow copy
 
 			// newState.Vals = things
@@ -2446,7 +2520,7 @@ func initBuiltins() {
 			return state
 		},
 		"getEnvVars": func(state *State) *State {
-			m := make(map[string]any)
+			m := make(map[string]DValue)
 			for _, env := range os.Environ() {
 				parts := strings.SplitN(env, "=", 2)
 				if len(parts) == 2 {
@@ -2465,7 +2539,7 @@ func initBuiltins() {
 				}
 				state.AddCallback(Callback{
 					State:        state,
-					ReturnValues: []any{string(b)},
+					ReturnValues: []DValue{string(b)},
 				})
 			}()
 			return nil
@@ -2675,7 +2749,7 @@ func initBuiltins() {
 			thingsVal := *things
 			state.AddCallback(Callback{
 				State:        thingsVal[0].(*State),
-				ReturnValues: *slice(things, 2, -1).(*[]any),
+				ReturnValues: *slice(things, 2, -1).(*[]DValue),
 			})
 			return state
 		},
@@ -2783,7 +2857,7 @@ func initBuiltins() {
 	funcBuiltin = builtins["func"]
 }
 
-func getArgs(state *State) *[]any {
+func getArgs(state *State) *[]DValue {
 	ftSpot := state.FuncTokenSpots[len(state.FuncTokenSpots)-1]
 	return spliceT(state.Vals, ftSpot, len(*state.Vals)-ftSpot, nil)
 }
@@ -2825,42 +2899,42 @@ func endOfCodeImmediate(state *State) *State {
 	return state.CallingParent
 }
 
-func now() any {
+func now() DValue {
 	return int(time.Now().UnixMilli())
 }
 
-func push(slice any, value any) {
-	if s, ok := slice.(*[]any); ok {
+func push(slice DValue, value DValue) {
+	if s, ok := slice.(*[]DValue); ok {
 		pushT(s, value)
 	}
 }
 
-func pushTo(value any, slice any) {
-	if s, ok := slice.(*[]any); ok {
+func pushTo(value DValue, slice DValue) {
+	if s, ok := slice.(*[]DValue); ok {
 		pushT(s, value)
 	}
 }
-func pushT(s *[]any, value any) {
+func pushT(s *[]DValue, value DValue) {
 	*s = append(*s, value)
 }
 
-func pushm(slice any, values any) {
-	if s, ok := slice.(*[]any); ok {
-		if v, ok := values.(*[]any); ok {
+func pushm(slice DValue, values DValue) {
+	if s, ok := slice.(*[]DValue); ok {
+		if v, ok := values.(*[]DValue); ok {
 			*s = append(*s, *v...)
 		}
 	}
 }
 
-func at(mySlice any, index any) any {
+func at(mySlice DValue, index DValue) DValue {
 	switch v := mySlice.(type) {
-	case *[]any:
+	case *[]DValue:
 		indexInt := toIntInternal(index)
 		if indexInt < 0 {
 			return (*v)[len(*v)+indexInt]
 		}
 		return (*v)[indexInt-1]
-	case map[string]any:
+	case map[string]DValue:
 		return v[toStringInternal(index)]
 	case string:
 		indexInt := toIntInternal(index)
@@ -2872,13 +2946,13 @@ func at(mySlice any, index any) any {
 	return nil
 }
 
-func pop(slice any) any {
-	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
+func pop(slice DValue) DValue {
+	if s, ok := slice.(*[]DValue); ok && len(*s) > 0 {
 		return popT(s)
 	}
 	return nil
 }
-func popT(s *[]any) any {
+func popT(s *[]DValue) DValue {
 	if len(*s) > 0 {
 		val := (*s)[len(*s)-1]
 		*s = (*s)[:len(*s)-1]
@@ -2889,7 +2963,7 @@ func popT(s *[]any) any {
 
 
 
-func popTString(s *[]any) string {
+func popTString(s *[]DValue) string {
 	if len(*s) > 0 {
 		val := (*s)[len(*s)-1]
 		*s = (*s)[:len(*s)-1]
@@ -2897,16 +2971,16 @@ func popTString(s *[]any) string {
 	}
 	return ""
 }
-func peek(slice any) any {
-	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
+func peek(slice DValue) DValue {
+	if s, ok := slice.(*[]DValue); ok && len(*s) > 0 {
 		val := (*s)[len(*s)-1]
 		return val
 	}
 	return nil
 }
 
-func shift(slice any) any {
-	if s, ok := slice.(*[]any); ok && len(*s) > 0 {
+func shift(slice DValue) DValue {
+	if s, ok := slice.(*[]DValue); ok && len(*s) > 0 {
 		val := (*s)[0]
 		*s = (*s)[1:]
 		return val
@@ -2914,26 +2988,26 @@ func shift(slice any) any {
 	return nil
 }
 
-func unshift(slice any, value any) {
-	if s, ok := slice.(*[]any); ok {
-		*s = append([]any{value}, *s...)
+func unshift(slice DValue, value DValue) {
+	if s, ok := slice.(*[]DValue); ok {
+		*s = append([]DValue{value}, *s...)
 	}
 }
 
-func spliceT(s *[]any, start int, deleteCount int, elements *[]any) *[]any {
-	var elementsToAdd []any
+func spliceT(s *[]DValue, start int, deleteCount int, elements *[]DValue) *[]DValue {
+	var elementsToAdd []DValue
 	if elements != nil {
 		elementsToAdd = *elements
 	}
-	removed := make([]any, deleteCount)
+	removed := make([]DValue, deleteCount)
 	copy(removed, (*s)[start:start+deleteCount])
 	*s = append(append((*s)[:start], elementsToAdd...), (*s)[start+deleteCount:]...)
 	return &removed
 }
 
-func splice(sAny any, start any, end any, elements any) any {
+func splice(sAny DValue, start DValue, end DValue, elements DValue) DValue {
 	startInt := toIntInternal(start)
-	s := sAny.(*[]any)
+	s := sAny.(*[]DValue)
 	endInt := toIntInternal(end)
 	if startInt < 0 {
 		startInt = len(*s) + startInt + 1
@@ -2956,18 +3030,18 @@ func splice(sAny any, start any, end any, elements any) any {
 	if startInt > endInt {
 		return nil
 	}
-	if els, ok := elements.(*[]any); ok {
+	if els, ok := elements.(*[]DValue); ok {
 		return spliceT(s, startInt-1, endInt-startInt+1, els)
 	} else {
 		return spliceT(s, startInt-1, endInt-startInt+1, nil)
 	}
 }
 
-func slice(s any, start any, end any) any {
+func slice(s DValue, start DValue, end DValue) DValue {
 	startInt := toIntInternal(start)
 	endInt := toIntInternal(end)
 	switch s := s.(type) {
-	case *[]any:
+	case *[]DValue:
 		if startInt < 0 {
 			startInt = len(*s) + startInt + 1
 		}
@@ -2989,7 +3063,7 @@ func slice(s any, start any, end any) any {
 		if startInt > endInt {
 			return nil
 		}
-		sliced := make([]any, endInt-startInt+1)
+		sliced := make([]DValue, endInt-startInt+1)
 		copy(sliced, (*s)[startInt-1:endInt])
 		return &sliced
 	case string:
@@ -3019,36 +3093,36 @@ func slice(s any, start any, end any) any {
 	return nil
 }
 
-func length(slice any) any {
+func length(slice DValue) DValue {
 	switch s := slice.(type) {
-	case *[]any:
+	case *[]DValue:
 		return len(*s)
 	case string:
 		return len(s)
 	}
 	return 0
 }
-func indexOf(a any, b any) any {
+func indexOf(a DValue, b DValue) DValue {
 	return strings.Index(toStringInternal(a), toStringInternal(b)) + 1
 }
-func lastIndexOf(a any, b any) any {
+func lastIndexOf(a DValue, b DValue) DValue {
 	return strings.LastIndex(toStringInternal(a), toStringInternal(b)) + 1
 }
 
-func split(a any, b any) any {
+func split(a DValue, b DValue) DValue {
 	r := strings.Split(toStringInternal(a), toStringInternal(b))
-	rr := []any{}
+	rr := []DValue{}
 	for _, value := range r {
 		rr = append(rr, value)
 	}
 	return &rr
 }
 
-func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fString func(string, string) any) func(any, any) any {
-	// return func(a, b any) any {
+func makeMather(fInt func(int, int) DValue, fFloat func(float64, float64) DValue, fString func(string, string) DValue) func(DValue, DValue) DValue {
+	// return func(a, b DValue) DValue {
 	//     return fFloat(ToFloat64(a), ToFloat64(b))
 	// }
-	return func(a, b any) any {
+	return func(a, b DValue) DValue {
 		switch a := a.(type) {
 		case int:
 			switch b := b.(type) {
@@ -3184,7 +3258,7 @@ func roundFloat(num float64, places int) float64 {
 	return math.Round(num*scale) / scale
 }
 
-func round(a, b any) any {
+func round(a, b DValue) DValue {
 	switch a := a.(type) {
 	case int:
 		return a
@@ -3218,38 +3292,38 @@ func round(a, b any) any {
 }
 
 var plus = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a + b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a + b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return Add(a, b)
 	},
 )
 
 // minus uses subtraction (calls Subtract for strings)
 var minus = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a - b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a - b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return Subtract(a, b)
 	},
 )
 
 var times = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a * b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a * b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return Multiply(a, b)
 	},
 )
@@ -3258,7 +3332,7 @@ var decimalPrecision = 50
 
 // divide uses division (calls Divide for strings)
 var divide = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		// Note: integer division
 		if b == 0 {
 			// return "division by zero"
@@ -3269,21 +3343,21 @@ var divide = makeMather(
 		}
 		return Divide(strconv.Itoa(a), strconv.Itoa(b), decimalPrecision)
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		if b == 0 {
 			// return "division by zero"
 			return 0 // ?
 		}
 		return a / b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return Divide(a, b, decimalPrecision)
 	},
 )
 
 // pow uses exponentiation (calls Pow for strings)
 var pow = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		// Simple integer exponentiation. Only for positive exponents.
 		if b < 0 {
 			return Pow(strconv.Itoa(a), strconv.Itoa(b), decimalPrecision)
@@ -3294,175 +3368,175 @@ var pow = makeMather(
 		}
 		return result
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return math.Pow(a, b)
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return Pow(a, b, decimalPrecision)
 	},
 )
 
 // mod uses modulo (calls Mod for strings)
 var mod = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		if b == 0 {
 			return "modulo by zero"
 		}
 		return a % b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		if b == 0 {
 			return "modulo by zero"
 		}
 		return math.Mod(a, b)
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return Mod(a, b)
 	},
 )
 
 // lt returns whether a is less than b.
 var lt = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a < b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a < b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return LessThan(a, b)
 	},
 )
 
 // gt returns whether a is greater than b.
 var gt = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a > b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a > b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return GreaterThan(a, b)
 	},
 )
 
 // lte returns whether a is less than or equal to b.
 var lte = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a <= b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a <= b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return LessThanOrEqualTo(a, b)
 	},
 )
 
 // gte returns whether a is greater than or equal to b.
 var gte = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a >= b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a >= b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return GreaterThanOrEqualTo(a, b)
 	},
 )
 
 // lt returns whether a is less than b.
 var lts = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a < b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a < b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return a < b
 	},
 )
 
 // gt returns whether a is greater than b.
 var gts = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a > b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a > b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return a > b
 	},
 )
 
 // lte returns whether a is less than or equal to b.
 var ltes = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a <= b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a <= b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return a <= b
 	},
 )
 
 // gte returns whether a is greater than or equal to b.
 var gtes = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a >= b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a >= b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return a >= b
 	},
 )
 
 // is returns whether a equals b.
-var is = func(a, b any) any {
+var is = func(a, b DValue) DValue {
 	return a == b
 }
-var isnt = func(a, b any) any {
+var isnt = func(a, b DValue) DValue {
 	return a != b
 }
 
 // is returns whether a equals b.
 var eq = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a == b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a == b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return Equal(a, b)
 	},
 )
 
 // isnt returns whether a is not equal to b.
 var neq = makeMather(
-	func(a, b int) any {
+	func(a, b int) DValue {
 		return a != b
 	},
-	func(a, b float64) any {
+	func(a, b float64) DValue {
 		return a != b
 	},
-	func(a, b string) any {
+	func(a, b string) DValue {
 		return !Equal(a, b)
 	},
 )
 
-func cc(a, b any) any {
-	if aArr, ok1 := a.(*[]any); ok1 {
-		if bArr, ok2 := b.(*[]any); ok2 {
-			result := append([]any{}, (*aArr)...)
+func cc(a, b DValue) DValue {
+	if aArr, ok1 := a.(*[]DValue); ok1 {
+		if bArr, ok2 := b.(*[]DValue); ok2 {
+			result := append([]DValue{}, (*aArr)...)
 			result = append(result, (*bArr)...)
 			return &result
 		}
@@ -3471,7 +3545,7 @@ func cc(a, b any) any {
 	return toStringInternal(a) + toStringInternal(b)
 }
 
-func toIntInternal(a any) int {
+func toIntInternal(a DValue) int {
 	switch a := a.(type) {
 	case bool:
 		if a {
@@ -3492,11 +3566,11 @@ func toIntInternal(a any) int {
 	}
 	return 0
 }
-func toInt(a any) any {
+func toInt(a DValue) DValue {
 	return toIntInternal(a)
 }
 
-func toFloatInternal(a any) float64 {
+func toFloatInternal(a DValue) float64 {
 	switch a := a.(type) {
 	case bool:
 		if a {
@@ -3517,11 +3591,11 @@ func toFloatInternal(a any) float64 {
 	}
 	return 0.0
 }
-func toFloat(a any) any {
+func toFloat(a DValue) DValue {
 	return toFloatInternal(a)
 }
 
-func not(a any) any {
+func not(a DValue) DValue {
 	// fmt.Printf("not called %T %v\n", a, a)
 	switch a := a.(type) {
 	case bool:
@@ -3538,7 +3612,7 @@ func not(a any) any {
 	return nil
 }
 
-func say(state *State, out io.Writer, vals ...any) *State {
+func say(state *State, out io.Writer, vals ...DValue) *State {
 	for i, v := range vals {
 		if r, ok := v.(io.Reader); ok {
 			buf := make([]byte, 1024)
@@ -3561,7 +3635,7 @@ func say(state *State, out io.Writer, vals ...any) *State {
 				}
 				state.AddCallback(Callback{
 				    State: state,
-				    ReturnValues: []any{},
+				    ReturnValues: []DValue{},
 				})
 			}()
 			return nil
@@ -3577,7 +3651,7 @@ func say(state *State, out io.Writer, vals ...any) *State {
 }
 
 
-func toBool(a any) any {
+func toBool(a DValue) DValue {
 	switch a := a.(type) {
 	case int:
 		return a != 0
@@ -3598,16 +3672,16 @@ func toBool(a any) any {
 		return true
 	}
 }
-func toString(a any) any {
+func toString(a DValue) DValue {
 	return toStringInternal(a)
 }
-func toStringInternal(a any) string {
+func toStringInternal(a DValue) string {
 	switch a := a.(type) {
 	case string:
 		return a
 	case *DString:
 		return a.String
-	case map[string]any:
+	case map[string]DValue:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
 			// panic(err)
@@ -3615,7 +3689,7 @@ func toStringInternal(a any) string {
 		} else {
 			return string(jsonData)
 		}
-	case *[]any, []any:
+	case *[]DValue, []DValue:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
 			// panic(err)
@@ -3674,32 +3748,32 @@ func toStringInternal(a any) string {
 	return ""
 }
 
-func keys(a any) any {
-	ret := []any{}
-	for k := range a.(map[string]any) {
+func keys(a DValue) DValue {
+	ret := []DValue{}
+	for k := range a.(map[string]DValue) {
 		ret = append(ret, k)
 	}
 	return &ret
 }
-func setProp(a, b, c any) {
-	a.(map[string]any)[toStringInternal(b)] = c
+func setProp(a, b, c DValue) {
+	a.(map[string]DValue)[toStringInternal(b)] = c
 }
-func setIndex(a, b, c any) {
-	theArrPointer := a.(*[]any)
+func setIndex(a, b, c DValue) {
+	theArrPointer := a.(*[]DValue)
 	theArr := *theArrPointer
 	theArr[toIntInternal(b)] = c
 }
-func setPropVKO(v, k, o any) {
-	o.(map[string]any)[toStringInternal(k)] = v
+func setPropVKO(v, k, o DValue) {
+	o.(map[string]DValue)[toStringInternal(k)] = v
 }
-func getProp(a, b any) any {
-	return a.(map[string]any)[toStringInternal(b)]
+func getProp(a, b DValue) DValue {
+	return a.(map[string]DValue)[toStringInternal(b)]
 }
-func getPropKO(k, o any) any {
-	return o.(map[string]any)[toStringInternal(k)]
+func getPropKO(k, o DValue) DValue {
+	return o.(map[string]DValue)[toStringInternal(k)]
 }
-func deleteProp(a, b any) {
-	delete(a.(map[string]any), toStringInternal(b))
+func deleteProp(a, b DValue) {
+	delete(a.(map[string]DValue), toStringInternal(b))
 }
 
 func makeNoop() func(state *State) *State {
@@ -3713,14 +3787,14 @@ func makeBuiltin_0_0(f func()) func(state *State) *State {
 		return state
 	}
 }
-func makeBuiltin_1_0(f func(any)) func(state *State) *State {
+func makeBuiltin_1_0(f func(DValue)) func(state *State) *State {
 	return func(state *State) *State {
 		a := popT(state.Vals)
 		f(a)
 		return state
 	}
 }
-func makeBuiltin_2_0(f func(any, any)) func(state *State) *State {
+func makeBuiltin_2_0(f func(DValue, DValue)) func(state *State) *State {
 	return func(state *State) *State {
 		b := popT(state.Vals)
 		a := popT(state.Vals)
@@ -3728,7 +3802,7 @@ func makeBuiltin_2_0(f func(any, any)) func(state *State) *State {
 		return state
 	}
 }
-func makeBuiltin_3_0(f func(any, any, any)) func(state *State) *State {
+func makeBuiltin_3_0(f func(DValue, DValue, DValue)) func(state *State) *State {
 	return func(state *State) *State {
 		c := popT(state.Vals)
 		b := popT(state.Vals)
@@ -3737,20 +3811,20 @@ func makeBuiltin_3_0(f func(any, any, any)) func(state *State) *State {
 		return state
 	}
 }
-func makeBuiltin_0_1(f func() any) func(state *State) *State {
+func makeBuiltin_0_1(f func() DValue) func(state *State) *State {
 	return func(state *State) *State {
 		pushT(state.Vals, f())
 		return state
 	}
 }
-func makeBuiltin_1_1(f func(any) any) func(state *State) *State {
+func makeBuiltin_1_1(f func(DValue) DValue) func(state *State) *State {
 	return func(state *State) *State {
 		a := popT(state.Vals)
 		pushT(state.Vals, f(a))
 		return state
 	}
 }
-func makeBuiltin_2_1(f func(any, any) any) func(state *State) *State {
+func makeBuiltin_2_1(f func(DValue, DValue) DValue) func(state *State) *State {
 	return func(state *State) *State {
 		b := popT(state.Vals)
 		a := popT(state.Vals)
@@ -3758,7 +3832,7 @@ func makeBuiltin_2_1(f func(any, any) any) func(state *State) *State {
 		return state
 	}
 }
-func makeBuiltin_3_1(f func(any, any, any) any) func(state *State) *State {
+func makeBuiltin_3_1(f func(DValue, DValue, DValue) DValue) func(state *State) *State {
 	return func(state *State) *State {
 		c := popT(state.Vals)
 		b := popT(state.Vals)
@@ -3767,7 +3841,7 @@ func makeBuiltin_3_1(f func(any, any, any) any) func(state *State) *State {
 		return state
 	}
 }
-func makeBuiltin_4_1(f func(any, any, any, any) any) func(state *State) *State {
+func makeBuiltin_4_1(f func(DValue, DValue, DValue, DValue) DValue) func(state *State) *State {
 	return func(state *State) *State {
 		d := popT(state.Vals)
 		c := popT(state.Vals)
@@ -3784,9 +3858,9 @@ func endIf(state *State) *State {
 	return state
 }
 
-func interpolate(a, b any) any {
+func interpolate(a, b DValue) DValue {
 	theString := toStringInternal(a)
-	theMap := b.(map[string]any)
+	theMap := b.(map[string]DValue)
 	theArgs := make([]string, len(theMap)*2)
 	i := 0
 	for k, v := range theMap {
@@ -3839,7 +3913,7 @@ It can keep or clear the path.
 It has "satellites" that can sit on other servers, poll it for requests and either respond, or also proxy to local http server.
 cgi?! (edited)
 it can handle all things ssh?!
-what about performance, extra hops? the satellites can run arbitrary scripts statellites have a cgi-bin directory and anything there can be run as cgi
+what about performance, extra hops? the satellites can run arbitrary scripts statellites have a cgi-bin directory and DValuething there can be run as cgi
 all http for now
 redis model where you run scripts against an existing server (aka already running program)
 idea start with just a cgi server implement the whole thing in linescript with just file locks and filesystem. Then add more perf later
@@ -4203,7 +4277,7 @@ func startCgiServer(domain, httpsAddr, httpAddr string) {
 
 		state.AddCallback(Callback{
 			State:        evalState,
-			ReturnValues: []any{},
+			ReturnValues: []DValue{},
 		})
 		time.Sleep(3 * time.Second)
 		// evalState.Wait()
@@ -4264,26 +4338,26 @@ type Iterable interface{
 }
 
 type Iterator interface {
-    Next() (any, any, bool)
+    Next() (DValue, DValue, bool)
 }
 
 type SliceIterator struct {
-    Slice []any
+    Slice []DValue
     I int // 1 based
 }
 type MapIterator struct {
-    Map map[string]any
+    Map map[string]DValue
     Keys []string
     I int // 1 based
 }
 
-func makeSliceIterator(theSlice []any) (*SliceIterator) {
+func makeSliceIterator(theSlice []DValue) (*SliceIterator) {
     return &SliceIterator{
         Slice: theSlice,
         I: 1,
     }
 }
-func makeMapIterator(theMap map[string]any) (*MapIterator) {
+func makeMapIterator(theMap map[string]DValue) (*MapIterator) {
     keys := make([]string, len(theMap))
     i := 0
     for k, _ := range theMap {
@@ -4298,7 +4372,7 @@ func makeMapIterator(theMap map[string]any) (*MapIterator) {
     }
 }
 
-func (s *SliceIterator) Next() (any, any, bool) {
+func (s *SliceIterator) Next() (DValue, DValue, bool) {
     if s.I <= len(s.Slice) {
         ret := s.Slice[s.I-1]
         i := s.I
@@ -4307,7 +4381,7 @@ func (s *SliceIterator) Next() (any, any, bool) {
     }
     return s.I, nil, false
 }
-func (s *MapIterator) Next() (any, any, bool) {
+func (s *MapIterator) Next() (DValue, DValue, bool) {
     if s.I <= len(s.Keys) {
         key := s.Keys[s.I-1]
         s.I++
@@ -4317,13 +4391,13 @@ func (s *MapIterator) Next() (any, any, bool) {
     return nil, nil, false
 }
 
-func makeIterator(v any) (Iterator) {
+func makeIterator(v DValue) (Iterator) {
 	switch actualArr := v.(type) {
-	case *[]any:
+	case *[]DValue:
 		return makeSliceIterator(*actualArr)
-	case map[string]any:
+	case map[string]DValue:
 		return makeMapIterator(actualArr)
-	case []any:
+	case []DValue:
 		// not a normal case we should get in
 		return makeSliceIterator(actualArr)
 	default:
@@ -4352,7 +4426,7 @@ func getLoopVars(state *State) (*DString, *DString) {
 	return indexVar, itemVar
 }
 
-func setLoopVarsInit(state *State, indexVar, itemVar *DString, theIndex, value any)  {
+func setLoopVarsInit(state *State, indexVar, itemVar *DString, theIndex, value DValue)  {
 	if indexVar != nil {
 		state.Vars.SetDString(indexVar, theIndex)
 	}
@@ -4360,7 +4434,7 @@ func setLoopVarsInit(state *State, indexVar, itemVar *DString, theIndex, value a
 		state.Vars.SetDString(itemVar, value)
 	}
 }
-func setLoopVars(state *State, indexVar, itemVar *DString, theIndex, value any)  {
+func setLoopVars(state *State, indexVar, itemVar *DString, theIndex, value DValue)  {
 	if indexVar != nil {
 		state.Vars.SetDString(indexVar, theIndex)
 	}
@@ -4373,15 +4447,15 @@ func setLoopVars(state *State, indexVar, itemVar *DString, theIndex, value any) 
 	}
 }
 
-func processLoop(state *State, process func(*State, any, any), onEnd func(state *State)) *State {
-	var theIndex any = nil // 1 based so we start less than 1
+func processLoop(state *State, process func(*State, DValue, DValue), onEnd func(state *State)) *State {
+	var theIndex DValue = nil // 1 based so we start less than 1
     indexVar, itemVar := getLoopVars(state)
 
 	iterator := makeIterator(popT(state.Vals))
 	setLoopVarsInit(state, indexVar, itemVar, theIndex, nil)
 	var spot = state.I
 	var endEach func(state *State) *State
-	var value any
+	var value DValue
 	var ok bool
 	endEach = func(state *State) *State {
         if theIndex != nil && process != nil {
@@ -4413,12 +4487,35 @@ func processLoop(state *State, process func(*State, any, any), onEnd func(state 
 
 
 
+// update this code so that instead of using "DValue" everywhere
+// it uses a Value type
+// Value is defined as
+// type Value struct {
+//     Type byte // (type tag, 0 for nil, 1 for int etc)
+//     Int int
+//     Float float64
+//     String string
+//     DString *DString
+//     Reader *Reader
+//     Bool bool
+//     Map map[string]Value
+//     Slice *[]Value
+// }
+// please give me all changes to make
+
+
+
+
+
+
+
+
 
 
 
 
 /*
-Do you see any low hanging fruit performance optimizations that can be made here?
+Do you see DValue low hanging fruit performance optimizations that can be made here?
 Specifically with the flow of Eval function
 
 Here are a few small changes you can make today that will measurably speed up your Eval loop without rewriting the whole VM.
@@ -4446,11 +4543,11 @@ Here are a few small changes you can make today that will measurably speed up yo
 2) Don’t return the token name from nextToken  
    You only use the name in debug mode.  Change  
    ```go
-   func nextToken(state *State) (any, string)
+   func nextToken(state *State) (DValue, string)
    ```  
    to  
    ```go
-   func nextToken(state *State) any
+   func nextToken(state *State) DValue
    ```  
    and have a separate debug method to peek at the string.  You’ll save an allocation or copy on every token.
 
@@ -4501,7 +4598,7 @@ Here are a few small changes you can make today that will measurably speed up yo
 5) Pre‐allocate your stacks to reasonable capacities  
    You know in advance roughly how deep your nested calls, your `EndStack`, and your `Vals` slice will grow.  Right after you `MakeState` do something like  
    ```go
-   state.Vals      = &make([]any, 0, 128)
+   state.Vals      = &make([]DValue, 0, 128)
    state.EndStack  = make([]func(*State)*State, 0, 32)
    state.ModeStack = make([]string, 0, 16)
    // …
@@ -4519,7 +4616,7 @@ Taken together you should see a 10–30% improvement just by removing repeated f
 /* o
 
 
-7) Consider a custom “stack of untyped values” instead of `[]any`  
+7) Consider a custom “stack of untyped values” instead of `[]DValue`  
    Every push/pop allocates an interface box. If you instead use a small struct like  
    ```go
    type Value struct { kind byte; i int64; f float64; p unsafe.Pointer }
