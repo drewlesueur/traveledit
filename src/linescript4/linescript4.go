@@ -132,6 +132,8 @@ const (
     Bool
     Map
     Slice
+    FuncType
+    StateType
 )
 var null = DValue{Type: 0}
 
@@ -147,6 +149,7 @@ type DValue struct {
     Slice *[]DValue
     ByteSlice []byte
     Func func(state *State) *State
+    State *State
 }
 func DValueSlice(s *[]DValue) DValue {
     return DValue{
@@ -188,6 +191,9 @@ func DValueByteSlice(b []byte) DValue {
 }
 func DValueFunc(f func(state *State) *State) DValue {
     return DValue{Type: Map, Func: f}
+}
+func DValueState(s *State) DValue {
+    return DValue{Type: StateType, State: s}
 }
 
 
@@ -1024,7 +1030,8 @@ func makeToken(state *State, val string) any {
 	// once a func, always a func
 	// but have to eval twice the first round?!
 	// TODO: fix the double eval
-	if _, ok := evaled.(func(*State) *State); ok {
+	// if _, ok := evaled.(func(*State) *State); ok {
+	if evaled.Type == FuncType {
 		return getVarFuncToken(dval)
 	} else {
 		// return getVarToken(val)
@@ -1342,7 +1349,7 @@ func initBuiltins() {
 				end := strings.Index(state.Code[state.I+2:], "\n")
 				// 2 because of ": "
 				// 1 because we want after "\n"
-				pushT(state.Vals, state.Code[state.I+2:state.I+2+end])
+				pushT(state.Vals, DValueString(state.Code[state.I+2:state.I+2+end]))
 				// state.I = state.I + 2 + end + 1
 				state.I = state.I + 2 + end
 				// actually we don't want after the newline
@@ -1357,7 +1364,7 @@ func initBuiltins() {
 					lines[i] = strings.TrimPrefix(line, prefixToTrim)
 				}
 				str = strings.Join(lines, "\n")
-				pushT(state.Vals, str)
+				pushT(state.Vals, DValueString(str))
 				state.I = r.I
 			}
 			return state
@@ -1491,14 +1498,14 @@ func initBuiltins() {
 		"nowMillis": makeBuiltin_0_1(now),
 		"nowMs":     makeBuiltin_0_1(now),
 		"nowSeconds": makeBuiltin_0_1(func() DValue {
-			return int(time.Now().Unix())
+			return DValueInt(int(time.Now().Unix()))
 		}),
 		"__vals": func(state *State) *State {
-			pushT(state.Vals, state.Vals)
+			pushT(state.Vals, DValueSlice(state.Vals))
 			return state
 		},
 		"__state": func(state *State) *State {
-			pushT(state.Vals, state)
+			pushT(state.Vals, DValueState(state))
 			return state
 		},
 		"it": func(state *State) *State {
@@ -1522,7 +1529,7 @@ func initBuiltins() {
 		"and": func(state *State) *State {
 			// lazy eval lol
 			v := peek(state.Vals)
-			if !toBool(v).(bool) {
+			if !toBool(v).Bool {
 				i := findBeforeEndLine(state)
 				// fmt.Println("found:", state.Code[i:i+20])
 				state.I = i
@@ -1534,7 +1541,7 @@ func initBuiltins() {
 		"or": func(state *State) *State {
 			// lazy eval lol
 			v := peek(state.Vals)
-			if toBool(v).(bool) {
+			if toBool(v).Bool {
 				i := findBeforeEndLine(state)
 				state.I = i
 			} else {
@@ -1604,29 +1611,29 @@ func initBuiltins() {
 			// from unix millis
 			t := time.Unix(0, int64(toIntInternal(m))*int64(time.Millisecond))
 			formattedTime := t.Format(toStringInternal(f))
-			return formattedTime
+			return DValueString(formattedTime)
 		}),
 		"rfc3339ToUnixMillis": makeBuiltin_1_1(func(s DValue) DValue {
 			t, err := time.Parse(time.RFC3339, toStringInternal(s))
 			if err != nil {
 				panic(err)
 			}
-			return int(t.UnixNano() / int64(time.Millisecond))
+			return DValueInt(int(t.UnixNano() / int64(time.Millisecond)))
 		}),
 		"unixMillisToRfc3339": makeBuiltin_1_1(func(s DValue) DValue {
 			ms := toIntInternal(s)
 			sec := int64(ms / 1000)
 			nsec := int64(ms%1000) * 1000000
-			return time.Unix(sec, nsec).Format(time.RFC3339)
+			return DValueString(time.Unix(sec, nsec).Format(time.RFC3339))
 		}),
 		"getType": makeBuiltin_1_1(func(s DValue) DValue {
-			return fmt.Sprintf("%T", s)
+			return DValueString(fmt.Sprintf("%T", s))
 		}),
 		"replace": makeBuiltin_3_1(func(s, x, y DValue) DValue {
-			return strings.Replace(toStringInternal(s), toStringInternal(x), toStringInternal(y), -1)
+			return DValueString(strings.Replace(toStringInternal(s), toStringInternal(x), toStringInternal(y), -1))
 		}),
 		"getEnvVar": makeBuiltin_1_1(func(v DValue) DValue {
-			return os.Getenv(toStringInternal(v))
+			return DValueString(os.Getenv(toStringInternal(v)))
 		}),
 		"+": makeBuiltin_2_1(plus),
 		"-": makeBuiltin_2_1(minus),
@@ -2971,12 +2978,9 @@ func popTString(s *[]DValue) string {
 	}
 	return ""
 }
-func peek(slice DValue) DValue {
-	if s, ok := slice.(*[]DValue); ok && len(*s) > 0 {
-		val := (*s)[len(*s)-1]
-		return val
-	}
-	return nil
+func peek(s *[]DValue) DValue {
+	val := (*s)[len(*s)-1]
+	return val
 }
 
 func shift(slice DValue) DValue {
