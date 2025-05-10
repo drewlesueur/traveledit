@@ -316,6 +316,7 @@ func MakeState(fileName, code string) *State {
 		// though if you eval in a loop with a static string, you should be able to optimize
 
 		Vals:               &[]any{},
+		// Vals:               &make([]any{}, 0, 500),
 		ValsStack:          nil,
 		EndStack:           nil,
 		// Vars:               map[string]any{},
@@ -515,13 +516,14 @@ evalLoop:
 
 			continue
 		}
-		token, name := nextToken(state)
+		token, _ := nextToken(state)
+		
 		// #cyan
-		if state.DebugTokens {
-			// fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
-			appendFile("delme_tokens.txt", fmt.Sprintf("token: %q       %T (%s:%d/%d)\n", name, token, state.FileName, state.I, len(state.Code)-1))
-		}
-		_ = name
+		// if state.DebugTokens {
+		// 	// fmt.Printf("#cyan token: %T %q (%d/%d)\n", token, name, state.I, len(state.Code) - 1)
+		// 	appendFile("delme_tokens.txt", fmt.Sprintf("token: %q       %T (%s:%d/%d)\n", name, token, state.FileName, state.I, len(state.Code)-1))
+		// }
+		// _ = name
 		switch token := token.(type) {
 		case immediateToken:
 			o := state
@@ -611,6 +613,12 @@ evalLoop:
 
 	return origState
 }
+// 
+// Cleanup this function and hoist hop loop fields in to locals
+// 
+// Here’s one way to both clean up the giant `Eval` function and pull the “hot” state‐fields into locals on each iteration of the main loop.  We also factor out two of the big inner branches into their own helpers (`popParen` and the “fetch next state” logic).  You can measure before/after to see that you only pay the cost of loading these fields out of the struct once per iteration, instead of multiple times.
+
+
 
 func cancel(state *State) {
 	state.Done = true
@@ -646,11 +654,6 @@ func findParentAndValue(state *State, varName *DString) (*Record, any) {
 	return nil, nil
 }
 
-func clearFuncToken(state *State) {
-	// see got moved to callFunc
-	// state.CurrFuncToken = nil
-	// state.FuncTokenSpot = -1
-}
 
 // if x is 3 len
 // let :x plus 2 3
@@ -1594,7 +1597,6 @@ func initBuiltins() {
 			debug("#orange jumping to end")
 			state.I = r.I
 			// debugStateI(state, state.I)
-			clearFuncToken(state)
 			return state
 		},
 		"end": doEnd,
@@ -1632,12 +1634,10 @@ func initBuiltins() {
 		"-": makeBuiltin_2_1(minus),
 		"+f": func(state *State) *State {
 			pushT(state.Vals, popT(state.Vals).(float64)+popT(state.Vals).(float64))
-			clearFuncToken(state)
 			return state
 		},
 		"-f": func(state *State) *State {
 			pushT(state.Vals, popT(state.Vals).(float64)-popT(state.Vals).(float64))
-			clearFuncToken(state)
 			return state
 		},
 		"*":  makeBuiltin_2_1(times),
@@ -1721,7 +1721,6 @@ func initBuiltins() {
 		"sayRaw": func(state *State) *State {
 			v := popT(state.Vals)
 			fmt.Fprintf(state.Out, "%v", v)
-			clearFuncToken(state)
 			return state
 		},
 		// "say2": func(state *State) *State {
@@ -1733,7 +1732,6 @@ func initBuiltins() {
 		// 	for i, v := range *things {
 		// 		fmt.Printf("%d %#v\n", i, v)
 		// 	}
-		// 	clearFuncToken(state)
 		// 	return state
 		// },
 		"put":      makeNoop(),
@@ -1932,19 +1930,16 @@ func initBuiltins() {
 			return string(b)
 		}),
 		"exit": func(state *State) *State {
-			clearFuncToken(state)
 			close(state.Machine.CallbacksCh)
 			state.Done = true
 			return nil
 		},
 		"makeObject": func(state *State) *State {
 			pushT(state.Vals, map[string]any{})
-			clearFuncToken(state)
 			return state
 		},
 		"makeArray": func(state *State) *State {
 			pushT(state.Vals, &[]any{})
-			clearFuncToken(state)
 			return state
 		},
 		"incr": func(state *State) *State {
@@ -1952,7 +1947,6 @@ func initBuiltins() {
 			// TODO: parent
 			// a := popT(state.Vals).(*DString)
 			// state.Vars.Set(a, toIntInternal(state.Vars.GetDString(a)) + 1)
-			// clearFuncToken(state)
 			return state
 		},
 		"local": func(state *State) *State {
@@ -2023,7 +2017,6 @@ func initBuiltins() {
 			newIndent := getIndent(state, 0)
 			count := (len(newIndent) - len(indent)) / 4
 			state.EndStack = state.EndStack[:len(state.EndStack)-count]
-			clearFuncToken(state)
 			return state
 		},
 		"goDown": func(state *State) *State {
@@ -2044,7 +2037,6 @@ func initBuiltins() {
 			newIndent := getIndent(state, 0)
 			count := (len(indent) - len(newIndent)) / 4
 			state.EndStack = state.EndStack[:len(state.EndStack)-count]
-			clearFuncToken(state)
 			return state
 		},
 		"forever": func(state *State) *State {
@@ -2070,7 +2062,6 @@ func initBuiltins() {
 			r := findMatchingAfter(state, count, []string{"end"})
 			state.I = r.I
 			state.EndStack = state.EndStack[:len(state.EndStack)-count]
-			clearFuncToken(state)
 			return state
 		},
 		"loop": func(state *State) *State {
@@ -2121,7 +2112,6 @@ func initBuiltins() {
 				i = findMatchingBefore(state, []string{"end"})
 			}
 			state.I = i
-			clearFuncToken(state)
 			return state
 		},
 		// inclusive
@@ -2197,7 +2187,6 @@ func initBuiltins() {
 				i = findMatchingBefore(state, []string{"end"})
 			}
 			state.I = i
-			clearFuncToken(state)
 			return state
 		},
 		"sort": func(state *State) *State {
@@ -2284,7 +2273,6 @@ func initBuiltins() {
 					}
 				}
 			}
-			clearFuncToken(state)
 			return state
 		},
 		// else was here
@@ -2292,7 +2280,6 @@ func initBuiltins() {
 		// "loopN":
 		// "end": doEnd,
 		"return": func(state *State) *State {
-			clearFuncToken(state) // needed?
 			if state.CallingParent == nil {
 				state.Done = true
 			}
@@ -2343,7 +2330,6 @@ func initBuiltins() {
 				State: newState,
 			})
 			pushT(state.Vals, newState)
-			clearFuncToken(state)
 			return state
 		},
 		// todo, also pause/resume as alternative to wait?
@@ -2358,11 +2344,9 @@ func initBuiltins() {
 				for _, v := range *newState.Vals {
 					pushT(state.Vals, v)
 				}
-				clearFuncToken(state)
 				return state
 			} else {
 				newState.Waiters = append(newState.Waiters, state)
-				clearFuncToken(state)
 				return nil
 			}
 		},
@@ -2370,7 +2354,6 @@ func initBuiltins() {
 			newState := popT(state.Vals).(*State)
 			newState.Canceled = true
 			// TODO, consider every child goroutine should be canceled (ayncParent implementation)
-			clearFuncToken(state)
 			return state
 		},
 		"def": func(state *State) *State {
@@ -2407,7 +2390,6 @@ func initBuiltins() {
 			}
 
 			// fmt.Printf("found: %q\n", getCode(state)[i:])
-			clearFuncToken(state)
 			return state
 		},
 		"func": func(state *State) *State {
@@ -2452,7 +2434,6 @@ func initBuiltins() {
 			// state.FuncTokenSpotStack = state.FuncTokenSpotStack[:len(state.FuncTokenSpotStack)-1]
 
 			// not calling clear because we re-assigned it above
-			// clearFuncToken(state)
 			return state
 
 		},
@@ -2460,7 +2441,6 @@ func initBuiltins() {
 			arg := toStringInternal(popT(state.Vals))
 			modified := "'" + strings.Replace(arg, "'", "'\\''", -1) + "'"
 			pushT(state.Vals, string(modified))
-			clearFuncToken(state)
 			return state
 		},
 		"execShell": func(state *State) *State {
@@ -2486,7 +2466,6 @@ func initBuiltins() {
 				}
 			}
 			pushT(state.Vals, string(cmdOutput))
-			clearFuncToken(state)
 			return state
 		},
 		"execBash": func(state *State) *State {
@@ -2502,7 +2481,6 @@ func initBuiltins() {
 				}
 			}
 			pushT(state.Vals, string(cmdOutput))
-			clearFuncToken(state)
 			return state
 		},
 		"execBashStdout": func(state *State) *State {
@@ -2512,17 +2490,14 @@ func initBuiltins() {
 		    if err != nil {
 		        fmt.Println("StdoutPipe Error:", err)
 		        pushT(state.Vals, nil)
-		        clearFuncToken(state)
 		        return state
 		    }
 		    if err := cmd.Start(); err != nil {
 		        fmt.Println("Start Error:", err)
 		        pushT(state.Vals, nil)
-		        clearFuncToken(state)
 		        return state
 		    }
 		    pushT(state.Vals, &Reader{Reader:stdout}) // Push the io.ReadCloser
-		    clearFuncToken(state)
 		    return state
 		},
 		// make a version of this that allows a reader too (as another popT)
@@ -2556,7 +2531,6 @@ func initBuiltins() {
 			}
 
 			pushT(state.Vals, string(cmdOutput))
-			clearFuncToken(state)
 			return state
 		},
 
@@ -2569,7 +2543,6 @@ func initBuiltins() {
 				fmt.Println(err)
 			}
 			pushT(state.Vals, string(cmdOutput))
-			clearFuncToken(state)
 			return state
 		},
 		"getEnvVars": func(state *State) *State {
@@ -2581,7 +2554,6 @@ func initBuiltins() {
 				}
 			}
 			pushT(state.Vals, m)
-			clearFuncToken(state)
 			return state
 		},
 		"readFile": func(state *State) *State {
@@ -2596,7 +2568,6 @@ func initBuiltins() {
 					ReturnValues: []any{string(b)},
 				})
 			}()
-			clearFuncToken(state)
 			return nil
 		},
 		"readDir": func(state *State) *State {
@@ -2606,7 +2577,6 @@ func initBuiltins() {
 			if err != nil {
 				if os.IsNotExist(err) {
 					pushT(state.Vals, &names)
-					clearFuncToken(state)
 					return state
 				}
 				panic(err)
@@ -2617,7 +2587,6 @@ func initBuiltins() {
 				}
 			}
 			pushT(state.Vals, &names)
-			clearFuncToken(state)
 			return state
 		},
 		// todo rename
@@ -2632,7 +2601,6 @@ func initBuiltins() {
 			if err != nil {
 				panic(err)
 			}
-			clearFuncToken(state)
 			return state
 		},
 		"waitReadDir": func(state *State) *State {
@@ -2692,7 +2660,6 @@ func initBuiltins() {
 				panic(err)
 			}
 
-			clearFuncToken(state)
 			pushT(state.Vals, outBuffer.String())
 			return state
 		},
@@ -2701,7 +2668,6 @@ func initBuiltins() {
 			contents := popTString(state.Vals)
 			fileName := popTString(state.Vals)
 			appendFile(fileName, contents)
-			clearFuncToken(state)
 			return state
 		},
 		"appendLine": func(state *State) *State {
@@ -2709,7 +2675,6 @@ func initBuiltins() {
 			contents := popTString(state.Vals)
 			fileName := popTString(state.Vals)
 			appendFile(fileName, contents+"\n")
-			clearFuncToken(state)
 			return state
 		},
 		"deleteFile": func(state *State) *State {
@@ -2718,7 +2683,6 @@ func initBuiltins() {
 			if err != nil && !os.IsNotExist(err) {
 				panic(err)
 			}
-			clearFuncToken(state)
 			return state
 		},
 		// make something like this chat checks if filename is either a file or dorectory
@@ -2738,7 +2702,6 @@ func initBuiltins() {
 			} else {
 				pushT(state.Vals, true)
 			}
-			clearFuncToken(state)
 			return state
 		},
 		"isFile": func(state *State) *State {
@@ -2754,7 +2717,6 @@ func initBuiltins() {
 			} else {
 				pushT(state.Vals, !info.IsDir())
 			}
-			clearFuncToken(state)
 			return state
 		},
 		"isDir": func(state *State) *State {
@@ -2770,7 +2732,6 @@ func initBuiltins() {
 			} else {
 				pushT(state.Vals, info.IsDir())
 			}
-			clearFuncToken(state)
 			return state
 		},
 		"isExecutable": func(state *State) *State {
@@ -2787,7 +2748,6 @@ func initBuiltins() {
 				mode := info.Mode()
 				pushT(state.Vals, mode&0111 != 0)
 			}
-			clearFuncToken(state)
 			return state
 		},
 		"getFileSize": func(state *State) *State {
@@ -2803,7 +2763,6 @@ func initBuiltins() {
 			} else {
 				pushT(state.Vals, info.Size())
 			}
-			clearFuncToken(state)
 			return state
 		},
 		"sleep":   sleepMs,
@@ -2835,7 +2794,6 @@ func initBuiltins() {
 			evalState.Out = state.Out
 			// eval(evalState)
 			// return state
-			clearFuncToken(state)
 			return evalState
 		},
 		"include": func(state *State) *State {
@@ -2855,19 +2813,16 @@ func initBuiltins() {
 			evalState.Out = state.Out
 			// eval(evalState)
 			// return state
-			clearFuncToken(state)
 			return evalState
 		},
 		"dup": func(state *State) *State {
 			v := popT(state.Vals)
 			pushT(state.Vals, v)
 			pushT(state.Vals, v)
-			clearFuncToken(state)
 			return state
 		},
 		"drop": func(state *State) *State {
 			popT(state.Vals)
-			clearFuncToken(state)
 			return state
 		},
 		"swap": func(state *State) *State {
@@ -2875,14 +2830,12 @@ func initBuiltins() {
 			b := popT(state.Vals)
 			pushT(state.Vals, a)
 			pushT(state.Vals, b)
-			clearFuncToken(state)
 			return state
 		},
 		"see": func(state *State) *State {
 			a := popT(state.Vals)
 			say(state, state.Out, a)
 			pushT(state.Vals, a)
-			clearFuncToken(state)
 			return state
 		},
 		"call": func(state *State) *State {
@@ -2898,39 +2851,32 @@ func initBuiltins() {
 			}
 			state.CurrFuncTokens[len(state.CurrFuncTokens)-1] = f
 			newState := callFunc(state)
-			clearFuncToken(state) // needed here?
 			return newState
 		},
 		"clear": func(state *State) *State {
 			spliceT(state.Vals, 0, len(*state.Vals), nil)
-			clearFuncToken(state)
 			return state
 		},
 		"debugTokensOn": func(state *State) *State {
 			state.DebugTokens = true
-			clearFuncToken(state)
 			return state
 		},
 		"debugTokensOff": func(state *State) *State {
 			state.DebugTokens = false
-			clearFuncToken(state)
 			return state
 		},
 		"debugVals": func(state *State) *State {
 			for i, v := range *state.Vals {
 				fmt.Printf("-->%d: %s\n", i, toString(v))
 			}
-			clearFuncToken(state)
 			return state
 		},
 		"debugValsLen": func(state *State) *State {
 			fmt.Println("#coral val length is", len(*state.Vals))
-			clearFuncToken(state)
 			return state
 		},
 		"debugEndStack": func(state *State) *State {
 			fmt.Println("#tomato endstack length is", len(state.EndStack))
-			clearFuncToken(state)
 			return state
 		},
 		// "writePipe": func(state *State) *State {
@@ -2957,7 +2903,6 @@ func initBuiltins() {
 		// 			ReturnValues: []any{err == nil},
 		// 		})
 		// 	}()
-		// 	clearFuncToken(state)
 		// 	return nil
 		// },
 		// "readPipe": func(state *State) *State {
@@ -2982,7 +2927,6 @@ func initBuiltins() {
 		// 			ReturnValues: []any{string(b)},
 		// 		})
 		// 	}()
-		// 	clearFuncToken(state)
 		// 	return nil
 		// },
 	}
@@ -3327,7 +3271,6 @@ func makeFuncToken(token *Func) func(*State) *State {
 var funcBuiltin func(*State) *State
 
 func endOfCodeImmediate(state *State) *State {
-	clearFuncToken(state)
 	if state.CallingParent == nil {
 		state.Done = true
 	}
@@ -4263,14 +4206,12 @@ func deleteProp(a, b any) {
 
 func makeNoop() func(state *State) *State {
 	return func(state *State) *State {
-		clearFuncToken(state)
 		return state
 	}
 }
 func makeBuiltin_0_0(f func()) func(state *State) *State {
 	return func(state *State) *State {
 		f()
-		clearFuncToken(state)
 		return state
 	}
 }
@@ -4278,7 +4219,6 @@ func makeBuiltin_1_0(f func(any)) func(state *State) *State {
 	return func(state *State) *State {
 		a := popT(state.Vals)
 		f(a)
-		clearFuncToken(state)
 		return state
 	}
 }
@@ -4287,7 +4227,6 @@ func makeBuiltin_2_0(f func(any, any)) func(state *State) *State {
 		b := popT(state.Vals)
 		a := popT(state.Vals)
 		f(a, b)
-		clearFuncToken(state)
 		return state
 	}
 }
@@ -4297,14 +4236,12 @@ func makeBuiltin_3_0(f func(any, any, any)) func(state *State) *State {
 		b := popT(state.Vals)
 		a := popT(state.Vals)
 		f(a, b, c)
-		clearFuncToken(state)
 		return state
 	}
 }
 func makeBuiltin_0_1(f func() any) func(state *State) *State {
 	return func(state *State) *State {
 		pushT(state.Vals, f())
-		clearFuncToken(state)
 		return state
 	}
 }
@@ -4312,7 +4249,6 @@ func makeBuiltin_1_1(f func(any) any) func(state *State) *State {
 	return func(state *State) *State {
 		a := popT(state.Vals)
 		pushT(state.Vals, f(a))
-		clearFuncToken(state)
 		return state
 	}
 }
@@ -4321,7 +4257,6 @@ func makeBuiltin_2_1(f func(any, any) any) func(state *State) *State {
 		b := popT(state.Vals)
 		a := popT(state.Vals)
 		pushT(state.Vals, f(a, b))
-		clearFuncToken(state)
 		return state
 	}
 }
@@ -4331,7 +4266,6 @@ func makeBuiltin_3_1(f func(any, any, any) any) func(state *State) *State {
 		b := popT(state.Vals)
 		a := popT(state.Vals)
 		pushT(state.Vals, f(a, b, c))
-		clearFuncToken(state)
 		return state
 	}
 }
@@ -4342,7 +4276,6 @@ func makeBuiltin_4_1(f func(any, any, any, any) any) func(state *State) *State {
 		b := popT(state.Vals)
 		a := popT(state.Vals)
 		pushT(state.Vals, f(a, b, c, d))
-		clearFuncToken(state)
 		return state
 	}
 }
@@ -4384,7 +4317,6 @@ func doEnd(state *State) *State {
 	endFunc := state.EndStack[len(state.EndStack)-1]
 	state.EndStack = state.EndStack[:len(state.EndStack)-1]
 
-	clearFuncToken(state)
 	return endFunc(state)
 }
 
@@ -4856,7 +4788,6 @@ func appendFile(fileName, contents string) {
 
 func sleepMs(state *State) *State {
 	ms := toIntInternal(popT(state.Vals))
-	clearFuncToken(state)
 	go func() {
 		time.Sleep(time.Duration(ms) * time.Millisecond)
 		state.AddCallback(Callback{State: state})
@@ -5114,4 +5045,357 @@ Here are a few small changes you can make today that will measurably speed up yo
 ---
 
 Taken together you should see a 10–30% improvement just by removing repeated field dereferences, interface switches, and small call overheads.  The next step beyond that is a single‐pass token‐to‐opcode compilation so that your dispatch in the main loop is a single integer switch or even a threaded‐code jump table.
+*/
+
+/* ok I applied this diff
+
+
+diff --git a/src/linescript4/linescript4.go b/src/linescript4/linescript4.go
+index f6ae960..ded16c7 100644
+--- a/src/linescript4/linescript4.go
++++ b/src/linescript4/linescript4.go
+@@ -522,8 +522,11 @@ evalLoop:
+ 			appendFile("delme_tokens.txt", fmt.Sprintf("token: %q       %T (%s:%d/%d)\n", name, token, state.FileName, state.I, len(state.Code)-1))
+ 		}
+ 		_ = name
+-		switch token := token.(type) {
+-		case immediateToken:
++		// switch token := token.(type) {
++		switch token.kind {
++		// case immediateToken:
++		case ImmediateToken:
++		    token := token.val.(immediateToken)
+ 			o := state
+ 			state = token(state)
+ 			if o.Done && o.IsMainTop {
+@@ -558,15 +561,16 @@ evalLoop:
+ 				}
+ 				state.NewlineSpot = len(*state.Vals)
+ 			}
+-		case builtinFuncToken:
++		case BuiltinFuncToken:
++		    token := token.val.(builtinFuncToken)
+ 			state.CurrFuncTokens = append(state.CurrFuncTokens, token)
+ 			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+-			// case builtinToken:
+-			// ??
+-		case getVarToken:
++		case GetVarToken:
++		    token := token.val.(getVarToken)
+ 			evaled := getVar(state, token)
+ 			pushT(state.Vals, evaled)
+-		case getVarFuncToken:
++		case GetVarFuncToken:
++		    token := token.val.(getVarFuncToken)
+ 			evaledFunc := getVar(state, token).(func(*State) *State)
+ 			state.CurrFuncTokens = append(state.CurrFuncTokens, evaledFunc)
+ 			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+@@ -577,14 +581,6 @@ evalLoop:
+ 			// case Immediate:
+ 			//     state = token.Process(state)
+ 
+-		// case string:
+-		// 	pushT(state.Vals, token)
+-		// case int:
+-		// 	pushT(state.Vals, token)
+-		// case float64:
+-		// 	pushT(state.Vals, token)
+-		// case bool:
+-		// 	pushT(state.Vals, token)
+ 
+ 		// slower
+ 		// case getVarToken:
+@@ -603,7 +599,8 @@ evalLoop:
+ 			// made the 1 million item loop in example2.js go from 24xms to 32xms
+ 			// I tried interfaces with a ProcessMethod and that was also slow
+ 			// see jump_alt and jump_table branches
+-			pushT(state.Vals, token)
++			// pushT(state.Vals, token)
++			pushT(state.Vals, token.val)
+ 			// fmt.Printf("oops type %T\n", token)
+ 				// panic("fail")
+ 		}
+@@ -685,11 +682,28 @@ func callFunc(state *State) *State {
+ 
+ type TokenCacheValue struct {
+ 	I     int
+-	Token any
++	// Token any
++	Token Token
+ 	Name  string
+ }
+ 
+-func nextToken(state *State) (any, string) {
++const (
++    LiteralToken byte = iota
++    ImmediateToken
++    BuiltinFuncToken
++    GetVarToken
++    GetVarFuncToken
++)
++
++func WrapToken(theType byte, token any) Token {
++    return Token{kind: theType, val: token}
++}
++
++type Token struct {
++    kind byte       // 0=literal,1=immediate,2=builtin,3=getvar,4=getvarfunc
++    val  any
++}
++func nextToken(state *State) (Token, string) {
+ 	code := state.Code
+ 	i := state.I
+ 	// fmt.Println("i:", i, "len", len(state.ICache))
+@@ -715,10 +729,11 @@ func nextToken(state *State) (any, string) {
+ const stateOut = 0
+ const stateIn = 1
+ 
+-func nextTokenRaw(state *State, code string, i int) (any, string, int) {
++// func nextTokenRaw(state *State, code string, i int) (any, string, int) {
++func nextTokenRaw(state *State, code string, i int) (Token, string, int) {
+ 	// TODO: count subsequent newlines as a single newline.
+ 	if i >= len(code) {
+-		return immediateToken(endOfCodeImmediate), "past end?", -1
++		return WrapToken(ImmediateToken, immediateToken(endOfCodeImmediate)), "past end?", -1
+ 	}
+ 	parseState := stateOut
+ 	start := -1
+@@ -737,12 +752,12 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
+ 				expectedQuoteEnd := string(code[i])
+ 				end := strings.Index(code[i+1:], expectedQuoteEnd)
+ 				str := code[i+1 : i+1+end]
+-				return str, str, i + 1 + end + 1
++				return WrapToken(LiteralToken, str), str, i + 1 + end + 1
+ 			case '#':
+ 				// comments
+ 				end := strings.Index(code[i+1:], "\n")
+ 				if end == -1 {
+-					return immediateToken(endOfCodeImmediate), "end in comment", -1
++					return WrapToken(ImmediateToken, immediateToken(endOfCodeImmediate)), "end in comment", -1
+ 				}
+ 				i = i + end
+ 			default:
+@@ -762,7 +777,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
+ 				expectedQuoteEnd := string(code[i]) + str
+ 				endIndex := strings.Index(code[i+1:], expectedQuoteEnd)
+ 				token := code[i+1 : i+1+endIndex]
+-				return token, token, i + 1 + endIndex + len(expectedQuoteEnd)
++				return WrapToken(LiteralToken, token), token, i + 1 + endIndex + len(expectedQuoteEnd)
+ 			default:
+ 			}
+ 		}
+@@ -772,13 +787,12 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
+ 		// return makeToken(state, str), str, i + 1
+ 		return makeToken(state, str), str, i
+ 	}
+-	return immediateToken(endOfCodeImmediate), "got to end?", -1
++	return WrapToken(ImmediateToken, immediateToken(endOfCodeImmediate)), "got to end?", -1
+ }
+ 
+ type getVarFuncToken *DString
+ // type getVarToken string
+ type getVarToken *DString
+-type builtinToken func(*State) *State
+ type builtinFuncToken func(*State) *State
+ type immediateToken func(*State) *State
+ 
+@@ -876,15 +890,16 @@ var stdinReader = &Reader{
+ }
+ 
+ 
+-func makeToken(state *State, val string) any {
++// func makeToken(state *State, val string) any {
++func makeToken(state *State, val string) Token {
+ 	// immediates go first, because it could be an immediate and builtin
+ 	// The 2 immediate styles can be consolidated now
+ 	if f, ok := runAlwaysImmediates[val]; ok {
+-		return immediateToken(f)
++		return WrapToken(ImmediateToken, immediateToken(f))
+ 	}
+ 	if f, ok := runImmediates[val]; ok {
+ 		// if state.Mode == "normal" {
+-		return immediateToken(f)
++		return WrapToken(ImmediateToken, immediateToken(f))
+ 		// } else {
+ 		// return immediateToken(noop)
+ 		// }
+@@ -893,20 +908,8 @@ func makeToken(state *State, val string) any {
+ 		// wow we  switch on the mode at compile time?!
+ 		// the first run is compile time, interesting
+ 
+-		return builtinFuncToken(b)
+-
+-		// switch state.Mode {
+-		// case "normal":
+-		// 	return builtinFuncToken(b)
+-		// 	// attempt to require fewer cases in token switch
+-		// 	// but it's slower, with closure and even polymorphic types, it's slower.
+-		// 	// compared to switch
+-		// 	// tho too many switch cases bad
+-		// 	// return makeImmediateFromBuiltinFuncToken(b)
+-		// case "array", "object":
+-		// 	// need this?
+-		// 	return builtinToken(b)
+-		// }
++		return WrapToken(BuiltinFuncToken, builtinFuncToken(b))
++
+ 	}
+ 	
+ 	// string shortcut, maybe phase out : for . ?
+@@ -915,18 +918,18 @@ func makeToken(state *State, val string) any {
+ 			// panic("skipping!!")
+ 			// return Skip("")
+ 			// is this hit?
+-			return val
++			return WrapToken(LiteralToken, val)
+ 		}
+ 		theString := val[1:]
+ 		// return theString
+ 		// return &DString{String: theString, RecordIndex: -1}
+-		return GetDString(state, theString)
++		return WrapToken(LiteralToken, GetDString(state, theString))
+ 	}
+ 	if val[len(val)-1] == '.' {
+ 		theString := val[0:len(val)-1]
+ 		// return theString
+ 		// return &DString{String: theString, RecordIndex: -1}
+-		return GetDString(state, theString)
++		return WrapToken(LiteralToken, GetDString(state, theString))
+ 	}
+ 	if isNumeric(val) {
+ 		if val[len(val)-1:] == "f" {
+@@ -935,7 +938,7 @@ func makeToken(state *State, val string) any {
+ 			if err != nil {
+ 				panic(err)
+ 			}
+-			return f
++			return WrapToken(LiteralToken, f)
+ 		}
+ 		if strings.Contains(val, ".") {
+ 			// return val
+@@ -945,36 +948,36 @@ func makeToken(state *State, val string) any {
+ 			if err != nil {
+ 				panic(err)
+ 			}
+-			return f
++			return WrapToken(LiteralToken, f)
+ 		}
+ 
+ 		cleanedVal := strings.Replace(val, "_", "", -1)
+ 		i, err := strconv.Atoi(cleanedVal)
+ 		if err != nil {
+-			return val
++			return WrapToken(LiteralToken, val)
+ 		}
+-		return i
++		return WrapToken(LiteralToken, i)
+ 	}
+ 
+ 	switch val {
+ 	case "true":
+-		return true
++	    return WrapToken(LiteralToken, true)
+ 	case "false":
+-		return false
++	    return WrapToken(LiteralToken, false)
+ 	case "newline":
+-		return "\n"
++	    return WrapToken(LiteralToken, "\n")
+ 	case "formFeed":
+-		return "\f"
++	    return WrapToken(LiteralToken, "\f")
+ 	case "carriageReturn":
+-		return "\r"
++	    return WrapToken(LiteralToken, "\r")
+ 	case "crlf":
+-		return "\r\n"
++	    return WrapToken(LiteralToken, "\r\n")
+ 	case "tab":
+-		return "\t"
++	    return WrapToken(LiteralToken, "\t")
+ 	case "null":
+-		return nil
++	    return WrapToken(LiteralToken, nil)
+ 	case "stdin":
+-		return stdinReader
++	    return WrapToken(LiteralToken, stdinReader)
+ 	}
+ 
+     // dval := &DString{String: val, RecordIndex: -1}
+@@ -984,13 +987,12 @@ func makeToken(state *State, val string) any {
+ 	// but have to eval twice the first round?!
+ 	// TODO: fix the double eval
+ 	if _, ok := evaled.(func(*State) *State); ok {
+-		return getVarFuncToken(dval)
++		return WrapToken(GetVarFuncToken, getVarFuncToken(dval))
+ 	} else {
+-		// return getVarToken(val)
+-		return getVarToken(dval)
++		return WrapToken(GetVarToken, getVarToken(dval))
+ 	}
+ 	panic("no slash?")
+-	return nil
++	return WrapToken(LiteralToken, nil)
+ }
+ 
+ And guess what, it was not faster!
+
+*/
+/*
+
+undefinedHere are a few quick, “low-hanging” optimizations you can make today in your `Eval` loop—without rewriting the whole VM—that often yield a measurable speed-up:
+
+1) Hoist hot-loop fields into locals  
+   Every time through your `for` you do dozens of `state.X` loads. Go can only hoist so much for you. At the top of your loop copy the really hot ones into local variables, mutate the locals, and write them back to `state` only when you exit that iteration or need to change context. That cuts down on pointer indirections and bounds checks.  
+   
+   ```go
+   evalLoop:
+     for {
+       icache    := state.ICache
+       valsp     := state.Vals
+       funcs     := state.CurrFuncTokens
+       funcSpots := state.FuncTokenSpots
+       // … use icache, valsp, funcs, funcSpots …
+       // when you change them:
+       state.Vals           = valsp
+       state.CurrFuncTokens = funcs
+       state.FuncTokenSpots = funcSpots
+       // etc…
+     }
+   ```
+
+2) Pre-tokenize or cache token kinds  
+   Right now you’re doing `nextToken` → `interface{}` → a `type` switch on each token. Better to do one of these:  
+   • One-time scan of the source into a flat slice of `(kind byte, payload any)` structs, then just walk that array.  
+   • Or assign each token a small integer opcode at parse time, so your dispatch becomes a tiny `switch opcode { … }` rather than a full Go interface type-switch.  
+
+3) Remove the token name in the hot path  
+   You return `(any, string)` from `nextToken` and ignore the `string` 99.9% of the time. Split your API so that in production you do `nextToken() Token` (no string), and only in debug mode do you call something like `tokenName()` behind an `if debugTokens`.
+
+4) Pre-allocate your stacks and slices with a healthy capacity  
+   Right after `MakeState` do something like:
+   ```go
+   state.Vals      = &make([]any, 0, 256)
+   state.EndStack  = make([]func(*State)*State, 0, 32)
+   state.ModeStack = make([]string, 0, 16)
+   ```
+   That avoids repeated heap resizes and bounds-check overhead in the hot path.
+
+5) Inline the tiny helpers  
+   Every call to `callFunc()`, `doEnd()`, `popT()`, etc., is another function call. Copy-and-paste their bodies into the two branches in your main loop. Removing just a couple of calls per token dispatch can buy you a few percent.
+
+6) Move your `defer recover()` out of the inner loop  
+   A `defer` in a hot loop can inhibit inlining and register allocation. You only need to catch panics at the topmost level. For example, wrap your entire `for state!=nil …` in one `defer` in the caller, rather than inside `Eval`.
+
+7) Consider a custom “stack of untyped values” instead of `[]any`  
+   Every push/pop allocates an interface box. If you instead use a small struct like  
+   ```go
+   type Value struct { kind byte; i int64; f float64; p unsafe.Pointer }
+   ```
+   and keep a `[]Value`, you avoid Go’s boxing and dynamic dispatch. This is a bigger change, but it often pays for all the interface sloshing.
+
+8) Profile and zero in on the real hot spots  
+   — fire up `pprof` or `go-torch` and see which functions or lines are burning CPU. Sometimes the biggest gains come from unexpected places (string parsing? indent computation? ICache misses?).
+
+Taken together, these steps alone—hoisting fields, eliminating interface switches, pre-allocating buffers, and inlining a few dozen small calls—will often give you 10–30% better throughput in a byte-code-style VM. If you still need more after that, the next big step is a true two-pass compiler that emits a compact opcode stream, then runs a tight integer‐switch dispatch loop over it.
 */
