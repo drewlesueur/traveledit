@@ -55,7 +55,8 @@ package main
 // end] // should that work? update: it works now that "end" is am immediate
 
 // DStrings with underlying index
-
+// todo check for dvalue re-wraps, see how we do in Sort
+// check ready file bynline?
 
 import (
 	"bufio"
@@ -125,15 +126,18 @@ type RunImmediate2 struct {
 }
 
 const (
-    Null byte = iota
-    Int
-    Float
-    String
-    Bool
-    Map
-    Slice
+    NullType byte = iota
+    IntType
+    FloatType
+    StringType
+    DStringType
+    ReaderType
+    BoolType
+    MapType
+    SliceType
     FuncType
     StateType
+    AnyType
 )
 var null = DValue{Type: 0}
 
@@ -150,50 +154,54 @@ type DValue struct {
     ByteSlice []byte
     Func func(state *State) *State
     State *State
+    Any any
 }
 func DValueSlice(s *[]DValue) DValue {
     return DValue{
-        Type: Slice,
+        Type: SliceType,
         Slice: s,
     }
 }
 func DValueInt(i int) DValue {
     return DValue{
-        Type: Int,
+        Type: IntType,
         Int: i,
     }
 }
 
 func DValueNull() DValue {
-    return DValue{Type: Null}
+    return DValue{Type: NullType}
 }
 func DValueFloat(f float64) DValue {
-    return DValue{Type: Float, Float: f}
+    return DValue{Type: FloatType, Float: f}
 }
 func DValueString(s string) DValue {
-    return DValue{Type: String, String: s}
+    return DValue{Type: StringType, String: s}
 }
 func DValueDString(ds *DString) DValue {
-    return DValue{Type: String, DString: ds}
+    return DValue{Type: DStringType, DString: ds}
 }
 func DValueReader(r *Reader) DValue {
-    return DValue{Type: String, Reader: r}
+    return DValue{Type: ReaderType, Reader: r}
 }
 func DValueBool(b bool) DValue {
-    return DValue{Type: Bool, Bool: b}
+    return DValue{Type: BoolType, Bool: b}
 }
 func DValueMap(m map[string]DValue) DValue {
-    return DValue{Type: Map, Map: m}
+    return DValue{Type: MapType, Map: m}
 }
 
 func DValueByteSlice(b []byte) DValue {
-    return DValue{Type: Map, ByteSlice: b}
+    return DValue{Type: SliceType, ByteSlice: b}
 }
 func DValueFunc(f func(state *State) *State) DValue {
-    return DValue{Type: Map, Func: f}
+    return DValue{Type: FuncType, Func: f}
 }
 func DValueState(s *State) DValue {
     return DValue{Type: StateType, State: s}
+}
+func DValueAny(a any) DValue {
+    return DValue{Type: AnyType, Any: a}
 }
 
 
@@ -1637,14 +1645,6 @@ func initBuiltins() {
 		}),
 		"+": makeBuiltin_2_1(plus),
 		"-": makeBuiltin_2_1(minus),
-		"+f": func(state *State) *State {
-			pushT(state.Vals, popT(state.Vals).(float64)+popT(state.Vals).(float64))
-			return state
-		},
-		"-f": func(state *State) *State {
-			pushT(state.Vals, popT(state.Vals).(float64)-popT(state.Vals).(float64))
-			return state
-		},
 		"*":  makeBuiltin_2_1(times),
 		"/":  makeBuiltin_2_1(divide),
 		"^":  makeBuiltin_2_1(pow),
@@ -1680,36 +1680,36 @@ func initBuiltins() {
 		"lastIndexOf": makeBuiltin_2_1(lastIndexOf),
 		"split":       makeBuiltin_2_1(split),
 		"trim": makeBuiltin_1_1(func(a DValue) DValue {
-			return strings.TrimSpace(toStringInternal(a))
+			return DValueString(strings.TrimSpace(toStringInternal(a)))
 		}),
 		"join": makeBuiltin_2_1(func(a, b DValue) DValue {
 			// TODO: allow DValuething to use slice of strings too
-			strSlice := make([]string, len(*a.(*[]DValue)))
-			for i, v := range *a.(*[]DValue) {
+			strSlice := make([]string, len(*(a.Slice)))
+			for i, v := range *(a.Slice) {
 				strSlice[i] = toStringInternal(v)
 			}
-			return strings.Join(strSlice, toStringInternal(b))
+			return DValueString(strings.Join(strSlice, toStringInternal(b)))
 		}),
 		"contains": makeBuiltin_2_1(func(a, b DValue) DValue {
-			return strings.Contains(toStringInternal(a), toStringInternal(b))
+			return DValueBool(strings.Contains(toStringInternal(a), toStringInternal(b)))
 		}),
 		"startsWith": makeBuiltin_2_1(func(a, b DValue) DValue {
-			return strings.HasPrefix(toStringInternal(a), toStringInternal(b))
+			return DValueBool(strings.HasPrefix(toStringInternal(a), toStringInternal(b)))
 		}),
 		"endsWith": makeBuiltin_2_1(func(a, b DValue) DValue {
-			return strings.HasSuffix(toStringInternal(a), toStringInternal(b))
+			return DValueBool(strings.HasSuffix(toStringInternal(a), toStringInternal(b)))
 		}),
 		"trimPrefix": makeBuiltin_2_1(func(a, b DValue) DValue {
-			return strings.TrimPrefix(toStringInternal(a), toStringInternal(b))
+			return DValueString(strings.TrimPrefix(toStringInternal(a), toStringInternal(b)))
 		}),
 		"trimSuffix": makeBuiltin_2_1(func(a, b DValue) DValue {
-			return strings.TrimSuffix(toStringInternal(a), toStringInternal(b))
+			return DValueString(strings.TrimSuffix(toStringInternal(a), toStringInternal(b)))
 		}),
 		"upper": makeBuiltin_1_1(func(a DValue) DValue {
-			return strings.ToUpper(toStringInternal(a))
+			return DValueString(strings.ToUpper(toStringInternal(a)))
 		}),
 		"lower": makeBuiltin_1_1(func(a DValue) DValue {
-			return strings.ToLower(toStringInternal(a))
+			return DValueString(strings.ToLower(toStringInternal(a)))
 		}),
 		"toString": makeBuiltin_1_1(toString),
 		"toInt":    makeBuiltin_1_1(toInt),
@@ -1738,48 +1738,38 @@ func initBuiltins() {
 		"setIndex": makeBuiltin_3_0(setIndex),
 		"at":       makeBuiltin_2_1(at),
 		"in": makeBuiltin_2_1(func(a, b DValue) DValue {
-			_, ok := b.(map[string]DValue)[toStringInternal(a)]
-			return ok
+			_, ok := b.Map[toStringInternal(a)]
+			return DValueBool(ok)
 		}),
 		"btoa": makeBuiltin_1_1(func(a DValue) DValue {
-			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
+		    panic("deprecated")
 		}),
 		"atob": makeBuiltin_1_1(func(a DValue) DValue {
-			// data, err := base64.StdEncoding.DecodeString(toStringInternal(a))
-			data, err := base64.RawStdEncoding.DecodeString(toStringInternal(a))
-			if err != nil {
-				fmt.Println("atob:", err)
-				return ""
-			}
-			return string(data)
+		    panic("deprecated")
 		}),
 		"base64Encode": makeBuiltin_1_1(func(a DValue) DValue {
-			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
+		    panic("deprecated")
 		}),
 		"base64Decode": makeBuiltin_1_1(func(a DValue) DValue {
-			ret, err := base64.StdEncoding.DecodeString(toStringInternal(a))
-			if err != nil {
-				panic(err)
-			}
-			return string(ret)
+		    panic("deprecated")
 		}),
 		"toBase64": makeBuiltin_1_1(func(a DValue) DValue {
-			return base64.StdEncoding.EncodeToString([]byte(toStringInternal(a)))
+			return DValueString(base64.StdEncoding.EncodeToString([]byte(toStringInternal(a))))
 		}),
 		"fromBase64": makeBuiltin_1_1(func(a DValue) DValue {
 			ret, err := base64.StdEncoding.DecodeString(toStringInternal(a))
 			if err != nil {
 				panic(err)
 			}
-			return string(ret)
+			return DValueString(string(ret))
 		}),
 		"urlEncode": makeBuiltin_1_1(func(a DValue) DValue {
-			return url.PathEscape(toStringInternal(a))
+			return DValueString(url.PathEscape(toStringInternal(a)))
 		}),
 		"rand": makeBuiltin_2_1(func(a, b DValue) DValue {
 			min := toIntInternal(a)
 			max := toIntInternal(b)
-			return rand.Intn(max-min+1) + min
+			return DValueInt(rand.Intn(max-min+1) + min)
 		}),
 		"padLeft": makeBuiltin_3_1(func(s, padChar DValue, length DValue) DValue {
 			str := toStringInternal(s)
@@ -1788,16 +1778,16 @@ func initBuiltins() {
 			for len(str) < padLength {
 				str = pad + str
 			}
-			return str
+			return DValueString(str)
 		}),
 		"padRight": makeBuiltin_3_1(func(s, padChar DValue, length DValue) DValue {
 			str := toStringInternal(s)
 			pad := toStringInternal(padChar)
-			padLength := length.(int)
+			padLength := length.Int
 			for len(str) < padLength {
 				str = str + pad
 			}
-			return str
+			return DValueString(str)
 		}),
 		"slice":       makeBuiltin_3_1(slice),
 		"splice":      makeBuiltin_4_1(splice),
@@ -1816,21 +1806,21 @@ func initBuiltins() {
 			if err != nil {
 				panic(err)
 			}
-			return r
+			return DValueString(r)
 		}),
 		"tcpConnect": makeBuiltin_1_1(func(a DValue) DValue {
 			conn, err := net.Dial("tcp", toStringInternal(a))
 			if err != nil {
 				panic(err)
 			}
-			return conn
+			return DValueAny(conn)
 		}),
 		"tcpClose": makeBuiltin_1_0(func(a DValue) {
-			a.(net.Conn).Close()
+			a.Any.(net.Conn).Close()
 		}),
 		"tcpWrite": makeBuiltin_2_0(func(a, b DValue) {
 			bts := []byte(toStringInternal(b))
-			n, err := a.(net.Conn).Write(bts)
+			n, err := a.Any.(net.Conn).Write(bts)
 			if err != nil {
 				panic(err)
 			}
@@ -1840,24 +1830,24 @@ func initBuiltins() {
 		}),
 		"tcpRead": makeBuiltin_2_1(func(a, b DValue) DValue {
 			buf := make([]byte, toIntInternal(b))
-			n, err := a.(net.Conn).Read(buf)
+			n, err := a.Any.(net.Conn).Read(buf)
 			if err != nil {
 				if err == io.EOF {
 				} else {
 					panic(err)
 				}
 			}
-			return string(buf[:n])
+			return DValueString(string(buf[:n]))
 		}),
 		"close": makeBuiltin_1_0(func(a DValue) {
-		    if a, ok := a.(io.Closer); ok {
+		    if a, ok := a.Any.(io.Closer); ok {
 		        a.Close()
 		    }
 		}),
 		// TODO, wrangle the panics
 		// maybe don't panic
 		"read": makeBuiltin_2_1(func(a, b DValue) DValue {
-		    if a, ok := a.(io.Reader); ok {
+		    if a, ok := a.Any.(io.Reader); ok {
 				buf := make([]byte, toIntInternal(b))
 		        n, err := a.Read(buf)
 				if err != nil {
@@ -1866,12 +1856,12 @@ func initBuiltins() {
 						panic(err)
 					}
 				}
-				return string(buf[:n])
+				return DValueString(string(buf[:n]))
 		    }
-		    return ""
+		    return DValueString("")
 		}),
 		"write": makeBuiltin_2_0(func(a, b DValue) {
-		    if a, ok := a.(io.Writer); ok {
+		    if a, ok := a.Any.(io.Writer); ok {
 				bts := []byte(toStringInternal(b))
 				n, err := a.(net.Conn).Write(bts)
 				if err != nil {
@@ -1890,39 +1880,48 @@ func initBuiltins() {
 			if err != nil {
 				panic(err)
 			}
-			var recursivelyPtrArrays func(any) any
-			recursivelyPtrArrays = func(x any) any {
+			var recursiveDValues func(any) DValue
+			recursiveDValues = func(x any) DValue {
 				switch x := x.(type) {
 				case []any:
+					xNew := make([]DValue, len(x))
 					// Recursively process each element
 					for i, v := range x {
-						x[i] = recursivelyPtrArrays(v)
+						xNew[i] = recursiveDValues(v)
 					}
-					return &x // Return pointer to the array
+					return DValueSlice(&xNew) // Return pointer to the array
 				case map[string]any:
+					newX := map[string]DValue{}
 					for k, v := range x {
-						x[k] = recursivelyPtrArrays(v)
+						newX[k] = recursiveDValues(v)
 					}
-					return x
+					return DValueMap(newX)
+				case string:
+				    return DValueString(x)
+				case float64:
+				    return DValueFloat(x)
+				case nil:
+				    return null
 				default:
-					return x
+				    panic("unexpected json type")
 				}
 			}
-			return recursivelyPtrArrays(r)
+			ret := recursiveDValues(r)
+			return ret
 		}),
 		"toJson": makeBuiltin_1_1(func(a DValue) DValue {
 			b, err := json.Marshal(a)
 			if err != nil {
 				panic(err)
 			}
-			return string(b)
+			return DValueString(string(b))
 		}),
 		"toJsonF": makeBuiltin_1_1(func(a DValue) DValue {
 			b, err := json.MarshalIndent(a, "", "    ")
 			if err != nil {
 				panic(err)
 			}
-			return string(b)
+			return DValueString(string(b))
 		}),
 		"exit": func(state *State) *State {
 			close(state.Machine.CallbacksCh)
@@ -1930,11 +1929,11 @@ func initBuiltins() {
 			return nil
 		},
 		"makeObject": func(state *State) *State {
-			pushT(state.Vals, map[string]DValue{})
+			pushT(state.Vals, DValueMap(map[string]DValue{}))
 			return state
 		},
 		"makeArray": func(state *State) *State {
-			pushT(state.Vals, &[]DValue{})
+			pushT(state.Vals, DValueSlice(&[]DValue{}))
 			return state
 		},
 		"incr": func(state *State) *State {
@@ -1943,13 +1942,13 @@ func initBuiltins() {
 		},
 		"local": func(state *State) *State {
 			b := popT(state.Vals)
-			a := popT(state.Vals).(*DString)
+			a := popT(state.Vals).DString
 			state.Vars.SetDString(a, b)
 			return state
 		},
 		"let": func(state *State) *State {
 			b := popT(state.Vals)
-			a := popT(state.Vals).(*DString)
+			a := popT(state.Vals).DString
 			parentVars, _ := findParentAndValue(state, a)
 			if parentVars == nil {
 				parentVars = state.Vars
@@ -1965,24 +1964,21 @@ func initBuiltins() {
 		    rawB := popT(state.Vals)
 		    rawA := popT(state.Vals)
 
-		    switch b := rawB.(type) {
-		    case *DString:
+		    switch rawB.Type {
+		    case DStringType:
 		        // simple: single variable
-		        state.Vars.SetDString(b, rawA)
-		    case string:
+		        state.Vars.SetDString(rawB.DString, rawA)
+		    case StringType:
 		        // simple: single variable
-		        state.Vars.Set(b, rawA)
-		    case *[]DValue:
+		        state.Vars.Set(rawB.String, rawA)
+		    case SliceType:
 		        // case: keys are in a []interface{} (each must be a string)
-		        aSlice, ok := rawA.(*[]DValue)
-		        if !ok {
-		            panic(fmt.Sprintf("as: unexpected RHS type %T, want []interface{}", rawA))
-		        }
-		        for i, keyI := range *b {
+		        aSlice := rawA.Slice
+		        for i, keyI := range *(rawB.Slice) {
 		            if i < len(*aSlice) {
 		                state.Vars.Set(toStringInternal(keyI), (*aSlice)[i])
 		            } else {
-		                state.Vars.Set(toStringInternal(keyI), nil)
+		                state.Vars.Set(toStringInternal(keyI), null)
 		            }
 		        }
 		    default:
@@ -2066,16 +2062,16 @@ func initBuiltins() {
 			var loops int
 			if len(thingsVal) >= 2 {
 				loops = toIntInternal(thingsVal[0])
-				indexVar = thingsVal[1].(*DString)
+				indexVar = thingsVal[1].DString
 			} else if len(thingsVal) == 1 {
 				loops = toIntInternal(popT(state.Vals))
-				indexVar = thingsVal[0].(*DString)
+				indexVar = thingsVal[0].DString
 			} else {
 				loops = toIntInternal(popT(state.Vals))
 			}
 
 			if indexVar != nil {
-				state.Vars.SetDString(indexVar, -1)
+				state.Vars.SetDString(indexVar, DValueInt(-1))
 			}
 			var spot = state.I
 			var endEach func(state *State) *State
@@ -2086,10 +2082,10 @@ func initBuiltins() {
 					return state
 				} else {
 					if indexVar != nil {
-						state.Vars.SetDString(indexVar, theIndex)
+						state.Vars.SetDString(indexVar, DValueInt(theIndex))
 						// state.Vars.Set(indexVar.String, theIndex)
 					} else {
-						pushT(state.Vals, theIndex)
+						pushT(state.Vals, DValueInt(theIndex))
 					}
 					state.I = spot
 					state.EndStack = append(state.EndStack, endEach)
@@ -2119,21 +2115,21 @@ func initBuiltins() {
 			if len(thingsVal) >= 3 {
 				loopStart = toIntInternal(thingsVal[0])
 				loopEnd = toIntInternal(thingsVal[1])
-				indexVar = thingsVal[2].(*DString)
+				indexVar = thingsVal[2].DString
 			} else if len(thingsVal) == 2 {
 				loopStart = toIntInternal(thingsVal[0])
 				loopEnd = toIntInternal(thingsVal[1])
 			} else if len(thingsVal) == 1 {
 				loopEnd = toIntInternal(popT(state.Vals))
 				loopStart = toIntInternal(popT(state.Vals))
-				indexVar = thingsVal[0].(*DString)
+				indexVar = thingsVal[0].DString
 			} else {
 				loopStart = toIntInternal(popT(state.Vals))
 				loopEnd = toIntInternal(popT(state.Vals))
 			}
 
 			if indexVar != nil {
-				state.Vars.SetDString(indexVar, -1)
+				state.Vars.SetDString(indexVar, DValueInt(-1))
 			}
 			if loopStart < loopEnd {
 				theIndex = loopStart - 1
@@ -2162,9 +2158,9 @@ func initBuiltins() {
 					return state
 				} else {
 					if indexVar != nil {
-						state.Vars.SetDString(indexVar, theIndex)
+						state.Vars.SetDString(indexVar, DValueInt(theIndex))
 					} else {
-						pushT(state.Vals, theIndex)
+						pushT(state.Vals, DValueInt(theIndex))
 					}
 					state.I = spot
 					state.EndStack = append(state.EndStack, endEach)
@@ -2182,12 +2178,13 @@ func initBuiltins() {
 			return state
 		},
 		"sort": func(state *State) *State {
-			a := popT(state.Vals).(*[]DValue)
+			aWrap := popT(state.Vals)
+			a := aWrap.Slice
 			aVal := *a
 			sort.Slice(aVal, func(i, j int) bool {
 			    return toStringInternal(aVal[i]) < toStringInternal(aVal[j])
 			})
-			pushT(state.Vals, a)
+			pushT(state.Vals, aWrap)
 			return state
 		},
 		"each": func(state *State) *State {
@@ -2198,7 +2195,7 @@ func initBuiltins() {
 			return processLoop(state, func(state *State, theIndex DValue, value DValue) {
 				ret = append(ret, popT(state.Vals))
 			}, func(state *State) {
-				pushT(state.Vals, &ret)
+				pushT(state.Vals, DValueSlice(&ret))
 			})
 			return state
 		},
@@ -2213,7 +2210,7 @@ func initBuiltins() {
 				panic(err)
 			}
 			reader := bufio.NewReader(f)
-			(*state.Vals)[ftSpot] = &Newliner{Reader: reader}
+			(*state.Vals)[ftSpot] = DValueAny(&Newliner{Reader: reader})
 			return processLoop(state, nil, func(state *State) {
 			    f.Close()
 			})
@@ -2222,12 +2219,12 @@ func initBuiltins() {
 		"filter": func(state *State) *State {
 			ret := []DValue{}
 			return processLoop(state, func(state *State, theIndex DValue, value DValue) {
-				v := toBool(popT(state.Vals)).(bool)
+				v := toBool(popT(state.Vals)).Bool
 				if v {
 					ret = append(ret, value)
 				}
 			}, func(state *State) {
-				pushT(state.Vals, &ret)
+				pushT(state.Vals, DValueSlice(&ret))
 			})
 			return state
 		},
@@ -2235,7 +2232,7 @@ func initBuiltins() {
 			debug("#skyblue IF")
 			// debugStateI(state, state.I)
 			cond := popT(state.Vals)
-			if toBool(cond).(bool) == true {
+			if toBool(cond).Bool == true {
 				debug("#white add end stack true if")
 				state.EndStack = append(state.EndStack, endIf)
 			} else {
@@ -2296,7 +2293,7 @@ func initBuiltins() {
 				// pushT(newState.Vals, popT(state.Vals))
 			} else {
 				for _, v := range thingsVal {
-					newState.Vars.SetDString(v.(*DString), getVar(state, v.(*DString)))
+					newState.Vars.SetDString(v.DString, getVar(state, v.DString))
 				}
 			}
 
@@ -2321,17 +2318,14 @@ func initBuiltins() {
 			state.AddCallback(Callback{
 				State: newState,
 			})
-			pushT(state.Vals, newState)
+			pushT(state.Vals, DValueState(newState))
 			return state
 		},
 		// todo, also pause/resume as alternative to wait?
 		// TODO: cancel
 		"wait": func(state *State) *State {
 			v := popT(state.Vals)
-			newState, ok := v.(*State)
-			if !ok {
-				fmt.Printf("#orangered error: %T (%v)\n", v, v)
-			}
+			newState := v.State
 			if newState.Done {
 				for _, v := range *newState.Vals {
 					pushT(state.Vals, v)
@@ -2343,7 +2337,7 @@ func initBuiltins() {
 			}
 		},
 		"cancel": func(state *State) *State {
-			newState := popT(state.Vals).(*State)
+			newState := popT(state.Vals).State
 			newState.Canceled = true
 			// TODO, consider every child goroutine should be canceled (ayncParent implementation)
 			return state
@@ -2367,7 +2361,7 @@ func initBuiltins() {
 				OneLiner:          state.OneLiner,
 			}
 			stateFunc := makeFuncToken(f)
-			state.Vars.Set(funcName, stateFunc)
+			state.Vars.Set(funcName, DValueFunc(stateFunc))
 			// state.Vars[funcName] = f
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
@@ -2400,7 +2394,7 @@ func initBuiltins() {
 				OneLiner:          state.OneLiner,
 			}
 			stateFunc := makeFuncToken(f)
-			pushT(state.Vals, stateFunc)
+			pushT(state.Vals, DValueFunc(stateFunc))
 			// pushT(state.Vals, f)
 			// todo you could keep track of indent better
 			// fmt.Printf("wanting to find: %q\n", indent + "end")
@@ -2421,7 +2415,7 @@ func initBuiltins() {
 		"bashArg": func(state *State) *State {
 			arg := toStringInternal(popT(state.Vals))
 			modified := "'" + strings.Replace(arg, "'", "'\\''", -1) + "'"
-			pushT(state.Vals, string(modified))
+			pushT(state.Vals, DValueString(string(modified)))
 			return state
 		},
 		"execShell": func(state *State) *State {
@@ -2446,7 +2440,7 @@ func initBuiltins() {
 					fmt.Println("Error:", err)
 				}
 			}
-			pushT(state.Vals, string(cmdOutput))
+			pushT(state.Vals, DValueString(string(cmdOutput)))
 			return state
 		},
 		"execBash": func(state *State) *State {
@@ -2461,7 +2455,7 @@ func initBuiltins() {
 					fmt.Println("Error:", err)
 				}
 			}
-			pushT(state.Vals, string(cmdOutput))
+			pushT(state.Vals, DValueString(string(cmdOutput)))
 			return state
 		},
 		"execBashStdout": func(state *State) *State {
@@ -2470,15 +2464,15 @@ func initBuiltins() {
 		    stdout, err := cmd.StdoutPipe()
 		    if err != nil {
 		        fmt.Println("StdoutPipe Error:", err)
-		        pushT(state.Vals, nil)
+		        pushT(state.Vals, null)
 		        return state
 		    }
 		    if err := cmd.Start(); err != nil {
 		        fmt.Println("Start Error:", err)
-		        pushT(state.Vals, nil)
+		        pushT(state.Vals, null)
 		        return state
 		    }
-		    pushT(state.Vals, &Reader{Reader:stdout}) // Push the io.ReadCloser
+		    pushT(state.Vals, DValueReader(&Reader{Reader:stdout})) // Push the io.ReadCloser
 		    return state
 		},
 		// make a version of this that allows a reader too (as another popT)
@@ -2488,11 +2482,11 @@ func initBuiltins() {
 			input := popT(state.Vals)
 			cmdString := popTString(state.Vals)
 			var stdin io.Reader
-			switch v := input.(type) {
-			case string:
-				stdin = strings.NewReader(v)
-			case *Reader:
-				stdin = v.Reader
+			switch input.Type {
+			case StringType:
+				stdin = strings.NewReader(input.String)
+			case ReaderType:
+				stdin = input.Reader
 			default:
 				panic("unexpected stdin")
 			}
@@ -2511,7 +2505,7 @@ func initBuiltins() {
 				}
 			}
 
-			pushT(state.Vals, string(cmdOutput))
+			pushT(state.Vals, DValueString(string(cmdOutput)))
 			return state
 		},
 
@@ -2523,7 +2517,7 @@ func initBuiltins() {
 			if err != nil {
 				fmt.Println(err)
 			}
-			pushT(state.Vals, string(cmdOutput))
+			pushT(state.Vals, DValueString(string(cmdOutput)))
 			return state
 		},
 		"getEnvVars": func(state *State) *State {
@@ -2531,10 +2525,10 @@ func initBuiltins() {
 			for _, env := range os.Environ() {
 				parts := strings.SplitN(env, "=", 2)
 				if len(parts) == 2 {
-					m[parts[0]] = parts[1]
+					m[parts[0]] = DValueString(parts[1])
 				}
 			}
-			pushT(state.Vals, m)
+			pushT(state.Vals, DValueMap(m))
 			return state
 		},
 		"readFile": func(state *State) *State {
@@ -2546,28 +2540,28 @@ func initBuiltins() {
 				}
 				state.AddCallback(Callback{
 					State:        state,
-					ReturnValues: []DValue{string(b)},
+					ReturnValues: []DValue{DValueString(string(b))},
 				})
 			}()
 			return nil
 		},
 		"readDir": func(state *State) *State {
 			dirName := popTString(state.Vals)
-			var names []string
+			names :=[]DValue{}
 			entries, err := os.ReadDir(dirName)
 			if err != nil {
 				if os.IsNotExist(err) {
-					pushT(state.Vals, &names)
+					pushT(state.Vals, DValueSlice(nil))
 					return state
 				}
 				panic(err)
 			}
 			for _, entry := range entries {
 				if entry.Name() != "." && entry.Name() != ".." {
-					names = append(names, entry.Name())
+					names = append(names, DValueString(entry.Name()))
 				}
 			}
-			pushT(state.Vals, &names)
+			pushT(state.Vals, DValueSlice(&names))
 			return state
 		},
 		// todo rename
@@ -2610,7 +2604,7 @@ func initBuiltins() {
 					}
 					if event.Op&fsnotify.Create == fsnotify.Create {
 						fmt.Println("New file detected:", event.Name)
-						pushT(state.Vals, event.Name)
+						pushT(state.Vals, DValueString(event.Name))
 					}
 
 				case err, ok := <-watcher.Errors:
@@ -2641,7 +2635,7 @@ func initBuiltins() {
 				panic(err)
 			}
 
-			pushT(state.Vals, outBuffer.String())
+			pushT(state.Vals, DValueString(outBuffer.String()))
 			return state
 		},
 		"appendFile": func(state *State) *State {
@@ -2676,12 +2670,12 @@ func initBuiltins() {
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
 				if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
-					pushT(state.Vals, false)
+					pushT(state.Vals, DValueBool(false))
 				} else {
 					panic(err)
 				}
 			} else {
-				pushT(state.Vals, true)
+				pushT(state.Vals, DValueBool(true))
 			}
 			return state
 		},
@@ -2691,12 +2685,12 @@ func initBuiltins() {
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
 				if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
-					pushT(state.Vals, false)
+					pushT(state.Vals, DValueBool(false))
 				} else {
 					panic(err)
 				}
 			} else {
-				pushT(state.Vals, !info.IsDir())
+				pushT(state.Vals, DValueBool(!info.IsDir()))
 			}
 			return state
 		},
@@ -2706,12 +2700,12 @@ func initBuiltins() {
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
 				if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
-					pushT(state.Vals, false)
+					pushT(state.Vals, DValueBool(false))
 				} else {
 					panic(err)
 				}
 			} else {
-				pushT(state.Vals, info.IsDir())
+				pushT(state.Vals, DValueBool(info.IsDir()))
 			}
 			return state
 		},
@@ -2721,13 +2715,13 @@ func initBuiltins() {
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
 				if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
-					pushT(state.Vals, false)
+					pushT(state.Vals, DValueBool(false))
 				} else {
 					panic(err)
 				}
 			} else {
 				mode := info.Mode()
-				pushT(state.Vals, mode&0111 != 0)
+				pushT(state.Vals, DValueBool(mode&0111 != 0))
 			}
 			return state
 		},
@@ -2737,12 +2731,12 @@ func initBuiltins() {
 			if err != nil {
 				// not a directory when you have a "/suffix" on a regular file
 				if os.IsNotExist(err) || strings.Contains(err.Error(), "not a directory") {
-					pushT(state.Vals, int64(0))
+					pushT(state.Vals, DValueInt(0))
 				} else {
 					panic(err)
 				}
 			} else {
-				pushT(state.Vals, info.Size())
+				pushT(state.Vals, DValueInt(int(info.Size())))
 			}
 			return state
 		},
@@ -2755,8 +2749,8 @@ func initBuiltins() {
 			things := getArgs(state)
 			thingsVal := *things
 			state.AddCallback(Callback{
-				State:        thingsVal[0].(*State),
-				ReturnValues: *slice(things, 2, -1).(*[]DValue),
+				State:        thingsVal[0].State,
+				ReturnValues: *slice(DValueSlice(things), DValueInt(2), DValueInt(-1)).Slice,
 			})
 			return state
 		},
@@ -2825,10 +2819,10 @@ func initBuiltins() {
 			// }
 			var f func(state *State) *State
 			if len(*state.Vals)-state.FuncTokenSpots[len(state.FuncTokenSpots)-1] == 0 {
-				f = popT(state.Vals).(func(state *State) *State)
+				f = popT(state.Vals).Func
 			} else {
 				fWrapper := spliceT(state.Vals, state.FuncTokenSpots[len(state.FuncTokenSpots)-1], 1, nil)
-				f = (*fWrapper)[0].(func(state *State) *State)
+				f = (*fWrapper)[0].Func
 			}
 			state.CurrFuncTokens[len(state.CurrFuncTokens)-1] = f
 			newState := callFunc(state)
@@ -2907,57 +2901,50 @@ func endOfCodeImmediate(state *State) *State {
 }
 
 func now() DValue {
-	return int(time.Now().UnixMilli())
+	return DValueInt(int(time.Now().UnixMilli()))
 }
 
-func push(slice DValue, value DValue) {
-	if s, ok := slice.(*[]DValue); ok {
-		pushT(s, value)
-	}
+func push(s DValue, value DValue) {
+	pushT(s.Slice, value)
 }
 
-func pushTo(value DValue, slice DValue) {
-	if s, ok := slice.(*[]DValue); ok {
-		pushT(s, value)
-	}
+func pushTo(value DValue, s DValue) {
+	pushT(s.Slice, value)
 }
 func pushT(s *[]DValue, value DValue) {
 	*s = append(*s, value)
 }
 
-func pushm(slice DValue, values DValue) {
-	if s, ok := slice.(*[]DValue); ok {
-		if v, ok := values.(*[]DValue); ok {
-			*s = append(*s, *v...)
-		}
-	}
+func pushm(s DValue, v DValue) {
+	*s.Slice = append(*s.Slice, *v.Slice...)
 }
 
 func at(mySlice DValue, index DValue) DValue {
-	switch v := mySlice.(type) {
-	case *[]DValue:
+	switch mySlice.Type {
+	case SliceType:
+		v := mySlice.Slice
 		indexInt := toIntInternal(index)
 		if indexInt < 0 {
 			return (*v)[len(*v)+indexInt]
 		}
 		return (*v)[indexInt-1]
-	case map[string]DValue:
+	case MapType:
+		v := mySlice.Map
 		return v[toStringInternal(index)]
-	case string:
+	case StringType:
+		v := mySlice.String
 		indexInt := toIntInternal(index)
 		if indexInt < 0 {
-			return string(v[len(v)+indexInt])
+			return DValueString(string(v[len(v)+indexInt]))
 		}
-		return string(v[indexInt-1])
+		return DValueString(string(v[indexInt-1]))
 	}
-	return nil
+	return null
 }
 
-func pop(slice DValue) DValue {
-	if s, ok := slice.(*[]DValue); ok && len(*s) > 0 {
-		return popT(s)
-	}
-	return nil
+func pop(s DValue) DValue {
+	return popT(s.Slice)
+	return null
 }
 func popT(s *[]DValue) DValue {
 	if len(*s) > 0 {
@@ -2965,10 +2952,8 @@ func popT(s *[]DValue) DValue {
 		*s = (*s)[:len(*s)-1]
 		return val
 	}
-	return nil
+	return null
 }
-
-
 
 func popTString(s *[]DValue) string {
 	if len(*s) > 0 {
@@ -2983,19 +2968,18 @@ func peek(s *[]DValue) DValue {
 	return val
 }
 
-func shift(slice DValue) DValue {
-	if s, ok := slice.(*[]DValue); ok && len(*s) > 0 {
+func shift(sV DValue) DValue {
+	s := sV.Slice
+	if len(*s) > 0 {
 		val := (*s)[0]
 		*s = (*s)[1:]
 		return val
 	}
-	return nil
+	return null
 }
 
-func unshift(slice DValue, value DValue) {
-	if s, ok := slice.(*[]DValue); ok {
-		*s = append([]DValue{value}, *s...)
-	}
+func unshift(s DValue, value DValue) {
+	*s.Slice = append([]DValue{value}, *s.Slice...)
 }
 
 func spliceT(s *[]DValue, start int, deleteCount int, elements *[]DValue) *[]DValue {
@@ -3011,7 +2995,7 @@ func spliceT(s *[]DValue, start int, deleteCount int, elements *[]DValue) *[]DVa
 
 func splice(sAny DValue, start DValue, end DValue, elements DValue) DValue {
 	startInt := toIntInternal(start)
-	s := sAny.(*[]DValue)
+	s := sAny.Slice
 	endInt := toIntInternal(end)
 	if startInt < 0 {
 		startInt = len(*s) + startInt + 1
@@ -3032,303 +3016,406 @@ func splice(sAny DValue, start DValue, end DValue, elements DValue) DValue {
 		endInt = len(*s)
 	}
 	if startInt > endInt {
-		return nil
+		return null
 	}
-	if els, ok := elements.(*[]DValue); ok {
-		return spliceT(s, startInt-1, endInt-startInt+1, els)
-	} else {
-		return spliceT(s, startInt-1, endInt-startInt+1, nil)
-	}
+	return DValueSlice(spliceT(s, startInt-1, endInt-startInt+1, elements.Slice))
 }
 
 func slice(s DValue, start DValue, end DValue) DValue {
 	startInt := toIntInternal(start)
 	endInt := toIntInternal(end)
-	switch s := s.(type) {
-	case *[]DValue:
+	switch s.Type {
+	case SliceType:
 		if startInt < 0 {
-			startInt = len(*s) + startInt + 1
+			startInt = len(*s.Slice) + startInt + 1
 		}
 		if startInt <= 0 {
 			startInt = 1
 		}
-		if startInt > len(*s) {
-			startInt = len(*s)
+		if startInt > len(*s.Slice) {
+			startInt = len(*s.Slice)
 		}
 		if endInt < 0 {
-			endInt = len(*s) + endInt + 1
+			endInt = len(*s.Slice) + endInt + 1
 		}
 		if endInt <= 0 {
 			endInt = 1
 		}
-		if endInt > len(*s) {
-			endInt = len(*s)
+		if endInt > len(*s.Slice) {
+			endInt = len(*s.Slice)
 		}
 		if startInt > endInt {
-			return nil
+			return null
 		}
 		sliced := make([]DValue, endInt-startInt+1)
-		copy(sliced, (*s)[startInt-1:endInt])
-		return &sliced
-	case string:
+		copy(sliced, (*s.Slice)[startInt-1:endInt])
+		return DValueSlice(&sliced)
+	case StringType:
 		if startInt < 0 {
-			startInt = len(s) + startInt + 1
+			startInt = len(s.String) + startInt + 1
 		}
 		if startInt <= 0 {
 			startInt = 1
 		}
-		if startInt > len(s) {
-			startInt = len(s)
+		if startInt > len(s.String) {
+			startInt = len(s.String)
 		}
 		if endInt < 0 {
-			endInt = len(s) + endInt + 1
+			endInt = len(s.String) + endInt + 1
 		}
 		if endInt <= 0 {
 			endInt = 1
 		}
-		if endInt > len(s) {
-			endInt = len(s)
+		if endInt > len(s.String) {
+			endInt = len(s.String)
 		}
 		if startInt > endInt {
-			return ""
+			return DValueString("")
 		}
-		return s[startInt-1 : endInt]
+		return DValueString(s.String[startInt-1 : endInt])
 	}
-	return nil
+	return null
 }
 
-func length(slice DValue) DValue {
-	switch s := slice.(type) {
-	case *[]DValue:
-		return len(*s)
-	case string:
-		return len(s)
+func length(s DValue) DValue {
+	switch s.Type {
+	case SliceType:
+		return DValueInt(len(*s.Slice))
+	case StringType:
+		return DValueInt(len(s.String))
 	}
-	return 0
+	return DValueInt(0)
 }
 func indexOf(a DValue, b DValue) DValue {
-	return strings.Index(toStringInternal(a), toStringInternal(b)) + 1
+	return DValueInt(strings.Index(toStringInternal(a), toStringInternal(b)) + 1)
 }
 func lastIndexOf(a DValue, b DValue) DValue {
-	return strings.LastIndex(toStringInternal(a), toStringInternal(b)) + 1
+	return DValueInt(strings.LastIndex(toStringInternal(a), toStringInternal(b)) + 1)
 }
 
 func split(a DValue, b DValue) DValue {
 	r := strings.Split(toStringInternal(a), toStringInternal(b))
 	rr := []DValue{}
 	for _, value := range r {
-		rr = append(rr, value)
+		rr = append(rr, DValueString(value))
 	}
-	return &rr
+	return DValueSlice(&rr)
 }
 
-func makeMather(fInt func(int, int) DValue, fFloat func(float64, float64) DValue, fString func(string, string) DValue) func(DValue, DValue) DValue {
-	// return func(a, b DValue) DValue {
-	//     return fFloat(ToFloat64(a), ToFloat64(b))
-	// }
-	return func(a, b DValue) DValue {
-		switch a := a.(type) {
-		case int:
-			switch b := b.(type) {
-			case int:
-				return fInt(a, b)
-			case float64:
-				return fFloat(float64(a), b)
-			case string:
-				return fString(strconv.Itoa(a), b)
-			case bool:
-				var bInt int
-				if b {
-					bInt = 1
-				}
-				return fInt(a, bInt)
-			case nil:
-				return fInt(a, 0)
-			default:
-				panic("unknown type A")
-				return 0
-			}
-		case float64:
-			switch b := b.(type) {
-			case int:
-				return fFloat(a, float64(b))
-			case float64:
-				return fFloat(a, b)
-			case string:
-				return fString(strconv.FormatFloat(a, 'f', -1, 64), b)
-			case bool:
-				var aInt int
-				if a != 0 {
-					aInt = 1
-				}
-				var bInt int
-				if b {
-					bInt = 1
-				}
-				return fInt(aInt, bInt)
-			case nil:
-				return fFloat(a, 0)
-			default:
-				panic("unknown type B")
-				return 0
-			}
-		case string:
-			switch b := b.(type) {
-			case int:
-				return fString(a, strconv.Itoa(b))
-			case float64:
-				return fString(a, strconv.FormatFloat(b, 'f', -1, 64))
-			case string:
-				return fString(a, b)
-			case bool:
-				var aInt int
-				if !Equal(a, "0") {
-					aInt = 1
-				}
-				var bInt int
-				if b {
-					bInt = 1
-				}
-				return fInt(aInt, bInt)
-			case nil:
-				return fString(a, "")
-			default:
-				panic("unknown type B")
-				return 0
-			}
-		case bool:
-			var aInt int
-			if a {
-				aInt = 1
-			}
-			switch b := b.(type) {
-			case int:
-				return fInt(aInt, b)
-			case float64:
-				var bInt int
-				if b != 0 {
-					bInt = 1
-				}
-				return fInt(aInt, bInt)
-			case string:
-				var aString = "0"
-				if a {
-					aString = "1"
-				}
-				return fString(aString, b)
-			case bool:
-				var bInt int
-				if b {
-					bInt = 1
-				}
-				return fInt(aInt, bInt)
-			case nil:
-				return fInt(aInt, 0)
-			default:
-				panic("unknown type C")
-				return 0
-			}
-		case nil:
-			switch b := b.(type) {
-			case int:
-				return fInt(0, b)
-			case float64:
-				return fFloat(0, b)
-			case string:
-				return fString("", b)
-			case bool:
-				var bInt int
-				if b {
-					bInt = 1
-				}
-				return fInt(0, bInt)
-			case nil:
-				return fInt(0, 0)
-			default:
-				panic("unknown type B")
-				return 0
-			}
-		default:
-			fmt.Printf("bad type lol mather: %T\n", a)
-			panic("unknown type D " + fmt.Sprintf("%T", a))
-			return 0
-		}
-	}
-}
+// func makeMather(fInt func(int, int) DValue, fFloat func(float64, float64) DValue, fString func(string, string) DValue) func(DValue, DValue) DValue {
+// 	return func(a, b DValue) DValue {
+// 		switch a.Type {
+// 		case IntType:
+// 			switch b.Type {
+// 			case IntType:
+// 				return fInt(a.Int, b.Int)
+// 			case FloatType:
+// 				return fFloat(float64(a.Int), b.Float)
+// 			case StringType:
+// 				return fString(strconv.Itoa(a.Int), b.String)
+// 			case BoolType:
+// 				var bInt int
+// 				if b.Int {
+// 					bInt = 1
+// 				}
+// 				return fInt(a.Int, bInt)
+// 			case NullType:
+// 				return fInt(a.Int, 0)
+// 			default:
+// 				panic("unknown type A")
+// 				return DValueInt(0)
+// 			}
+//         // Fix everything below here to follow the pattern above
+// 		case float64:
+// 			switch b := b.(type) {
+// 			case int:
+// 				return fFloat(a, float64(b))
+// 			case float64:
+// 				return fFloat(a, b)
+// 			case string:
+// 				return fString(strconv.FormatFloat(a, 'f', -1, 64), b)
+// 			case bool:
+// 				var aInt int
+// 				if a != 0 {
+// 					aInt = 1
+// 				}
+// 				var bInt int
+// 				if b {
+// 					bInt = 1
+// 				}
+// 				return fInt(aInt, bInt)
+// 			case nil:
+// 				return fFloat(a, 0)
+// 			default:
+// 				panic("unknown type B")
+// 				return 0
+// 			}
+// 		case string:
+// 			switch b := b.(type) {
+// 			case int:
+// 				return fString(a, strconv.Itoa(b))
+// 			case float64:
+// 				return fString(a, strconv.FormatFloat(b, 'f', -1, 64))
+// 			case string:
+// 				return fString(a, b)
+// 			case bool:
+// 				var aInt int
+// 				if !Equal(a, "0") {
+// 					aInt = 1
+// 				}
+// 				var bInt int
+// 				if b {
+// 					bInt = 1
+// 				}
+// 				return fInt(aInt, bInt)
+// 			case nil:
+// 				return fString(a, "")
+// 			default:
+// 				panic("unknown type B")
+// 				return 0
+// 			}
+// 		case bool:
+// 			var aInt int
+// 			if a {
+// 				aInt = 1
+// 			}
+// 			switch b := b.(type) {
+// 			case int:
+// 				return fInt(aInt, b)
+// 			case float64:
+// 				var bInt int
+// 				if b != 0 {
+// 					bInt = 1
+// 				}
+// 				return fInt(aInt, bInt)
+// 			case string:
+// 				var aString = "0"
+// 				if a {
+// 					aString = "1"
+// 				}
+// 				return fString(aString, b)
+// 			case bool:
+// 				var bInt int
+// 				if b {
+// 					bInt = 1
+// 				}
+// 				return fInt(aInt, bInt)
+// 			case nil:
+// 				return fInt(aInt, 0)
+// 			default:
+// 				panic("unknown type C")
+// 				return 0
+// 			}
+// 		case nil:
+// 			switch b := b.(type) {
+// 			case int:
+// 				return fInt(0, b)
+// 			case float64:
+// 				return fFloat(0, b)
+// 			case string:
+// 				return fString("", b)
+// 			case bool:
+// 				var bInt int
+// 				if b {
+// 					bInt = 1
+// 				}
+// 				return fInt(0, bInt)
+// 			case nil:
+// 				return fInt(0, 0)
+// 			default:
+// 				panic("unknown type B")
+// 				return 0
+// 			}
+// 		default:
+// 			fmt.Printf("bad type lol mather: %T\n", a)
+// 			panic("unknown type D " + fmt.Sprintf("%T", a))
+// 			return 0
+// 		}
+// 	}
+// }
 
-// Round function to round a float to the specified number of decimal places
+func makeMather(
+    fInt func(int, int) DValue,
+    fFloat func(float64, float64) DValue,
+    fString func(string, string) DValue,
+) func(DValue, DValue) DValue {
+    return func(a, b DValue) DValue {
+        switch a.Type {
+        case IntType:
+            switch b.Type {
+            case IntType:
+                return fInt(a.Int, b.Int)
+            case FloatType:
+                return fFloat(float64(a.Int), b.Float)
+            case StringType:
+                return fString(strconv.Itoa(a.Int), b.String)
+            case BoolType:
+                bi := 0
+                if b.Bool {
+                    bi = 1
+                }
+                return fInt(a.Int, bi)
+            case NullType:
+                return fInt(a.Int, 0)
+            default:
+                panic("makeMather: unknown B type in IntType")
+            }
+
+        case FloatType:
+            switch b.Type {
+            case IntType:
+                return fFloat(a.Float, float64(b.Int))
+            case FloatType:
+                return fFloat(a.Float, b.Float)
+            case StringType:
+                return fString(strconv.FormatFloat(a.Float, 'f', -1, 64), b.String)
+            case BoolType:
+                bi := 0
+                if b.Bool {
+                    bi = 1
+                }
+                return fFloat(a.Float, float64(bi))
+            case NullType:
+                return fFloat(a.Float, 0)
+            default:
+                panic("makeMather: unknown B type in FloatType")
+            }
+
+        case StringType:
+            switch b.Type {
+            case IntType:
+                return fString(a.String, strconv.Itoa(b.Int))
+            case FloatType:
+                return fString(a.String, strconv.FormatFloat(b.Float, 'f', -1, 64))
+            case StringType:
+                return fString(a.String, b.String)
+            case BoolType:
+                // convert both to int for fInt
+                ai := 0
+                if a.String != "0" && a.String != "" {
+                    ai = 1
+                }
+                bi := 0
+                if b.Bool {
+                    bi = 1
+                }
+                return fInt(ai, bi)
+            case NullType:
+                return fString(a.String, "")
+            default:
+                panic("makeMather: unknown B type in StringType")
+            }
+
+        case BoolType:
+            ai := 0
+            if a.Bool {
+                ai = 1
+            }
+            switch b.Type {
+            case IntType:
+                return fInt(ai, b.Int)
+            case FloatType:
+                bi := 0
+                if b.Float != 0 {
+                    bi = 1
+                }
+                return fInt(ai, bi)
+            case StringType:
+                // both to string via "0"/"1" then use fString
+                aStr := "0"
+                if a.Bool {
+                    aStr = "1"
+                }
+                return fString(aStr, b.String)
+            case BoolType:
+                bi := 0
+                if b.Bool {
+                    bi = 1
+                }
+                return fInt(ai, bi)
+            case NullType:
+                return fInt(ai, 0)
+            default:
+                panic("makeMather: unknown B type in BoolType")
+            }
+
+        case NullType:
+            switch b.Type {
+            case IntType:
+                return fInt(0, b.Int)
+            case FloatType:
+                return fFloat(0, b.Float)
+            case StringType:
+                return fString("", b.String)
+            case BoolType:
+                bi := 0
+                if b.Bool {
+                    bi = 1
+                }
+                return fInt(0, bi)
+            case NullType:
+                return fInt(0, 0)
+            default:
+                panic("makeMather: unknown B type in NullType")
+            }
+
+        default:
+            panic(fmt.Sprintf("makeMather: unknown A type %v", a.Type))
+        }
+    }
+}
 func roundFloat(num float64, places int) float64 {
 	scale := math.Pow(10, float64(places))
 	return math.Round(num*scale) / scale
 }
 
-func round(a, b DValue) DValue {
-	switch a := a.(type) {
-	case int:
-		return a
-	case float64:
-		switch b := b.(type) {
-		case int:
-			return roundFloat(a, b)
-		case float64:
-			return roundFloat(a, int(b))
-		case string:
-			return roundFloat(a, toIntInternal(b))
-		default:
-			return 0
-		}
-	case string:
-		switch b := b.(type) {
-		case int:
-			return Round(a, b)
-		case float64:
-			return Round(a, int(b))
-		case string:
-			d, _ := strconv.Atoi(b)
-			return Round(a, d)
-		default:
-			return 0
-		}
-	default:
-		fmt.Printf("bad type lol round: %T\n", a)
-		return 0
-	}
-}
+var round = makeMather(
+	func(a, b int) DValue {
+		return DValueInt(a)
+	},
+	func(a, b float64) DValue {
+		return DValueFloat(roundFloat(a, int(b)))
+	},
+	func(a, b string) DValue {
+		bInt, _ := strconv.Atoi(b)
+		return DValueString(Round(a, bInt))
+	},
+)
 
 var plus = makeMather(
 	func(a, b int) DValue {
-		return a + b
+		return DValueInt(a + b)
 	},
 	func(a, b float64) DValue {
-		return a + b
+		return DValueFloat(a + b)
 	},
 	func(a, b string) DValue {
-		return Add(a, b)
+		return DValueString(Add(a, b))
 	},
 )
 
 // minus uses subtraction (calls Subtract for strings)
 var minus = makeMather(
 	func(a, b int) DValue {
-		return a - b
+		return DValueInt(a - b)
 	},
 	func(a, b float64) DValue {
-		return a - b
+		return DValueFloat(a - b)
 	},
 	func(a, b string) DValue {
-		return Subtract(a, b)
+		return DValueString(Subtract(a, b))
 	},
 )
 
 var times = makeMather(
 	func(a, b int) DValue {
-		return a * b
+		return DValueInt(a * b)
 	},
 	func(a, b float64) DValue {
-		return a * b
+		return DValueFloat(a * b)
 	},
 	func(a, b string) DValue {
-		return Multiply(a, b)
+		return DValueString(Multiply(a, b))
 	},
 )
 
@@ -3339,23 +3426,24 @@ var divide = makeMather(
 	func(a, b int) DValue {
 		// Note: integer division
 		if b == 0 {
-			// return "division by zero"
-			return 0 // ?
+			// return DValueInt("division by zero")
+			return DValueInt(0) // ?
 		}
 		if a%b == 0 {
-			return a / b
+			return DValueInt(a / b)
 		}
-		return Divide(strconv.Itoa(a), strconv.Itoa(b), decimalPrecision)
+		// return Divide(strconv.Itoa(a), strconv.Itoa(b), decimalPrecision)
+		return DValueFloat(float64(a) / float64(b))
 	},
 	func(a, b float64) DValue {
 		if b == 0 {
 			// return "division by zero"
-			return 0 // ?
+			return DValueFloat(0)
 		}
-		return a / b
+		return DValueFloat(a / b)
 	},
 	func(a, b string) DValue {
-		return Divide(a, b, decimalPrecision)
+		return DValueString(Divide(a, b, decimalPrecision))
 	},
 )
 
@@ -3364,19 +3452,19 @@ var pow = makeMather(
 	func(a, b int) DValue {
 		// Simple integer exponentiation. Only for positive exponents.
 		if b < 0 {
-			return Pow(strconv.Itoa(a), strconv.Itoa(b), decimalPrecision)
+			return DValueFloat(math.Pow(float64(a), float64(b)))
 		}
 		result := 1
 		for i := 0; i < b; i++ {
 			result *= a
 		}
-		return result
+		return DValueInt(result)
 	},
 	func(a, b float64) DValue {
-		return math.Pow(a, b)
+		return DValueFloat(math.Pow(a, b))
 	},
 	func(a, b string) DValue {
-		return Pow(a, b, decimalPrecision)
+		return DValueString(Pow(a, b, decimalPrecision))
 	},
 )
 
@@ -3384,54 +3472,54 @@ var pow = makeMather(
 var mod = makeMather(
 	func(a, b int) DValue {
 		if b == 0 {
-			return "modulo by zero"
+			return DValueString("modulo by zero")
 		}
-		return a % b
+		return DValueInt(a % b)
 	},
 	func(a, b float64) DValue {
 		if b == 0 {
-			return "modulo by zero"
+			return DValueString("modulo by zero")
 		}
-		return math.Mod(a, b)
+		return DValueFloat(math.Mod(a, b))
 	},
 	func(a, b string) DValue {
-		return Mod(a, b)
+		return DValueString(Mod(a, b))
 	},
 )
 
 // lt returns whether a is less than b.
 var lt = makeMather(
 	func(a, b int) DValue {
-		return a < b
+		return DValueInt(a < b)
 	},
 	func(a, b float64) DValue {
-		return a < b
+		return DValueFloat(a < b)
 	},
 	func(a, b string) DValue {
-		return LessThan(a, b)
+		return DValueString(LessThan(a, b))
 	},
 )
 
 // gt returns whether a is greater than b.
 var gt = makeMather(
 	func(a, b int) DValue {
-		return a > b
+		return DValueInt(a > b)
 	},
 	func(a, b float64) DValue {
-		return a > b
+		return DValueFloat(a > b)
 	},
 	func(a, b string) DValue {
-		return GreaterThan(a, b)
+		return DValueString(GreaterThan(a, b))
 	},
 )
 
 // lte returns whether a is less than or equal to b.
 var lte = makeMather(
 	func(a, b int) DValue {
-		return a <= b
+		return DValueInt(a <= b)
 	},
 	func(a, b float64) DValue {
-		return a <= b
+		return DValueFloat(a <= b)
 	},
 	func(a, b string) DValue {
 		return LessThanOrEqualTo(a, b)
@@ -3441,10 +3529,10 @@ var lte = makeMather(
 // gte returns whether a is greater than or equal to b.
 var gte = makeMather(
 	func(a, b int) DValue {
-		return a >= b
+		return DValueInt(a >= b)
 	},
 	func(a, b float64) DValue {
-		return a >= b
+		return DValueFloat(a >= b)
 	},
 	func(a, b string) DValue {
 		return GreaterThanOrEqualTo(a, b)
@@ -3454,10 +3542,10 @@ var gte = makeMather(
 // lt returns whether a is less than b.
 var lts = makeMather(
 	func(a, b int) DValue {
-		return a < b
+		return DValueInt(a < b)
 	},
 	func(a, b float64) DValue {
-		return a < b
+		return DValueFloat(a < b)
 	},
 	func(a, b string) DValue {
 		return a < b
@@ -3467,10 +3555,10 @@ var lts = makeMather(
 // gt returns whether a is greater than b.
 var gts = makeMather(
 	func(a, b int) DValue {
-		return a > b
+		return DValueInt(a > b)
 	},
 	func(a, b float64) DValue {
-		return a > b
+		return DValueFloat(a > b)
 	},
 	func(a, b string) DValue {
 		return a > b
@@ -3480,10 +3568,10 @@ var gts = makeMather(
 // lte returns whether a is less than or equal to b.
 var ltes = makeMather(
 	func(a, b int) DValue {
-		return a <= b
+		return DValueInt(a <= b)
 	},
 	func(a, b float64) DValue {
-		return a <= b
+		return DValueFloat(a <= b)
 	},
 	func(a, b string) DValue {
 		return a <= b
@@ -3493,10 +3581,10 @@ var ltes = makeMather(
 // gte returns whether a is greater than or equal to b.
 var gtes = makeMather(
 	func(a, b int) DValue {
-		return a >= b
+		return DValueInt(a >= b)
 	},
 	func(a, b float64) DValue {
-		return a >= b
+		return DValueFloat(a >= b)
 	},
 	func(a, b string) DValue {
 		return a >= b
@@ -3505,6 +3593,7 @@ var gtes = makeMather(
 
 // is returns whether a equals b.
 var is = func(a, b DValue) DValue {
+	// TODO, cases fod Map and slice?
 	return a == b
 }
 var isnt = func(a, b DValue) DValue {
@@ -3514,10 +3603,10 @@ var isnt = func(a, b DValue) DValue {
 // is returns whether a equals b.
 var eq = makeMather(
 	func(a, b int) DValue {
-		return a == b
+		return DValueInt(a == b)
 	},
 	func(a, b float64) DValue {
-		return a == b
+		return DValueFloat(a == b)
 	},
 	func(a, b string) DValue {
 		return Equal(a, b)
@@ -3527,10 +3616,10 @@ var eq = makeMather(
 // isnt returns whether a is not equal to b.
 var neq = makeMather(
 	func(a, b int) DValue {
-		return a != b
+		return DValueInt(a != b)
 	},
 	func(a, b float64) DValue {
-		return a != b
+		return DValueFloat(a != b)
 	},
 	func(a, b string) DValue {
 		return !Equal(a, b)
