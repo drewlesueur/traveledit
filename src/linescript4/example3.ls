@@ -1,6 +1,18 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
+
+
+def .process .line
+    upper line
+    cc "!"
+end
+
+[wow. this. is. cool. i. think. apples. are. cool.]
+each .line
+    say line
+    say process line
+end
+
 local .foo .bar
-exit
 
 foo. = {name. drew.}
 

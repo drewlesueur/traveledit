@@ -136,11 +136,14 @@ type Machine struct {
 type DString struct {
     String string
     RecordIndex int
+    ScopesUp int
     Record *Record
     SourceI int
     SourceState *State
 }
-
+func (d DString) MarshalJSON() ([]byte, error) {
+    return json.Marshal(d.String)
+}
 
 type Record struct {
     Values     []any
@@ -171,7 +174,7 @@ func (r *Record) SetDString(key *DString, value any) {
     // if true || key.RecordIndex == -1 {
     if key.RecordIndex == -1 {
         key.RecordIndex = r.SetSeeIndex(key.String, value)
-        key.Record = r // likely not used because we set in different spot than get
+        // key.Record = r // likely not used because we set in different spot than get
     } else {
         // fmt.Println("yay set cache ", key.String)
         r.Values[key.RecordIndex] = value
@@ -631,18 +634,27 @@ func getVar(state *State, varName *DString) any {
 }
 
 func findParentAndValue(state *State, varName *DString) (*Record, any) {
-	if varName.Record != nil {
+	// if varName.Record != nil {
+	if varName.RecordIndex != -1 {
         // fmt.Println("yay get cache ", varName.String)
-	    return varName.Record, varName.Record.Values[varName.RecordIndex]
+        s := state
+        for i := 0; i < varName.ScopesUp; i++ {
+            s = state.LexicalParent
+        }
+	    // return varName.Record, varName.Record.Values[varName.RecordIndex]
+	    return s.Vars, s.Vars.Values[varName.RecordIndex]
 	}
+	scopesUp := 0
 	for state != nil {
 		v, idx, ok := state.Vars.GetHasSeeIndex(varName.String)
 		if ok {
-		    varName.Record = state.Vars
+		    // varName.Record = state.Vars
+		    varName.ScopesUp = scopesUp
 		    varName.RecordIndex = idx
 		    return state.Vars, v
 		}
 		state = state.LexicalParent
+		scopesUp++
 	}
 	return nil, nil
 }
