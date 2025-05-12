@@ -173,16 +173,15 @@ func (r *Record) Set(key string, value any) {
 }
 func (r *Record) SetDString(key *DString, value any) {
     // if true || key.RecordIndex == -1 {
-    if key.RecordIndex == -1 {
-        key.RecordIndex = r.SetSeeIndex(key.String, value)
-        key.Record = r // likely not used because we set in different spot than get
-    } else {
+    if false && key.RecordIndex != -1 {
         // fmt.Println("yay set cache ", key.String)
         if len(r.Values) == key.RecordIndex {
             r.Set(key.String, value)
         } else {
             r.Values[key.RecordIndex] = value
         }
+    } else {
+        key.RecordIndex = r.SetSeeIndex(key.String, value)
     }
 }
 
@@ -312,6 +311,36 @@ func (state *State) Wait() {
 	<-state.DoneCh
 }
 
+func MakeStateRaw(fileName, code string) *State {
+	return &State{
+		FileName:  fileName,
+		I:         0,
+		Code:      code,
+		Mode:      "normal",
+		ModeStack: nil,
+
+		// Preinitializing this makes eval in a loop slower if it doesn't use these
+		// though if you eval in a loop with a static string, you should be able to optimize
+
+		// Vars:               NewRecord(),
+		// Vals:               &[]any{},
+		Vars: nil,
+		Vals: nil,
+		ValsStack:          nil,
+		EndStack:           nil,
+		// Vars:               map[string]any{},
+		DStringCache: nil,
+		CurrFuncTokens:     nil,
+		FuncTokenStack:     nil,
+		FuncTokenSpots:     nil,
+		FuncTokenSpotStack: nil,
+
+		NewlineSpot: -1,
+
+		DebugTokens: false,
+		Waiters:     nil,
+	}
+}
 func MakeState(fileName, code string) *State {
 	return &State{
 		FileName:  fileName,
@@ -330,7 +359,7 @@ func MakeState(fileName, code string) *State {
 		ValsStack:          nil,
 		EndStack:           nil,
 		// Vars:               map[string]any{},
-		DStringCache: make(map[string]*DString),
+		DStringCache: nil,
 		CurrFuncTokens:     nil,
 		FuncTokenStack:     nil,
 		FuncTokenSpots:     nil,
@@ -339,7 +368,7 @@ func MakeState(fileName, code string) *State {
 		NewlineSpot: -1,
 
 		DebugTokens: false,
-		Waiters:     []*State{},
+		Waiters:     nil,
 	}
 }
 
@@ -356,7 +385,12 @@ var httpAddr string
 var domain string
 var cgiUrl string
 
+// const statePoolSize = 500000
+// var statePool = [statePoolSize]*State{}
 func main() {
+	// for i := 0; i < statePoolSize; i++ {
+	//     statePool[i] = &MakeStateRaw("", "")
+	// }
 	cgi := flag.Bool("cgi", false, "Start cgi server")
 	flag.StringVar(&httpsAddr, "httpsaddr", ":443", "address for http")
 	flag.StringVar(&httpAddr, "httpaddr", ":80", "address for http")
@@ -643,7 +677,7 @@ func getVar(state *State, varName *DString) any {
 
 func findParentAndValue(state *State, varName *DString) (*Record, any) {
 	// if varName.Record != nil {
-	if varName.RecordIndex != -1 {
+	if false && varName.RecordIndex != -1 {
         // fmt.Println("yay get cache ", varName.String)
         s := state
         for i := 0; i < varName.ScopesUp; i++ {
@@ -656,7 +690,6 @@ func findParentAndValue(state *State, varName *DString) (*Record, any) {
 	for state != nil {
 		v, idx, ok := state.Vars.GetHasSeeIndex(varName.String)
 		if ok {
-		    // varName.Record = state.Vars
 		    varName.ScopesUp = scopesUp
 		    varName.RecordIndex = idx
 		    return state.Vars, v
@@ -986,11 +1019,11 @@ func makeToken(state *State, val string) any {
 // TODO: maybe remove this?
 func GetDString(state *State, name string) *DString {
     // fmt.Println("GetDString")
-    if d, ok := state.DStringCache[name]; ok {
-        return d
-    }
+    // if d, ok := state.DStringCache[name]; ok {
+    //     return d
+    // }
     d := &DString{String: name, RecordIndex: -1}
-    state.DStringCache[name] = d
+    // state.DStringCache[name] = d
     return d
 }
 
@@ -1315,7 +1348,6 @@ func initBuiltins() {
 		"%%": func(state *State) *State {
 			end := strings.Index(state.Code[state.I:], "\n")
             var s string
-            // if false && end == 0 {
             if end == 0 {
 				r := findMatchingAfter(state, 0, []string{"end"})
 				str := state.Code[state.I+1 : r.I-3]
@@ -2817,6 +2849,7 @@ func makeFuncToken(token *Func) func(*State) *State {
 		// state.CurrFuncTokens = nil
 		// state.FuncTokenSpots = nil
 		newState := MakeState(token.FileName, token.Code)
+		// return state
 		newState.Machine = state.Machine
 		
 		newState.ICache = token.ICache
