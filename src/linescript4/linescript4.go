@@ -808,7 +808,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 				expectedQuoteEnd := string(code[i])
 				end := strings.Index(code[i+1:], expectedQuoteEnd)
 				str := code[i+1 : i+1+end]
-				return str, str, i + 1 + end + 1
+				return DValueString(str), str, i + 1 + end + 1
 			case '#':
 				// comments
 				end := strings.Index(code[i+1:], "\n")
@@ -3490,169 +3490,167 @@ var mod = makeMather(
 // lt returns whether a is less than b.
 var lt = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a < b)
+		return DValueBool(a < b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a < b)
+		return DValueBool(a < b)
 	},
 	func(a, b string) DValue {
-		return DValueString(LessThan(a, b))
+		return DValueBool(LessThan(a, b))
 	},
 )
 
 // gt returns whether a is greater than b.
 var gt = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a > b)
+		return DValueBool(a > b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a > b)
+		return DValueBool(a > b)
 	},
 	func(a, b string) DValue {
-		return DValueString(GreaterThan(a, b))
+		return DValueBool(GreaterThan(a, b))
 	},
 )
 
 // lte returns whether a is less than or equal to b.
 var lte = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a <= b)
+		return DValueBool(a <= b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a <= b)
+		return DValueBool(a <= b)
 	},
 	func(a, b string) DValue {
-		return LessThanOrEqualTo(a, b)
+		return DValueBool(LessThanOrEqualTo(a, b))
 	},
 )
 
 // gte returns whether a is greater than or equal to b.
 var gte = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a >= b)
+		return DValueBool(a >= b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a >= b)
+		return DValueBool(a >= b)
 	},
 	func(a, b string) DValue {
-		return GreaterThanOrEqualTo(a, b)
+		return DValueBool(GreaterThanOrEqualTo(a, b))
 	},
 )
 
 // lt returns whether a is less than b.
 var lts = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a < b)
+		return DValueBool(a < b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a < b)
+		return DValueBool(a < b)
 	},
 	func(a, b string) DValue {
-		return a < b
+		return DValueBool(a < b)
 	},
 )
 
 // gt returns whether a is greater than b.
 var gts = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a > b)
+		return DValueBool(a > b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a > b)
+		return DValueBool(a > b)
 	},
 	func(a, b string) DValue {
-		return a > b
+		return DValueBool(a > b)
 	},
 )
 
 // lte returns whether a is less than or equal to b.
 var ltes = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a <= b)
+		return DValueBool(a <= b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a <= b)
+		return DValueBool(a <= b)
 	},
 	func(a, b string) DValue {
-		return a <= b
+		return DValueBool(a <= b)
 	},
 )
 
 // gte returns whether a is greater than or equal to b.
 var gtes = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a >= b)
+		return DValueBool(a >= b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a >= b)
+		return DValueBool(a >= b)
 	},
 	func(a, b string) DValue {
-		return a >= b
+		return DValueBool(a >= b)
 	},
 )
 
 // is returns whether a equals b.
 var is = func(a, b DValue) DValue {
 	// TODO, cases fod Map and slice?
-	return a == b
+	return DValueBool(toStringInternal(a) == toStringInternal(b))
 }
+
+
 var isnt = func(a, b DValue) DValue {
-	return a != b
+	return DValueBool(toStringInternal(a) != toStringInternal(b))
 }
 
 // is returns whether a equals b.
 var eq = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a == b)
+		return DValueBool(a == b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a == b)
+		return DValueBool(a == b)
 	},
 	func(a, b string) DValue {
-		return Equal(a, b)
+		return DValueBool(Equal(a, b))
 	},
 )
 
 // isnt returns whether a is not equal to b.
 var neq = makeMather(
 	func(a, b int) DValue {
-		return DValueInt(a != b)
+		return DValueBool(a != b)
 	},
 	func(a, b float64) DValue {
-		return DValueFloat(a != b)
+		return DValueBool(a != b)
 	},
 	func(a, b string) DValue {
-		return !Equal(a, b)
+		return DValueBool(!Equal(a, b))
 	},
 )
 
 func cc(a, b DValue) DValue {
-	if aArr, ok1 := a.(*[]DValue); ok1 {
-		if bArr, ok2 := b.(*[]DValue); ok2 {
-			result := append([]DValue{}, (*aArr)...)
-			result = append(result, (*bArr)...)
-			return &result
-		}
+	if a.Type == SliceType && b.Type == SliceType {
+		result := append([]DValue{}, (*a.Slice)...)
+		result = append(result, (*b.Slice)...)
+		return DValueSlice(&result)
 	}
 
-	return toStringInternal(a) + toStringInternal(b)
+	return DValueString(toStringInternal(a) + toStringInternal(b))
 }
 
 func toIntInternal(a DValue) int {
-	switch a := a.(type) {
-	case bool:
-		if a {
+	switch a.Type {
+	case BoolType:
+		if a.Bool {
 			return 1
 		}
 		return 0
-	case float64:
-		return int(math.Floor(a))
-	case int:
-		return a
-	case int64:
-		return int(a)
-	case string:
-		if f, err := strconv.ParseFloat(a, 64); err == nil {
+	case FloatType:
+		return int(math.Floor(a.Float))
+	case IntType:
+		return a.Int
+	case StringType:
+		if f, err := strconv.ParseFloat(a.String, 64); err == nil {
 			return int(math.Floor(f))
 		}
 		return 0
@@ -3660,54 +3658,212 @@ func toIntInternal(a DValue) int {
 	return 0
 }
 func toInt(a DValue) DValue {
-	return toIntInternal(a)
+	return DValueInt(toIntInternal(a))
 }
+
+
 
 func toFloatInternal(a DValue) float64 {
-	switch a := a.(type) {
-	case bool:
-		if a {
-			return float64(1)
+	switch a.Type {
+	case BoolType:
+		if a.Bool {
+			return 1
 		}
-		return float64(0)
-	case int:
-		return float64(a)
-	case int64:
-		return float64(a)
-	case float64:
-		return a
-	case string:
-		if f, err := strconv.ParseFloat(a, 64); err == nil {
+		return 0
+	case IntType:
+		return float64(a.Int)
+	case FloatType:
+		return a.Float
+	case StringType:
+		if f, err := strconv.ParseFloat(a.String, 64); err == nil {
 			return f
 		}
-		return 0.0
+		return 0
 	}
-	return 0.0
+	return 0
 }
 func toFloat(a DValue) DValue {
-	return toFloatInternal(a)
+	return DValueFloat(toFloatInternal(a))
 }
-
-func not(a DValue) DValue {
-	// fmt.Printf("not called %T %v\n", a, a)
-	switch a := a.(type) {
-	case bool:
-		return !a
-	case int:
-		return a == 0
-	case float64:
-		return a == 0
-	case string:
-		return a == ""
-	case nil:
+func notInternal(a DValue) bool {
+	switch a.Type {
+	case BoolType:
+		return !a.Bool
+	case IntType:
+		return a.Int == 0
+	case FloatType:
+		return a.Float == 0
+	case StringType:
+		return a.String == ""
+	case NullType:
 		return true
 	}
-	return nil
+	return false
 }
+func not(a DValue) DValue {
+	return DValueBool(notInternal(a))
+}
+
+// Please change the toBool and ToString family
+// of finctions to be like thenones above
+
+
+// func toString(a DValue) DValue {
+// 	return toStringInternal(a)
+// }
+// func toStringInternal(a DValue) string {
+// 	switch a := a.(type) {
+// 	case string:
+// 		return a
+// 	case *DString:
+// 		return a.String
+// 	case map[string]DValue:
+// 		jsonData, err := json.MarshalIndent(a, "", "    ")
+// 		if err != nil {
+// 			// panic(err)
+// 			return fmt.Sprintf("%#v", a)
+// 		} else {
+// 			return string(jsonData)
+// 		}
+// 	case *[]DValue, []DValue:
+// 		jsonData, err := json.MarshalIndent(a, "", "    ")
+// 		if err != nil {
+// 			// panic(err)
+// 			return fmt.Sprintf("%#v", a)
+// 			// return string(jsonData)
+// 		} else {
+// 			return string(jsonData)
+// 		}
+// 	case int:
+// 		return strconv.Itoa(a)
+// 	case int64:
+// 		return strconv.Itoa(int(a))
+// 	case float64:
+// 		return strconv.FormatFloat(a, 'f', -1, 64)
+// 	case bool:
+// 		if a {
+// 			return "true"
+// 		}
+// 		return "false"
+// 	case nil:
+// 		return "<nil>"
+// 	case *Func:
+// 		if a == nil {
+// 			return "<nil func>"
+// 		}
+// 		if a.Builtin != nil {
+// 			return fmt.Sprintf("builtin %s (native code)\n", a.Name)
+// 		} else {
+// 			return fmt.Sprintf("func(%t) %v: %s", a.OneLiner, a.Params, a.Code[a.I:a.EndI])
+// 		}
+// 	case func(*State) State:
+// 		// todo use unsafe ptr to see what it is
+// 		return "a func, immediate"
+// 	// case *RunImmediate:
+// 	//     if a == nil {
+// 	//         return "<nil func>"
+// 	//     }
+// 	//        return a.Name
+// 	case *Reader:
+// 		// TODO: read until a certain threshold,
+// 		// then use files?
+// 		// TODO: if this is part of "say" you can also consider just copying to stdout
+// 		// also execBash family should likely return a Reader.
+// 		b, err := io.ReadAll(a.Reader)
+// 		if err != nil {
+// 			panic(err) // ?
+// 		}
+// 		// "reset" the reader for later use
+// 		// part of the experiment to make readers and strings somewhat interchangeable
+// 		a.Reader = bytes.NewReader(b)
+// 
+// 		return string(b)
+// 	default:
+// 		return fmt.Sprintf("toString: unknown type: type is %T, value is %#v\n", a, a)
+// 	}
+// 	return ""
+// }
+
+func toBoolInternal(a DValue) bool {
+	switch a.Type {
+	case BoolType:
+		return a.Bool
+	case IntType:
+		return a.Int != 0
+	case FloatType:
+		return a.Float != 0
+	case StringType:
+		if isNumeric(a.String) {
+			return !Equal(a.String, "0")
+		}
+		return a.String != ""
+	case NullType:
+		return false
+	case FuncType:
+		return a.Func != nil
+	default:
+		return true
+	}
+}
+func toBool(a DValue) DValue {
+	return DValueBool(toBoolInternal(a))
+}
+
+func toStringInternal(a DValue) string {
+	switch a.Type {
+	case StringType:
+		return a.String
+	case IntType:
+		return strconv.Itoa(a.Int)
+	case FloatType:
+		return strconv.FormatFloat(a.Float, 'f', -1, 64)
+	case BoolType:
+		if a.Bool {
+			return "true"
+		}
+		return "false"
+	case NullType:
+		return "<nil>"
+	case MapType:
+		jsonData, err := json.MarshalIndent(a.Map, "", "    ")
+		if err != nil {
+			return fmt.Sprintf("%#v", a.Map)
+		}
+		return string(jsonData)
+	case SliceType:
+		jsonData, err := json.MarshalIndent(a.Slice, "", "    ")
+		if err != nil {
+			return fmt.Sprintf("%#v", a.Slice)
+		}
+		return string(jsonData)
+	// case FuncType:
+	// 	if a.Func == nil {
+	// 		return "<nil func>"
+	// 	}
+	// 	if a.Func.Builtin != nil {
+	// 		return fmt.Sprintf("builtin %s (native code)\n", a.Func.Name)
+	// 	}
+	// 	return fmt.Sprintf("func(%t) %v: %s", a.Func.OneLiner, a.Func.Params, a.Func.Code[a.Func.I:a.Func.EndI])
+	// case ReaderType:
+	// 	b, err := io.ReadAll(a.Reader)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	a.Reader = bytes.NewReader(b)
+	// 	return string(b)
+	default:
+		return fmt.Sprintf("toString: unknown type: %v, value is %#v\n", a.Type, a)
+	}
+}
+func toString(a DValue) DValue {
+	return DValueString(toStringInternal(a))
+}
+
 
 func say(state *State, out io.Writer, vals ...DValue) *State {
 	for i, v := range vals {
-		if r, ok := v.(io.Reader); ok {
+		if v.Type == ReaderType {
+			r := v.Reader
 			buf := make([]byte, 1024)
 			
 			go func() {
@@ -3744,129 +3900,33 @@ func say(state *State, out io.Writer, vals ...DValue) *State {
 }
 
 
-func toBool(a DValue) DValue {
-	switch a := a.(type) {
-	case int:
-		return a != 0
-	case float64:
-		return a != 0
-	case string:
-		if isNumeric(a) {
-			return !Equal(a, "0")
-		}
-		return a != ""
-	case bool:
-		return a
-	case nil:
-		return false
-	case *Func:
-		return a != nil
-	default:
-		return true
-	}
-}
-func toString(a DValue) DValue {
-	return toStringInternal(a)
-}
-func toStringInternal(a DValue) string {
-	switch a := a.(type) {
-	case string:
-		return a
-	case *DString:
-		return a.String
-	case map[string]DValue:
-		jsonData, err := json.MarshalIndent(a, "", "    ")
-		if err != nil {
-			// panic(err)
-			return fmt.Sprintf("%#v", a)
-		} else {
-			return string(jsonData)
-		}
-	case *[]DValue, []DValue:
-		jsonData, err := json.MarshalIndent(a, "", "    ")
-		if err != nil {
-			// panic(err)
-			return fmt.Sprintf("%#v", a)
-			// return string(jsonData)
-		} else {
-			return string(jsonData)
-		}
-	case int:
-		return strconv.Itoa(a)
-	case int64:
-		return strconv.Itoa(int(a))
-	case float64:
-		return strconv.FormatFloat(a, 'f', -1, 64)
-	case bool:
-		if a {
-			return "true"
-		}
-		return "false"
-	case nil:
-		return "<nil>"
-	case *Func:
-		if a == nil {
-			return "<nil func>"
-		}
-		if a.Builtin != nil {
-			return fmt.Sprintf("builtin %s (native code)\n", a.Name)
-		} else {
-			return fmt.Sprintf("func(%t) %v: %s", a.OneLiner, a.Params, a.Code[a.I:a.EndI])
-		}
-	case func(*State) State:
-		// todo use unsafe ptr to see what it is
-		return "a func, immediate"
-	// case *RunImmediate:
-	//     if a == nil {
-	//         return "<nil func>"
-	//     }
-	//        return a.Name
-	case *Reader:
-		// TODO: read until a certain threshold,
-		// then use files?
-		// TODO: if this is part of "say" you can also consider just copying to stdout
-		// also execBash family should likely return a Reader.
-		b, err := io.ReadAll(a.Reader)
-		if err != nil {
-			panic(err) // ?
-		}
-		// "reset" the reader for later use
-		// part of the experiment to make readers and strings somewhat interchangeable
-		a.Reader = bytes.NewReader(b)
-
-		return string(b)
-	default:
-		return fmt.Sprintf("toString: unknown type: type is %T, value is %#v\n", a, a)
-	}
-	return ""
-}
 
 func keys(a DValue) DValue {
 	ret := []DValue{}
-	for k := range a.(map[string]DValue) {
-		ret = append(ret, k)
+	for k := range a.Map {
+		ret = append(ret, DValueString(k))
 	}
-	return &ret
+	return DValueSlice(&ret)
 }
 func setProp(a, b, c DValue) {
-	a.(map[string]DValue)[toStringInternal(b)] = c
+	a.Map[toStringInternal(b)] = c
 }
 func setIndex(a, b, c DValue) {
-	theArrPointer := a.(*[]DValue)
+	theArrPointer := a.Slice
 	theArr := *theArrPointer
 	theArr[toIntInternal(b)] = c
 }
 func setPropVKO(v, k, o DValue) {
-	o.(map[string]DValue)[toStringInternal(k)] = v
+	o.Map[toStringInternal(k)] = v
 }
 func getProp(a, b DValue) DValue {
-	return a.(map[string]DValue)[toStringInternal(b)]
+	return a.Map[toStringInternal(b)]
 }
 func getPropKO(k, o DValue) DValue {
-	return o.(map[string]DValue)[toStringInternal(k)]
+	return o.Map[toStringInternal(k)]
 }
 func deleteProp(a, b DValue) {
-	delete(a.(map[string]DValue), toStringInternal(b))
+	delete(a.Map, toStringInternal(b))
 }
 
 func makeNoop() func(state *State) *State {
@@ -3953,7 +4013,7 @@ func endIf(state *State) *State {
 
 func interpolate(a, b DValue) DValue {
 	theString := toStringInternal(a)
-	theMap := b.(map[string]DValue)
+	theMap := b.Map
 	theArgs := make([]string, len(theMap)*2)
 	i := 0
 	for k, v := range theMap {
@@ -3962,7 +4022,7 @@ func interpolate(a, b DValue) DValue {
 		i++
 	}
 	r := strings.NewReplacer(theArgs...)
-	return r.Replace(theString)
+	return DValueString(r.Replace(theString))
 }
 
 var variableRe = regexp.MustCompile(`\$[a-zA-Z_][a-zA-Z0-9_]*`)
@@ -4470,31 +4530,28 @@ func (s *SliceIterator) Next() (DValue, DValue, bool) {
         ret := s.Slice[s.I-1]
         i := s.I
         s.I++
-        return i, ret, true
+        return DValueInt(i), ret, true
     }
-    return s.I, nil, false
+    return DValueInt(s.I), null, false
 }
 func (s *MapIterator) Next() (DValue, DValue, bool) {
     if s.I <= len(s.Keys) {
         key := s.Keys[s.I-1]
         s.I++
         value := s.Map[key]
-        return key, value, true
+        return DValueString(key), value, true
     }
-    return nil, nil, false
+    return null, null, false
 }
 
 func makeIterator(v DValue) (Iterator) {
-	switch actualArr := v.(type) {
-	case *[]DValue:
-		return makeSliceIterator(*actualArr)
-	case map[string]DValue:
-		return makeMapIterator(actualArr)
-	case []DValue:
-		// not a normal case we should get in
-		return makeSliceIterator(actualArr)
+	switch v.Type {
+	case SliceType:
+		return makeSliceIterator(*v.Slice)
+	case MapType:
+		return makeMapIterator(v.Map)
 	default:
-	    Iterable, ok := actualArr.(Iterable)
+	    Iterable, ok := v.Any.(Iterable)
 	    if !ok {
 	        panic("not eachable")
 	    }
@@ -4511,10 +4568,10 @@ func getLoopVars(state *State) (*DString, *DString) {
 	var itemVar *DString
 
 	if len(thingsVal) == 2 {
-		indexVar = thingsVal[0].(*DString)
-		itemVar = thingsVal[1].(*DString)
+		indexVar = thingsVal[0].DString
+		itemVar = thingsVal[1].DString
 	} else if len(thingsVal) == 1 {
-		itemVar = thingsVal[0].(*DString)
+		itemVar = thingsVal[0].DString
 	}
 	return indexVar, itemVar
 }
@@ -4541,17 +4598,17 @@ func setLoopVars(state *State, indexVar, itemVar *DString, theIndex, value DValu
 }
 
 func processLoop(state *State, process func(*State, DValue, DValue), onEnd func(state *State)) *State {
-	var theIndex DValue = nil // 1 based so we start less than 1
+	var theIndex DValue = null // 1 based so we start less than 1
     indexVar, itemVar := getLoopVars(state)
 
 	iterator := makeIterator(popT(state.Vals))
-	setLoopVarsInit(state, indexVar, itemVar, theIndex, nil)
+	setLoopVarsInit(state, indexVar, itemVar, theIndex, null)
 	var spot = state.I
 	var endEach func(state *State) *State
 	var value DValue
 	var ok bool
 	endEach = func(state *State) *State {
-        if theIndex != nil && process != nil {
+        if theIndex.Type == NullType && process != nil {
 		    process(state, theIndex, value)
         }
 		theIndex, value, ok = iterator.Next()

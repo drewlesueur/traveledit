@@ -4879,6 +4879,7 @@ function scriptLines() {
         docChanged()
     } else {
         pasteLines(retLines, false, false)
+        expectedFx.cursorLineIndex++
     }
 
     preventRender = oldPreventRender
@@ -13429,6 +13430,9 @@ function touchAreasPressWhileSelected(e, state) {
     handleTouchAreas(e, {
         "5middle": function () {
             doTogglePin()
+        },
+        "4right": function () {
+            scriptLines()
         },
         "3middle": function() {
             editSearch()
