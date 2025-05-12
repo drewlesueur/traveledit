@@ -323,12 +323,13 @@ func MakeState(fileName, code string) *State {
 		// Preinitializing this makes eval in a loop slower if it doesn't use these
 		// though if you eval in a loop with a static string, you should be able to optimize
 
-		Vals:               &[]any{},
-		// Vals:               &make([]any{}, 0, 500),
+		// Vars:               NewRecord(),
+		// Vals:               &[]any{},
+		Vars: nil,
+		Vals: nil,
 		ValsStack:          nil,
 		EndStack:           nil,
 		// Vars:               map[string]any{},
-		Vars:               NewRecord(),
 		DStringCache: make(map[string]*DString),
 		CurrFuncTokens:     nil,
 		FuncTokenStack:     nil,
@@ -416,6 +417,8 @@ func main() {
 	// fmt.Println(code)
 	// TODO: init caches here?
 	state := MakeState(fileName, code+"\n")
+	state.Vals = &[]any{}
+	state.Vars = NewRecord()
 	state.Machine = &Machine{
 		CallbacksCh: make(chan Callback),
 		Index:       0,
@@ -2220,6 +2223,8 @@ func initBuiltins() {
 			
 
 			newState := MakeState(state.FileName, state.Code)
+			newState.Vals = &[]any{}
+			newState.Vars = NewRecord()
 			newState.Machine = state.Machine
 			newState.ICache = state.ICache
 			newState.I = state.I
@@ -2817,13 +2822,15 @@ func makeFuncToken(token *Func) func(*State) *State {
 		newState.ICache = token.ICache
 		newState.I = token.I
 		newState.Vals = state.Vals
+		newState.Vars = NewRecord()
 		newState.CallingParent = state
 		newState.LexicalParent = token.LexicalParent
 		newState.OneLiner = token.OneLiner
 		for i := len(token.Params) - 1; i >= 0; i-- {
 			param := token.Params[i]
-			newState.Vars.SetDString(param, popT(state.Vals))
-			// newState.Vars.Set(param.String, popT(state.Vals))
+			// bug?
+			// newState.Vars.SetDString(param, popT(state.Vals))
+			newState.Vars.Set(param.String, popT(state.Vals))
 		}
 		newState.Machine = state.Machine
 		newState.Out = state.Out
@@ -4152,6 +4159,8 @@ func startCgiServerOld(httpsAddr, httpAddr string) {
 
 func startCgiServer(domain, httpsAddr, httpAddr string) {
 	state := MakeState("__local", "say hi" + "\n")
+	state.Vals = &[]any{}
+	state.Vars = NewRecord()
 	// TODO: add Icache
 	state.Machine = &Machine{
 		CallbacksCh: make(chan Callback),

@@ -10,6 +10,9 @@
 def .test1 .value
     value
 end
+# def .test1
+#     
+# end
 
 let .loopCount 1000000
 # let .loopCount 10
