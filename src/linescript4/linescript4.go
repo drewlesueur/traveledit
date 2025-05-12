@@ -104,7 +104,8 @@ type Func struct {
 	ICache []*ICache
 	// TODO check these caches, or combine them ?
 	// in a function are they correctly copied?
-	Params            []string
+	// Params            []string
+	Params            []*DString
 	LexicalParent     *State
 	Builtin           func(state *State) *State
 	Name              string
@@ -174,10 +175,14 @@ func (r *Record) SetDString(key *DString, value any) {
     // if true || key.RecordIndex == -1 {
     if key.RecordIndex == -1 {
         key.RecordIndex = r.SetSeeIndex(key.String, value)
-        // key.Record = r // likely not used because we set in different spot than get
+        key.Record = r // likely not used because we set in different spot than get
     } else {
         // fmt.Println("yay set cache ", key.String)
-        r.Values[key.RecordIndex] = value
+        if len(r.Values) == key.RecordIndex {
+            r.Set(key.String, value)
+        } else {
+            r.Values[key.RecordIndex] = value
+        }
     }
 }
 
@@ -2283,9 +2288,9 @@ func initBuiltins() {
 			// params := spliceT(state.Vals, state.FuncTokenSpot+1, len(*state.Vals)-(state.FuncTokenSpot+1), nil)
 			ftSpot := state.FuncTokenSpots[len(state.FuncTokenSpots)-1]
 			params := spliceT(state.Vals, ftSpot+1, len(*state.Vals)-(ftSpot+1), nil)
-			paramStrings := make([]string, len(*params))
+			paramStrings := make([]*DString, len(*params))
 			for i, p := range *params {
-				paramStrings[i] = toStringInternal(p)
+				paramStrings[i] = p.(*DString)
 			}
 			funcName := toStringInternal(popT(state.Vals))
 			f := &Func{
@@ -2317,9 +2322,9 @@ func initBuiltins() {
 		},
 		"func": func(state *State) *State {
 			params := getArgs(state)
-			paramStrings := make([]string, len(*params))
+			paramStrings := make([]*DString, len(*params))
 			for i, p := range *params {
-				paramStrings[i] = toStringInternal(p)
+				paramStrings[i] = p.(*DString)
 			}
 			f := &Func{
 				FileName:          state.FileName,
@@ -2817,7 +2822,8 @@ func makeFuncToken(token *Func) func(*State) *State {
 		newState.OneLiner = token.OneLiner
 		for i := len(token.Params) - 1; i >= 0; i-- {
 			param := token.Params[i]
-			newState.Vars.Set(param, popT(state.Vals))
+			newState.Vars.SetDString(param, popT(state.Vals))
+			// newState.Vars.Set(param.String, popT(state.Vals))
 		}
 		newState.Machine = state.Machine
 		newState.Out = state.Out

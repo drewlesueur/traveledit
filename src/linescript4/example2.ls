@@ -7,6 +7,29 @@
 # 7 - 0.1
 # say getType it
 
+def .test1 .value
+    value
+end
+
+let .loopCount 1000000
+# let .loopCount 10
+let .theStart now
+let .val 0
+let .i 0
+loopCount loop .i
+    i - test1 1
+    - 0.1
+    # + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2
+    + val
+    as .val
+end
+let .theEnd now
+say "+it took " (- theEnd theStart) " millis"
+say "+loops: " loopCount
+say "and val is " val
+
+say "---"
+exit
 
 let .loopCount 1000000
 # let .loopCount 10

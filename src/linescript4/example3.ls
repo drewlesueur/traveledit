@@ -1,6 +1,8 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
 
+# def .add1 .val
+
 def .process .line
     upper line
     cc "!"
