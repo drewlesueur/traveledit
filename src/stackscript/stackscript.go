@@ -292,10 +292,10 @@ func (vm *VM) Run() {
             ip = int(target)
 
         case OP_GOTO_IF:
-            // pop cond, pop target. if cond!=0 jump.
+            // pop target, pop cond. if cond!=0 jump.
             n := len(vm.stack)
-            cond := vm.stack[n-1]
-            target := vm.stack[n-2]
+            target := vm.stack[n-1]
+            cond   := vm.stack[n-2]
             vm.stack = vm.stack[:n-2]
             if cond != 0 {
                 if target < 0 || int(target) >= len(vm.code) {
@@ -355,3 +355,4 @@ func main() {
     vm.Tokenize(src)
     vm.Run()
 }
+
