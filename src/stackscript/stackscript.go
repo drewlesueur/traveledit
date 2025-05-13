@@ -388,6 +388,25 @@ func (vm *VM) Run() {
     // # + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2
     // + val
     // as .val
+    
+// if a is b, or c is d
+// a b is yay1 then
+// c d is yay1 then
+// nay1 goto
+// yay1:
+//     %% it works
+//     say
+// nay1:
+// 
+// a is b && c == d
+// a b is yay1 then
+// nay1 goto
+// yay1: c d us yay2 then
+// nay1 goto
+// yay2:
+// 
+// nay1:
+
 
 func main() {
     src := `
