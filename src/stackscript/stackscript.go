@@ -125,8 +125,10 @@ const (
     OP_GOTO_IF
     OP_DUP
     OP_GT
+    OP_GTE
     OP_LOAD_VAR
     OP_STORE_VAR
+    OP_I2F
 )
 
 type VM struct {
@@ -156,6 +158,8 @@ func (vm *VM) Tokenize(src string) {
         "gotoIf":    OP_GOTO_IF,
         "dup":       OP_DUP,
         "gt":        OP_GT,
+        "gte":        OP_GTE,
+        "iToF":        OP_I2F,
     }
 
     // first pass: split lines, record labels
@@ -165,6 +169,9 @@ func (vm *VM) Tokenize(src string) {
 
     for _, raw := range strings.Split(src, "\n") {
         if i := strings.Index(raw, "#"); i >= 0 {
+            raw = raw[:i]
+        }
+        if i := strings.Index(raw, "//"); i >= 0 {
             raw = raw[:i]
         }
         raw = strings.TrimSpace(raw)
@@ -282,7 +289,19 @@ func (vm *VM) Run() {
             fr := fa + fb
             vm.stack = append(vm.stack, int64(math.Float64bits(fr)))
             ip++
-
+        case OP_I2F:
+            // pop int64
+            n := len(vm.stack)
+            i := vm.stack[n-1]
+            vm.stack = vm.stack[:n-1]
+    
+            // convert to float64, then to IEEE-754 bits
+            f := float64(i)
+            bits := math.Float64bits(f)
+    
+            // push the bits back on the stack as an int64
+            vm.stack = append(vm.stack, int64(bits))
+            ip++
         case OP_SAY_INT:
             n := len(vm.stack)
             v := vm.stack[n-1]
@@ -294,7 +313,8 @@ func (vm *VM) Run() {
             n := len(vm.stack)
             vb := vm.stack[n-1]
             vm.stack = vm.stack[:n-1]
-            fmt.Println(math.Float64frombits(uint64(vb)))
+            // fmt.Println(math.Float64frombits(uint64(vb)))
+            fmt.Println(strconv.FormatFloat(math.Float64frombits(uint64(vb)), 'f', -1, 64))
             ip++
 
         case OP_SAY_STRING:
@@ -336,6 +356,16 @@ func (vm *VM) Run() {
             }
             vm.stack = append(vm.stack, res)
             ip++
+        case OP_GTE:
+            n := len(vm.stack)
+            b, a := vm.stack[n-1], vm.stack[n-2]
+            vm.stack = vm.stack[:n-2]
+            var res int64
+            if a >= b {
+                res = 1
+            }
+            vm.stack = append(vm.stack, res)
+            ip++
 
         case OP_STORE_VAR:
             n := len(vm.stack)
@@ -353,24 +383,29 @@ func (vm *VM) Run() {
         }
     }
 }
+    // i - 1
+    // - 0.1
+    // # + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2
+    // + val
+    // as .val
 
 func main() {
     src := `
-        # now with a variable i
         0 :i                 # initialize i = 0
-
-    loop:
-        i say                # print i
-        i 1 addInt64 :i      # i = i + 1
-
-        i 3 gt               # is i > 3 ?
-        endIf                # push address of endIf
-        gotoIf               # if true, jump to endIf
-
-        loop goto            # else loop again
-
+        0.0 :b
+        9000000 :loops
+    theLoop:
+        # i say
+        i 1 addInt64 :i
+        i -1 addInt64 # dup say
+        iToF -0.1 addFloat64
+        b addFloat64 :b
+        i loops gte endIf gotoIf
+        theLoop goto
     endIf:
         i say                # final print
+        b sayFloat
+
     `
 
     start := time.Now()
