@@ -82,6 +82,22 @@
 // Here’s a self‐contained version.  I’ve also included a tiny example in main showing an unconditional loop and a conditional jump.
 // 
 // ```go
+
+
+        // # a simple counter loop from 0 to 3
+        // 0                       # start with i=0
+        // start:
+        //     # dup say                 # print i, but keep a copy
+        //     # %% loop!                
+        //     # sayString
+        //     1 addInt64              # i = i + 1
+        //     dup                     # make two copies of i
+        //     1000000 gt                    # pop (3, i), push (i>3?1:0)
+        //     endIf                   # push the address of endIf
+        //     gotoIf                  # if top=0 goto endIf, else fall‐through
+        //     start goto              # unconditional loop back
+        // endIf:
+        // say                     # final print of i
 package main
 
 import (
@@ -89,6 +105,7 @@ import (
     "math"
     "strconv"
     "strings"
+    "time"
 )
 
 type Instr struct {
@@ -108,12 +125,15 @@ const (
     OP_GOTO_IF
     OP_DUP
     OP_GT
+    OP_LOAD_VAR
+    OP_STORE_VAR
 )
 
 type VM struct {
     code       []Instr
     stack      []int64
     stringPool []string
+    vars       []int64
 }
 
 func NewVM() *VM {
@@ -121,36 +141,29 @@ func NewVM() *VM {
         code:       nil,
         stack:      make([]int64, 0, 256),
         stringPool: make([]string, 0, 64),
+        vars:       nil,
     }
 }
 
-// Tokenize builds the instruction array from source code.
-// It supports:
-//   label:          define a label at this instruction index
-//   goto            pops an int and unconditionally jumps there
-//   gotoIf          pops cond, pops target, if cond!=0 jumps there
-// and of course all your old pushes, addInt64, addFloat64, say, sayFloat, sayString.
 func (vm *VM) Tokenize(src string) {
-    // map from word to opcode
     nameToOp := map[string]byte{
-        "addInt64":   OP_ADD_INT,
+        "addInt64":  OP_ADD_INT,
         "addFloat64": OP_ADD_FLOAT,
-        "say":        OP_SAY_INT,
-        "sayFloat":   OP_SAY_FLOAT,
-        "sayString":  OP_SAY_STRING,
-        "goto":       OP_GOTO,
-        "gotoIf":     OP_GOTO_IF,
-        "dup":        OP_DUP,
-        "gt":         OP_GT,
+        "say":       OP_SAY_INT,
+        "sayFloat":  OP_SAY_FLOAT,
+        "sayString": OP_SAY_STRING,
+        "goto":      OP_GOTO,
+        "gotoIf":    OP_GOTO_IF,
+        "dup":       OP_DUP,
+        "gt":        OP_GT,
     }
 
-    // first pass: split into lines/tokens, record label positions
-    var lines [][]string
-    labels := make(map[string]int) // label -> instr index
-
+    // first pass: split lines, record labels
+    lines := [][]string{}
+    labels := make(map[string]int)
     instrCount := 0
+
     for _, raw := range strings.Split(src, "\n") {
-        // strip comments
         if i := strings.Index(raw, "#"); i >= 0 {
             raw = raw[:i]
         }
@@ -158,37 +171,34 @@ func (vm *VM) Tokenize(src string) {
         if raw == "" {
             continue
         }
-
-        // string‐literal line
+        // string literal
         if strings.HasPrefix(raw, "%% ") {
-            // that is exactly one Instr
             lines = append(lines, []string{raw})
             instrCount++
             continue
         }
-
-        // otherwise split into words
         toks := strings.Fields(raw)
-        var kept []string
+        kept := []string{}
         for _, tok := range toks {
             if strings.HasSuffix(tok, ":") {
-                // label definition
                 name := tok[:len(tok)-1]
                 labels[name] = instrCount
                 continue
             }
             kept = append(kept, tok)
-            instrCount++ // every token becomes exactly one Instr
+            instrCount++
         }
         if len(kept) > 0 {
             lines = append(lines, kept)
         }
     }
 
-    // second pass: actually emit code
-    var prog []Instr
+    // second pass: emit code, handle variables
+    prog := []Instr{}
+    varMap := make(map[string]int)
+
     for _, toks := range lines {
-        // string literal syntax: entire line is one literal
+        // string literal
         if len(toks) == 1 && strings.HasPrefix(toks[0], "%% ") {
             lit := toks[0][3:]
             idx := int64(len(vm.stringPool))
@@ -196,18 +206,34 @@ func (vm *VM) Tokenize(src string) {
             prog = append(prog, Instr{op: OP_PUSH, arg: idx})
             continue
         }
-        // normal tokens
         for _, tok := range toks {
-            if op, isBuiltin := nameToOp[tok]; isBuiltin {
+            // store into variable?
+            if strings.HasPrefix(tok, ":") {
+                name := tok[1:]
+                idx, ok := varMap[name]
+                if !ok {
+                    idx = len(varMap)
+                    varMap[name] = idx
+                }
+                prog = append(prog, Instr{op: OP_STORE_VAR, arg: int64(idx)})
+                continue
+            }
+            // load from variable?
+            if idx, ok := varMap[tok]; ok {
+                prog = append(prog, Instr{op: OP_LOAD_VAR, arg: int64(idx)})
+                continue
+            }
+            // builtin op?
+            if op, ok := nameToOp[tok]; ok {
                 prog = append(prog, Instr{op: op})
                 continue
             }
             // label reference?
-            if target, isLabel := labels[tok]; isLabel {
-                prog = append(prog, Instr{op: OP_PUSH, arg: int64(target)})
+            if tgt, ok := labels[tok]; ok {
+                prog = append(prog, Instr{op: OP_PUSH, arg: int64(tgt)})
                 continue
             }
-            // float?
+            // float literal?
             if strings.Contains(tok, ".") {
                 v, err := strconv.ParseFloat(tok, 64)
                 if err != nil {
@@ -217,7 +243,7 @@ func (vm *VM) Tokenize(src string) {
                 prog = append(prog, Instr{op: OP_PUSH, arg: int64(bits)})
                 continue
             }
-            // int
+            // int literal
             v, err := strconv.ParseInt(tok, 10, 64)
             if err != nil {
                 panic("bad int literal: " + tok)
@@ -225,11 +251,12 @@ func (vm *VM) Tokenize(src string) {
             prog = append(prog, Instr{op: OP_PUSH, arg: v})
         }
     }
+
     vm.code = prog
+    // allocate vars slice now that we know how many
+    vm.vars = make([]int64, len(varMap))
 }
 
-
-// Run executes the program.
 func (vm *VM) Run() {
     ip := 0
     for ip < len(vm.code) {
@@ -267,58 +294,40 @@ func (vm *VM) Run() {
             n := len(vm.stack)
             vb := vm.stack[n-1]
             vm.stack = vm.stack[:n-1]
-            f := math.Float64frombits(uint64(vb))
-            fmt.Println(f)
+            fmt.Println(math.Float64frombits(uint64(vb)))
             ip++
 
         case OP_SAY_STRING:
             n := len(vm.stack)
             idx := vm.stack[n-1]
             vm.stack = vm.stack[:n-1]
-            if idx < 0 || int(idx) >= len(vm.stringPool) {
-                panic(fmt.Sprintf("string pool idx out of range: %d", idx))
-            }
             fmt.Println(vm.stringPool[idx])
             ip++
 
         case OP_GOTO:
-            // pop target, jump unconditionally
             n := len(vm.stack)
-            target := vm.stack[n-1]
+            tgt := vm.stack[n-1]
             vm.stack = vm.stack[:n-1]
-            if target < 0 || int(target) >= len(vm.code) {
-                panic(fmt.Sprintf("goto target out of range: %d", target))
-            }
-            ip = int(target)
+            ip = int(tgt)
 
         case OP_GOTO_IF:
-            // pop target, pop cond. if cond!=0 jump.
             n := len(vm.stack)
-            target := vm.stack[n-1]
-            cond   := vm.stack[n-2]
+            tgt := vm.stack[n-1]
+            cond := vm.stack[n-2]
             vm.stack = vm.stack[:n-2]
             if cond != 0 {
-                if target < 0 || int(target) >= len(vm.code) {
-                    panic(fmt.Sprintf("gotoIf target out of range: %d", target))
-                }
-                ip = int(target)
+                ip = int(tgt)
             } else {
                 ip++
             }
+
         case OP_DUP:
-            // duplicate the top of stack
             n := len(vm.stack)
-            if n < 1 {
-                panic("dup on empty stack")
-            }
             vm.stack = append(vm.stack, vm.stack[n-1])
             ip++
+
         case OP_GT:
-            // pop b, pop a, push (a>b?1:0)
             n := len(vm.stack)
-            if n < 2 {
-                panic("gt requires two operands")
-            }
             b, a := vm.stack[n-1], vm.stack[n-2]
             vm.stack = vm.stack[:n-2]
             var res int64
@@ -327,6 +336,18 @@ func (vm *VM) Run() {
             }
             vm.stack = append(vm.stack, res)
             ip++
+
+        case OP_STORE_VAR:
+            n := len(vm.stack)
+            v := vm.stack[n-1]
+            vm.stack = vm.stack[:n-1]
+            vm.vars[instr.arg] = v
+            ip++
+
+        case OP_LOAD_VAR:
+            vm.stack = append(vm.stack, vm.vars[instr.arg])
+            ip++
+
         default:
             panic(fmt.Sprintf("unknown opcode %d at %d", instr.op, ip))
         }
@@ -335,24 +356,30 @@ func (vm *VM) Run() {
 
 func main() {
     src := `
-        # a simple counter loop from 0 to 3
-        0                       # start with i=0
-        start:
-            dup say                 # print i, but keep a copy
-            %% loop!                
-            sayString
-            1 addInt64              # i = i + 1
-            dup                     # make two copies of i
-            3 gt                    # pop (3, i), push (i>3?1:0)
-            endIf                   # push the address of endIf
-            gotoIf                  # if top=0 goto endIf, else fall‐through
-            start goto              # unconditional loop back
-        endIf:
-        say                     # final print of i
+        # now with a variable i
+        0 :i                 # initialize i = 0
+
+    loop:
+        i say                # print i
+        i 1 addInt64 :i      # i = i + 1
+
+        i 3 gt               # is i > 3 ?
+        endIf                # push address of endIf
+        gotoIf               # if true, jump to endIf
+
+        loop goto            # else loop again
+
+    endIf:
+        i say                # final print
     `
 
+    start := time.Now()
     vm := NewVM()
     vm.Tokenize(src)
+    mid := time.Now()
     vm.Run()
-}
+    end := time.Now()
 
+    fmt.Println("tokenize:", mid.Sub(start))
+    fmt.Println("run:     ", end.Sub(mid))
+}
