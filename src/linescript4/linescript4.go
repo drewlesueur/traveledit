@@ -2100,8 +2100,8 @@ func initBuiltins() {
 				loopStart = toIntInternal(popT(state.Vals))
 				indexVar = thingsVal[0].(*DString)
 			} else {
-				loopStart = toIntInternal(popT(state.Vals))
 				loopEnd = toIntInternal(popT(state.Vals))
+				loopStart = toIntInternal(popT(state.Vals))
 			}
 
 			if indexVar != nil {
