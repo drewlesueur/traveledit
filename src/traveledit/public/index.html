@@ -4839,13 +4839,11 @@ function scriptLines() {
     
     var expectedFx = fx
     
-    // second-most-recent file
-    // var _t = getSelectedLines(lastFile, false)
-    var _t = getSelectedLines(lastFile, true)
+    var _t = getSelectedLines(expectedFx, true)
     var linesToProcess = _t.lines
     var isWholeFile = _t.isWholeFile
 
-    var theScriptLines = getSelectedLines(expectedFx, false).lines
+    var theScriptLines = getSelectedLines(lastFile, false).lines
     
     if (theScriptLines.length) {
         // add return to the last non-empty line
@@ -4876,12 +4874,12 @@ function scriptLines() {
             retLines.push(line)
         }
     }
-    setCurrentFile(lastFile) // second-most-recent file
     if (isWholeFile) {
         setLines(retLines)
         docChanged()
     } else {
         pasteLines(retLines, false, false)
+        expectedFx.cursorLineIndex++
     }
 
     preventRender = oldPreventRender
@@ -13432,6 +13430,9 @@ function touchAreasPressWhileSelected(e, state) {
     handleTouchAreas(e, {
         "5middle": function () {
             doTogglePin()
+        },
+        "4right": function () {
+            scriptLines()
         },
         "3middle": function() {
             editSearch()

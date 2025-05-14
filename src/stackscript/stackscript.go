@@ -383,30 +383,7 @@ func (vm *VM) Run() {
         }
     }
 }
-    // i - 1
-    // - 0.1
-    // # + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2
-    // + val
-    // as .val
     
-// if a is b, or c is d
-// a b is yay1 then
-// c d is yay1 then
-// nay1 goto
-// yay1:
-//     %% it works
-//     say
-// nay1:
-// 
-// a is b && c == d
-// a b is yay1 then
-// nay1 goto
-// yay1: c d us yay2 then
-// nay1 goto
-// yay2:
-// 
-// nay1:
-
 
 func main() {
     src := `
@@ -437,3 +414,267 @@ func main() {
     fmt.Println("tokenize:", mid.Sub(start))
     fmt.Println("run:     ", end.Sub(mid))
 }
+
+
+Does the way I handle strings here mean I have to do manual memory management?
+
+No – you’re not leaking memory the way you would in C.  In Go every one of your strings in the stringPool is just a Go string (and the slice backing stringPool is just a Go slice of string).  All of that is garbage‐collected for you.  
+
+The only “memory management” you ever have to think about in pure Go is:  
+
+  • If you continually append new literals to your stringPool in a long‐running VM, you will keep growing that slice indefinitely, and the GC won’t be able to reclaim the old entries until you drop them (e.g. by slicing stringPool down or setting it to nil).  
+  • Other than that, you never have to call free or worry about dangling pointers—Go’s runtime will reclaim both the slice and all the strings in it once nothing references them anymore.  
+
+In short, you don’t need any manual memory management. Just be aware that if you keep adding to stringPool in a loop, you will keep consuming heap until you explicitly shrink or replace that slice.
+
+what if I wanted to implement maps and slices in a similar way?
+I'd have a pool of maps and a pool of slices etc
+when I was done with one, I'd have to free that slot
+and then reuse it when I wanted another.
+
+You don’t ever “free” Go memory the way you do in C.  Everything you allocate in Go (strings, slices, maps, structs, whatever) lives on the heap (or stack, depending on escape analysis) and is torn down by the garbage collector once it is no longer reachable.  
+
+What you *can* do for performance is build your own pools of objects (maps, slices, even big buffers) so that you re-use the same underlying memory instead of constantly letting the GC churn through millions of tiny allocations.  But note:
+
+  1. “Freeing” in this context just means “remove my reference to it (or clear it) so that I can hand that slot back into my pool.”  
+     ‑ You do *not* literally deallocate memory, you only drop your references.  
+     ‑ The GC still owns the real job of freeing the backing store when nothing (even your pool) holds on to it.  
+
+  2. You must *clear* pooled objects before you re-use them (or before you let them sit idle in your pool), otherwise you’ll hold on to old data and you’ll leak whatever the old data pointed at.  
+     ‑ For slices you typically do:  
+         s = s[:0]  
+         // if s held pointers to big objects, you might do for i := range s { s[i] = zero }  
+     ‑ For maps you do:  
+         for k := range m { delete(m, k) }  
+
+  3. There are two common pooling patterns in Go:  
+     a) sync.Pool – a GC‐friendly cache of temporary objects.  
+        • You call pool.Get(), which either grabs an existing object or calls your New() function to make one.  
+        • When you’re done, you pool.Put(obj).  
+        • The GC is still free to drop your pooled objects at any time if it needs the memory.  
+     b) Your own handle‐based pools – especially popular when you want integer handles in your VM.  
+        • Keep a slice (e.g. []map[string]Value or [][]Value) and a free-list of integer indices.  
+        • Alloc(): pop an index off free-list (or append a new slot), zero it, return the index.  
+        • Free(idx): clear the slot (nil the map or s[:0] the slice), push idx back on your free-list.  
+        • Again, you never “free” the memory to Go – you just remove references or reuse them.  
+
+In all of these designs the *only* memory management you are doing is bookkeeping of which slots are in use, clearing out the old contents, and making them available for re-use.  The Go runtime’s garbage collector remains responsible for the actual allocation and reclamation of the backing memory.
+
+
+
+
+/*
+NOTE THIS MADE my 9 million loop go from approx 430ms to 480ms
+so maybe the build in slice operations aren't so bad, or maybe something else is off
+------
+
+
+give me a diff for this code
+so that we do not do slice operations on the stack
+bit we just keep track of the current index.
+so "slicing" would just be decrementing an index etc
+
+Here’s a unified‐diff that converts the stack from “append/slice”-style to an explicit stack‐pointer (sp) backed by a pre­allocated slice.  In short:
+
+  • Add an `sp` field to `VM`  
+  • Allocate `stack = make([]int64, 256)` in NewVM  
+  • Replace every `append` / `stack = stack[:…]` bunch with  
+       sp–based push / pop  
+
+---- begin diff ----
+```diff
+diff --git a/main.go b/main.go
+index 1234567..89abcde 100644
+--- a/main.go
++++ b/main.go
+@@ -15,7 +15,9 @@ type VM struct {
+     code       []Instr
+-    stack      []int64
++    stack      []int64 // pre‐allocated scratch area
++    sp         int     // stack pointer (next free slot)
+     stringPool []string
+     vars       []int64
+ }
+@@ func NewVM() *VM {
+-       stack:      make([]int64, 0, 256),
++       stack:      make([]int64, 256), // fixed capacity
++       sp:         0,                  // start at 0
+        stringPool: make([]string, 0, 64),
+        vars:       nil,
+    }
+@@ func (vm *VM) Run() {
+-   ip := 0
++   ip := 0
+    for ip < len(vm.code) {
+        instr := vm.code[ip]
+        switch instr.op {
+        case OP_PUSH:
+-           vm.stack = append(vm.stack, instr.arg)
++           vm.stack[vm.sp] = instr.arg
++           vm.sp++
+            ip++
+@@ case OP_ADD_INT:
+-           n := len(vm.stack)
+-           b, a := vm.stack[n-1], vm.stack[n-2]
+-           vm.stack = vm.stack[:n-2]
+-           vm.stack = append(vm.stack, a+b)
++           // pop two
++           b := vm.stack[vm.sp-1]
++           a := vm.stack[vm.sp-2]
++           vm.sp -= 2
++           // push result
++           vm.stack[vm.sp] = a + b
++           vm.sp++
+            ip++
+@@ case OP_ADD_FLOAT:
+-           n := len(vm.stack)
+-           bb, aa := vm.stack[n-1], vm.stack[n-2]
+-           vm.stack = vm.stack[:n-2]
+-           fa := math.Float64frombits(uint64(aa))
+-           fb := math.Float64frombits(uint64(bb))
+-           fr := fa + fb
+-           vm.stack = append(vm.stack, int64(math.Float64bits(fr)))
++           bb := vm.stack[vm.sp-1]
++           aa := vm.stack[vm.sp-2]
++           vm.sp -= 2
++           fa := math.Float64frombits(uint64(aa))
++           fb := math.Float64frombits(uint64(bb))
++           fr := fa + fb
++           vm.stack[vm.sp] = int64(math.Float64bits(fr))
++           vm.sp++
+            ip++
+@@ case OP_I2F:
+-           n := len(vm.stack)
+-           i := vm.stack[n-1]
+-           vm.stack = vm.stack[:n-1]
+-           f := float64(i)
+-           bits := math.Float64bits(f)
+-           vm.stack = append(vm.stack, int64(bits))
++           // pop int
++           i := vm.stack[vm.sp-1]
++           vm.sp--
++           // convert & push
++           f := float64(i)
++           vm.stack[vm.sp] = int64(math.Float64bits(f))
++           vm.sp++
+            ip++
+@@ case OP_SAY_INT:
+-           n := len(vm.stack)
+-           v := vm.stack[n-1]
+-           vm.stack = vm.stack[:n-1]
++           v := vm.stack[vm.sp-1]
++           vm.sp--
+            fmt.Println(v)
+            ip++
+@@ case OP_SAY_FLOAT:
+-           n := len(vm.stack)
+-           vb := vm.stack[n-1]
+-           vm.stack = vm.stack[:n-1]
++           vb := vm.stack[vm.sp-1]
++           vm.sp--
+            fmt.Println(strconv.FormatFloat(math.Float64frombits(uint64(vb)), 'f', -1, 64))
+            ip++
+@@ case OP_SAY_STRING:
+-           n := len(vm.stack)
+-           idx := vm.stack[n-1]
+-           vm.stack = vm.stack[:n-1]
++           idx := vm.stack[vm.sp-1]
++           vm.sp--
+            fmt.Println(vm.stringPool[idx])
+            ip++
+@@ case OP_GOTO:
+-           n := len(vm.stack)
+-           tgt := vm.stack[n-1]
+-           vm.stack = vm.stack[:n-1]
++           tgt := vm.stack[vm.sp-1]
++           vm.sp--
+            ip = int(tgt)
+@@ case OP_GOTO_IF:
+-           n := len(vm.stack)
+-           tgt := vm.stack[n-1]
+-           cond := vm.stack[n-2]
+-           vm.stack = vm.stack[:n-2]
++           tgt  := vm.stack[vm.sp-1]
++           cond := vm.stack[vm.sp-2]
++           vm.sp -= 2
+            if cond != 0 {
+                ip = int(tgt)
+            } else {
+                ip++
+@@ case OP_DUP:
+-           n := len(vm.stack)
+-           vm.stack = append(vm.stack, vm.stack[n-1])
++           top := vm.stack[vm.sp-1]
++           vm.stack[vm.sp] = top
++           vm.sp++
+            ip++
+@@ case OP_GT:
+-           n := len(vm.stack)
+-           b, a := vm.stack[n-1], vm.stack[n-2]
+-           vm.stack = vm.stack[:n-2]
+-           var res int64
+-           if a > b {
+-               res = 1
+-           }
+-           vm.stack = append(vm.stack, res)
++           b := vm.stack[vm.sp-1]
++           a := vm.stack[vm.sp-2]
++           vm.sp -= 2
++           var res int64
++           if a > b {
++               res = 1
++           }
++           vm.stack[vm.sp] = res
++           vm.sp++
+            ip++
+@@ case OP_GTE:
+-           n := len(vm.stack)
+-           b, a := vm.stack[n-1], vm.stack[n-2]
+-           vm.stack = vm.stack[:n-2]
+-           var res int64
+-           if a >= b {
+-               res = 1
+-           }
+-           vm.stack = append(vm.stack, res)
++           b := vm.stack[vm.sp-1]
++           a := vm.stack[vm.sp-2]
++           vm.sp -= 2
++           var res int64
++           if a >= b {
++               res = 1
++           }
++           vm.stack[vm.sp] = res
++           vm.sp++
+            ip++
+@@ case OP_STORE_VAR:
+-           n := len(vm.stack)
+-           v := vm.stack[n-1]
+-           vm.stack = vm.stack[:n-1]
++           v := vm.stack[vm.sp-1]
++           vm.sp--
+            vm.vars[instr.arg] = v
+            ip++
+@@ case OP_LOAD_VAR:
+-           vm.stack = append(vm.stack, vm.vars[instr.arg])
++           vm.stack[vm.sp] = vm.vars[instr.arg]
++           vm.sp++
+            ip++
+```
+---- end diff ----
+
+Explanation of the key changes:
+
+1.  We added `sp int` to `VM` to track the next‐free slot.
+2.  We preallocate `stack := make([]int64, 256)` so addresses `0…255` are valid.
+3.  A “push” becomes:
+       stack[sp] = value  
+       sp++
+4.  A “pop” becomes:
+       sp--  
+       value = stack[sp]
+5.  We replaced *all* `append` and slice‐truncation calls with the above push/pop pattern.
+
+This way there are no runtime allocations or slice reslices on the critical path—just index
+
+
+*/
