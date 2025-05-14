@@ -900,7 +900,6 @@ func (n *Newliner) Next() (any, any, bool) {
 			panic(err)
 		}
 	}
-	fmt.Printf("got %q, %v", line, err)
 	origLine := line
 	line = strings.TrimRight(line, "\n")
 	return n.Index, line, err == nil || len(origLine) > 0
@@ -3495,12 +3494,19 @@ var gtes = makeMather(
 	},
 )
 
+func unDString(a any) any {
+    if a, ok := a.(*DString); ok {
+        return a.String
+    }
+    return a
+}
+
 // is returns whether a equals b.
 var is = func(a, b any) any {
-	return a == b
+	return unDString(a) == unDString(b)
 }
 var isnt = func(a, b any) any {
-	return a != b
+	return unDString(a) != unDString(b)
 }
 
 // is returns whether a equals b.
