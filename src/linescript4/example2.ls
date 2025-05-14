@@ -10,6 +10,10 @@
 def .test1 .value
     value
 end
+def .test2 .value
+    value
+    drop
+end
 # def .test1
 #     
 # end
@@ -20,8 +24,13 @@ let .theStart now
 let .val 0
 let .i 0
 loopCount loop .i
-    # i - test1 1
-    i - 1
+    test2 1
+    test2 1
+    test2 1
+    test2 1
+    test2 1
+    i - test1 1
+    # i - 1
     - 0.1
     # + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2, + 2, - 2
     + val

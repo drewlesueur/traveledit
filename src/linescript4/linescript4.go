@@ -174,6 +174,7 @@ func (r *Record) Set(key string, value any) {
 func (r *Record) SetDString(key *DString, value any) {
     // if true || key.RecordIndex == -1 {
     if false && key.RecordIndex != -1 {
+    // if key.RecordIndex != -1 {
         // fmt.Println("yay set cache ", key.String)
         if len(r.Values) == key.RecordIndex {
             r.Set(key.String, value)
@@ -678,6 +679,7 @@ func getVar(state *State, varName *DString) any {
 func findParentAndValue(state *State, varName *DString) (*Record, any) {
 	// if varName.Record != nil {
 	if false && varName.RecordIndex != -1 {
+	// if varName.RecordIndex != -1 {
         // fmt.Println("yay get cache ", varName.String)
         s := state
         for i := 0; i < varName.ScopesUp; i++ {
@@ -2846,6 +2848,17 @@ func getArgs(state *State) *[]any {
 // closures seem to be in par with interfaces
 func makeFuncToken(token *Func) func(*State) *State {
 	return func(state *State) *State {
+		
+		
+		// for i := len(token.Params) - 1; i >= 0; i-- {
+		// 	param := token.Params[i]
+		// 	// bug?
+		// 	// newState.Vars.SetDString(param, popT(state.Vals))
+		// 	state.Vars.Set(param.String, popT(state.Vals))
+		// }
+		// return state
+		
+		
 		// state.CurrFuncTokens = nil
 		// state.FuncTokenSpots = nil
 		newState := MakeState(token.FileName, token.Code)
@@ -2865,7 +2878,6 @@ func makeFuncToken(token *Func) func(*State) *State {
 			// newState.Vars.SetDString(param, popT(state.Vals))
 			newState.Vars.Set(param.String, popT(state.Vals))
 		}
-		newState.Machine = state.Machine
 		newState.Out = state.Out
 		// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
 		// fmt.Println("#yellow peek", toString(nt))
