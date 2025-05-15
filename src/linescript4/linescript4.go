@@ -1505,6 +1505,10 @@ func initBuiltins() {
 			pushT(state.Vals, state.Vals)
 			return state
 		},
+		"__vars": func(state *State) *State {
+			pushT(state.Vals, state.Vars)
+			return state
+		},
 		"__state": func(state *State) *State {
 			pushT(state.Vals, state)
 			return state
@@ -1964,6 +1968,9 @@ func initBuiltins() {
 			return state
 		},
 		"=": func(state *State) *State {
+		    return builtins["let"](state)
+		},
+		":=": func(state *State) *State {
 		    return builtins["let"](state)
 		},
 		"as": func(state *State) *State {
@@ -2489,6 +2496,12 @@ func initBuiltins() {
 		    pushT(state.Vals, &Reader{Reader:stdout}) // Push the io.ReadCloser
 		    return state
 		},
+		"toReader": func(state *State) *State {
+		    val := popTString(state.Vals)
+		    pushT(state.Vals, &Reader{Reader:strings.NewReader(val)})
+		    return state
+		},
+		
 		// make a version of this that allows a reader too (as another popT)
 		// if it's a string then make a new Reader out of the string and make that the Stdin of the command
 		// If it's a Reader already then make that the Stdin of the command.
@@ -3079,6 +3092,7 @@ func slice(s any, start any, end any) any {
 			startInt = len(*s) + startInt + 1
 		}
 		if startInt <= 0 {
+		    // return &[]any{}
 			startInt = 1
 		}
 		if startInt > len(*s) {
@@ -3088,6 +3102,7 @@ func slice(s any, start any, end any) any {
 			endInt = len(*s) + endInt + 1
 		}
 		if endInt <= 0 {
+		    // return &[]any{}
 			endInt = 1
 		}
 		if endInt > len(*s) {
@@ -3104,6 +3119,7 @@ func slice(s any, start any, end any) any {
 			startInt = len(s) + startInt + 1
 		}
 		if startInt <= 0 {
+		    // return ""
 			startInt = 1
 		}
 		if startInt > len(s) {
@@ -3113,6 +3129,7 @@ func slice(s any, start any, end any) any {
 			endInt = len(s) + endInt + 1
 		}
 		if endInt <= 0 {
+		    // return ""
 			endInt = 1
 		}
 		if endInt > len(s) {

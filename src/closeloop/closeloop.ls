@@ -1,14 +1,12 @@
 #!/usr/local/bin/linescript4
 
-say "hello"
-
-
-
-def .onMessage .m
-    say m
-end
-
-def makeReadSplitter .reader .delimeter
+# [.hi]
+# slice -2 -1
+# say
+# exit
+# 
+def .makeReadSplitter .reader .delimeter
+    # local .readChunkSize 64
     local .readChunkSize 64
     if readChunkSize < len delimeter
         say "error chunk size < delimeter"
@@ -17,25 +15,54 @@ def makeReadSplitter .reader .delimeter
     {
         .reader reader
         .delimeter delimeter
-        .readChunkSize 64
+        .readChunkSize readChunkSize
         .messages []
         .leftOver ""
-        
     }
 end
-def .readMessage .r # readSplitter
+
+# TODO: add timeout
+def .readMessage .readSplitter
+    useVars readSplitter
     forever
-        if len (r at .messages), > 0
-            shift (r at .messages)
-            return
+        if len messages, > 0
+            shift messages
+            return it
         end
-        read r at .reader, readChunkSize
-        (r at .leftOver) ++ it
-        split (r at .delimeter)
-        slice 1 -2 # last one could have part of the delimeter
-        r .at messages, push it
+        read reader readChunkSize
+        # toJson dupit, drop
+        if dupit len, is 0
+            if len leftOver, > 0
+                drop
+                leftOver
+                .leftOver = ""
+                return
+            end
+            drop
+            return null
+        end
+        leftOver ++ it
+        split delimeter
+        .leftOver = dupit pop
+        each: messages push it
     end
 end
+
+
+.r = toReader %% Hello__how are you?__Is this on?
+.rs = makeReadSplitter r "__"
+forever
+    .message := readMessage rs
+    # if message is null: goDown .doneRead
+    if message is null
+       goDown .doneRead
+    end
+    say message
+    
+    sleepMs 1000
+end #doneRead
+
+exit
 
 
 def .chatGptCall

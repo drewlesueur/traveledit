@@ -1,5 +1,12 @@
 #!/usr/local/bin/linescript4
 
+
+"yo man"
+say dupit toJson
+say
+exit
+
+
 .foo = {
     .fName .Drew
     .lName .LeSueur
