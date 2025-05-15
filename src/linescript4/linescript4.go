@@ -1608,6 +1608,10 @@ func initBuiltins() {
 		"end": doEnd,
 	}
 	builtins = map[string]func(state *State) *State{
+		"useVars": func(state *State) *State {
+			state.Vars = popT(state.Vals).(*Record)
+			return state
+		},
 		"formatTimestamp": makeBuiltin_2_1(func(m any, f any) any {
 			// from unix millis
 			t := time.Unix(0, int64(toIntInternal(m))*int64(time.Millisecond))

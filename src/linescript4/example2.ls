@@ -1,5 +1,31 @@
 #!/usr/local/bin/linescript4
 
+.foo = {
+    .fName .Drew
+    .lName .LeSueur
+}
+say foo
+
+def .updateFoo .f
+    setProp f .fName "drew2"
+end
+updateFoo foo
+say foo
+
+def .updateFoo2 .f
+    useVars f
+    .lName = .les2
+    .yo = .dude
+end
+
+updateFoo2 foo
+
+say foo
+
+
+
+exit
+
 
 # say getType 7
 # say getType 0.1
