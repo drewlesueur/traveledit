@@ -383,7 +383,21 @@ func (vm *VM) Run() {
         }
     }
 }
-    
+
+// i: 0
+// loops: 900
+
+// i + 3 + 4
+
+i: 0
+b: 0.0
+loops: 9000
+theLoop:
+    i: i + 1
+    i - 1, toFloat
+    minusF 0.1
+    ad 
+endIf:
 
 func main() {
     src := `
@@ -415,7 +429,7 @@ func main() {
     fmt.Println("run:     ", end.Sub(mid))
 }
 
-
+/*
 Does the way I handle strings here mean I have to do manual memory management?
 
 No – you’re not leaking memory the way you would in C.  In Go every one of your strings in the stringPool is just a Go string (and the slice backing stringPool is just a Go slice of string).  All of that is garbage‐collected for you.  
@@ -459,7 +473,7 @@ What you *can* do for performance is build your own pools of objects (maps, slic
         • Again, you never “free” the memory to Go – you just remove references or reuse them.  
 
 In all of these designs the *only* memory management you are doing is bookkeeping of which slots are in use, clearing out the old contents, and making them available for re-use.  The Go runtime’s garbage collector remains responsible for the actual allocation and reclamation of the backing memory.
-
+*/
 
 
 
