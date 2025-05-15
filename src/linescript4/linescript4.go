@@ -152,6 +152,32 @@ type Record struct {
     Keys       []string
 }
 
+func (r *Record) MarshalJSON() ([]byte, error) {
+	m := make(map[string]any, len(r.Keys))
+	for i, key := range r.Keys {
+		m[key] = r.Values[i]
+	}
+	return json.Marshal(m)
+}
+type RecordIterator struct {
+    Record *Record
+    I int // 1 based
+}
+
+func (r *Record) Iterator() Iterator {
+    return &RecordIterator{Record: r, I: 1}
+}
+func (r *RecordIterator) Next() (any, any, bool) {
+    if r.I <= len(r.Record.Keys) {
+        key := r.Record.Keys[r.I-1]
+        idx := r.Record.KeyToIndex[key]
+        r.I++
+        value := r.Record.Values[idx]
+        return key, value, true
+    }
+    return nil, nil, false
+}
+
 // NewRecord creates an empty Record ready for Set/Get calls.
 func NewRecord() *Record {
     return &Record{
@@ -541,11 +567,13 @@ evalLoop:
 				state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
 				pushT(state.Vals, myArr)
 			} else if oldMode == "object" {
-				myObj := map[string]any{}
+				// myObj := map[string]any{}
+				myObj := NewRecord()
 				for i := 0; i < len(*state.Vals); i += 2 {
 					key := (*state.Vals)[i]
 					value := (*state.Vals)[i+1]
-					myObj[toStringInternal(key)] = value
+					// myObj[toStringInternal(key)] = value
+					myObj.Set(toStringInternal(key), value)
 				}
 				state.Vals = state.ValsStack[len(state.ValsStack)-1]
 				state.ValsStack = state.ValsStack[:len(state.ValsStack)-1]
@@ -1711,7 +1739,8 @@ func initBuiltins() {
 		"setIndex": makeBuiltin_3_0(setIndex),
 		"at":       makeBuiltin_2_1(at),
 		"in": makeBuiltin_2_1(func(a, b any) any {
-			_, ok := b.(map[string]any)[toStringInternal(a)]
+			// _, ok := b.(map[string]any)[toStringInternal(a)]
+			_, ok := b.(*Record).GetHas(toStringInternal(a))
 			return ok
 		}),
 		"btoa": makeBuiltin_1_1(func(a any) any {
@@ -1777,9 +1806,7 @@ func initBuiltins() {
 		"length":      makeBuiltin_1_1(length),
 		"len":         makeBuiltin_1_1(length),
 		"setProp":     makeBuiltin_3_0(setProp),
-		"setPropVKO":  makeBuiltin_3_0(setPropVKO),
 		"getProp":     makeBuiltin_2_1(getProp),
-		"getPropKO":   makeBuiltin_2_1(getPropKO),
 		"deleteProp":  makeBuiltin_2_0(deleteProp),
 		"keys":        makeBuiltin_1_1(keys),
 		"interpolate": makeBuiltin_2_1(interpolate),
@@ -1872,8 +1899,10 @@ func initBuiltins() {
 					}
 					return &x // Return pointer to the array
 				case map[string]any:
+					r := NewRecord()
 					for k, v := range x {
-						x[k] = recursivelyPtrArrays(v)
+						// x[k] = recursivelyPtrArrays(v)
+						r.Set(k, v)
 					}
 					return x
 				default:
@@ -1902,7 +1931,8 @@ func initBuiltins() {
 			return nil
 		},
 		"makeObject": func(state *State) *State {
-			pushT(state.Vals, map[string]any{})
+			// pushT(state.Vals, map[string]any{})
+			pushT(state.Vals, NewRecord())
 			return state
 		},
 		"makeArray": func(state *State) *State {
@@ -2501,11 +2531,13 @@ func initBuiltins() {
 			return state
 		},
 		"getEnvVars": func(state *State) *State {
-			m := make(map[string]any)
+			// m := make(map[string]any)
+			m := NewRecord()
 			for _, env := range os.Environ() {
 				parts := strings.SplitN(env, "=", 2)
 				if len(parts) == 2 {
-					m[parts[0]] = parts[1]
+					// m[parts[0]] = parts[1]
+					m.Set(parts[0], parts[1])
 				}
 			}
 			pushT(state.Vals, m)
@@ -2931,6 +2963,8 @@ func at(mySlice any, index any) any {
 		return (*v)[indexInt-1]
 	case map[string]any:
 		return v[toStringInternal(index)]
+	case *Record:
+		return v.Get(toStringInternal(index))
 	case string:
 		indexInt := toIntInternal(index)
 		if indexInt < 0 {
@@ -3691,6 +3725,14 @@ func toStringInternal(a any) string {
 		} else {
 			return string(jsonData)
 		}
+	case *Record:
+		jsonData, err := json.MarshalIndent(a, "", "    ")
+		if err != nil {
+			// panic(err)
+			return fmt.Sprintf("%#v", a)
+		} else {
+			return string(jsonData)
+		}
 	case *[]any, []any:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
@@ -3751,31 +3793,33 @@ func toStringInternal(a any) string {
 }
 
 func keys(a any) any {
+	// ret := []any{}
+	// for k := range a.(map[string]any) {
+	// 	ret = append(ret, k)
+	// }
+	// return &ret
 	ret := []any{}
-	for k := range a.(map[string]any) {
+	for k := range a.(*Record).Keys {
 		ret = append(ret, k)
 	}
 	return &ret
 }
 func setProp(a, b, c any) {
-	a.(map[string]any)[toStringInternal(b)] = c
+	// a.(map[string]any)[toStringInternal(b)] = c
+	a.(*Record).Set(toStringInternal(b), c)
 }
 func setIndex(a, b, c any) {
 	theArrPointer := a.(*[]any)
 	theArr := *theArrPointer
 	theArr[toIntInternal(b)] = c
 }
-func setPropVKO(v, k, o any) {
-	o.(map[string]any)[toStringInternal(k)] = v
-}
 func getProp(a, b any) any {
-	return a.(map[string]any)[toStringInternal(b)]
-}
-func getPropKO(k, o any) any {
-	return o.(map[string]any)[toStringInternal(k)]
+	// return a.(map[string]any)[toStringInternal(b)]
+	return a.(*Record).Get(toStringInternal(b))
 }
 func deleteProp(a, b any) {
-	delete(a.(map[string]any), toStringInternal(b))
+	panic("not implemented yet")
+	// delete(a.(map[string]any), toStringInternal(b))
 }
 
 func makeNoop() func(state *State) *State {
@@ -3862,10 +3906,13 @@ func endIf(state *State) *State {
 
 func interpolate(a, b any) any {
 	theString := toStringInternal(a)
-	theMap := b.(map[string]any)
-	theArgs := make([]string, len(theMap)*2)
+	// theMap := b.(map[string]any)
+	theMap := b.(*Record)
+	theArgs := make([]string, len(theMap.Keys)*2)
 	i := 0
-	for k, v := range theMap {
+	for _, k := range theMap.Keys {
+        idx := theMap.KeyToIndex[k]
+		v := theMap.Values[idx]
 		theArgs[i*2] = k
 		theArgs[(i*2)+1] = toStringInternal(v)
 		i++

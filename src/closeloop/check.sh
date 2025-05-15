@@ -9,6 +9,7 @@ curl "https://api.openai.com/v1/responses" \
   }'
   
   
+  exit
   # come up with a story of a few paragrpahs, ar the end ask "What comes next?"
   # encode the story as a json string
 

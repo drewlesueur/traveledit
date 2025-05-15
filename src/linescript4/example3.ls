@@ -1,5 +1,19 @@
 #!/usr/bin/env -S go run linescript4.go stringmath.go 
 
+.foo = {
+    .fName .Drew
+    .lName .LeSueur
+}
+say foo
+
+foo each .k .v
+    say %% yay %k => %v
+end
+
+
+say "wow"
+
+exit
 
 # def .add1 .val
 

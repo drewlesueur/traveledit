@@ -389,17 +389,106 @@ func (vm *VM) Run() {
 
 // i + 3 + 4
 
-i: 0
-b: 0.0
-loops: 9000
-theLoop:
-    i: i + 1
-    i - 1, toFloat
-    minusF 0.1
-    ad 
-endIf:
+// i: 0
+// b: 0.0
+// loops: 9000
+// theLoop:
+//     i: i + 1
+//     i - 1, toFloat
+//     minusF 0.1
+//     ad 
+// endIf:
+
+func timeIt(name string, f func()) {
+    fmt.Println("running", name)
+    start := time.Now()
+    f()
+    fmt.Println(name, "took", time.Since(start))
+    fmt.Println("")
+}
+
+
+type DValue struct {
+    Type byte
+    Int int64
+    Float float64
+    String string
+    Slice []DValue
+}
 
 func main() {
+    ints := []int{}
+    int64s := []int64{}
+    uint64s := []uint64{}
+    // floats := []float64{}
+    anys := []any{}
+    dvalues := []DValue{}
+    loops := 1_000_000
+    
+    timeIt("fill ints", func () {
+        for i := 0; i < loops; i++ {
+            ints = append(ints, i)
+        }
+    })
+    timeIt("fill int64s", func () {
+        for i := 0; i < loops; i++ {
+            int64s = append(int64s, int64(i))
+        }
+    })
+    timeIt("fill uint64s", func () {
+        for i := 0; i < loops; i++ {
+            uint64s = append(uint64s, uint64(i))
+        }
+    })
+    timeIt("fill anys", func () {
+        for i := 0; i < loops; i++ {
+            anys = append(anys, i)
+        }
+    })
+    timeIt("fill dvalues", func () {
+        for i := 0; i < loops; i++ {
+            dvalues = append(dvalues, DValue{Type: 1, Int: int64(i)})
+        }
+    })
+    
+    // math.Float64frombits(uint64(bb))
+    
+    timeIt("ints", func() {
+        total := 0
+        for _, v := range ints {
+            total += v
+        }
+        fmt.Println("total", total)
+    })
+    timeIt("int64s", func() {
+        total := int64(0)
+        for _, v := range int64s {
+            total += v
+        }
+        fmt.Println("total", total)
+    })
+    timeIt("uint64s", func() {
+        total := uint64(0)
+        for _, v := range uint64s {
+            total += v
+        }
+        fmt.Println("total", total)
+    })
+    timeIt("anys", func() {
+        total := 0
+        for _, v := range anys {
+            total += v.(int)
+        }
+        fmt.Println("total", total)
+    })
+    timeIt("dvalues", func() {
+        total := int64(0)
+        for _, v := range dvalues {
+            total += v.Int
+        }
+        fmt.Println("total", total)
+    })
+
     src := `
         0 :i                 # initialize i = 0
         0.0 :b
