@@ -4593,27 +4593,29 @@ function diffFiles() {
     var aLines = getSelectedLines(lastFile).lines
     var bLines = getSelectedLines(fx).lines
 
-    var start = Date.now()
-    var contents = simpleDiffOld3(aLines, bLines, false).join("\n")
-    var f3 = makeFile("__diffOld3", 0, contents)
-    f3.fileMode = "file"
-    f3.cursorLineIndex = 0
-    addFileToList(f3)
-    setCurrentFile(f3)
-
-    // var oldContents = aLines.join("\n")
-    // var newContents = bLines.join("\n")
-    // var start = Date.now()
-    // var contents = Diff.createPatch("foo", oldContents, newContents, "", "", {context:0})
-    // // var contents = Diff.createPatch("foo", "aaaaa", "bbbbbb", "", "")
-    // var f4 = makeFile("__diffMyers", 0, contents)
-    // f4.fileMode = "file"
-    // f4.cursorLineIndex = 0
-    // addFileToList(f4)
-    // setCurrentFile(f4)
-
-    updateCursorXY()
-    ensureCursorInScreen()
+    // var contents = simpleDiffOld3(aLines, bLines, false).join("\n")
+    
+    runQuickShellCommand("git diff --no-index " + lastFile.fullPath + " " + fx.fullPath, function(err, contents) {
+        var f3 = makeFile("__diffOld3", 0, contents)
+        f3.fileMode = "file"
+        f3.cursorLineIndex = 0
+        addFileToList(f3)
+        setCurrentFile(f3)
+    
+        // var oldContents = aLines.join("\n")
+        // var newContents = bLines.join("\n")
+        // var start = Date.now()
+        // var contents = Diff.createPatch("foo", oldContents, newContents, "", "", {context:0})
+        // // var contents = Diff.createPatch("foo", "aaaaa", "bbbbbb", "", "")
+        // var f4 = makeFile("__diffMyers", 0, contents)
+        // f4.fileMode = "file"
+        // f4.cursorLineIndex = 0
+        // addFileToList(f4)
+        // setCurrentFile(f4)
+    
+        updateCursorXY()
+        ensureCursorInScreen()
+    })
 }
 
 // this is a little hacky by changing and restoring state.
