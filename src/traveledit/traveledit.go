@@ -138,6 +138,14 @@ func BasicAuth(handler http.Handler) http.HandlerFunc {
 
 func logAndErr(w http.ResponseWriter, message string, args ...interface{}) {
 	theLog := fmt.Sprintf(message, args...)
+
+	// Look for an *exec.ExitError in args
+	for _, arg := range args {
+		if exitErr, ok := arg.(*exec.ExitError); ok {
+			theLog += fmt.Sprintf("\nStderr: %s", string(exitErr.Stderr))
+		}
+	}
+
 	ret := map[string]string{
 		"error": theLog,
 	}
@@ -145,6 +153,8 @@ func logAndErr(w http.ResponseWriter, message string, args ...interface{}) {
 	log.Println(theLog)
 	http.Error(w, string(b), 500)
 }
+
+
 
 // Index: foo
 // ===================================================================
@@ -563,6 +573,7 @@ func addCORS(next http.Handler) http.Handler {
 var workspacesFile = "./workspaces.json"
 
 func main() {
+	fmt.Println("yay1")
 	if os.Getenv("WORKSPACES_FILE") != "" {
 		workspacesFile = os.Getenv("WORKSPACES_FILE")
 	}
@@ -1602,11 +1613,12 @@ func main() {
 		cmdString := r.FormValue("cmd")
 		cmd := exec.Command("bash", "-c", cmdString)
 		cmd.Dir = cwd
-		ret, err := cmd.CombinedOutput()
-		if err != nil {
-			logAndErr(w, "myquickshell error running command: %s: %v", cmdString, err)
-			return
-		}
+		ret, _ := cmd.CombinedOutput()
+		// ret, err := cmd.CombinedOutput()
+		// if err != nil {
+		// 	logAndErr(w, "myquickshell error running command: %s: %v: (ret: %s)", cmdString, err, ret)
+		// 	return
+		// }
 		w.Write(ret)
 	})
 	// #wschange make a File and add the cmd, and the CWD
