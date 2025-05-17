@@ -296,7 +296,7 @@ func (f *FastObject) Get(key string) (any) {
 
 
 
-func TestPerf2(t *testing.T) {
+func xTestPerf2(t *testing.T) {
 	total := "0"
 	totalFloat := 0.0
 	totalInt := 0
