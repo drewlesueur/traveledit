@@ -1,224 +1,69 @@
-#!/usr/bin/env linescript4
+# test.ls - Linescript4 tests
 
-let name Drew
-istring: Hello $name
-say
-
-exit
-
-say string
-    Hello {{name}}
-    
-    How are $you
-    
-    {{if x is 3}}
-       There are 3!
-    {{end}}
-end
-say string
-    Hello {{name}}
-    
-    How are $you
-    
-    {{if x is 3}}
-       There are 3!
-    {{end}}
+def .assertEq .label .actual .expected
+    if eq actual expected
+        say "PASS" label
+    else
+        say "FAIL" label "expected" expected "got" actual
+    end
 end
 
+# Arithmetic
+assertEq .addition (+ 2 3) 5
+assertEq .multiplication (* 4 5) 20
 
-let foo bar
-say foo
+# Variables
+let .x 10
+assertEq .variable x 10
 
-def DoSomething name
-    say "what do you want me do do? " name
+# Conditionals
+if eq x 10
+    let .cond "ok"
+else
+    let .cond "bad"
 end
+assertEq .if cond "ok"
 
-DoSomething Drew
+# Arrays
+let .arr [1 2 3]
+push arr 4
+assertEq .arrayPush (length arr) 4
+pop arr
+assertEq .arrayPop (length arr) 3
+assertEq .arrayIndex (at arr 2) 2
 
+# Objects
+let .obj {"foo" 1}
+setProp obj "bar" 2
+assertEq .objectGet (getProp obj "bar") 2
 
-let bizzy null
-say bizzy
-
-
-
-# "abcdefghijklmnopqestuvwxyz"
-# split ""
-# each :letter
-#     if letter (is "a")
-#         say "cool an A"
-#     else if letter (is "b")
-#         say "cool a B"
-#     else
-#     end #endif
-# end #endeach
-
-# "abcdefghijklmnopqestuvwxyz"
-# split ""
-# each :letter
-#     if letter (is "a")
-#         say "cool an A"
-#     else if letter (is "b")
-#         say "cool a B"
-#     else
-#         say "cool other"
-#     end #endif
-# end #endeach
-
-
-
-# let :letter "b"
-# if letter (is "a")
-#     say "cool an A"
-# else if letter (is "b")
-#     say "cool a B"
-# else
-#     say "cool other"
-# end #endif
-# exit
-
-# "abcdefghijklmnopqestuvwxyz"
-# split ""
-# each :letter
-#     if letter (is "a")
-#         say "cool an A"
-#     else if letter (is "b")
-#         say "cool a B"
-#     else
-#         say "cool other"
-#     end #endif
-# end #endeach
-# 
-# say "done"
-# exit
-
-
-# "abc"
-# split ""
-# each :letter
-#     if letter (is "a")
-#         say "cool an A"
-#     else if letter (is "b")
-#         say "cool a B"
-#     else
-#         say "cool other"
-#     end #endif
-#     say "loopend"
-# end #endeach
-# 
-# say "done"
-# exit
-
-
-
-
-
-# 3 loop :i
-#     if letter (is "a")
-#         say "#yellow cool an A"
-#     else if letter (is "b")
-#         say "#red cool a B"
-#     else
-#         say "#skyblue cool other"
-#     end
-# end
-
-
-
-
-
-# "abcdefghijklmnopqestuvwxyz"
-# split ""
-# each :letter
-#     say "letter is" letter
-#     if letter (is "a")
-#         say "#yellow cool an A"
-#     else if letter (is "b")
-#         say "#red cool a B"
-#     else
-#         say "#skyblue cool other"
-#     end
-# end
-
-say "wow"
-
-exit
-
-
-
-
-"yo" startsWith "y", not
-say
-
-"yo" startsWith "y" 
-say
-
-string: foo bar 
-toJson
-say
-
-
-let :names ("bob bill doug tom" split " ")
-say names (map: upper, cc "!" (cc "?"))
-names map: upper, cc "!"
-say
-exit
-
-
-names map
-   upper
-   cc "!"
+# Loop sum with each
+let .sum 0
+arr each .i .v
+    + v sum as .sum
 end
-say
-say
+assertEq .loopEach sum 6
 
-names map: upper, cc "!"
-say
-say
-names (map: upper)
-say
-say
-say
-# names (map: upper, cc "!")
-# say
-# say
-# say
-exit
-
-say names
-names each :name
-    say "hello" name
+# Function definition and call
+def .addTwo .a .b
+    + a b
 end
-debugVals
-names each :i :name
-    say i "hello" name
-end
-names each
-    say "hello" it
-end
-exit
+assertEq .function (addTwo 3 4) 7
 
-let :myLog []
-say myLog
-exit
+# Map
+[1 2 3] map .v
+    * v 2
+end as .double
+assertEq .mapTest (at double 3) 6
 
-def :log :v
-    myLog push v
-end
+# Filter
+[1 2 3 4] filter .v
+    gt v 2
+end as .filtered
+assertEq .filterTest (length filtered) 2
 
-def log v
-    myLog push v
-end
+# Sort
+[3 1 2] sort as .sorted
+assertEq .sortTest (at sorted 1) 1
 
-each (smrhng) i v
-
-end
-
-log "yo"
-expect ["yo"]
-debugVals
-
-eaxh
-
-
-
-
+say "DONE"
