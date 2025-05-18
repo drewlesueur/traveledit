@@ -10,13 +10,16 @@ local r toReader %% HmmHello__how are you?__Is this on?
 local rs makeReadSplitter r "__"
 forever
     readMessage rs
+    
     local message it
     # if message is null: goDown .doneRead
     if message is null
        goDown .doneRead
     end
-    say message
+    say "message is" message
     
+    #endOfLoop
+    say "..."
     sleepMs 1000
 end #doneRead
 exit
@@ -39,42 +42,25 @@ end
 
 # TODO: add timeout
 def readMessage .readSplitter
-    say "called readMessage: vals #A", debugVals
     useVars readSplitter
-    # forever
-    20 loop i
+    forever
         if len messages, > 0
-            say "#yellow bang"
-            debugVals
             return shift messages
+            return 
         end
-        say "vals #B", debugVals
         local chunk read reader readChunkSize
-        say "vals #C", debugVals
         if chunk len, is 0
-            say "vals #D", debugVals
             if len leftOver, > 0
-                say "vals #E", debugVals
                 leftOver
-                say "vals #F", debugVals
-                say "#orange bang" leftOver
-                say "vals #G", debugVals
                 .leftOver = ""
                 return
             end
-            say "#pink bang"
-            debugVals
             return null
         end
-        say "vals #H", debugVals
         local chunk leftOver ++ chunk
-        say "vals #I", debugVals
         local parts chunk split delimeter
-        say "vals #J", debugVals
         local leftOver parts pop
-        say "vals #K", debugVals
-        parts each: messages push parts
-        say "vals #L", debugVals
+        parts each: messages push it
     end
 end
 
