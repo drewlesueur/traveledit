@@ -667,7 +667,9 @@ evalLoop:
 				topCopy.Out = topState.Out
 
 	    		topCopy.I = state.I + strings.Index(topState.Code[state.I:], "\ndef " + token.String)
-	    		fmt.Println("the index is", topCopy.I,  toJson(topCopy.Code[topCopy.I:topCopy.I + 10]))
+	    		if topCopy.I == state.I - 1 {
+	    		    panic("could not hoist variable (variable not defined) " + token.String)
+	    		}
 
                 // _ = prevI
 	    		state.I = prevI
@@ -4583,7 +4585,6 @@ func makeIterator(v any) (Iterator) {
 func getLoopVars(state *State) (*DString, *DString) {
 	things := getArgs(state)
 	thingsVal := *things
-
 	var indexVar *DString
 	var itemVar *DString
 
@@ -4662,126 +4663,15 @@ func gatherNames(funcName string, state *State) {
 	prevI := state.I
 	state.I = findBeforeEndLine(state)
 	words := strings.Split(state.Code[prevI:state.I], " ")
-	for _, w := range words {
-		pushT(state.Vals, &DString{String: w, RecordIndex: -1})
+	if len(words) > 0 {
+		for _, w := range words {
+			if len(w) > 0 {
+				pushT(state.Vals, &DString{String: w, RecordIndex: -1})
+			}
+		}
 	}
 }
 
 
 
 
-
-/*
-Do you see any low hanging fruit performance optimizations that can be made here?
-Specifically with the flow of Eval function
-
-Here are a few small changes you can make today that will measurably speed up your Eval loop without rewriting the whole VM.
-
-1) Hoist hot‐loop fields into locals  
-   Every time through your `for` you do a dozen `state.xxx` loads.  The Go compiler can only hoist so much for you.  Pull the really hot ones into locals at the top of the loop and write them back only when they change.  
-   
-   ```go
-   evalLoop:
-   for {
-     icache    := state.ICache
-     vals      := state.Vals
-     funcs     := state.CurrFuncTokens
-     funcSpots := state.FuncTokenSpots
-     // … now use icache, vals, funcs, funcSpots in this iteration
-     // when you mutate them write back:
-     state.Vals               = vals
-     state.CurrFuncTokens     = funcs
-     state.FuncTokenSpots     = funcSpots
-     // etc.
-   }
-   ```
-   You’ll eliminate a lot of pointer dereferences and bounds‐checks.
-
-2) Don’t return the token name from nextToken  
-   You only use the name in debug mode.  Change  
-   ```go
-   func nextToken(state *State) (any, string)
-   ```  
-   to  
-   ```go
-   func nextToken(state *State) any
-   ```  
-   and have a separate debug method to peek at the string.  You’ll save an allocation or copy on every token.
-
-3) Collapse the interface type‐switch on token  
-   Right now you do  
-   ```go
-   switch token := token.(type) {
-   case immediateToken: …
-   case builtinFuncToken: …
-   case getVarToken: …
-   case getVarFuncToken: …
-   default: pushT(...)
-   }
-   ```  
-   That dynamic type switch is fairly expensive.  The easiest “low‐hanging” change is to give each token a small integer opcode.  e.g.  
-   ```go
-   type Token struct {
-     kind byte       // 0=literal,1=immediate,2=builtin,3=getvar,4=getvarfunc
-     val  interface{} 
-   }
-   ```  
-   and then your loop is  
-   ```go
-   tok := nextToken(state)
-   switch tok.kind {
-   case lit:
-     pushT(vals,tok.val)
-   case imm:
-     state = tok.val.(immediateToken)(state)
-   case bfun:
-     funcs = append(funcs, tok.val.(builtinFuncToken))
-     // …
-   }
-   ```  
-   No more runtime type‐switch on Go’s `interface{}`.
-
-4) Move your deferred recover out of the inner loop  
-   A `defer` in a hot loop can interfere with inlining and register allocation.  You only really need to catch panics at the very top.  Instead of  
-   ```go
-   func Eval(state *State) *State {
-     defer func(){ … }()
-   evalLoop:
-     for { … }
-   }
-   ```  
-   pull your `recover` into the caller of `Eval` (or wrap the whole `for state!=nil` loop in a single defer) so that none of the per‐token logic carries the cost of a deferred closure.
-
-5) Pre‐allocate your stacks to reasonable capacities  
-   You know in advance roughly how deep your nested calls, your `EndStack`, and your `Vals` slice will grow.  Right after you `MakeState` do something like  
-   ```go
-   state.Vals      = &make([]any, 0, 128)
-   state.EndStack  = make([]func(*State)*State, 0, 32)
-   state.ModeStack = make([]string, 0, 16)
-   // …
-   ```  
-   This avoids repeated re‐allocations and heap‐grows in your hot loops.
-
-6) Inline callFunc and doEnd  
-   Both of those are tiny wrappers around a few lines of code.  Inlining them by copy/paste into your two “`if InCurrentCall`” and “`if CloseParensAfterLastCall`” branches will remove two function calls per invocation.  
-
----
-
-Taken together you should see a 10–30% improvement just by removing repeated field dereferences, interface switches, and small call overheads.  The next step beyond that is a single‐pass token‐to‐opcode compilation so that your dispatch in the main loop is a single integer switch or even a threaded‐code jump table.
-*/
-
-/* o
-
-
-7) Consider a custom “stack of untyped values” instead of `[]any`  
-   Every push/pop allocates an interface box. If you instead use a small struct like  
-   ```go
-   type Value struct { kind byte; i int64; f float64; p unsafe.Pointer }
-   ```
-   and keep a `[]Value`, you avoid Go’s boxing and dynamic dispatch. This is a bigger change, but it often pays for all the interface sloshing.
-
-8) Profile and zero in on the real hot spots  
-   — fire up `pprof` or `go-torch` and see which functions or lines are burning CPU. Sometimes the biggest gains come from unexpected places (string parsing? indent computation? ICache misses?).
-
-Taken together, these steps alone—hoisting fields, eliminating interface switches, pre-allocating buffers, and inlining a few dozen small calls—will often give you 10–30% better throughput in a byte-code-style VM. If you still need more after that, the next big step is a true two-pass compiler that emits a compact opcode stream, then runs a tight integer‐switch dispatch loop over it.
-*/

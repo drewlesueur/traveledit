@@ -17,6 +17,14 @@
 # say "hi"
 # exit
 
+30 loop
+    say
+end
+
+[10 20 30] map
+    say
+end
+
 
 say "ret of foo is" foo 1 2
 say "wow"
