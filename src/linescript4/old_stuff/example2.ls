@@ -17,6 +17,26 @@
 # say "hi"
 # exit
 
+.message
+debugVals
+exit
+let .name .Drew
+say name
+
+def .greet .person
+    %% Hello %person
+end
+
+greet name
+say
+exit
+
+# def greet person
+#     %% Hello %person
+# end
+
+exit
+
 let theVar .name
 locald theVar .Drew
 __vars say

@@ -673,7 +673,7 @@ evalLoop:
 
                 // _ = prevI
 	    		state.I = prevI
-	    		fmt.Println("going back should go to", state.I,  toJson(state.Code[state.I:state.I + 10]))
+	    		// fmt.Println("going back should go to", state.I,  toJson(state.Code[state.I:state.I + 10]))
 	    		topCopy.DoneHoistingState = state
 	    		state = topCopy
 			} else {
@@ -2059,6 +2059,8 @@ func initBuiltins() {
 			return state
 		},
 		"locald": func(state *State) *State {
+			builtins["debugVals"](state)
+			fmt.Println("#lime those were the vals")
 			b := popT(state.Vals)
 			a := popT(state.Vals).(*DString)
 			state.Vars.SetDString(a, b)
@@ -2987,7 +2989,7 @@ func initBuiltins() {
 				if state.NewlineSpot - 1 == i {
 				    extra = "*"
 				}
-				fmt.Printf("%s%s, ", toString(v), extra)
+				fmt.Printf("%s%s(%T), ", toString(v), extra, v)
 				
 			}
 			fmt.Println("]")
@@ -4676,12 +4678,19 @@ func gatherNames(funcName string, state *State) {
 	// see 	case builtinFuncToken:
 	state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins[funcName]))
 	state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+	if state.Code[state.I:state.I+1] == ":" { // OneLiner
+	    return
+	}
 	prevI := state.I
 	state.I = findBeforeEndLine(state)
 	words := strings.Split(state.Code[prevI:state.I], " ")
+	// fmt.Println(toJson(words))
 	if len(words) > 0 {
 		for _, w := range words {
 			if len(w) > 0 {
+				if strings.HasPrefix(w, ".") {
+				    w = w[1:]
+				}
 				pushT(state.Vals, &DString{String: w, RecordIndex: -1})
 			}
 		}

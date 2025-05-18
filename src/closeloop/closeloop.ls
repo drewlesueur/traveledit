@@ -4,7 +4,23 @@
 # slice -2 -1
 # say
 # exit
-# 
+
+
+local r toReader %% HmmHello__how are you?__Is this on?
+local rs makeReadSplitter r "__"
+forever
+    readMessage rs
+    local message it
+    # if message is null: goDown .doneRead
+    if message is null
+       goDown .doneRead
+    end
+    say message
+    
+    sleepMs 1000
+end #doneRead
+exit
+
 def makeReadSplitter .reader .delimeter
     # local .readChunkSize 64
     local .readChunkSize 64
@@ -22,47 +38,45 @@ def makeReadSplitter .reader .delimeter
 end
 
 # TODO: add timeout
-def .readMessage .readSplitter
+def readMessage .readSplitter
+    say "called readMessage: vals #A", debugVals
     useVars readSplitter
-    forever
+    # forever
+    20 loop i
         if len messages, > 0
-            shift messages
-            return it
+            say "#yellow bang"
+            debugVals
+            return shift messages
         end
-        read reader readChunkSize
-        # toJson dupit, drop
-        if dupit len, is 0
+        say "vals #B", debugVals
+        local chunk read reader readChunkSize
+        say "vals #C", debugVals
+        if chunk len, is 0
+            say "vals #D", debugVals
             if len leftOver, > 0
-                drop
+                say "vals #E", debugVals
                 leftOver
+                say "vals #F", debugVals
+                say "#orange bang" leftOver
+                say "vals #G", debugVals
                 .leftOver = ""
                 return
             end
-            drop
+            say "#pink bang"
+            debugVals
             return null
         end
-        leftOver ++ it
-        split delimeter
-        .leftOver = dupit pop
-        each: messages push it
+        say "vals #H", debugVals
+        local chunk leftOver ++ chunk
+        say "vals #I", debugVals
+        local parts chunk split delimeter
+        say "vals #J", debugVals
+        local leftOver parts pop
+        say "vals #K", debugVals
+        parts each: messages push parts
+        say "vals #L", debugVals
     end
 end
-
-
-.r = toReader %% Hello__how are you?__Is this on?
-.rs = makeReadSplitter r "__"
-forever
-    .message := readMessage rs
-    # if message is null: goDown .doneRead
-    if message is null
-       goDown .doneRead
-    end
-    say message
-    
-    sleepMs 1000
-end #doneRead
-
-exit
 
 
 def .chatGptCall
