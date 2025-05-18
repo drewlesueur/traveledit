@@ -2058,11 +2058,27 @@ func initBuiltins() {
 			parentVars.SetDString(a, b)
 			return state
 		},
+		"locald": func(state *State) *State {
+			b := popT(state.Vals)
+			a := popT(state.Vals).(*DString)
+			state.Vars.SetDString(a, b)
+			return state
+		},
+		"letd": func(state *State) *State {
+			b := popT(state.Vals)
+			a := popT(state.Vals).(*DString)
+			parentVars, _ := findParentAndValue(state, a)
+			if parentVars == nil {
+				parentVars = state.Vars
+			}
+			parentVars.SetDString(a, b)
+			return state
+		},
 		"=": func(state *State) *State {
-		    return builtins["let"](state)
+		    return builtins["letd"](state)
 		},
 		":=": func(state *State) *State {
-		    return builtins["let"](state)
+		    return builtins["locald"](state)
 		},
 		"as": func(state *State) *State {
 		    // Note: we pop b first, then a

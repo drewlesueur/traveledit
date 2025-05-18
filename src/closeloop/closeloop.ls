@@ -5,7 +5,7 @@
 # say
 # exit
 # 
-def .makeReadSplitter .reader .delimeter
+def makeReadSplitter .reader .delimeter
     # local .readChunkSize 64
     local .readChunkSize 64
     if readChunkSize < len delimeter

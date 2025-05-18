@@ -17,6 +17,12 @@
 # say "hi"
 # exit
 
+let theVar .name
+locald theVar .Drew
+__vars say
+say name
+exit
+
 30 loop
     say
 end
