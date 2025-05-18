@@ -548,6 +548,7 @@ evalLoop:
 			// essentially closing all the implied parens (lite)
 			// oldState := state
 			state = callFunc(state)
+			state.NewlineSpot = len(*state.Vals)
 			continue
 		}
 		if state.CloseParensAfterLastCall && !state.InCurrentCall {
@@ -2870,9 +2871,17 @@ func initBuiltins() {
 			return state
 		},
 		"debugVals": func(state *State) *State {
+			fmt.Printf("(%d)[", state.NewlineSpot)
 			for i, v := range *state.Vals {
-				fmt.Printf("-->%d: %s\n", i, toString(v))
+				// fmt.Printf("-->%d: %s\n", i, toString(v))
+				extra := ""
+				if state.NewlineSpot - 1 == i {
+				    extra = "*"
+				}
+				fmt.Printf("%s%s, ", toString(v), extra)
+				
 			}
+			fmt.Println("]")
 			return state
 		},
 		"debugValsLen": func(state *State) *State {
@@ -2888,6 +2897,7 @@ func initBuiltins() {
 }
 
 func getArgs(state *State) *[]any {
+	
 	ftSpot := state.FuncTokenSpots[len(state.FuncTokenSpots)-1]
 	return spliceT(state.Vals, ftSpot, len(*state.Vals)-ftSpot, nil)
 }
@@ -3191,7 +3201,7 @@ func makeMather(fInt func(int, int) any, fFloat func(float64, float64) any, fStr
 			case nil:
 				return fInt(a, 0)
 			default:
-				panic("unknown type A")
+				panic(fmt.Sprintf("unknown type A: %T", b))
 				return 0
 			}
 		case float64:

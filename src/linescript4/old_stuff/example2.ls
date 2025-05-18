@@ -1,8 +1,39 @@
 #!/usr/local/bin/linescript4
+# "yo man"
+# say dupit toJson
+# dupit
+# say
+# exit
 
+# "yo man"
+# say dupit toJson
+# "----"
+# dupit
+# say
+# exit
+
+
+# [2 4 6] map: * 2, + 3
+# say
+
+23
+.hi | (say dupit)
+say
+exit
+# .yo upper it, say
+# .yo
+
+# 
+# 
+# "yo man"
+# say dupit toJson
+# dupit
+# say
+# exit
 
 "yo man"
 say dupit toJson
+dupit
 say
 exit
 
