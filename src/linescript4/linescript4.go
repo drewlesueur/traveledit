@@ -310,6 +310,7 @@ type State struct {
 	NewlineSpot              int
 	InCurrentCall            bool
 	CloseParensAfterLastCall bool
+	DoEndAfterLastCall bool
 
 	LexicalParent *State
 	CallingParent *State
@@ -551,6 +552,13 @@ evalLoop:
 			state.NewlineSpot = len(*state.Vals)
 			continue
 		}
+		if state.DoEndAfterLastCall && !state.InCurrentCall {
+			// if oldState == state && oldState.OneLiner {
+			state.DoEndAfterLastCall = false
+			state = doEnd(state)
+			continue
+			// }
+		}
 		if state.CloseParensAfterLastCall && !state.InCurrentCall {
 			// see ")"
 			oldMode := state.Mode
@@ -600,11 +608,12 @@ evalLoop:
 				// this so we don't have to explicitly exit
 				break evalLoop
 			}
+
 			if state == nil {
 				if o.Done {
 					// for now we only close if new state is nil
 					// we could close even if new state is not nil
-
+   
 					// fmt.Println("#crimson ending!", o.I)
 					for _, w := range o.Waiters {
 						o.AddCallback(Callback{
@@ -613,7 +622,7 @@ evalLoop:
 						})
 					}
 					o.Waiters = nil
-
+   
 				}
 				// need another state, let's get one from callback channel
 				// fmt.Println("#yellow waiting for new state")
@@ -1561,10 +1570,16 @@ func initBuiltins() {
 
 			// oldState == state check becauze the moment you change state when calling function, you don't want it to end right away
 			if oldState == state && oldState.OneLiner {
-				state = doEnd(state)
+				state.DoEndAfterLastCall = true
+				// state = doEnd(state)
 			}
 			oldState.NewlineSpot = len(*oldState.Vals)
 			// fmt.Println(" setting NewlineSpot to", oldState.NewlineSpot)
+			return state
+		},
+		"|": func(state *State) *State {
+			state = callFunc(state)
+			state.NewlineSpot = len(*state.Vals)
 			return state
 		},
 		";": func(state *State) *State {
@@ -1572,7 +1587,8 @@ func initBuiltins() {
 			oldState := state
 			state = callFunc(state)
 			if oldState == state && oldState.OneLiner {
-				state = doEnd(state)
+				state.DoEndAfterLastCall = true
+				// state = doEnd(state)
 			}
 			oldState.NewlineSpot = len(*oldState.Vals)
 			return state
@@ -1589,10 +1605,6 @@ func initBuiltins() {
 			state.OneLinerParenLevel = len(state.ModeStack)
 			state = callFunc(state)
 			// state.OneLiner = false
-			return state
-		},
-		"|": func(state *State) *State {
-			state = callFunc(state)
 			return state
 		},
 		"else": func(state *State) *State {

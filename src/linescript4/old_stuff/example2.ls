@@ -12,9 +12,12 @@
 # say
 # exit
 
+# say "hi"
+# exit
 
-# [2 4 6] map: * 2, + 3
-# say
+[2 4 6] map: * 2, + 3
+say
+exit
 
 23
 .hi | (say dupit)
