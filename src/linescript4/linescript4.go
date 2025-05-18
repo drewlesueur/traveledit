@@ -313,6 +313,8 @@ type State struct {
 	InCurrentCall            bool
 	CloseParensAfterLastCall bool
 	DoEndAfterLastCall bool
+	DoneHoistingState *State
+	
 
 	LexicalParent *State
 	CallingParent *State
@@ -594,6 +596,7 @@ evalLoop:
 
 			continue
 		}
+		prevI := state.I
 		token, _ := nextToken(state, false)
 		
 		// #cyan
@@ -627,7 +630,6 @@ evalLoop:
    
 				}
 				// need another state, let's get one from callback channel
-				// fmt.Println("#yellow waiting for new state")
 				callback, ok := <-o.Machine.CallbacksCh
 				if !ok {
 					break evalLoop
@@ -648,10 +650,34 @@ evalLoop:
 			evaled := getVar(state, token)
 			pushT(state.Vals, evaled)
 		case getVarFuncToken:
-			evaledFunc := getVar(state, token).(func(*State) *State)
-			state.CurrFuncTokens = append(state.CurrFuncTokens, evaledFunc)
-			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+			evaledFunc, ok := getVar(state, token).(func(*State) *State)
+			if !ok {
+	    		// "hoist" lol
+	    		topState := state
+	    		for !topState.IsMainTop {
+	    		    topState = state.LexicalParent
+	    		}
 
+	    		// shallowCopy
+				topCopy := MakeState(topState.FileName, topState.Code)
+				topCopy.Machine = topState.Machine
+				topCopy.ICache = topState.ICache
+				topCopy.Vals = topState.Vals // or empty?
+				topCopy.Vars = topState.Vars
+				topCopy.Out = topState.Out
+
+	    		topCopy.I = state.I + strings.Index(topState.Code[state.I:], "\ndef " + token.String)
+	    		fmt.Println("the index is", topCopy.I,  toJson(topCopy.Code[topCopy.I:topCopy.I + 10]))
+
+                // _ = prevI
+	    		state.I = prevI
+	    		fmt.Println("going back should go to", state.I,  toJson(state.Code[state.I:state.I + 10]))
+	    		topCopy.DoneHoistingState = state
+	    		state = topCopy
+			} else {
+				state.CurrFuncTokens = append(state.CurrFuncTokens, evaledFunc)
+				state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+			}
 			// this was an attempt to replace the above cases, but slower than switch
 			// every added case is slow, but interfaces (and closures) are even slower
 			// probably unless there are lots of cases
@@ -708,10 +734,12 @@ func cancel(state *State) {
 	}
 	state.AsyncChildren = map[int]*State{}
 }
+var undefined = &State{} // could be any type
 func getVar(state *State, varName *DString) any {
 	parent, v := findParentAndValue(state, varName)
 	if parent == nil {
-	    panic("var not found: " + varName.String)
+	    // panic("var not found: " + varName.String)
+	    return undefined
 	}
 	return v
 }
@@ -1050,6 +1078,8 @@ func makeToken(state *State, val string, nameOnly bool) any {
 	// TODO: fix the double eval
 	if _, ok := evaled.(func(*State) *State); ok {
 		return getVarFuncToken(dval)
+	} else if evaled == undefined {
+		return getVarFuncToken(dval)
 	} else {
 		// return getVarToken(val)
 		return getVarToken(dval)
@@ -1088,7 +1118,6 @@ func getPrevIndent(state *State) string {
 	return getIndent(state, -2)
 }
 func getIndent(state *State, iOffset int) string {
-	// fmt.Println("#aqua getting prev indent")
 	// debugStateI(state, state.I)
 
 	// TODO audit the subtraction here
@@ -1250,7 +1279,6 @@ func findMatchingAfter(state *State, dedentCount int, things []string) *FindMatc
 	    state.ICache[state.I] = &ICache{}
 	}
 	state.ICache[state.I].FindMatching = ret
-	// fmt.Println("#yellow foundMatchingAfter", toJson(ret.Match))
 	// debugStateI(state, ret.I)
 	return ret
 }
@@ -1267,10 +1295,7 @@ var runAlwaysImmediates map[string]func(state *State) *State
 func initBuiltins() {
 	runAlwaysImmediates = map[string]func(state *State) *State{
 		"(": func(state *State) *State {
-			// fmt.Println("#yellow, mode stack up a")
-			// fmt.Println("#yellow, pre", len(state.ModeStack))
 			state.ModeStack = append(state.ModeStack, state.Mode)
-			// fmt.Println("#yellow, post", len(state.ModeStack))
 			state.Mode = "normal"
 
 			state.FuncTokenStack = append(state.FuncTokenStack, state.CurrFuncTokens)
@@ -1298,7 +1323,6 @@ func initBuiltins() {
 			return state
 		},
 		"[": func(state *State) *State {
-			// fmt.Println("#yellow, mode stack up b")
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "array"
 
@@ -1312,7 +1336,6 @@ func initBuiltins() {
 			return state
 		},
 		"]": func(state *State) *State {
-			// fmt.Println("#aqua, mode stack down b")
 
 			oldState := state
 			state = callFunc(state)
@@ -1330,7 +1353,6 @@ func initBuiltins() {
 			return state
 		},
 		"{": func(state *State) *State {
-			// fmt.Println("#yellow, mode stack up c")
 			state.ModeStack = append(state.ModeStack, state.Mode)
 			state.Mode = "object"
 
@@ -1527,15 +1549,31 @@ func initBuiltins() {
 			return state
 		},
 		"def": func(state *State) *State {
-			// see 	case builtinFuncToken:
-			state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins["def"]))
-			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
-			prevI := state.I
-			state.I = findBeforeEndLine(state)
-			words := strings.Split(state.Code[prevI:state.I], " ")
-			for _, w := range words {
-				pushT(state.Vals, &DString{String: w, RecordIndex: -1})
-			}
+			gatherNames("def", state)
+			return state
+		},
+		"each": func(state *State) *State {
+			gatherNames("each", state)
+			return state
+		},
+		"loop": func(state *State) *State {
+			gatherNames("loop", state)
+			return state
+		},
+		"loopRange": func(state *State) *State {
+			gatherNames("loopRange", state)
+			return state
+		},
+		"map": func(state *State) *State {
+			gatherNames("map", state)
+			return state
+		},
+		"filter": func(state *State) *State {
+			gatherNames("filter", state)
+			return state
+		},
+		"readFileByLine": func(state *State) *State {
+			gatherNames("readFileByLine", state)
 			return state
 		},
 		"now":       makeBuiltin_0_1(now),
@@ -1641,8 +1679,6 @@ func initBuiltins() {
 			return state
 		},
 		"else": func(state *State) *State {
-			debug("#skyblue ELSE")
-			debug("#pink remove end stack else")
 			endFunc := state.EndStack[len(state.EndStack)-1]
 			state.EndStack = state.EndStack[:len(state.EndStack)-1]
 			// don't need to call it cuz it's a noop
@@ -2318,11 +2354,8 @@ func initBuiltins() {
 						// to pick up the if
 						state.I = r.I - 2
 						// state.I = r.I - 2 - 1
-						debug("#aquamarine jumping to else if")
 						// debugStateI(state, state.I)
 					} else if r.Match == "else" {
-						debug("#aqua jumping to else")
-						debug("#white add end stack, jump to else")
 						state.EndStack = append(state.EndStack, endIf)
 						state.I = r.I
 					} else {
@@ -2447,6 +2480,12 @@ func initBuiltins() {
 				r := findMatchingAfter(state, 0, []string{"end"})
 				state.I = r.I
 				f.EndI = r.I
+			}
+
+			if state.DoneHoistingState != nil {
+			    ret := state.DoneHoistingState
+			    state.DoneHoistingState = nil
+			    return ret
 			}
 
 			// fmt.Printf("found: %q\n", getCode(state)[i:])
@@ -4008,16 +4047,13 @@ var variableRe = regexp.MustCompile(`\$[a-zA-Z_][a-zA-Z0-9_]*`)
 
 
 func doEnd(state *State) *State {
-	debug("#skyblue END")
 	if len(state.EndStack) == 0 {
-		debug("#crimson nothing in end stack")
 		if state.CallingParent == nil {
 			state.Done = true
 		}
 		return state.CallingParent
 	}
 
-	debug("#pink remove end stack end")
 	endFunc := state.EndStack[len(state.EndStack)-1]
 	state.EndStack = state.EndStack[:len(state.EndStack)-1]
 
@@ -4619,7 +4655,17 @@ func processLoop(state *State, process func(*State, any, any), onEnd func(state 
 	return state
 }
 
-
+func gatherNames(funcName string, state *State) {
+	// see 	case builtinFuncToken:
+	state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins[funcName]))
+	state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+	prevI := state.I
+	state.I = findBeforeEndLine(state)
+	words := strings.Split(state.Code[prevI:state.I], " ")
+	for _, w := range words {
+		pushT(state.Vals, &DString{String: w, RecordIndex: -1})
+	}
+}
 
 
 

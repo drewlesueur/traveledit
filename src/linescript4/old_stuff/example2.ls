@@ -17,6 +17,23 @@
 # say "hi"
 # exit
 
+
+say "ret of foo is" foo 1 2
+say "wow"
+
+def foo a b
+    a * 2
+    + b
+end
+
+say "whAaa"
+
+[100 200 300] map i v
+   %% %i (%v + 1)
+end
+say
+exit
+
 def sum3 a b c
     a + b + c
 end
