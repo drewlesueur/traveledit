@@ -1,3 +1,5 @@
+#!/usr/bin/env -S go run ../linescript4.go ../stringmath.go 
+
 #!/usr/local/bin/linescript4
 # "yo man"
 # say dupit toJson
@@ -15,7 +17,21 @@
 # say "hi"
 # exit
 
-[2 4 6] map: * 2, + 3
+def sum3 a b c
+    a + b + c
+end
+
+sum3 7 3 5
+say
+
+local foo 3 + 4 * 5
+say foo
+exit
+
+
+# [2 4 6] map: * 2 + 3; map: + 1
+[2 4 6] map: "yo" | + len it; map: "number " ++ it
+
 say
 exit
 

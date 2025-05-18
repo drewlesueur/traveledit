@@ -56,6 +56,8 @@ package main
 
 // DStrings with underlying index
 
+// need simple "hoisting"
+
 
 import (
 	"bufio"
@@ -592,7 +594,7 @@ evalLoop:
 
 			continue
 		}
-		token, _ := nextToken(state)
+		token, _ := nextToken(state, false)
 		
 		// #cyan
 		// if state.DebugTokens {
@@ -766,7 +768,7 @@ type TokenCacheValue struct {
 	Name  string
 }
 
-func nextToken(state *State) (any, string) {
+func nextToken(state *State, nameOnly bool) (any, string) {
 	code := state.Code
 	i := state.I
 	// fmt.Println("i:", i, "len", len(state.ICache))
@@ -780,7 +782,7 @@ func nextToken(state *State) (any, string) {
 		return cached.CachedToken.Token, cached.CachedToken.Name
 	}
 	// fmt.Println("cache miss")
-	token, name, newI := nextTokenRaw(state, code, i)
+	token, name, newI := nextTokenRaw(state, code, i, nameOnly)
 	state.I = newI
 	if state.ICache[i] == nil {
 	    state.ICache[i] = &ICache{}
@@ -792,7 +794,7 @@ func nextToken(state *State) (any, string) {
 const stateOut = 0
 const stateIn = 1
 
-func nextTokenRaw(state *State, code string, i int) (any, string, int) {
+func nextTokenRaw(state *State, code string, i int, nameOnly bool) (any, string, int) {
 	// TODO: count subsequent newlines as a single newline.
 	if i >= len(code) {
 		return immediateToken(endOfCodeImmediate), "past end?", -1
@@ -807,7 +809,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 			// leave off the : here so if it's a word starting with :, that can be a string
 			case '{', '}', '(', ')', '[', ']', ',', '\n', ';', '|':
 				str := string(b)
-				return makeToken(state, str), str, i + 1
+				return makeToken(state, str, nameOnly), str, i + 1
 			case ' ', '\t', '\r':
 				continue
 			case '"', '\'':
@@ -830,10 +832,10 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 			switch b {
 			case '{', '}', '(', ')', '[', ']', ',', '\n', ';', '|', ':':
 				str := code[start:i]
-				return makeToken(state, str), str, i
+				return makeToken(state, str, nameOnly), str, i
 			case ' ', '\t', '\r':
 				str := code[start:i]
-				return makeToken(state, str), str, i + 1
+				return makeToken(state, str, nameOnly), str, i + 1
 			case '"', '\'':
 				str := code[start:i]
 				expectedQuoteEnd := string(code[i]) + str
@@ -847,7 +849,7 @@ func nextTokenRaw(state *State, code string, i int) (any, string, int) {
 	if parseState == stateIn {
 		str := code[start:i]
 		// return makeToken(state, str), str, i + 1
-		return makeToken(state, str), str, i
+		return makeToken(state, str, nameOnly), str, i
 	}
 	return immediateToken(endOfCodeImmediate), "got to end?", -1
 }
@@ -952,7 +954,7 @@ var stdinReader = &Reader{
 }
 
 
-func makeToken(state *State, val string) any {
+func makeToken(state *State, val string, nameOnly bool) any {
 	// immediates go first, because it could be an immediate and builtin
 	// The 2 immediate styles can be consolidated now
 	if f, ok := runAlwaysImmediates[val]; ok {
@@ -1039,6 +1041,9 @@ func makeToken(state *State, val string) any {
 
     // dval := &DString{String: val, RecordIndex: -1}
     dval := GetDString(state, val)
+    if nameOnly {
+        return dval
+    }
 	evaled := getVar(state, dval)
 	// once a func, always a func
 	// but have to eval twice the first round?!
@@ -1505,6 +1510,34 @@ func initBuiltins() {
 		},
 	}
 	runImmediates = map[string]func(state *State) *State{
+		"local": func(state *State) *State {
+			// see 	case builtinFuncToken:
+			state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins["local"]))
+			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+			token, _ := nextToken(state, true)
+			pushT(state.Vals, token)
+			return state
+		},
+		"let": func(state *State) *State {
+			// see 	case builtinFuncToken:
+			state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins["let"]))
+			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+			token, _ := nextToken(state, true)
+			pushT(state.Vals, token)
+			return state
+		},
+		"def": func(state *State) *State {
+			// see 	case builtinFuncToken:
+			state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins["def"]))
+			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+			prevI := state.I
+			state.I = findBeforeEndLine(state)
+			words := strings.Split(state.Code[prevI:state.I], " ")
+			for _, w := range words {
+				pushT(state.Vals, &DString{String: w, RecordIndex: -1})
+			}
+			return state
+		},
 		"now":       makeBuiltin_0_1(now),
 		"nowMillis": makeBuiltin_0_1(now),
 		"nowMs":     makeBuiltin_0_1(now),
@@ -1744,6 +1777,13 @@ func initBuiltins() {
 				thingsVal = append(thingsVal, popT(state.Vals))
 			}
 			return say(state, state.Out, thingsVal...)
+		},
+		"way": func(state *State) *State {
+			getArgs(state)
+			return state
+		},
+		"same": func(state *State) *State {
+			return state
 		},
 		"sayRaw": func(state *State) *State {
 			v := popT(state.Vals)
