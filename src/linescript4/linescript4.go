@@ -56,7 +56,9 @@ package main
 
 // DStrings with underlying index
 
-// need simple "hoisting"
+// done need simple "hoisting"
+// wrangle break and continue
+// better labels?
 
 
 import (
@@ -1535,19 +1537,20 @@ func initBuiltins() {
 	}
 	runImmediates = map[string]func(state *State) *State{
 		"local": func(state *State) *State {
-			// see 	case builtinFuncToken:
-			state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins["local"]))
-			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
-			token, _ := nextToken(state, true)
-			pushT(state.Vals, token)
+		    panic("local is now var")
+		},
+		"var": func(state *State) *State {
+			setupAssignment("var", state)
 			return state
 		},
 		"let": func(state *State) *State {
 			// see 	case builtinFuncToken:
-			state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins["let"]))
-			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
-			token, _ := nextToken(state, true)
-			pushT(state.Vals, token)
+			setupAssignment("let", state)
+			return state
+		},
+		"as": func(state *State) *State {
+			// see 	case builtinFuncToken:
+			setupAssignment("as", state)
 			return state
 		},
 		"def": func(state *State) *State {
@@ -2042,39 +2045,23 @@ func initBuiltins() {
 			panic("fix this")
 			return state
 		},
-		"local": func(state *State) *State {
+		"var": func(state *State) *State {
 			b := popT(state.Vals)
-			a := popT(state.Vals).(*DString)
-			state.Vars.SetDString(a, b)
+			a := popT(state.Vals)
+		    doAssignment(state, a, b)
 			return state
 		},
 		"let": func(state *State) *State {
 			b := popT(state.Vals)
 			a := popT(state.Vals).(*DString)
-			parentVars, _ := findParentAndValue(state, a)
-			if parentVars == nil {
-				parentVars = state.Vars
-			}
-			parentVars.SetDString(a, b)
+		    doAssignmentParent(state, a, b)
 			return state
 		},
-		"locald": func(state *State) *State {
-			builtins["debugVals"](state)
-			fmt.Println("#lime those were the vals")
-			b := popT(state.Vals)
-			a := popT(state.Vals).(*DString)
-			state.Vars.SetDString(a, b)
-			return state
+		"vard": func(state *State) *State {
+		    return builtins["var"](state)
 		},
 		"letd": func(state *State) *State {
-			b := popT(state.Vals)
-			a := popT(state.Vals).(*DString)
-			parentVars, _ := findParentAndValue(state, a)
-			if parentVars == nil {
-				parentVars = state.Vars
-			}
-			parentVars.SetDString(a, b)
-			return state
+		    return builtins["let"](state)
 		},
 		"=": func(state *State) *State {
 		    return builtins["letd"](state)
@@ -2086,31 +2073,11 @@ func initBuiltins() {
 		    // Note: we pop b first, then a
 		    rawB := popT(state.Vals)
 		    rawA := popT(state.Vals)
-
-		    switch b := rawB.(type) {
-		    case *DString:
-		        // simple: single variable
-		        state.Vars.SetDString(b, rawA)
-		    case string:
-		        // simple: single variable
-		        state.Vars.Set(b, rawA)
-		    case *[]any:
-		        // case: keys are in a []interface{} (each must be a string)
-		        aSlice, ok := rawA.(*[]any)
-		        if !ok {
-		            panic(fmt.Sprintf("as: unexpected RHS type %T, want []interface{}", rawA))
-		        }
-		        for i, keyI := range *b {
-		            if i < len(*aSlice) {
-		                state.Vars.Set(toStringInternal(keyI), (*aSlice)[i])
-		            } else {
-		                state.Vars.Set(toStringInternal(keyI), nil)
-		            }
-		        }
-		    default:
-		        panic(fmt.Sprintf("as: unsupported LHS type %T", rawB))
-		    }
+		    doAssignment(state, rawB, rawA)
 		    return state
+		},
+		"asd": func(state *State) *State {
+		    return builtins["as"](state)
 		},
 
 
@@ -4678,12 +4645,24 @@ func gatherNames(funcName string, state *State) {
 	// see 	case builtinFuncToken:
 	state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins[funcName]))
 	state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
-	if state.Code[state.I:state.I+1] == ":" { // OneLiner
+	if state.Code[state.I:state.I+1] == ":" { 
+		// OneLiner case, return
 	    return
 	}
 	prevI := state.I
+	// isArray := false
+	// if state.Code[state.I:state.I+1] == "[" { 
+	//     isArray = true
+	// }
 	state.I = findBeforeEndLine(state)
-	words := strings.Split(state.Code[prevI:state.I], " ")
+	wordsChunk := state.Code[prevI:state.I]
+	toPushTo := state.Vals
+	// if isArray {
+	//     wordsChunk = wordsChunk[1:len(wordsChunk)-1]
+	//     toPushTo = &[]any{}
+	// 	pushT(state.Vals, toPushTo)
+	// }
+	words := strings.Split(wordsChunk, " ")
 	// fmt.Println(toJson(words))
 	if len(words) > 0 {
 		for _, w := range words {
@@ -4691,12 +4670,103 @@ func gatherNames(funcName string, state *State) {
 				if strings.HasPrefix(w, ".") {
 				    w = w[1:]
 				}
-				pushT(state.Vals, &DString{String: w, RecordIndex: -1})
+				pushT(toPushTo, &DString{String: w, RecordIndex: -1})
 			}
 		}
 	}
 }
 
+func doAssignment(state *State, lhs any, rhs any) {
+    switch lhs := lhs.(type) {
+    case *DString:
+        // simple: single variable
+        state.Vars.SetDString(lhs, rhs)
+    case string:
+        // simple: single variable
+        state.Vars.Set(lhs, rhs)
+    case *[]any:
+        // case: keys are in a []interface{} (each must be a string)
+        aSlice, ok := rhs.(*[]any)
+        if !ok {
+            panic(fmt.Sprintf("as: unexpected RHS type %T, want []interface{}", rhs))
+        }
+        for i, keyI := range *lhs {
+            var val any
+            if i < len(*aSlice) {
+                val = (*aSlice)[i]
+            } else {
+                val = nil
+            }
+            state.Vars.Set(toStringInternal(keyI), val)
+        }
+    default:
+        panic(fmt.Sprintf("as: unsupported LHS type %T", lhs))
+    }
+}
+func doAssignmentParent(state *State, lhs any, rhs any) {
+    switch lhs := lhs.(type) {
+    case *DString:
+        // simple: single variable
+		parentVars, _ := findParentAndValue(state, lhs)
+		if parentVars == nil {
+			parentVars = state.Vars
+		}
+		parentVars.SetDString(lhs, rhs)
+    case string:
+        // simple: single variable
+		parentVars, _ := findParentAndValue(state, &DString{String: lhs, RecordIndex: -1})
+		if parentVars == nil {
+			parentVars = state.Vars
+		}
+		parentVars.Set(lhs, rhs)
+    case *[]any:
+        // case: keys are in a []interface{} (each must be a string)
+        aSlice, ok := rhs.(*[]any)
+        if !ok {
+            panic(fmt.Sprintf("as: unexpected RHS type %T, want []interface{}", rhs))
+        }
+        for i, keyI := range *lhs {
+            // TODO: wrangle string vs DString
+            keyI := toStringInternal(keyI)
+            var val any
+            if i < len(*aSlice) {
+                val = (*aSlice)[i]
+            } else {
+                val = nil
+            }
+		    parentVars, _ := findParentAndValue(state, &DString{String: keyI, RecordIndex: -1})
+		    if parentVars == nil {
+		    	parentVars = state.Vars
+		    }
+            state.Vars.Set(keyI, val)
+        }
+    default:
+        panic(fmt.Sprintf("as: unsupported LHS type %T", lhs))
+    }
+}
 
+func setupAssignment(name string, state *State) {
+	// see 	case builtinFuncToken:
+	state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins[name]))
+	state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+	token, name := nextToken(state, true)
+	fmt.Println("next token name", name)
+	if name == "[" {
+	    names := []any{}
+	    for {
+	        token, name = nextToken(state, true)
+	        if name == "]" {
+	            break
+	        }
+			if strings.HasPrefix(name, ".") {
+			    name = name[1:]
+			}
+	        names = append(names, name)
+	    }
+		pushT(state.Vals, &names)
+	} else {
+		pushT(state.Vals, token)
+	}
+}
 
 

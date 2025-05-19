@@ -17,6 +17,32 @@
 # say "hi"
 # exit
 
+# let a .A
+# let b .B
+# vard [a b] [2 3]
+# say %% a is %A
+# say %% b is %B
+# exit
+
+
+
+foo 
+
+
+
+[1 2] asd [.c .d]
+say %% c is %c, and d is %d
+exit
+
+var foo 123
+smthng
+say foo
+exit
+
+def smthng
+    let [foo 246
+end
+
 .message
 debugVals
 exit

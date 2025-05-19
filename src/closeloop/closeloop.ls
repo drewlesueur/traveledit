@@ -6,15 +6,15 @@
 # exit
 
 
-local r toReader %% HmmHello__how are you?__Is this on?
-local rs makeReadSplitter r "__"
+var r toReader %% HmmHello__how are you?__Is this on?
+var rs makeReadSplitter r "__"
 forever
     readMessage rs
     
     local message it
     # if message is null: goDown .doneRead
     if message is null
-       goDown .doneRead
+       goDown doneRead
     end
     say "message is" message
     
@@ -25,8 +25,8 @@ end #doneRead
 exit
 
 def makeReadSplitter .reader .delimeter
-    # local .readChunkSize 64
     local .readChunkSize 64
+    # local readChunkSize 2
     if readChunkSize < len delimeter
         say "error chunk size < delimeter"
         exit
