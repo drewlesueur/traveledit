@@ -1553,6 +1553,19 @@ func initBuiltins() {
 			setupAssignment("as", state)
 			return state
 		},
+		"dt": func(state *State) *State {
+			// see 	case builtinFuncToken:
+			setupAssignment("dt", state)
+			return state
+		},
+		"goDown": func(state *State) *State {
+			gatherNames("goDown", state)
+			return state
+		},
+		"goUp": func(state *State) *State {
+			gatherNames("goUp", state)
+			return state
+		},
 		"def": func(state *State) *State {
 			gatherNames("def", state)
 			return state
@@ -1840,6 +1853,7 @@ func initBuiltins() {
 		"shift":    makeBuiltin_1_1(shift),
 		"setIndex": makeBuiltin_3_0(setIndex),
 		"at":       makeBuiltin_2_1(at),
+		"dt":       makeBuiltin_2_1(at),
 		"in": makeBuiltin_2_1(func(a, b any) any {
 			// _, ok := b.(map[string]any)[toStringInternal(a)]
 			_, ok := b.(*Record).GetHas(toStringInternal(a))
@@ -4750,7 +4764,6 @@ func setupAssignment(name string, state *State) {
 	state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins[name]))
 	state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
 	token, name := nextToken(state, true)
-	fmt.Println("next token name", name)
 	if name == "[" {
 	    names := []any{}
 	    for {

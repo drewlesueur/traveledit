@@ -24,9 +24,18 @@
 # say %% b is %B
 # exit
 
+say .yo
 
 
-foo 
+var a {.name .Drew}
+say a dt name
+30 loop i
+    if i is 16
+        goDown cool
+    end
+    say i
+end #cool
+
 
 
 
