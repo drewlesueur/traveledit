@@ -1,6 +1,17 @@
 #!/usr/bin/env -S go run ../linescript4.go ../stringmath.go 
 
 #!/usr/local/bin/linescript4
+
+var bar "bean"
+say {
+    name "Drew"
+    age "foo" cc bar
+    other "thing"
+}
+
+
+
+
 # "yo man"
 # say dupit toJson
 # dupit
@@ -27,6 +38,10 @@
 # let (.whatup) "ok"
 # say whatup
 # exit
+[100 200 300]
+at 2
+say
+exit
 
 var a {name .Drew age 40 other (slice "aabcdefg" 5 7)}
 a to food "popcorn"

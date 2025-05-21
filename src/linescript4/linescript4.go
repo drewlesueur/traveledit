@@ -568,7 +568,7 @@ evalLoop:
 
 			continue
 		}
-		if state.Mode == "object" && len(*state.Vals) % 2 == 0 {
+		if state.Mode == "object" && len(*state.Vals) % 2 == 0 && len(state.CurrFuncTokens) == 0 {
 		    setupAssignment("", state)
 		}
 		prevI := state.I
