@@ -24,9 +24,15 @@
 # say %% b is %B
 # exit
 
+# let (.whatup) "ok"
+# say whatup
+# exit
 
-var a {.name .Drew}
+var a {name .Drew age 40 other (slice "aabcdefg" 5 7)}
+a to food "popcorn"
+say a
 say a at name
+say a at age
 exit
 say .yo
 

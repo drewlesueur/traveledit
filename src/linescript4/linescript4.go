@@ -568,6 +568,9 @@ evalLoop:
 
 			continue
 		}
+		if state.Mode == "object" && len(*state.Vals) % 2 == 0 {
+		    setupAssignment("", state)
+		}
 		prevI := state.I
 		token, _ := nextToken(state, false)
 		
@@ -1303,6 +1306,7 @@ func initBuiltins() {
 
 			state.ValsStack = append(state.ValsStack, state.Vals)
 			state.Vals = &[]any{}
+			// setupAssignment("", state)
 			return state
 		},
 		"}": func(state *State) *State {
@@ -1480,18 +1484,24 @@ func initBuiltins() {
 			return state
 		},
 		"let": func(state *State) *State {
-			// see 	case builtinFuncToken:
 			setupAssignment("let", state)
 			return state
 		},
 		"as": func(state *State) *State {
-			// see 	case builtinFuncToken:
 			setupAssignment("as", state)
 			return state
 		},
 		"at": func(state *State) *State {
-			// see 	case builtinFuncToken:
 			setupAssignment("at", state)
+			return state
+		},
+		"setProp": func(state *State) *State {
+			setupAssignment("setProp", state)
+			return state
+		},
+		// trying out "to" for setProp
+		"to": func(state *State) *State {
+			setupAssignment("setProp", state)
 			return state
 		},
 		"goDown": func(state *State) *State {
@@ -4666,9 +4676,16 @@ func doAssignmentParent(state *State, lhs any, rhs any) {
 
 func setupAssignment(name string, state *State) {
 	// see 	case builtinFuncToken:
-	state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins[name]))
-	state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+	if name != "" {
+		state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins[name]))
+		state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+	}
+	oldI := state.I
 	token, name := nextToken(state, true) // true means nameOnly so it comes back as a string
+    if _, ok := token.(string); !ok {
+        state.I = oldI
+        return
+    }
 	// fmt.Printf("token is (%T): %s\n", token, name)
 	if name == "[" {
 	    names := []any{}
