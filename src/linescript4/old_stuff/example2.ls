@@ -24,17 +24,27 @@
 # say %% b is %B
 # exit
 
-say .yo
-
 
 var a {.name .Drew}
-say a dt name
+say a at name
+exit
+say .yo
+
+let banana .apple
+let %banana 1
+say apple
+exit
+
+
 30 loop i
     if i is 16
         goDown cool
     end
+    # if i is 16: goDown cool
     say i
 end #cool
+
+say "whaa"
 
 
 

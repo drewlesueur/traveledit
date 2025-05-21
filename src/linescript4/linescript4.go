@@ -108,8 +108,7 @@ type Func struct {
 	ICache []*ICache
 	// TODO check these caches, or combine them ?
 	// in a function are they correctly copied?
-	// Params            []string
-	Params            []*DString
+	Params            []string
 	LexicalParent     *State
 	Builtin           func(state *State) *State
 	Name              string
@@ -138,17 +137,6 @@ type Machine struct {
 	Index       int
 }
 
-type DString struct {
-    String string
-    RecordIndex int
-    ScopesUp int
-    Record *Record
-    SourceI int
-    SourceState *State
-}
-func (d DString) MarshalJSON() ([]byte, error) {
-    return json.Marshal(d.String)
-}
 
 type Record struct {
     Values     []any
@@ -201,21 +189,6 @@ func (r *Record) Set(key string, value any) {
         r.KeyToIndex[key] = len(r.Values) - 1
     }
 }
-func (r *Record) SetDString(key *DString, value any) {
-    // if true || key.RecordIndex == -1 {
-    if false && key.RecordIndex != -1 {
-    // if key.RecordIndex != -1 {
-        // fmt.Println("yay set cache ", key.String)
-        if len(r.Values) == key.RecordIndex {
-            r.Set(key.String, value)
-        } else {
-            r.Values[key.RecordIndex] = value
-        }
-    } else {
-        key.RecordIndex = r.SetSeeIndex(key.String, value)
-    }
-}
-
 
 
 // Get returns the value for key. The bool is false if key was not present.
@@ -298,7 +271,6 @@ type State struct {
 	// also caches are unoptimally as bug as every char in codebase
 	// also goUpCache breaks on dynamic jumps
 	ICache []*ICache
-	DStringCache map[string]*DString
 	// CachedTokens []*TokenCacheValue
 	// GoUpCache          []*int
 	// FindMatchingCache  []*FindMatchingResult
@@ -363,7 +335,6 @@ func MakeStateRaw(fileName, code string) *State {
 		ValsStack:          nil,
 		EndStack:           nil,
 		// Vars:               map[string]any{},
-		DStringCache: nil,
 		CurrFuncTokens:     nil,
 		FuncTokenStack:     nil,
 		FuncTokenSpots:     nil,
@@ -393,7 +364,6 @@ func MakeState(fileName, code string) *State {
 		ValsStack:          nil,
 		EndStack:           nil,
 		// Vars:               map[string]any{},
-		DStringCache: nil,
 		CurrFuncTokens:     nil,
 		FuncTokenStack:     nil,
 		FuncTokenSpots:     nil,
@@ -649,10 +619,10 @@ evalLoop:
 			// case builtinToken:
 			// ??
 		case getVarToken:
-			evaled := getVar(state, token)
+			evaled := getVar(state, string(token))
 			pushT(state.Vals, evaled)
 		case getVarFuncToken:
-			evaledFunc, ok := getVar(state, token).(func(*State) *State)
+			evaledFunc, ok := getVar(state, string(token)).(func(*State) *State)
 			if !ok {
 	    		// "hoist" lol
 	    		topState := state
@@ -668,9 +638,9 @@ evalLoop:
 				topCopy.Vars = topState.Vars
 				topCopy.Out = topState.Out
 
-	    		topCopy.I = state.I + strings.Index(topState.Code[state.I:], "\ndef " + token.String)
+	    		topCopy.I = state.I + strings.Index(topState.Code[state.I:], "\ndef " + string(token))
 	    		if topCopy.I == state.I - 1 {
-	    		    panic("could not hoist variable (variable not defined) " + token.String)
+	    		    panic("could not hoist variable (variable not defined) " + string(token))
 	    		}
 
                 // _ = prevI
@@ -739,7 +709,7 @@ func cancel(state *State) {
 	state.AsyncChildren = map[int]*State{}
 }
 var undefined = &State{} // could be any type
-func getVar(state *State, varName *DString) any {
+func getVar(state *State, varName string) any {
 	parent, v := findParentAndValue(state, varName)
 	if parent == nil {
 	    // panic("var not found: " + varName.String)
@@ -748,24 +718,11 @@ func getVar(state *State, varName *DString) any {
 	return v
 }
 
-func findParentAndValue(state *State, varName *DString) (*Record, any) {
-	// if varName.Record != nil {
-	if false && varName.RecordIndex != -1 {
-	// if varName.RecordIndex != -1 {
-        // fmt.Println("yay get cache ", varName.String)
-        s := state
-        for i := 0; i < varName.ScopesUp; i++ {
-            s = state.LexicalParent
-        }
-	    // return varName.Record, varName.Record.Values[varName.RecordIndex]
-	    return s.Vars, s.Vars.Values[varName.RecordIndex]
-	}
+func findParentAndValue(state *State, varName string) (*Record, any) {
 	scopesUp := 0
 	for state != nil {
-		v, idx, ok := state.Vars.GetHasSeeIndex(varName.String)
+		v, _, ok := state.Vars.GetHasSeeIndex(varName)
 		if ok {
-		    varName.ScopesUp = scopesUp
-		    varName.RecordIndex = idx
 		    return state.Vars, v
 		}
 		state = state.LexicalParent
@@ -886,9 +843,9 @@ func nextTokenRaw(state *State, code string, i int, nameOnly bool) (any, string,
 	return immediateToken(endOfCodeImmediate), "got to end?", -1
 }
 
-type getVarFuncToken *DString
+type getVarFuncToken string
 // type getVarToken string
-type getVarToken *DString
+type getVarToken string
 type builtinToken func(*State) *State
 type builtinFuncToken func(*State) *State
 type immediateToken func(*State) *State
@@ -1012,15 +969,11 @@ func makeToken(state *State, val string, nameOnly bool) any {
 			return val
 		}
 		theString := val[1:]
-		// return theString
-		// return &DString{String: theString, RecordIndex: -1}
-		return GetDString(state, theString)
+		return theString
 	}
 	if val[len(val)-1] == '.' {
 		theString := val[0:len(val)-1]
-		// return theString
-		// return &DString{String: theString, RecordIndex: -1}
-		return GetDString(state, theString)
+		return theString
 	}
 	if isNumeric(val) {
 		if val[len(val)-1:] == "f" {
@@ -1071,40 +1024,23 @@ func makeToken(state *State, val string, nameOnly bool) any {
 		return stdinReader
 	}
 
-    // dval := &DString{String: val, RecordIndex: -1}
-    dval := GetDString(state, val)
     if nameOnly {
-        return dval
+        return val
     }
-	evaled := getVar(state, dval)
+	evaled := getVar(state, val)
 	// once a func, always a func
 	// but have to eval twice the first round?!
 	// TODO: fix the double eval
 	if _, ok := evaled.(func(*State) *State); ok {
-		return getVarFuncToken(dval)
+		return getVarFuncToken(val)
 	} else if evaled == undefined {
-		return getVarFuncToken(dval)
+		return getVarFuncToken(val)
 	} else {
-		// return getVarToken(val)
-		return getVarToken(dval)
+		return getVarToken(val)
 	}
 	panic("no slash?")
 	return nil
 }
-
-// won't work for keys of different objects
-// need to use a map where key is pointer to object
-// TODO: maybe remove this?
-func GetDString(state *State, name string) *DString {
-    // fmt.Println("GetDString")
-    // if d, ok := state.DStringCache[name]; ok {
-    //     return d
-    // }
-    d := &DString{String: name, RecordIndex: -1}
-    // state.DStringCache[name] = d
-    return d
-}
-
 
 func isNumeric(s string) bool {
 	return len(s) > 0 && ((s[0] >= '0' && s[0] <= '9') || (s[0] == '-' && len(s) > 1))
@@ -1553,9 +1489,9 @@ func initBuiltins() {
 			setupAssignment("as", state)
 			return state
 		},
-		"dt": func(state *State) *State {
+		"at": func(state *State) *State {
 			// see 	case builtinFuncToken:
-			setupAssignment("dt", state)
+			setupAssignment("at", state)
 			return state
 		},
 		"goDown": func(state *State) *State {
@@ -1853,7 +1789,6 @@ func initBuiltins() {
 		"shift":    makeBuiltin_1_1(shift),
 		"setIndex": makeBuiltin_3_0(setIndex),
 		"at":       makeBuiltin_2_1(at),
-		"dt":       makeBuiltin_2_1(at),
 		"in": makeBuiltin_2_1(func(a, b any) any {
 			// _, ok := b.(map[string]any)[toStringInternal(a)]
 			_, ok := b.(*Record).GetHas(toStringInternal(a))
@@ -2067,21 +2002,15 @@ func initBuiltins() {
 		},
 		"let": func(state *State) *State {
 			b := popT(state.Vals)
-			a := popT(state.Vals).(*DString)
+			a := popT(state.Vals).(string)
 		    doAssignmentParent(state, a, b)
 			return state
 		},
-		"vard": func(state *State) *State {
-		    return builtins["var"](state)
-		},
-		"letd": func(state *State) *State {
+		"=": func(state *State) *State {
 		    return builtins["let"](state)
 		},
-		"=": func(state *State) *State {
-		    return builtins["letd"](state)
-		},
 		":=": func(state *State) *State {
-		    return builtins["locald"](state)
+		    return builtins["var"](state)
 		},
 		"as": func(state *State) *State {
 		    // Note: we pop b first, then a
@@ -2089,9 +2018,6 @@ func initBuiltins() {
 		    rawA := popT(state.Vals)
 		    doAssignment(state, rawB, rawA)
 		    return state
-		},
-		"asd": func(state *State) *State {
-		    return builtins["as"](state)
 		},
 
 
@@ -2165,20 +2091,20 @@ func initBuiltins() {
 			things := getArgs(state)
 			thingsVal := *things
 
-			var indexVar *DString
+			var indexVar string
 			var loops int
 			if len(thingsVal) >= 2 {
 				loops = toIntInternal(thingsVal[0])
-				indexVar = thingsVal[1].(*DString)
+				indexVar = thingsVal[1].(string)
 			} else if len(thingsVal) == 1 {
 				loops = toIntInternal(popT(state.Vals))
-				indexVar = thingsVal[0].(*DString)
+				indexVar = thingsVal[0].(string)
 			} else {
 				loops = toIntInternal(popT(state.Vals))
 			}
 
-			if indexVar != nil {
-				state.Vars.SetDString(indexVar, -1)
+			if indexVar != "" {
+				state.Vars.Set(indexVar, -1)
 			}
 			var spot = state.I
 			var endEach func(state *State) *State
@@ -2188,8 +2114,8 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				} else {
-					if indexVar != nil {
-						state.Vars.SetDString(indexVar, theIndex)
+					if indexVar != "" {
+						state.Vars.Set(indexVar, theIndex)
 						// state.Vars.Set(indexVar.String, theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
@@ -2216,27 +2142,27 @@ func initBuiltins() {
 			things := getArgs(state)
 			thingsVal := *things
 
-			var indexVar *DString
+			var indexVar string
 			var loopStart int
 			var loopEnd int
 			if len(thingsVal) >= 3 {
 				loopStart = toIntInternal(thingsVal[0])
 				loopEnd = toIntInternal(thingsVal[1])
-				indexVar = thingsVal[2].(*DString)
+				indexVar = thingsVal[2].(string)
 			} else if len(thingsVal) == 2 {
 				loopStart = toIntInternal(thingsVal[0])
 				loopEnd = toIntInternal(thingsVal[1])
 			} else if len(thingsVal) == 1 {
 				loopEnd = toIntInternal(popT(state.Vals))
 				loopStart = toIntInternal(popT(state.Vals))
-				indexVar = thingsVal[0].(*DString)
+				indexVar = thingsVal[0].(string)
 			} else {
 				loopEnd = toIntInternal(popT(state.Vals))
 				loopStart = toIntInternal(popT(state.Vals))
 			}
 
-			if indexVar != nil {
-				state.Vars.SetDString(indexVar, -1)
+			if indexVar != "" {
+				state.Vars.Set(indexVar, -1)
 			}
 			if loopStart < loopEnd {
 				theIndex = loopStart - 1
@@ -2264,8 +2190,8 @@ func initBuiltins() {
 					state.OneLiner = false
 					return state
 				} else {
-					if indexVar != nil {
-						state.Vars.SetDString(indexVar, theIndex)
+					if indexVar != "" {
+						state.Vars.Set(indexVar, theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
 					}
@@ -2398,7 +2324,7 @@ func initBuiltins() {
 				// pushT(newState.Vals, popT(state.Vals))
 			} else {
 				for _, v := range thingsVal {
-					newState.Vars.SetDString(v.(*DString), getVar(state, v.(*DString)))
+					newState.Vars.Set(v.(string), getVar(state, v.(string)))
 				}
 			}
 
@@ -2454,9 +2380,9 @@ func initBuiltins() {
 			// params := spliceT(state.Vals, state.FuncTokenSpot+1, len(*state.Vals)-(state.FuncTokenSpot+1), nil)
 			ftSpot := state.FuncTokenSpots[len(state.FuncTokenSpots)-1]
 			params := spliceT(state.Vals, ftSpot+1, len(*state.Vals)-(ftSpot+1), nil)
-			paramStrings := make([]*DString, len(*params))
+			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
-				paramStrings[i] = p.(*DString)
+				paramStrings[i] = p.(string)
 			}
 			funcName := toStringInternal(popT(state.Vals))
 			f := &Func{
@@ -2494,9 +2420,9 @@ func initBuiltins() {
 		},
 		"func": func(state *State) *State {
 			params := getArgs(state)
-			paramStrings := make([]*DString, len(*params))
+			paramStrings := make([]string, len(*params))
 			for i, p := range *params {
-				paramStrings[i] = p.(*DString)
+				paramStrings[i] = p.(string)
 			}
 			f := &Func{
 				FileName:          state.FileName,
@@ -3003,7 +2929,7 @@ func makeFuncToken(token *Func) func(*State) *State {
 		// for i := len(token.Params) - 1; i >= 0; i-- {
 		// 	param := token.Params[i]
 		// 	// bug?
-		// 	// newState.Vars.SetDString(param, popT(state.Vals))
+		// 	// newState.Vars.Set(param, popT(state.Vals))
 		// 	state.Vars.Set(param.String, popT(state.Vals))
 		// }
 		// return state
@@ -3025,8 +2951,7 @@ func makeFuncToken(token *Func) func(*State) *State {
 		for i := len(token.Params) - 1; i >= 0; i-- {
 			param := token.Params[i]
 			// bug?
-			// newState.Vars.SetDString(param, popT(state.Vals))
-			newState.Vars.Set(param.String, popT(state.Vals))
+			newState.Vars.Set(param, popT(state.Vals))
 		}
 		newState.Out = state.Out
 		// nt, _ := nextTokenRaw(newState, newState.Code, newState.I)
@@ -3651,19 +3576,12 @@ var gtes = makeMather(
 	},
 )
 
-func unDString(a any) any {
-    if a, ok := a.(*DString); ok {
-        return a.String
-    }
-    return a
-}
-
 // is returns whether a equals b.
 var is = func(a, b any) any {
-	return unDString(a) == unDString(b)
+	return a == b
 }
 var isnt = func(a, b any) any {
-	return unDString(a) != unDString(b)
+	return a != b
 }
 
 // is returns whether a equals b.
@@ -3838,8 +3756,6 @@ func toStringInternal(a any) string {
 	switch a := a.(type) {
 	case string:
 		return a
-	case *DString:
-		return a.String
 	case map[string]any:
 		jsonData, err := json.MarshalIndent(a, "", "    ")
 		if err != nil {
@@ -4581,35 +4497,35 @@ func makeIterator(v any) (Iterator) {
 }
 
 
-func getLoopVars(state *State) (*DString, *DString) {
+func getLoopVars(state *State) (string, string) {
 	things := getArgs(state)
 	thingsVal := *things
-	var indexVar *DString
-	var itemVar *DString
+	var indexVar string
+	var itemVar string
 
 	if len(thingsVal) == 2 {
-		indexVar = thingsVal[0].(*DString)
-		itemVar = thingsVal[1].(*DString)
+		indexVar = thingsVal[0].(string)
+		itemVar = thingsVal[1].(string)
 	} else if len(thingsVal) == 1 {
-		itemVar = thingsVal[0].(*DString)
+		itemVar = thingsVal[0].(string)
 	}
 	return indexVar, itemVar
 }
 
-func setLoopVarsInit(state *State, indexVar, itemVar *DString, theIndex, value any)  {
-	if indexVar != nil {
-		state.Vars.SetDString(indexVar, theIndex)
+func setLoopVarsInit(state *State, indexVar, itemVar string, theIndex, value any)  {
+	if indexVar != "" {
+		state.Vars.Set(indexVar, theIndex)
 	}
-	if itemVar != nil {
-		state.Vars.SetDString(itemVar, value)
+	if itemVar != "" {
+		state.Vars.Set(itemVar, value)
 	}
 }
-func setLoopVars(state *State, indexVar, itemVar *DString, theIndex, value any)  {
-	if indexVar != nil {
-		state.Vars.SetDString(indexVar, theIndex)
+func setLoopVars(state *State, indexVar, itemVar string, theIndex, value any)  {
+	if indexVar != "" {
+		state.Vars.Set(indexVar, theIndex)
 	}
-	if itemVar != nil {
-		state.Vars.SetDString(itemVar,  value)
+	if itemVar != "" {
+		state.Vars.Set(itemVar,  value)
 	} else {
 		// fmt.Println("pushing", value)
 		pushT(state.Vals, value)
@@ -4618,7 +4534,7 @@ func setLoopVars(state *State, indexVar, itemVar *DString, theIndex, value any) 
 }
 
 func processLoop(state *State, process func(*State, any, any), onEnd func(state *State)) *State {
-	var theIndex any = nil // 1 based so we start less than 1
+	var theIndex any = "" // 1 based so we start less than 1
     indexVar, itemVar := getLoopVars(state)
 
 	iterator := makeIterator(popT(state.Vals))
@@ -4684,7 +4600,7 @@ func gatherNames(funcName string, state *State) {
 				if strings.HasPrefix(w, ".") {
 				    w = w[1:]
 				}
-				pushT(toPushTo, &DString{String: w, RecordIndex: -1})
+				pushT(toPushTo, w)
 			}
 		}
 	}
@@ -4692,9 +4608,6 @@ func gatherNames(funcName string, state *State) {
 
 func doAssignment(state *State, lhs any, rhs any) {
     switch lhs := lhs.(type) {
-    case *DString:
-        // simple: single variable
-        state.Vars.SetDString(lhs, rhs)
     case string:
         // simple: single variable
         state.Vars.Set(lhs, rhs)
@@ -4719,16 +4632,9 @@ func doAssignment(state *State, lhs any, rhs any) {
 }
 func doAssignmentParent(state *State, lhs any, rhs any) {
     switch lhs := lhs.(type) {
-    case *DString:
-        // simple: single variable
-		parentVars, _ := findParentAndValue(state, lhs)
-		if parentVars == nil {
-			parentVars = state.Vars
-		}
-		parentVars.SetDString(lhs, rhs)
     case string:
         // simple: single variable
-		parentVars, _ := findParentAndValue(state, &DString{String: lhs, RecordIndex: -1})
+		parentVars, _ := findParentAndValue(state, lhs)
 		if parentVars == nil {
 			parentVars = state.Vars
 		}
@@ -4740,7 +4646,6 @@ func doAssignmentParent(state *State, lhs any, rhs any) {
             panic(fmt.Sprintf("as: unexpected RHS type %T, want []interface{}", rhs))
         }
         for i, keyI := range *lhs {
-            // TODO: wrangle string vs DString
             keyI := toStringInternal(keyI)
             var val any
             if i < len(*aSlice) {
@@ -4748,7 +4653,7 @@ func doAssignmentParent(state *State, lhs any, rhs any) {
             } else {
                 val = nil
             }
-		    parentVars, _ := findParentAndValue(state, &DString{String: keyI, RecordIndex: -1})
+		    parentVars, _ := findParentAndValue(state, keyI)
 		    if parentVars == nil {
 		    	parentVars = state.Vars
 		    }
@@ -4763,7 +4668,8 @@ func setupAssignment(name string, state *State) {
 	// see 	case builtinFuncToken:
 	state.CurrFuncTokens = append(state.CurrFuncTokens, builtinFuncToken(builtins[name]))
 	state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
-	token, name := nextToken(state, true)
+	token, name := nextToken(state, true) // true means nameOnly so it comes back as a string
+	// fmt.Printf("token is (%T): %s\n", token, name)
 	if name == "[" {
 	    names := []any{}
 	    for {
@@ -4774,10 +4680,23 @@ func setupAssignment(name string, state *State) {
 			if strings.HasPrefix(name, ".") {
 			    name = name[1:]
 			}
+			if strings.HasPrefix(name, "%") {
+				v := getVar(state,name[1:])
+		    	if v == undefined {
+		    	    panic("undefined " + name[1:])
+		    	}
+			    name = toStringInternal(v)
+			}
 	        names = append(names, name)
 	    }
 		pushT(state.Vals, &names)
 	} else {
+		if strings.HasPrefix(name, "%") {
+		    token = getVar(state, name[1:])
+		    if token == undefined {
+		        panic("undefined " + name[1:])
+		    }
+		}
 		pushT(state.Vals, token)
 	}
 }

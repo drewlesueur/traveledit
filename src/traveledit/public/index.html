@@ -3222,6 +3222,10 @@ function log(v) {
     logEl.appendChild(d)
     logEl.scrollTop = logEl.scrollHeight
 }
+
+function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 var hasUpdatedSearchTextForReplaceFlow = false
 function setLastWord(maybeLastWord) {
     if (maybeLastWord != "") {
@@ -3232,7 +3236,7 @@ function setLastWord(maybeLastWord) {
                 if (copyBuffer.length == 1 && copyBuffer[0] == lastWord) {
                     // weird case where the acPlop stuff gets weird with this feature
                 } else {
-                    searchText.value = "\\b" + copyBuffer[0] + "\\b"
+                    searchText.value = "\\b" + escapeRegExp(copyBuffer[0]) + "\\b"
                     saveSearchHistory()
                     // searchText.value = copyBuffer[0]
                     hasUpdatedSearchTextForReplaceFlow = true
@@ -3683,7 +3687,7 @@ function findDown(searchDir, wrap, startTop) {
     }
     if (document.activeElement != searchText) {
         if (searchText.value == "" && fx.selectedRegions.length) {
-            searchText.value = getSelectedLines(fx, false, true).lines[0]
+            searchText.value = escapeRegExp(getSelectedLines(fx, false, true).lines[0])
             saveSearchHistory()
             return
         } else if (searchText.value == "" && !lastFindWasHighlightText && fx.cursorColIndex != -fx.marginLeft) {
@@ -3823,7 +3827,7 @@ function findUp() {
     }
     // if (fx.selectedRegions.length) {
     if (searchText.value == "" && fx.selectedRegions.length) {
-        searchText.value = getSelectedLines(fx, false, true).lines[0]
+        searchText.value = escapeRegExp(getSelectedLines(fx, false, true).lines[0])
         saveSearchHistory()
         return
     }
