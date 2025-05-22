@@ -1,5 +1,16 @@
 #!/usr/bin/env -S go run ../linescript4.go ../stringmath.go 
 
+30 loop i
+    # if i is 16
+    #     goDown cool
+    # end
+    if i is 16: goDown cool
+    say i
+    say "really?"
+end
+#cool
+say "whaa"
+say "this on?"
 
 "whatever" as ook
 say ook
@@ -103,15 +114,6 @@ say apple
 exit
 
 
-30 loop i
-    if i is 16
-        goDown cool
-    end
-    # if i is 16: goDown cool
-    say i
-end #cool
-
-say "whaa"
 
 
 

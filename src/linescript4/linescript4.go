@@ -2068,6 +2068,10 @@ func initBuiltins() {
 			}
 			newIndent := getIndent(state, 0)
 			count := (len(indent) - len(newIndent)) / 4
+			if state.OneLiner {
+				count--
+				state.DoEndAfterLastCall = false // is this needed?
+			}
 			state.EndStack = state.EndStack[:len(state.EndStack)-count]
 			return state
 		},
