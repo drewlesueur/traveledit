@@ -1,5 +1,18 @@
 #!/usr/bin/env -S go run ../linescript4.go ../stringmath.go 
 
+
+"whatever" as ook
+say ook
+exit
+
+"lol"
+debugVals
+
+[100 200 300 400 500]
+filter: 
+say
+exit
+
 let loopCount 1000000
 # let .loopCount 10
 let theStart now

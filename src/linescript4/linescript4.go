@@ -4546,7 +4546,7 @@ func setLoopVars(state *State, indexVar, itemVar string, theIndex, value any)  {
 }
 
 func processLoop(state *State, process func(*State, any, any), onEnd func(state *State)) *State {
-	var theIndex any = "" // 1 based so we start less than 1
+	var theIndex any = nil
     indexVar, itemVar := getLoopVars(state)
 
 	iterator := makeIterator(popT(state.Vals))
