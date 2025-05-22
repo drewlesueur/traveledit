@@ -1,14 +1,47 @@
 #!/usr/bin/env -S go run ../linescript4.go ../stringmath.go 
 
+let loopCount 1000000
+# let .loopCount 10
+let theStart now
+let val 0
+let i 0
+loopCount loop i
+    i - 1
+    - 0.1
+    + val
+    as val
+end
+let theEnd now
+say "+it took " (- theEnd theStart) " millis"
+say "+loops: " loopCount
+say "and val is " val
+
+say "---"
 #!/usr/local/bin/linescript4
 
 var bar "bean"
 say {
     name "Drew"
-    age "foo" cc bar
+    age "foo" ++ bar
+    wow .ok
     other "thing"
 }
 
+
+100 loop i
+
+end
+
+[100 200 300 400 500]
+each v
+    drop go
+        sleepMs 200
+        say v
+    end
+end
+
+sleepMs 1000
+exit
 
 
 

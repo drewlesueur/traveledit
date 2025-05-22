@@ -317,35 +317,37 @@ func (state *State) Wait() {
 	<-state.DoneCh
 }
 
-func MakeStateRaw(fileName, code string) *State {
-	return &State{
-		FileName:  fileName,
-		I:         0,
-		Code:      code,
-		Mode:      "normal",
-		ModeStack: nil,
+// func MakeStateRaw(fileName, code string) *State {
+// 	return &State{
+// 		FileName:  fileName,
+// 		I:         0,
+// 		Code:      code,
+// 		Mode:      "normal",
+// 		ModeStack: nil,
+// 
+// 		// Preinitializing this makes eval in a loop slower if it doesn't use these
+// 		// though if you eval in a loop with a static string, you should be able to optimize
+// 
+// 		// Vars:               NewRecord(),
+// 		// Vals:               &[]any{},
+// 		Vars: nil,
+// 		Vals: nil,
+// 		ValsStack:          nil,
+// 		EndStack:           nil,
+// 		// Vars:               map[string]any{},
+// 		CurrFuncTokens:     nil,
+// 		FuncTokenStack:     nil,
+// 		FuncTokenSpots:     nil,
+// 		FuncTokenSpotStack: nil,
+// 
+// 		NewlineSpot: -1,
+// 
+// 		DebugTokens: false,
+// 		Waiters:     nil,
+// 	}
+// }
 
-		// Preinitializing this makes eval in a loop slower if it doesn't use these
-		// though if you eval in a loop with a static string, you should be able to optimize
 
-		// Vars:               NewRecord(),
-		// Vals:               &[]any{},
-		Vars: nil,
-		Vals: nil,
-		ValsStack:          nil,
-		EndStack:           nil,
-		// Vars:               map[string]any{},
-		CurrFuncTokens:     nil,
-		FuncTokenStack:     nil,
-		FuncTokenSpots:     nil,
-		FuncTokenSpotStack: nil,
-
-		NewlineSpot: -1,
-
-		DebugTokens: false,
-		Waiters:     nil,
-	}
-}
 func MakeState(fileName, code string) *State {
 	return &State{
 		FileName:  fileName,
@@ -633,7 +635,6 @@ evalLoop:
 	    		    topState = state.LexicalParent
 	    		}
 
-	    		// shallowCopy
 				topCopy := MakeState(topState.FileName, topState.Code)
 				topCopy.Machine = topState.Machine
 				topCopy.ICache = topState.ICache
@@ -2947,6 +2948,7 @@ func makeFuncToken(token *Func) func(*State) *State {
 		
 		// state.CurrFuncTokens = nil
 		// state.FuncTokenSpots = nil
+		// TODO: should we shallow copy it?
 		newState := MakeState(token.FileName, token.Code)
 		// return state
 		newState.Machine = state.Machine
@@ -4548,27 +4550,56 @@ func processLoop(state *State, process func(*State, any, any), onEnd func(state 
     indexVar, itemVar := getLoopVars(state)
 
 	iterator := makeIterator(popT(state.Vals))
-	setLoopVarsInit(state, indexVar, itemVar, theIndex, nil)
+	// setLoopVarsInit(state, indexVar, itemVar, theIndex, nil)
 	var spot = state.I
 	var endEach func(state *State) *State
 	var value any
 	var ok bool
-	endEach = func(state *State) *State {
+ 	endEach = func(state *State) *State {
         if theIndex != nil && process != nil {
+		    // process(&stateCopy, theIndex, value)
 		    process(state, theIndex, value)
         }
 		theIndex, value, ok = iterator.Next()
 		if !ok {
 			state.OneLiner = false
+			
 			if onEnd != nil {
 			    onEnd(state)
 			}
 			return state
 		}
-		setLoopVars(state, indexVar, itemVar, theIndex, value)
-		state.I = spot
-		state.EndStack = append(state.EndStack, endEach)
-		return state
+		// setLoopVars(state, indexVar, itemVar, theIndex, value)
+		// state.I = spot
+		// state.EndStack = append(state.EndStack, endEach)
+		// return state
+        
+        stateCopy := *state
+        stateCopy.Vars = NewRecord()
+        stateCopy.LexicalParent = state
+        stateCopy.CallingParent = state
+		setLoopVars(&stateCopy, indexVar, itemVar, theIndex, value)
+		stateCopy.I = spot
+		stateCopy.EndStack = append(stateCopy.EndStack, endEach)
+		return &stateCopy
+		
+		
+		// newState := MakeState(state.FileName, state.Code)
+		// newState.Machine = state.Machine
+		// newState.ICache = state.ICache
+		// newState.I = state.I
+		// newState.Vals = state.Vals
+		// newState.Vars = NewRecord()
+		// newState.CallingParent = state
+		// newState.LexicalParent = state.LexicalParent
+		// newState.OneLiner = state.OneLiner
+		// newState.Out = state.Out
+		// setLoopVars(newState, indexVar, itemVar, theIndex, value)
+		// newState.I = spot
+		// newState.EndStack = append(newState.EndStack, endEach)
+		// return newState
+		
+		
 	}
 	state.EndStack = append(state.EndStack, endEach)
 	var i int
