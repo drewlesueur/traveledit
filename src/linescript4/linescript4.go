@@ -2139,7 +2139,6 @@ func initBuiltins() {
 				} else {
 					if indexVar != "" {
 						state.Vars.Set(indexVar, theIndex)
-						// state.Vars.Set(indexVar.String, theIndex)
 					} else {
 						pushT(state.Vals, theIndex)
 					}
