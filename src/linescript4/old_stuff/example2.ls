@@ -1,5 +1,46 @@
 #!/usr/bin/env -S go run ../linescript4.go ../stringmath.go 
 
+[100 200 300 400 500]
+each v
+    drop go v
+        sleepMs 200
+        say v
+    end
+end
+
+
+
+sleepMs 1000
+exit
+
+# var name .Drew
+# if true and false
+#     var name .Ted
+#     say name
+# else
+#     var name .Tod
+#     say name
+#     say "yea that's tod"
+# end
+# say name
+
+exit
+
+
+20 loop i
+    say i
+    if i is 14
+        goDown doneLoop
+    end
+end
+#doneLoop
+say i
+exit
+
+
+
+
+
 30 loop i
     # if i is 16
     #     goDown cool
@@ -56,16 +97,6 @@ say {
 
 end
 
-[100 200 300 400 500]
-each v
-    drop go
-        sleepMs 200
-        say v
-    end
-end
-
-sleepMs 1000
-exit
 
 
 

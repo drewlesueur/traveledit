@@ -1521,6 +1521,10 @@ func initBuiltins() {
 			gatherNames("each", state)
 			return state
 		},
+		"go": func(state *State) *State {
+			gatherNames("go", state)
+			return state
+		},
 		"loop": func(state *State) *State {
 			gatherNames("loop", state)
 			return state
@@ -1644,16 +1648,17 @@ func initBuiltins() {
 			return state
 		},
 		"else": func(state *State) *State {
+			// state.I = findMatchingBefore(state, []string{"end"})
+			// return state
+			
 			endFunc := state.EndStack[len(state.EndStack)-1]
 			state.EndStack = state.EndStack[:len(state.EndStack)-1]
 			// don't need to call it cuz it's a noop
 			_ = endFunc
-
-			// fmt.Printf("wanting to find: %q\n", indent + "end")
+            
 			r := findMatchingAfter(state, 0, []string{"end"})
 			debug("#orange jumping to end")
 			state.I = r.I
-			// debugStateI(state, state.I)
 			return state
 		},
 		"end": doEnd,
@@ -2072,7 +2077,10 @@ func initBuiltins() {
 				count--
 				state.DoEndAfterLastCall = false // is this needed?
 			}
+			
+			
 			state.EndStack = state.EndStack[:len(state.EndStack)-count]
+			
 			return state
 		},
 		"forever": func(state *State) *State {
@@ -2281,6 +2289,7 @@ func initBuiltins() {
 			cond := popT(state.Vals)
 			if toBool(cond).(bool) == true {
 				debug("#white add end stack true if")
+				
 				state.EndStack = append(state.EndStack, endIf)
 			} else {
 				// fmt.Printf("wanting to find: %q\n", indent + "end")
@@ -3956,6 +3965,7 @@ func makeBuiltin_4_1(f func(any, any, any, any) any) func(state *State) *State {
 func endIf(state *State) *State {
 	debug("#darkkhaki if End")
 	state.OneLiner = false
+	
 	return state
 }
 
@@ -4573,19 +4583,19 @@ func processLoop(state *State, process func(*State, any, any), onEnd func(state 
 			}
 			return state
 		}
-		// setLoopVars(state, indexVar, itemVar, theIndex, value)
-		// state.I = spot
-		// state.EndStack = append(state.EndStack, endEach)
-		// return state
+		setLoopVars(state, indexVar, itemVar, theIndex, value)
+		state.I = spot
+		state.EndStack = append(state.EndStack, endEach)
+		return state
         
-        stateCopy := *state
-        stateCopy.Vars = NewRecord()
-        stateCopy.LexicalParent = state
-        stateCopy.CallingParent = state
-		setLoopVars(&stateCopy, indexVar, itemVar, theIndex, value)
-		stateCopy.I = spot
-		stateCopy.EndStack = append(stateCopy.EndStack, endEach)
-		return &stateCopy
+        // stateCopy := *state
+        // stateCopy.Vars = NewRecord()
+        // stateCopy.LexicalParent = state
+        // stateCopy.CallingParent = state
+		// setLoopVars(&stateCopy, indexVar, itemVar, theIndex, value)
+		// stateCopy.I = spot
+		// stateCopy.EndStack = append(stateCopy.EndStack, endEach)
+		// return &stateCopy
 		
 		
 		// newState := MakeState(state.FileName, state.Code)
