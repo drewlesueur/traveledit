@@ -20,7 +20,8 @@ import (
     "path/filepath"
     "sync"
     "crypto/subtle"
-    "url"
+    "net/url"
+    _ "embed"
     "encoding/base64"
 )
 
@@ -110,17 +111,16 @@ func BasicAuth(handler http.Handler) http.HandlerFunc {
 		}
 
 		// if r.URL.Path == "/" {
-		if !strings.Contains(r.URL.Path, "tinyproxyconfig") {
+		if !strings.Contains(r.URL.Path, "tpconfig") {
 			handler.ServeHTTP(w, r)
 			return
 		}
 
-        proxyPath := ""
 		// log.Printf("url hit: %s by %s (%s)", r.URL.Path, r.RemoteAddr, r.Header.Get("X-Forwarded-For"))
 		//rUser, rPass, ok := r.BasicAuth()
 		rUser, rPass, ok := PretendBasicAuth(r)
 		if !ok || subtle.ConstantTimeCompare([]byte(rUser), []byte(user)) != 1 || subtle.ConstantTimeCompare([]byte(rPass), []byte(pass)) != 1 {
-			http.Redirect(w, r, proxyPath+"/login", 302)
+			http.Redirect(w, r, "tplogin", 302)
 			return
 			// below here is basic auth stuff
 			log.Printf("unauthorized: %s", r.URL.Path)
@@ -192,18 +192,16 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
     }
 }
 
-
-
-
-
-
 // tcp tunnel over http
 var httpsAddr = ":443"
 func main() {
 	reloader := &CertificateReloader{}
     mux := http.NewServeMux()
-    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        if strings.Contains(r.URL.Path, "tinyproxyconfig") {
+    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { if strings.Contains(r.URL.Path, "tpconfig") {
+            handleConfig(w, r)
+            return
+        }
+        if strings.Contains(r.URL.Path, "tplogin") {
             handleConfig(w, r)
             return
         }
@@ -214,7 +212,7 @@ func main() {
     	TLSConfig: &tls.Config{
     		GetCertificate: reloader.GetCertificate,
     	},
-    	Handler: mux,
+    	Handler: BasicAuth(mux),
     }
     fmt.Println("listening...")
     if err := server.ListenAndServeTLS("", ""); err != nil {

@@ -11,7 +11,7 @@ var rs makeReadSplitter r "__"
 forever
     readMessage rs
     
-    local message it
+    var message it
     # if message is null: goDown .doneRead
     if message is null
        goDown doneRead
@@ -24,48 +24,47 @@ forever
 end #doneRead
 exit
 
-def makeReadSplitter .reader .delimeter
-    local .readChunkSize 64
-    # local readChunkSize 2
+def makeReadSplitter reader delimeter
+    var readChunkSize 64
     if readChunkSize < len delimeter
         say "error chunk size < delimeter"
         exit
     end
     {
-        .reader reader
-        .delimeter delimeter
-        .readChunkSize readChunkSize
-        .messages []
-        .leftOver ""
+        reader reader
+        delimeter delimeter
+        readChunkSize readChunkSize
+        messages []
+        leftOver ""
     }
 end
 
 # TODO: add timeout
-def readMessage .readSplitter
+def readMessage readSplitter
     useVars readSplitter
     forever
         if len messages, > 0
             return shift messages
-            return 
+            return
         end
-        local chunk read reader readChunkSize
+        var chunk read reader readChunkSize
         if chunk len, is 0
             if len leftOver, > 0
                 leftOver
-                .leftOver = ""
+                let leftOver ""
                 return
             end
             return null
         end
-        local chunk leftOver ++ chunk
-        local parts chunk split delimeter
-        local leftOver parts pop
+        var chunk leftOver ++ chunk
+        var parts chunk split delimeter
+        var leftOver parts pop
         parts each: messages push it
     end
 end
 
 
-def .chatGptCall
+def chatGptCall
     %%
         # curl "https://api.openai.com/v1/responses" \
         #   -H "Content-Type: application/json" \
@@ -80,11 +79,11 @@ def .chatGptCall
         for i in {1..10}; do date; done
     end
     execBashStdout
-    as .output
+    as output
     # say output
     forever
         say "reading"
-        .b = read output 64
+        let b read output 64
         say %% we read %b
         sleepMs 250
         # TODO: fix oneline if
@@ -96,10 +95,7 @@ def .chatGptCall
 end
 # "input": "tell me a 5-10 word story",
 
-
-
-
-def .agentLoop
+def agentLoop
     chatGptCall
 end
 
