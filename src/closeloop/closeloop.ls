@@ -5,24 +5,32 @@
 # say
 # exit
 
+# testing reader
+# var r toReader %% HmmHello__how are you?__Is this on?
+# var rs makeReadSplitter r "__"
+# forever
+#     say "reading again..."
+#     readMessage rs
+# 
+#     var message it
+#     # if message is null: goDown .doneRead
+#     say "message is" toJson message
+# 
+#     if message is ""
+#        say "should be going down"
+#        goDown doneRead
+#     end
+#     # say "message is" message
+# 
+#     #endOfLoop
+#     say "..."
+#     sleepMs 1000
+# end
+# #doneRead
+# say "did we go down?"
+# say "I think so"
 
-var r toReader %% HmmHello__how are you?__Is this on?
-var rs makeReadSplitter r "__"
-forever
-    readMessage rs
-    
-    var message it
-    # if message is null: goDown .doneRead
-    if message is null
-       goDown doneRead
-    end
-    say "message is" message
-    
-    #endOfLoop
-    say "..."
-    sleepMs 1000
-end #doneRead
-exit
+
 
 def makeReadSplitter reader delimeter
     var readChunkSize 64
@@ -45,7 +53,6 @@ def readMessage readSplitter
     forever
         if len messages, > 0
             return shift messages
-            return
         end
         var chunk read reader readChunkSize
         if chunk len, is 0
@@ -54,7 +61,7 @@ def readMessage readSplitter
                 let leftOver ""
                 return
             end
-            return null
+            return ""
         end
         var chunk leftOver ++ chunk
         var parts chunk split delimeter
@@ -76,27 +83,29 @@ def chatGptCall
         #   }'
         # while true; do date; sleep 1; done
         # for i in {1..10}; do date; sleep 1; done
-        for i in {1..10}; do date; done
+        for i in {1..3}; do date; echo ""; sleep 1; done
     end
     execBashStdout
-    as output
-    # say output
+    makeReadSplitter it newline ++ newline
+    as rs
     forever
         say "reading"
-        let b read output 64
-        say %% we read %b
-        sleepMs 250
-        # TODO: fix oneline if
-        if b is ""
-            say "we got nothing!"
-            goDown .doneRead
+        readMessage rs
+        as theMessage
+        if theMessage is ""
+            goDown doneRead
         end
+        say "message is" theMessage
     end #doneRead
 end
 # "input": "tell me a 5-10 word story",
 
+say "agent loopie"
 def agentLoop
     chatGptCall
+    
+    say %% sleeping
+    sleepMs 2000
 end
 
 agentLoop
