@@ -1,5 +1,12 @@
 #!/usr/bin/env -S go run ../linescript4.go ../stringmath.go 
 
+
+try
+    local a 200
+catch
+
+end
+
 let loopCount 1000000
 # let .loopCount 10
 let theStart now

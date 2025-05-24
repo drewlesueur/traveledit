@@ -77,7 +77,6 @@ func PretendBasicAuth(r *http.Request) (string, string, bool) {
 		return "", "", false
 	}
 	return parts[0], parts[1], true
-
 }
 
 func BasicAuth(handler http.Handler) http.HandlerFunc {
