@@ -1517,6 +1517,14 @@ func initBuiltins() {
 			gatherNames("def", state)
 			return state
 		},
+		"func": func(state *State) *State {
+			gatherNames("func", state)
+			return state
+		},
+		"getVar": func(state *State) *State {
+			gatherNames("getVar", state)
+			return state
+		},
 		"each": func(state *State) *State {
 			gatherNames("each", state)
 			return state
@@ -2475,6 +2483,12 @@ func initBuiltins() {
 			return state
 
 		},
+		"getVar": func(state *State) *State {
+			varName := toStringInternal(popT(state.Vals))
+			v := getVar(state, varName)
+			pushT(state.Vals, v)
+			return state
+		},
 		"bashArg": func(state *State) *State {
 			arg := toStringInternal(popT(state.Vals))
 			modified := "'" + strings.Replace(arg, "'", "'\\''", -1) + "'"
@@ -2895,7 +2909,10 @@ func initBuiltins() {
 				fWrapper := spliceT(state.Vals, state.FuncTokenSpots[len(state.FuncTokenSpots)-1], 1, nil)
 				f = (*fWrapper)[0].(func(state *State) *State)
 			}
-			state.CurrFuncTokens[len(state.CurrFuncTokens)-1] = f
+			// state.CurrFuncTokens[len(state.CurrFuncTokens)-1] = f
+			state.CurrFuncTokens = append(state.CurrFuncTokens, f)
+			state.FuncTokenSpots = append(state.FuncTokenSpots, len(*state.Vals))
+			
 			newState := callFunc(state)
 			return newState
 		},
